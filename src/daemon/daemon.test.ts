@@ -1,0 +1,96 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import net from 'node:net';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { startDaemon } from './index.js';
+import { DEFAULT_CONFIG } from '../lib/config.js';
+
+function tmpSocket(): string {
+  return path.join(os.tmpdir(), `dm-test-${Math.random().toString(36).slice(2)}.sock`);
+}
+
+async function withDaemon(fn: (dispose: () => Promise<void>) => Promise<void>) {
+  const dispose = await startDaemon();
+  try {
+    await fn(dispose);
+  } finally {
+    await dispose();
+  }
+}
+
+function send(socketPath: string, msg: object): Promise<object> {
+  return new Promise((resolve, reject) => {
+    const sock = net.createConnection(socketPath);
+    let buf = '';
+    sock.on('data', (chunk) => { buf += chunk.toString(); });
+    sock.on('error', reject);
+    sock.on('connect', () => sock.write(JSON.stringify(msg) + '\n'));
+    sock.on('end', () => {
+      try { resolve(JSON.parse(buf.trim())); } catch { reject(new Error(`bad JSON: ${buf}`)); }
+    });
+    // close after first response line
+    const orig = sock.emit.bind(sock);
+    sock.on('data', () => {
+      if (buf.includes('\n')) sock.end();
+    });
+  });
+}
+
+async function writeConfig(p: string) {
+  await fs.mkdir(path.dirname(p), { recursive: true });
+  await fs.writeFile(p, JSON.stringify(DEFAULT_CONFIG), 'utf8');
+}
+
+describe('daemon', () => {
+  let sockPath: string;
+  let cfgPath: string;
+
+  beforeEach(async () => {
+    sockPath = tmpSocket();
+    cfgPath = path.join(os.tmpdir(), `dm-cfg-${Math.random().toString(36).slice(2)}.json`);
+    process.env['DARK_MATRIX_SOCKET'] = sockPath;
+    process.env['DARK_MATRIX_CONFIG_PATH'] = cfgPath;
+    await writeConfig(cfgPath);
+  });
+
+  afterEach(async () => {
+    delete process.env['DARK_MATRIX_SOCKET'];
+    delete process.env['DARK_MATRIX_CONFIG_PATH'];
+    try { await fs.unlink(cfgPath); } catch { /* ok */ }
+  });
+
+  it('server listens — socket file exists after startDaemon', async () => {
+    await withDaemon(async () => {
+      const stat = await fs.stat(sockPath);
+      expect(stat.isSocket()).toBe(true);
+    });
+  });
+
+  it('ping returns { ok: true, pong: true }', async () => {
+    await withDaemon(async () => {
+      const res = await send(sockPath, { cmd: 'ping' });
+      expect(res).toEqual({ ok: true, pong: true });
+    });
+  });
+
+  it('brightness returns { ok: true, value: 0 }', async () => {
+    await withDaemon(async () => {
+      const res = await send(sockPath, { cmd: 'brightness' });
+      expect(res).toEqual({ ok: true, value: 0 });
+    });
+  });
+
+  it('socket file is chmod 0600 after listen', async () => {
+    await withDaemon(async () => {
+      const stat = await fs.stat(sockPath);
+      expect(stat.mode & 0o777).toBe(0o600);
+    });
+  });
+
+  it('disposer closes server and unlinks socket', async () => {
+    const dispose = await startDaemon();
+    await dispose();
+    await expect(fs.stat(sockPath)).rejects.toThrow();
+  });
+});
