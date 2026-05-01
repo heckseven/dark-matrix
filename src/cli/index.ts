@@ -180,7 +180,7 @@ async function cmdShowSplit(args: string[]) {
   process.once('SIGINT', () => { stopLeft(); stopRight(); process.exit(0); });
 }
 
-const ASSET_DIR = path.resolve(__dirname, '../../assets');
+const ASSET_DIR = path.resolve(__dirname, '../../images');
 const LEFT_DEV = '/dev/serial/by-path/pci-0000:c5:00.3-usb-0:3.3:1.0';
 const RIGHT_DEV = '/dev/serial/by-path/pci-0000:c5:00.3-usb-0:4.2:1.0';
 
