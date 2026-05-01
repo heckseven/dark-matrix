@@ -76,6 +76,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   }
 
   const hotPlugInterval = setInterval(() => { void pollModules(); }, 500);
+  const gcInterval = setInterval(() => { dispatcher.gc(); }, 60_000);
 
   async function setBrightness(pct: number) {
     for (const dev of getModulePaths()) {
@@ -98,19 +99,45 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   }
 
   function runOnModules(anim: ReturnType<typeof createScrollAnimation> | null, singleAnim?: () => ReturnType<typeof createGolAnimation>) {
-    const { left, right } = currentConfig.modules;
-    const stops: Array<() => void> = [];
     if (anim) {
-      if (left) stops.push(runAnimation(scrollHalf(anim, 'left'), { transport, devicePath: left, mode: 'bw' }));
-      if (right) stops.push(runAnimation(scrollHalf(anim, 'right'), { transport, devicePath: right, mode: 'bw' }));
-      stopCurrentAnim = () => { stops.forEach(f => f()); anim.stop(); };
-    } else if (singleAnim) {
+      stopCurrentAnim = runScrollOnModules(anim);
+      return;
+    }
+    if (singleAnim) {
+      const stops: Array<() => void> = [];
       for (const dev of getModulePaths()) {
-        const a = singleAnim();
-        stops.push(runAnimation(a, { transport, devicePath: dev, mode: 'bw' }));
+        stops.push(runAnimation(singleAnim(), { transport, devicePath: dev, mode: 'bw' }));
       }
       stopCurrentAnim = () => stops.forEach(f => f());
     }
+  }
+
+  function runScrollOnModules(anim: ReturnType<typeof createScrollAnimation>): () => void {
+    const { left, right } = currentConfig.modules;
+    const fps = 20;
+    const frameMs = 1000 / fps;
+    let stopped = false;
+    const iter = anim[Symbol.asyncIterator]();
+
+    const loop = async () => {
+      const { packBW } = await import('../lib/frame.js');
+      let nextAt = Date.now();
+      while (!stopped) {
+        const result = await iter.next();
+        if (result.done || stopped) break;
+        const [leftFrame, rightFrame] = result.value;
+        try { if (left) await transport.frameBw(packBW(leftFrame), left); } catch { /* non-fatal */ }
+        try { if (right) await transport.frameBw(packBW(rightFrame), right); } catch { /* non-fatal */ }
+        nextAt += frameMs;
+        const wait = nextAt - Date.now();
+        if (wait > 0) await new Promise<void>(r => setTimeout(r, wait));
+      }
+      if (left) await transport.release(left).catch(() => {});
+      if (right) await transport.release(right).catch(() => {});
+    };
+
+    void loop();
+    return () => { stopped = true; anim.stop(); };
   }
 
   function startIdleAnimation() {
@@ -168,7 +195,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   }, { intervalMs: 2000 }));
 
   // Brightness loop
-  const disposeBrightness = startBrightnessLoop(currentConfig, async (pct) => {
+  let disposeBrightness = startBrightnessLoop(currentConfig, async (pct) => {
     currentBrightness = pct;
     await setBrightness(pct);
   });
@@ -242,6 +269,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
   const disposeWatch = watchConfig((cfg) => {
     currentConfig = cfg;
+    disposeBrightness();
+    disposeBrightness = startBrightnessLoop(currentConfig, async (pct) => {
+      currentBrightness = pct;
+      await setBrightness(pct);
+    });
   });
 
   // Startup animation
@@ -264,6 +296,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     stopAnim();
     if (idleTimer) clearTimeout(idleTimer);
     clearInterval(hotPlugInterval);
+    clearInterval(gcInterval);
     disposeDispatcher();
     disposeWatch();
     disposeBrightness();
@@ -283,24 +316,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     process.off('SIGTERM', sigterm);
     process.off('uncaughtException', uncaught);
     await cleanup();
-  };
-}
-
-// Wrap a ScrollAnimation to yield only the left or right Frame half.
-function scrollHalf(anim: ReturnType<typeof createScrollAnimation>, side: 'left' | 'right') {
-  return {
-    [Symbol.asyncIterator]() {
-      const iter = anim[Symbol.asyncIterator]();
-      return {
-        async next() {
-          const r = await iter.next();
-          if (r.done) return { value: undefined as never, done: true as const };
-          const frame = side === 'left' ? r.value[0] : r.value[1];
-          return { value: frame, done: false as const };
-        },
-      };
-    },
-    stop() { anim.stop(); },
   };
 }
 
