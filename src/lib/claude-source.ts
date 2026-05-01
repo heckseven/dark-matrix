@@ -19,7 +19,15 @@ export type ClaudeActivityEvent =
  * - valid JSON but missing tool_name or session_id → null
  * - invalid JSON → null
  */
+const MAX_FIELD_LEN = 256;
+
+function safeStr(v: unknown): string | null {
+  return typeof v === 'string' && v.length <= MAX_FIELD_LEN ? v : null;
+}
+
 export function parseClaudeHook(raw: string): ClaudeActivityEvent | null {
+  if (raw.length > 65536) return null;
+
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -30,10 +38,10 @@ export function parseClaudeHook(raw: string): ClaudeActivityEvent | null {
   if (typeof parsed !== 'object' || parsed === null) return null;
 
   const obj = parsed as Record<string, unknown>;
-  const tool_name = obj['tool_name'];
-  const session_id = obj['session_id'];
+  const tool_name = safeStr(obj['tool_name']);
+  const session_id = safeStr(obj['session_id']);
 
-  if (typeof tool_name !== 'string' || typeof session_id !== 'string') return null;
+  if (!tool_name || !session_id) return null;
 
   const tool_input =
     typeof obj['tool_input'] === 'object' && obj['tool_input'] !== null
@@ -48,8 +56,8 @@ export function parseClaudeHook(raw: string): ClaudeActivityEvent | null {
   const event: ClaudeToolEvent = { tool_name, tool_input, tool_response, session_id };
 
   if (tool_name === 'Agent') {
-    const subagent_type = tool_input['subagent_type'];
-    if (typeof subagent_type === 'string') {
+    const subagent_type = safeStr(tool_input['subagent_type']);
+    if (subagent_type) {
       return { type: 'agent_spawn', subagent_type, session_id };
     }
     return { type: 'unknown', raw: event };

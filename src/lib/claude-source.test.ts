@@ -55,6 +55,20 @@ describe('parseClaudeHook', () => {
     const raw = JSON.stringify({ tool_name: 'Bash', tool_input: {}, tool_response: {} });
     expect(parseClaudeHook(raw)).toBeNull();
   });
+
+  it('returns null for oversized payload (> 65536 bytes)', () => {
+    expect(parseClaudeHook('x'.repeat(65537))).toBeNull();
+  });
+
+  it('returns null for tool_name exceeding 256 chars', () => {
+    const raw = JSON.stringify({
+      tool_name: 'A'.repeat(257),
+      session_id: 'abc',
+      tool_input: {},
+      tool_response: {},
+    });
+    expect(parseClaudeHook(raw)).toBeNull();
+  });
 });
 
 describe('isClaudeActive', () => {
