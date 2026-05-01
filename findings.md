@@ -382,8 +382,19 @@ not-found
 
 No kernel input device exposes the physical mic mute or camera shutter switches. The switches are likely read by the EC firmware and would require either: (a) `ectool switches` via `/dev/cros_ec` (root-only), or (b) a kernel driver that does not yet exist for this hardware — the Framework 16 privacy switches are not yet surfaced as `EV_SW` input events under kernel 6.17.0-20-generic.
 
+### Phase 2 pre-step: COMPLETE
+
+- udev rule installed: `KERNEL=="cros_ec", OWNER="heckseven", MODE="0660"` → `/dev/cros_ec` is now user-accessible
+- ectool built from `~/projects/EmbeddedController` (`make BOARD=host utils`) → binary at `build/host/util/ectool`
+- EC board: `lotus_v3.4.113371` (Framework 16)
+- Privacy switch GPIOs confirmed via `ectool gpioget`:
+  - `CAM_SW` — camera privacy switch (0=covered, 1=open)
+  - `MIC_SW` — microphone privacy switch (0=muted, 1=active)
+- `ectool switches` does NOT include privacy switches — must use `gpioget CAM_SW` / `gpioget MIC_SW`
+- ectool binary path: `~/projects/EmbeddedController/build/host/util/ectool`
+
 ### Caveats
-- `ectool` is not installed. If installed, `ectool switches` would poll EC switch state directly via `/dev/cros_ec`, but that node is root-only (no ACL, no udev rule granting user access).
+- `ectool` is not installed system-wide — callers must use full path or add to PATH.
 - `dmesg` is blocked for unprivileged users on this system (`read kernel buffer failed: Operation not permitted`), so kernel boot messages could not be inspected for EC switch registration.
 - The Framework 16 keyboard module (USB 32AC:0012) does expose a "Wireless Radio Control" interface (event8, rfkill) but this maps to the airplane-mode key, not the physical privacy switches on the chassis.
 - A future `framework_laptop` platform driver or EC firmware update adding HID usage codes could expose these as `SW_MUTE_DEVICE`/`SW_CAMERA_LENS_COVER` events, but that is not the current state.
@@ -487,5 +498,5 @@ defaulting to 48000 in the daemon config.
 | Item | Action |
 |---|---|
 | Left/right by-path assignment | Visual check: send pattern to each path, note which side lights up |
-| ectool + udev rule for /dev/cros_ec | Pre-Phase-2 setup step |
+| ectool + udev rule for /dev/cros_ec | DONE — udev rule installed, ectool built from Framework/EmbeddedController (BOARD=host utils) |
 | Confirm animation fps empirically | First animation in Phase 3 will validate 30fps ceiling |
