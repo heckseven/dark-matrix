@@ -5,6 +5,9 @@
   "engines": {
     "node": ">=20"
   },
+  "bin": {
+    "dark-matrix": "dist/cli/index.js"
+  },
   "scripts": {
     "dev": "node --watch dist/daemon/index.js",
     "build": "tsc",

@@ -51,7 +51,7 @@ describe('startBrightnessLoop', () => {
 
     await vi.advanceTimersByTimeAsync(c.daemon.poll_interval_ms);
     expect(onBrightness).toHaveBeenCalledTimes(1);
-    const pct = onBrightness.mock.calls[0][0] as number;
+    const pct = onBrightness.mock.calls[0]![0] as number;
     expect(pct).toBeGreaterThanOrEqual(0);
     expect(pct).toBeLessThanOrEqual(100);
 
