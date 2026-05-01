@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import net from 'node:net';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -8,6 +9,28 @@ import { SerialTransport } from '../lib/transport.js';
 import { runAnimation } from '../lib/animation.js';
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
+
+function daemonSocketPath(): string {
+  return process.env['DARK_MATRIX_SOCKET']
+    ?? `/run/user/${process.getuid!()}/dark-matrix.sock`;
+}
+
+function sendToDaemon(cmd: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    const sock = net.createConnection(daemonSocketPath());
+    let buf = '';
+    sock.on('connect', () => sock.write(JSON.stringify(cmd) + '\n'));
+    sock.on('data', (chunk) => {
+      buf += chunk.toString();
+      if (buf.includes('\n')) sock.end();
+    });
+    sock.on('end', () => {
+      try { resolve(JSON.parse(buf.trim()) as Record<string, unknown>); }
+      catch { reject(new Error(`daemon response parse error: ${buf}`)); }
+    });
+    sock.on('error', (err) => reject(new Error(`Cannot reach daemon: ${(err as NodeJS.ErrnoException).message}`)));
+  });
+}
 
 function staticAnim(frame: Frame) {
   let stopped = false;
@@ -288,6 +311,26 @@ switch (cmd) {
   case 'display':    await cmdDisplay(args); break;
   case 'image':      await cmdImage(args); break;
   case 'calibrate':  await cmdCalibrate(); break;
+  case 'ping': {
+    try {
+      const res = await sendToDaemon({ cmd: 'ping' });
+      process.stdout.write(res['pong'] ? 'pong\n' : `unexpected: ${JSON.stringify(res)}\n`);
+    } catch (err) {
+      process.stderr.write(`${(err as Error).message}\n`);
+      process.exit(1);
+    }
+    break;
+  }
+  case 'release': {
+    try {
+      const res = await sendToDaemon({ cmd: 'release' });
+      process.stdout.write(res['ok'] ? 'Ports released.\n' : `Error: ${JSON.stringify(res)}\n`);
+    } catch (err) {
+      process.stderr.write(`${(err as Error).message}\n`);
+      process.exit(1);
+    }
+    break;
+  }
   default:
     process.stderr.write([
       'Usage: dark-matrix <command>',
@@ -297,6 +340,8 @@ switch (cmd) {
       '  display [yeah|runes|0x07|panic]',
       '  image <path> [--preview] [--mode bw|gray]',
       '  calibrate',
+      '  ping',
+      '  release',
     ].join('\n') + '\n');
     if (cmd !== undefined) process.exit(1);
 }

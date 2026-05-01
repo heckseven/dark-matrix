@@ -13,7 +13,10 @@ import { SerialTransport } from '../lib/transport.js';
 import { runAnimation } from '../lib/animation.js';
 import { createStartupAnimation } from '../animations/startup.js';
 import { createScrollAnimation } from '../animations/scroll.js';
+import { createGolAnimation } from '../animations/gol.js';
 import type { DisplayIntent } from '../lib/dispatcher.js';
+
+const SCROLL_MAX_LEN = 120;
 
 export function socketPath(): string {
   return process.env['DARK_MATRIX_SOCKET']
@@ -74,6 +77,22 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     idleTimer = setTimeout(() => startIdleAnimation(), idleMs);
   }
 
+  function runOnModules(anim: ReturnType<typeof createScrollAnimation> | null, singleAnim?: () => ReturnType<typeof createGolAnimation>) {
+    const { left, right } = currentConfig.modules;
+    const stops: Array<() => void> = [];
+    if (anim) {
+      if (left) stops.push(runAnimation(scrollHalf(anim, 'left'), { transport, devicePath: left, mode: 'bw' }));
+      if (right) stops.push(runAnimation(scrollHalf(anim, 'right'), { transport, devicePath: right, mode: 'bw' }));
+      stopCurrentAnim = () => { stops.forEach(f => f()); anim.stop(); };
+    } else if (singleAnim) {
+      for (const dev of getModulePaths()) {
+        const a = singleAnim();
+        stops.push(runAnimation(a, { transport, devicePath: dev, mode: 'bw' }));
+      }
+      stopCurrentAnim = () => stops.forEach(f => f());
+    }
+  }
+
   function startIdleAnimation() {
     stopAnim();
     const idleName = currentConfig.daemon.idle_animation;
@@ -81,50 +100,30 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     if (idleName === 'scroll') {
       const text = currentConfig.startup.scroll_text;
-      const anim = createScrollAnimation({ text, loop: true });
-      const lefts: (() => void)[] = [];
-      const rights: (() => void)[] = [];
-      const { left, right } = currentConfig.modules;
-      if (left) {
-        // Drive left module with left frame of scroll pair
-        const leftAnim = scrollHalf(anim, 'left');
-        lefts.push(runAnimation(leftAnim, { transport, devicePath: left, mode: 'bw' }));
-      }
-      if (right) {
-        const rightAnim = scrollHalf(anim, 'right');
-        rights.push(runAnimation(rightAnim, { transport, devicePath: right, mode: 'bw' }));
-      }
-      stopCurrentAnim = () => { lefts.forEach(f => f()); rights.forEach(f => f()); anim.stop(); };
+      runOnModules(createScrollAnimation({ text, loop: true }));
       return;
     }
 
-    // Default: startup animation on each module
-    for (const dev of getModulePaths()) {
-      const anim = createStartupAnimation({ style: 'wipe' });
-      const stop = runAnimation(anim, { transport, devicePath: dev, mode: 'bw' });
-      const prev = stopCurrentAnim;
-      stopCurrentAnim = () => { stop(); prev?.(); };
-    }
+    // gol-random (default)
+    runOnModules(null, () => createGolAnimation());
   }
 
   function startNotificationAnimation(intent: DisplayIntent) {
     stopAnim();
     if (idleTimer) clearTimeout(idleTimer);
 
-    // Show content as a short scroll across both modules
-    const anim = createScrollAnimation({ text: intent.content, loop: false });
-    const stopsLeft: (() => void)[] = [];
-    const stopsRight: (() => void)[] = [];
-    const { left, right } = currentConfig.modules;
-    if (left) stopsLeft.push(runAnimation(scrollHalf(anim, 'left'), { transport, devicePath: left, mode: 'bw' }));
-    if (right) stopsRight.push(runAnimation(scrollHalf(anim, 'right'), { transport, devicePath: right, mode: 'bw' }));
-    stopCurrentAnim = () => { stopsLeft.forEach(f => f()); stopsRight.forEach(f => f()); anim.stop(); };
+    // Sanitize content: printable ASCII only, max SCROLL_MAX_LEN chars
+    const safe = intent.content
+      .replace(/[^\x20-\x7e]/g, '')
+      .slice(0, SCROLL_MAX_LEN);
+    const text = safe.length > 0 ? safe : '???';
+
+    runOnModules(createScrollAnimation({ text, loop: false }));
 
     // After notification expires, resume idle
-    const remaining = intent.expiresAt - Date.now();
     setTimeout(() => {
       if (!dispatcher.current()) startIdleTimer();
-    }, Math.max(0, remaining));
+    }, Math.max(0, intent.expiresAt - Date.now()));
   }
 
   const disposeDispatcher = dispatcher.onChange((intent) => {
@@ -198,6 +197,14 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               process.kill(process.pid, 'SIGHUP');
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
+            case 'release':
+              stopAnim();
+              transport.close().then(() => {
+                socket.write(JSON.stringify({ ok: true }) + '\n');
+              }).catch(() => {
+                socket.write(JSON.stringify({ ok: true }) + '\n');
+              });
+              break;
             default:
               socket.write(JSON.stringify({ ok: false, error: 'unknown command' }) + '\n');
           }
@@ -217,10 +224,16 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     currentConfig = cfg;
   });
 
-  // Run startup animation on each module
-  for (const dev of getModulePaths()) {
-    const anim = createStartupAnimation({ style: currentConfig.startup.animation === 'none' ? 'wipe' : 'wipe' });
-    runAnimation(anim, { transport, devicePath: dev, mode: 'bw' });
+  // Startup animation
+  if (currentConfig.startup.animation !== 'none') {
+    if (currentConfig.startup.animation === 'gol-random') {
+      runOnModules(null, () => createGolAnimation({ frames: 420, loop: false }));
+    } else if (currentConfig.startup.animation === 'scroll') {
+      const text = currentConfig.startup.scroll_text;
+      runOnModules(createScrollAnimation({ text, loop: false }));
+    } else {
+      runOnModules(null, () => createStartupAnimation({ style: 'wipe' }));
+    }
   }
 
   startIdleTimer();
