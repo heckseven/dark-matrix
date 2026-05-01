@@ -57,6 +57,26 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     return [left, right].filter(Boolean) as string[];
   }
 
+  // Hot-plug: track which devices were last seen as available.
+  const deviceAvailable = new Map<string, boolean>();
+
+  async function pollModules() {
+    for (const dev of getModulePaths()) {
+      let available = false;
+      try { await fs.access(dev); available = true; } catch { /* unavailable */ }
+      const prev = deviceAvailable.get(dev) ?? false;
+      if (available && !prev) {
+        // Device (re)connected — run startup animation on it
+        process.stderr.write(`dark-matrix: module connected: ${dev}\n`);
+        const anim = createStartupAnimation({ style: 'wipe' });
+        runAnimation(anim, { transport, devicePath: dev, mode: 'bw' });
+      }
+      deviceAvailable.set(dev, available);
+    }
+  }
+
+  const hotPlugInterval = setInterval(() => { void pollModules(); }, 500);
+
   async function setBrightness(pct: number) {
     for (const dev of getModulePaths()) {
       try {
@@ -243,6 +263,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   const cleanup = async () => {
     stopAnim();
     if (idleTimer) clearTimeout(idleTimer);
+    clearInterval(hotPlugInterval);
     disposeDispatcher();
     disposeWatch();
     disposeBrightness();
