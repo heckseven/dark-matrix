@@ -1,5 +1,5 @@
-import type { Frame } from '../src/lib/frame.js';
-import type { Animation } from '../src/lib/animation.js';
+import type { Frame } from '../lib/frame.js';
+import type { Animation } from '../lib/animation.js';
 
 export type ImageOptions = {
   loop?: boolean; // default true

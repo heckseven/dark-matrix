@@ -1,11 +1,11 @@
-import type { Frame } from '../src/lib/frame.js';
-import type { Animation } from '../src/lib/animation.js';
-import { createFrame } from '../src/lib/frame.js';
+import type { Frame } from '../lib/frame.js';
+import { createFrame } from '../lib/frame.js';
 
 export type ScrollFrame = [left: Frame, right: Frame];
 
-export interface ScrollAnimation extends Animation {
+export interface ScrollAnimation {
   [Symbol.asyncIterator](): AsyncIterator<ScrollFrame>;
+  stop(): void;
 }
 
 export type ScrollOptions = {
