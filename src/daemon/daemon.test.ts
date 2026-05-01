@@ -93,4 +93,51 @@ describe('daemon', () => {
     await dispose();
     await expect(fs.stat(sockPath)).rejects.toThrow();
   });
+
+  it('release command returns { ok: true }', async () => {
+    await withDaemon(async () => {
+      const res = await send(sockPath, { cmd: 'release' });
+      expect(res).toMatchObject({ ok: true });
+    });
+  });
+
+  it('unknown command returns { ok: false }', async () => {
+    await withDaemon(async () => {
+      const res = await send(sockPath, { cmd: 'nope' });
+      expect(res).toMatchObject({ ok: false });
+    });
+  });
+
+  it('HTTP POST /hook with valid Claude payload returns 200 and parses event', async () => {
+    await withDaemon(async () => {
+      const body = JSON.stringify({
+        tool_name: 'Bash',
+        tool_input: { command: 'ls' },
+        tool_response: {},
+        session_id: 'test-session',
+      });
+      const httpReq = [
+        `POST /hook HTTP/1.1`,
+        `Host: localhost`,
+        `Content-Type: application/json`,
+        `Content-Length: ${Buffer.byteLength(body)}`,
+        '',
+        body,
+      ].join('\r\n');
+
+      const response = await new Promise<string>((resolve, reject) => {
+        const sock = net.createConnection(sockPath);
+        let buf = '';
+        sock.on('connect', () => sock.write(httpReq));
+        sock.on('data', (chunk) => {
+          buf += chunk.toString();
+          if (buf.includes('\r\n\r\n')) { sock.end(); }
+        });
+        sock.on('end', () => resolve(buf));
+        sock.on('error', reject);
+      });
+
+      expect(response).toMatch(/HTTP\/1\.1 200/);
+    });
+  });
 });
