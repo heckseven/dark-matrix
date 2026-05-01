@@ -5,7 +5,9 @@ export type BrightnessConfig = Config['brightness'];
 
 export async function readLux(sensorPath: string): Promise<number> {
   const raw = await readFile(sensorPath, 'utf8');
-  return parseInt(raw.trim(), 10);
+  const v = parseInt(raw.trim(), 10);
+  if (!Number.isInteger(v) || v < 0) throw new RangeError(`Invalid sensor value: "${raw.trim()}"`);
+  return v;
 }
 
 export function computeBrightness(lux: number, cfg: BrightnessConfig): number {

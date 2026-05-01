@@ -20,6 +20,16 @@ describe('readLux', () => {
     mockReadFile.mockResolvedValueOnce('342\n' as never);
     expect(await readLux('/sys/fake')).toBe(342);
   });
+
+  it('throws on NaN sensor value', async () => {
+    mockReadFile.mockResolvedValueOnce('bad\n' as never);
+    await expect(readLux('/sys/fake')).rejects.toThrow(RangeError);
+  });
+
+  it('throws on negative sensor value', async () => {
+    mockReadFile.mockResolvedValueOnce('-1\n' as never);
+    await expect(readLux('/sys/fake')).rejects.toThrow(RangeError);
+  });
 });
 
 describe('computeBrightness', () => {
