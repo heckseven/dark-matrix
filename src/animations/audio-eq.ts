@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import type { Frame } from '../src/lib/frame.js';
-import type { Animation } from '../src/lib/animation.js';
-import { createFrame } from '../src/lib/frame.js';
+import type { Frame } from '../lib/frame.js';
+import type { Animation } from '../lib/animation.js';
+import { createFrame } from '../lib/frame.js';
 
 const require = createRequire(import.meta.url);
 const FFT = require('fft.js') as typeof import('fft.js');

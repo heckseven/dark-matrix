@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createImageAnimation } from './image.js';
-import { createFrame } from '../src/lib/frame.js';
+import { createFrame } from '../lib/frame.js';
 
 function makeFrame(value = 128) {
   const f = createFrame();
