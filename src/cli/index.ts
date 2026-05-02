@@ -342,14 +342,20 @@ switch (cmd) {
     }
     const hold = args.includes('--hold');
     const dual = args.includes('--dual');
-    const gifPath = args.filter(a => !a.startsWith('-')).slice(1).join('') ?? '';
+    const modeIdx = args.indexOf('--mode');
+    const mode = modeIdx !== -1 ? args[modeIdx + 1] : undefined;
+    if (mode !== undefined && mode !== 'bw' && mode !== 'gray') {
+      process.stderr.write('--mode must be bw or gray\n');
+      process.exit(1);
+    }
+    const gifPath = args.filter((a, i) => !a.startsWith('-') && args[i - 1] !== '--mode').slice(1).join('') ?? '';
     if (!gifPath) {
-      process.stderr.write('Usage: dark-matrix animate gif [--hold] [--dual] <path>\n');
+      process.stderr.write('Usage: dark-matrix animate gif [--hold] [--dual] [--mode bw|gray] <path>\n');
       process.exit(1);
     }
     const absPath = path.resolve(gifPath);
     try {
-      const res = await sendToDaemon({ cmd: 'animate', type: 'gif', path: absPath, hold, dual });
+      const res = await sendToDaemon({ cmd: 'animate', type: 'gif', path: absPath, hold, dual, ...(mode ? { mode } : {}) });
       if (!res['ok']) {
         process.stderr.write(`Error: ${res['error'] ?? JSON.stringify(res)}\n`);
         process.exit(1);
@@ -369,7 +375,7 @@ switch (cmd) {
       '  show-split <left> <right> [--mode bw|gray]',
       '  display [yeah|runes|0x07|panic]',
       '  image <path> [--preview] [--mode bw|gray]',
-      '  animate gif [--hold] [--dual] <path>',
+      '  animate gif [--hold] [--dual] [--mode bw|gray] <path>',
       '  calibrate',
       '  ping',
       '  release',
