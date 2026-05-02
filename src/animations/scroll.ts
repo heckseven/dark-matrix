@@ -8,11 +8,16 @@ export interface ScrollAnimation {
   stop(): void;
 }
 
+export type ScrollSize = 'small' | 'medium' | 'large' | 'max';
+export type ScrollStyle = 'normal' | 'bold' | 'outline' | 'thin' | 'tiny';
+
 export type ScrollOptions = {
   text: string;
   fps?: number;
   pixelsPerTick?: number;
   loop?: boolean;
+  size?: ScrollSize;
+  style?: ScrollStyle;
 };
 
 // 5×7 bitmap font. Key = char code, value = 7 rows (one per row, MSB = leftmost pixel, 5 bits).
@@ -210,32 +215,149 @@ const FONT = new Map<number, number[]>([
   [126, [0x00, 0x08, 0x15, 0x02, 0x00, 0x00, 0x00]],
 ]);
 
-const FONT_HEIGHT = 7;
-const FONT_CHAR_WIDTH = 5;
-const CHAR_STEP = 6; // 5px + 1px gap
+// 3×5 tiny font. Key = char code, value = 5 rows (3 bits each, MSB = leftmost).
+const TINY_FONT = new Map<number, number[]>([
+  [32,  [0,0,0,0,0]],   // space
+  [33,  [2,2,2,0,2]],   // !
+  [39,  [2,2,0,0,0]],   // '
+  [40,  [1,2,2,2,1]],   // (
+  [41,  [4,2,2,2,4]],   // )
+  [42,  [0,5,2,5,0]],   // *
+  [43,  [0,2,7,2,0]],   // +
+  [44,  [0,0,0,2,4]],   // ,
+  [45,  [0,0,7,0,0]],   // -
+  [46,  [0,0,0,0,2]],   // .
+  [47,  [1,1,2,4,4]],   // /
+  [48,  [3,5,5,5,6]],   // 0
+  [49,  [2,6,2,2,7]],   // 1
+  [50,  [6,1,2,4,7]],   // 2
+  [51,  [6,1,3,1,6]],   // 3
+  [52,  [5,5,7,1,1]],   // 4
+  [53,  [7,4,6,1,6]],   // 5
+  [54,  [3,4,6,5,2]],   // 6
+  [55,  [7,1,2,2,2]],   // 7
+  [56,  [2,5,2,5,2]],   // 8
+  [57,  [2,5,3,1,6]],   // 9
+  [58,  [0,2,0,2,0]],   // :
+  [59,  [0,2,0,2,4]],   // ;
+  [60,  [1,2,4,2,1]],   // <
+  [61,  [0,7,0,7,0]],   // =
+  [62,  [4,2,1,2,4]],   // >
+  [63,  [6,1,2,0,2]],   // ?
+  [65,  [2,5,7,5,5]],   // A
+  [66,  [6,5,6,5,6]],   // B
+  [67,  [3,4,4,4,3]],   // C
+  [68,  [6,5,5,5,6]],   // D
+  [69,  [7,4,7,4,7]],   // E
+  [70,  [7,4,6,4,4]],   // F
+  [71,  [3,4,5,5,3]],   // G
+  [72,  [5,5,7,5,5]],   // H
+  [73,  [7,2,2,2,7]],   // I
+  [74,  [3,1,1,5,2]],   // J
+  [75,  [5,5,6,5,5]],   // K
+  [76,  [4,4,4,4,7]],   // L
+  [77,  [5,7,5,5,5]],   // M
+  [78,  [5,7,7,5,5]],   // N
+  [79,  [2,5,5,5,2]],   // O
+  [80,  [6,5,6,4,4]],   // P
+  [81,  [2,5,5,6,3]],   // Q
+  [82,  [6,5,6,5,5]],   // R
+  [83,  [3,4,2,1,6]],   // S
+  [84,  [7,2,2,2,2]],   // T
+  [85,  [5,5,5,5,2]],   // U
+  [86,  [5,5,5,2,2]],   // V
+  [87,  [5,5,7,7,5]],   // W
+  [88,  [5,5,2,5,5]],   // X
+  [89,  [5,5,2,2,2]],   // Y
+  [90,  [7,1,2,4,7]],   // Z
+]);
+// Map lowercase to uppercase for tiny font
+for (let i = 97; i <= 122; i++) {
+  if (!TINY_FONT.has(i)) {
+    const upper = TINY_FONT.get(i - 32);
+    if (upper) TINY_FONT.set(i, upper);
+  }
+}
+
 const LOGICAL_ROWS = 34;
 const MODULE_COLS = 9;
-const FONT_TOP = Math.floor((LOGICAL_ROWS - FONT_HEIGHT) / 2); // 13
 
-// Render text into a flat pixel buffer: buffer[col * LOGICAL_ROWS + row] = pixel (0 or 255).
-// Width = text.length * CHAR_STEP columns.
-function renderText(text: string): { buf: Uint8Array; width: number } {
-  const width = text.length * CHAR_STEP;
+const SCALE_MAP: Record<ScrollSize, number> = { small: 1, medium: 2, large: 3, max: 4 };
+
+// Decode a glyph from FONT or TINY_FONT into a [row][col] boolean grid.
+function decodeGlyph(code: number, tiny: boolean): boolean[][] {
+  if (tiny) {
+    const bits = TINY_FONT.get(code) ?? TINY_FONT.get(32)!;
+    return bits.map(b => [(b >> 2 & 1) === 1, (b >> 1 & 1) === 1, (b & 1) === 1]);
+  }
+  const FONT_HEIGHT = 7, FONT_CHAR_WIDTH = 5;
+  const bits = FONT.get(code) ?? FONT.get(32)!;
+  return Array.from({ length: FONT_HEIGHT }, (_, r) => {
+    const row = bits[r] ?? 0;
+    return Array.from({ length: FONT_CHAR_WIDTH }, (__, c) => ((row >> (FONT_CHAR_WIDTH - 1 - c)) & 1) === 1);
+  });
+}
+
+function applyStyle(px: boolean[][], style: ScrollStyle): boolean[][] {
+  if (style === 'bold') {
+    return px.map(row => row.map((v, c) => v || (c > 0 && (row[c - 1] ?? false))));
+  }
+  if (style === 'outline') {
+    return px.map((row, r) => row.map((v, c) => {
+      if (!v) return false;
+      return !(px[r - 1]?.[c] ?? false) || !(px[r + 1]?.[c] ?? false) ||
+             !(px[r]?.[c - 1] ?? false) || !(px[r]?.[c + 1] ?? false);
+    }));
+  }
+  if (style === 'thin') {
+    return px.map((row, r) => row.map((v, c) => {
+      if (!v) return false;
+      const n = [px[r - 1]?.[c], px[r + 1]?.[c], px[r]?.[c - 1], px[r]?.[c + 1]];
+      return n.filter(Boolean).length < 3;
+    }));
+  }
+  return px;
+}
+
+function scaleGlyph(px: boolean[][], scale: number): boolean[][] {
+  if (scale === 1) return px;
+  const out: boolean[][] = [];
+  for (const row of px) {
+    const sr = row.flatMap(v => Array<boolean>(scale).fill(v));
+    for (let i = 0; i < scale; i++) out.push([...sr]);
+  }
+  return out;
+}
+
+function renderText(text: string, size: ScrollSize, style: ScrollStyle): { buf: Uint8Array; width: number } {
+  const tiny = style === 'tiny';
+  const scale = tiny ? 1 : SCALE_MAP[size];
+  const baseH = tiny ? 5 : 7;
+  const baseW = tiny ? 3 : 5;
+  const scaledH = baseH * scale;
+  const scaledW = baseW * scale;
+  const step = scaledW + scale; // char width + scaled gap
+  const top = Math.floor((LOGICAL_ROWS - scaledH) / 2);
+
+  const width = text.length * step;
   const buf = new Uint8Array(width * LOGICAL_ROWS);
 
   for (let ci = 0; ci < text.length; ci++) {
     const code = text.charCodeAt(ci);
-    const glyph = FONT.get(code) ?? FONT.get(32)!;
-    const charCol = ci * CHAR_STEP;
+    let glyph = decodeGlyph(code, tiny);
+    if (!tiny) glyph = applyStyle(glyph, style);
+    const scaled = scaleGlyph(glyph, scale);
+    const charCol = ci * step;
 
-    for (let row = 0; row < FONT_HEIGHT; row++) {
-      const rowBits = glyph[row] ?? 0;
-      for (let px = 0; px < FONT_CHAR_WIDTH; px++) {
-        const bit = (rowBits >> (FONT_CHAR_WIDTH - 1 - px)) & 1;
-        if (bit) {
-          const col = charCol + px;
-          const bufRow = FONT_TOP + row;
-          buf[col * LOGICAL_ROWS + bufRow] = 255;
+    for (let r = 0; r < scaled.length; r++) {
+      const row = scaled[r]!;
+      for (let c = 0; c < row.length; c++) {
+        if (row[c]) {
+          const bufCol = charCol + c;
+          const bufRow = top + r;
+          if (bufCol < width && bufRow < LOGICAL_ROWS) {
+            buf[bufCol * LOGICAL_ROWS + bufRow] = 255;
+          }
         }
       }
     }
@@ -261,8 +383,8 @@ function extractFrame(buf: Uint8Array, bufWidth: number, xOffset: number): Frame
 }
 
 export function createScrollAnimation(opts: ScrollOptions): ScrollAnimation {
-  const { text, fps = 20, pixelsPerTick = 1, loop = true } = opts;
-  const { buf, width } = renderText(text);
+  const { text, fps = 20, pixelsPerTick = 1, loop = true, size = 'small', style = 'normal' } = opts;
+  const { buf, width } = renderText(text, size, style);
   // Scroll wraps when offset reaches width + 18 (text has fully passed through both modules)
   const wrapAt = width + MODULE_COLS * 2;
 
