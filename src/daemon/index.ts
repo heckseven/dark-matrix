@@ -17,6 +17,8 @@ import { createScrollAnimation } from '../animations/scroll.js';
 import { createGolAnimation } from '../animations/gol.js';
 import { createHeatmapState, bumpTool, tickHeatmap, renderHeatmap } from '../animations/heatmap.js';
 import { createAudioEqAnimation } from '../animations/audio-eq.js';
+import { createGifAnimation } from '../animations/gif.js';
+import type { GifAnimation } from '../animations/gif.js';
 import type { DisplayIntent } from '../lib/dispatcher.js';
 
 const SCROLL_MAX_LEN = 120;
@@ -226,6 +228,45 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     return () => { stopped = true; anim?.stop(); };
   }
 
+  function startGifAnimation(gifPath: string, hold: boolean): void {
+    stopAnim();
+    if (idleTimer) clearTimeout(idleTimer);
+
+    let stopped = false;
+    stopCurrentAnim = () => { stopped = true; };
+
+    void (async () => {
+      const { packBW } = await import('../lib/frame.js');
+      let anim: GifAnimation;
+      try {
+        anim = await createGifAnimation({ path: gifPath, loop: hold });
+      } catch (err) {
+        process.stderr.write(`dark-matrix: gif load failed: ${String(err)}\n`);
+        if (!stopped && !hold) startIdleTimer();
+        return;
+      }
+      if (stopped) return;
+      stopCurrentAnim = () => { stopped = true; anim.stop(); };
+
+      const { left, right } = currentConfig.modules;
+      const iter = anim[Symbol.asyncIterator]();
+      let frameIdx = 0;
+
+      while (!stopped) {
+        const result = await iter.next();
+        if (stopped || result.done) break;
+        const frame = result.value;
+        try { if (left) await transport.frameBw(packBW(frame), left); } catch { /* non-fatal */ }
+        try { if (right) await transport.frameBw(packBW(frame), right); } catch { /* non-fatal */ }
+        const delay = anim.delays[frameIdx % anim.delays.length] ?? 100;
+        frameIdx++;
+        if (delay > 0) await new Promise<void>(r => setTimeout(r, delay));
+      }
+
+      if (!stopped && !hold) startIdleTimer();
+    })();
+  }
+
   function startIdleAnimation() {
     stopAnim();
     const idleName = currentConfig.daemon.idle_animation;
@@ -351,6 +392,16 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 socket.write(JSON.stringify({ ok: true }) + '\n');
               });
               break;
+            case 'animate': {
+              const m = msg as { cmd: string; type?: string; path?: string; hold?: boolean };
+              if (m.type !== 'gif' || typeof m.path !== 'string' || !/\.gif$/i.test(m.path)) {
+                socket.write(JSON.stringify({ ok: false, error: 'expected type:gif and a .gif path' }) + '\n');
+                break;
+              }
+              startGifAnimation(m.path, !!m.hold);
+              socket.write(JSON.stringify({ ok: true }) + '\n');
+              break;
+            }
             default:
               socket.write(JSON.stringify({ ok: false, error: 'unknown command' }) + '\n');
           }
