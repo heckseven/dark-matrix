@@ -88,7 +88,7 @@ async function cmdInstallClaudeHooks() {
     // start fresh if missing or invalid
   }
 
-  const hook = {
+  const hookEntry = {
     matcher: '*',
     hooks: [{
       type: 'command',
@@ -96,10 +96,13 @@ async function cmdInstallClaudeHooks() {
     }],
   };
 
-  const existing = (settings['hooks'] as unknown[]) ?? [];
+  const hooksObj = (typeof settings['hooks'] === 'object' && settings['hooks'] !== null && !Array.isArray(settings['hooks']))
+    ? settings['hooks'] as Record<string, unknown[]>
+    : {};
+
+  const existing = (hooksObj['PostToolUse'] as unknown[] | undefined) ?? [];
   const alreadyInstalled = existing.some(
-    (h) => typeof h === 'object' && h !== null && (h as Record<string, unknown>)['matcher'] === '*'
-      && JSON.stringify(h).includes('dark-matrix'),
+    (h) => typeof h === 'object' && h !== null && JSON.stringify(h).includes('dark-matrix'),
   );
 
   if (alreadyInstalled) {
@@ -107,7 +110,7 @@ async function cmdInstallClaudeHooks() {
     return;
   }
 
-  settings['hooks'] = [...existing, hook];
+  settings['hooks'] = { ...hooksObj, PostToolUse: [...existing, hookEntry] };
   await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf8');
   process.stdout.write(`Installed PostToolUse hook in ${settingsPath}\n`);
   process.stdout.write(`Restart Claude Code to activate.\n`);
