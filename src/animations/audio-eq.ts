@@ -14,6 +14,7 @@ export type AudioEqOptions = {
   loop?: boolean;
   fftSize?: number;
   gain?: number;
+  target?: string;  // pw-record --target override (node ID or name)
 };
 
 export interface AudioEqAnimation extends Animation {
@@ -80,7 +81,7 @@ export function createAudioEqAnimation(opts?: AudioEqOptions): AudioEqAnimation 
   const fftSize = opts?.fftSize ?? 2048;
   const gain = opts?.gain ?? 1.0;
 
-  const targetNode = source === 'monitor' ? MONITOR_NODE : MIC_NODE;
+  const targetNode = opts?.target ?? (source === 'monitor' ? MONITOR_NODE : MIC_NODE);
 
   let stopped = false;
   let resolveChunk: ((frame: Frame | null) => void) | null = null;

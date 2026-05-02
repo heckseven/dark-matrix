@@ -2,6 +2,7 @@ import net from 'node:net';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import process from 'node:process';
+import { spawn } from 'node:child_process';
 import { loadConfig, writeDefaultConfig, watchConfig } from '../lib/config.js';
 import type { Config } from '../lib/config.js';
 import { startBrightnessLoop } from '../lib/brightness.js';
@@ -15,6 +16,7 @@ import { createStartupAnimation } from '../animations/startup.js';
 import { createScrollAnimation } from '../animations/scroll.js';
 import { createGolAnimation } from '../animations/gol.js';
 import { createHeatmapState, bumpTool, tickHeatmap, renderHeatmap } from '../animations/heatmap.js';
+import { createAudioEqAnimation } from '../animations/audio-eq.js';
 import type { DisplayIntent } from '../lib/dispatcher.js';
 
 const SCROLL_MAX_LEN = 120;
@@ -180,6 +182,50 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   }
 
 
+  async function resolveDefaultSinkId(): Promise<string | undefined> {
+    return new Promise((resolve) => {
+      const proc = spawn('wpctl', ['inspect', '@DEFAULT_AUDIO_SINK@'], { shell: false });
+      let out = '';
+      proc.stdout?.on('data', (d: Buffer) => { out += d.toString(); });
+      proc.on('close', () => {
+        const m = /^id (\d+)/.exec(out);
+        resolve(m ? m[1] : undefined);
+      });
+      proc.on('error', () => resolve(undefined));
+    });
+  }
+
+  function runAudioEqOnModules(): () => void {
+    const { left, right } = currentConfig.modules;
+    let stopped = false;
+    let anim: ReturnType<typeof createAudioEqAnimation> | null = null;
+
+    const loop = async () => {
+      const { packBW, FRAME_COLS, FRAME_ROWS, createFrame } = await import('../lib/frame.js');
+      const target = await resolveDefaultSinkId();
+      if (stopped) return;
+      anim = createAudioEqAnimation({ source: 'monitor', ...(target ? { target } : {}) });
+      const iter = anim[Symbol.asyncIterator]();
+      while (!stopped) {
+        const result = await iter.next();
+        if (stopped || result.done) break;
+        const leftFrame = result.value;
+        // Mirror: right col 0 = left col 8, right col 1 = left col 7, ...
+        const rightFrame = createFrame();
+        for (let col = 0; col < FRAME_COLS; col++) {
+          for (let row = 0; row < FRAME_ROWS; row++) {
+            rightFrame[col * FRAME_ROWS + row] = leftFrame[(FRAME_COLS - 1 - col) * FRAME_ROWS + row] ?? 0;
+          }
+        }
+        try { if (left) await transport.frameBw(packBW(leftFrame), left); } catch { /* non-fatal */ }
+        try { if (right) await transport.frameBw(packBW(rightFrame), right); } catch { /* non-fatal */ }
+      }
+    };
+
+    void loop();
+    return () => { stopped = true; anim?.stop(); };
+  }
+
   function startIdleAnimation() {
     stopAnim();
     const idleName = currentConfig.daemon.idle_animation;
@@ -187,6 +233,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     if (idleName === 'heatmap') {
       stopCurrentAnim = runHeatmapOnModules();
+      return;
+    }
+
+    if (idleName === 'audio-eq') {
+      stopCurrentAnim = runAudioEqOnModules();
       return;
     }
 
