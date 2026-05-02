@@ -334,6 +334,32 @@ switch (cmd) {
     }
     break;
   }
+  case 'animate': {
+    const sub = args[0];
+    if (sub !== 'gif') {
+      process.stderr.write('Usage: dark-matrix animate gif [--hold] <path>\n');
+      process.exit(1);
+    }
+    const hold = args.includes('--hold');
+    const gifPath = args.filter(a => !a.startsWith('-')).slice(1).join('') ?? '';
+    if (!gifPath) {
+      process.stderr.write('Usage: dark-matrix animate gif [--hold] <path>\n');
+      process.exit(1);
+    }
+    const absPath = path.resolve(gifPath);
+    try {
+      const res = await sendToDaemon({ cmd: 'animate', type: 'gif', path: absPath, hold });
+      if (!res['ok']) {
+        process.stderr.write(`Error: ${res['error'] ?? JSON.stringify(res)}\n`);
+        process.exit(1);
+      }
+      process.stdout.write(hold ? 'GIF playing (run "release" to stop).\n' : 'GIF playing.\n');
+    } catch (err) {
+      process.stderr.write(`${(err as Error).message}\n`);
+      process.exit(1);
+    }
+    break;
+  }
   default:
     process.stderr.write([
       'Usage: dark-matrix <command>',
@@ -342,6 +368,7 @@ switch (cmd) {
       '  show-split <left> <right> [--mode bw|gray]',
       '  display [yeah|runes|0x07|panic]',
       '  image <path> [--preview] [--mode bw|gray]',
+      '  animate gif [--hold] <path>',
       '  calibrate',
       '  ping',
       '  release',
