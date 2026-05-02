@@ -218,10 +218,14 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     }, Math.max(0, intent.expiresAt - Date.now()));
   }
 
+  let currentIntentId: string | null = null;
   const disposeDispatcher = dispatcher.onChange((intent) => {
     if (intent) {
+      if (intent.id === currentIntentId) return;
+      currentIntentId = intent.id;
       startNotificationAnimation(intent);
     } else {
+      currentIntentId = null;
       stopAnim();
       startIdleTimer();
     }

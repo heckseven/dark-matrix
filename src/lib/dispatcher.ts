@@ -72,7 +72,8 @@ export class Dispatcher {
 
   push(intent: DisplayIntent): void {
     this.queue.push(intent);
-    this.queue.sort((a, b) => b.priority - a.priority);
+    // Higher priority first; ties broken by most recently pushed (higher expiresAt)
+    this.queue.sort((a, b) => b.priority - a.priority || b.expiresAt - a.expiresAt);
     this._notify();
   }
 
