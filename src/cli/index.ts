@@ -336,13 +336,17 @@ switch (cmd) {
   }
   case 'scroll': {
     const hold = args.includes('--hold');
-    const text = args.filter(a => !a.startsWith('-')).join(' ');
+    const sizeIdx = args.indexOf('--size');
+    const styleIdx = args.indexOf('--style');
+    const size = sizeIdx !== -1 ? args[sizeIdx + 1] : undefined;
+    const style = styleIdx !== -1 ? args[styleIdx + 1] : undefined;
+    const text = args.filter((a, i) => !a.startsWith('-') && args[i-1] !== '--size' && args[i-1] !== '--style').join(' ');
     if (!text) {
-      process.stderr.write('Usage: dark-matrix scroll [--hold] <text>\n');
+      process.stderr.write('Usage: dark-matrix scroll [--hold] [--size small|medium|large|max] [--style normal|bold|outline|thin|tiny] <text>\n');
       process.exit(1);
     }
     try {
-      const res = await sendToDaemon({ cmd: 'scroll', text, hold });
+      const res = await sendToDaemon({ cmd: 'scroll', text, hold, ...(size ? { size } : {}), ...(style ? { style } : {}) });
       if (!res['ok']) {
         process.stderr.write(`Error: ${res['error'] ?? JSON.stringify(res)}\n`);
         process.exit(1);
@@ -395,7 +399,7 @@ switch (cmd) {
       '  show-split <left> <right> [--mode bw|gray]',
       '  display [yeah|runes|0x07|panic]',
       '  image <path> [--preview] [--mode bw|gray]',
-      '  scroll [--hold] <text>',
+      '  scroll [--hold] [--size small|medium|large|max] [--style normal|bold|outline|thin|tiny] <text>',
       '  animate gif [--hold] [--dual] [--mode bw|gray] <path>',
       '  calibrate',
       '  ping',

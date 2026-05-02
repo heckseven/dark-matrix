@@ -412,15 +412,17 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               });
               break;
             case 'scroll': {
-              const m = msg as { cmd: string; text?: string; hold?: boolean };
+              const m = msg as { cmd: string; text?: string; hold?: boolean; size?: string; style?: string };
               if (typeof m.text !== 'string' || m.text.trim() === '') {
                 socket.write(JSON.stringify({ ok: false, error: 'text required' }) + '\n');
                 break;
               }
               const safe = m.text.replace(/[^\x20-\x7e]/g, '').slice(0, SCROLL_MAX_LEN) || '???';
+              const scrollSize = (['small','medium','large','max'] as const).find(s => s === m.size) ?? 'small';
+              const scrollStyle = (['normal','bold','outline','thin','tiny'] as const).find(s => s === m.style) ?? 'normal';
               stopAnim();
               if (idleTimer) clearTimeout(idleTimer);
-              const scrollAnim = createScrollAnimation({ text: safe, loop: !!m.hold });
+              const scrollAnim = createScrollAnimation({ text: safe, loop: !!m.hold, size: scrollSize, style: scrollStyle });
               stopCurrentAnim = runScrollOnModules(scrollAnim);
               if (!m.hold) {
                 const dur = safe.length * 100 + 2000;
