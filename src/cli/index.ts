@@ -137,7 +137,7 @@ function parseShowFlags(args: string[]): { imagePath: string; device: string | u
 
 async function cmdShow(args: string[]) {
   const { imagePath, device, mode, fit } = parseShowFlags(args);
-  const devicePath = device ?? '/dev/serial/by-path/pci-0000:00:14.0-usb-0:3.3:1.0';
+  const devicePath = device ?? LEFT_DEV;
 
   const frame = await convertImage(imagePath, { mode, fit });
   const anim = staticAnim(frame);
@@ -161,8 +161,8 @@ async function cmdShowSplit(args: string[]) {
   const { mode, fit } = parseShowFlags([...flags, positional[0]!]);
   const [leftPath, rightPath] = positional as [string, string];
 
-  const leftDev = '/dev/serial/by-path/pci-0000:00:14.0-usb-0:3.3:1.0';
-  const rightDev = '/dev/serial/by-path/pci-0000:00:14.0-usb-0:4.2:1.0';
+  const leftDev = LEFT_DEV;
+  const rightDev = RIGHT_DEV;
 
   const [leftFrame, rightFrame] = await Promise.all([
     convertImage(leftPath, { mode, fit }),
@@ -181,8 +181,8 @@ async function cmdShowSplit(args: string[]) {
 }
 
 const ASSET_DIR = path.resolve(__dirname, '../../images');
-const LEFT_DEV = '/dev/serial/by-path/pci-0000:c5:00.3-usb-0:3.3:1.0';
-const RIGHT_DEV = '/dev/serial/by-path/pci-0000:c5:00.3-usb-0:4.2:1.0';
+const LEFT_DEV = '/dev/serial/by-path/pci-0000:c5:00.3-usb-0:4.2:1.0';
+const RIGHT_DEV = '/dev/serial/by-path/pci-0000:c5:00.3-usb-0:3.3:1.0';
 
 async function showOnDevice(imagePath: string, devicePath: string, mode: 'bw' | 'gray') {
   const frame = await convertImage(imagePath, { mode, fit: 'contain' });
