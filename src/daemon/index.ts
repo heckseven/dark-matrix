@@ -228,7 +228,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     return () => { stopped = true; anim?.stop(); };
   }
 
-  function startGifAnimation(gifPath: string, hold: boolean): void {
+  function startGifAnimation(gifPath: string, hold: boolean, dual: boolean): void {
     stopAnim();
     if (idleTimer) clearTimeout(idleTimer);
 
@@ -236,10 +236,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     stopCurrentAnim = () => { stopped = true; };
 
     void (async () => {
-      const { packBW } = await import('../lib/frame.js');
+      const { packBW, FRAME_COLS, FRAME_ROWS, createFrame: mkFrame } = await import('../lib/frame.js');
       let anim: GifAnimation;
       try {
-        anim = await createGifAnimation({ path: gifPath, loop: hold });
+        anim = await createGifAnimation({ path: gifPath, loop: hold, dual });
       } catch (err) {
         process.stderr.write(`dark-matrix: gif load failed: ${String(err)}\n`);
         if (!stopped && !hold) startIdleTimer();
@@ -255,9 +255,25 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       while (!stopped) {
         const result = await iter.next();
         if (stopped || result.done) break;
-        const frame = result.value;
-        try { if (left) await transport.frameBw(packBW(frame), left); } catch { /* non-fatal */ }
-        try { if (right) await transport.frameBw(packBW(frame), right); } catch { /* non-fatal */ }
+        const wide = result.value as unknown as Uint8Array;
+
+        if (dual) {
+          const leftFrame = mkFrame();
+          const rightFrame = mkFrame();
+          for (let col = 0; col < FRAME_COLS; col++) {
+            for (let row = 0; row < FRAME_ROWS; row++) {
+              leftFrame[col * FRAME_ROWS + row] = wide[col * FRAME_ROWS + row] ?? 0;
+              rightFrame[col * FRAME_ROWS + row] = wide[(col + FRAME_COLS) * FRAME_ROWS + row] ?? 0;
+            }
+          }
+          try { if (left) await transport.frameBw(packBW(leftFrame), left); } catch { /* non-fatal */ }
+          try { if (right) await transport.frameBw(packBW(rightFrame), right); } catch { /* non-fatal */ }
+        } else {
+          const frame = result.value;
+          try { if (left) await transport.frameBw(packBW(frame), left); } catch { /* non-fatal */ }
+          try { if (right) await transport.frameBw(packBW(frame), right); } catch { /* non-fatal */ }
+        }
+
         const delay = anim.delays[frameIdx % anim.delays.length] ?? 100;
         frameIdx++;
         if (delay > 0) await new Promise<void>(r => setTimeout(r, delay));
@@ -393,12 +409,12 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               });
               break;
             case 'animate': {
-              const m = msg as { cmd: string; type?: string; path?: string; hold?: boolean };
+              const m = msg as { cmd: string; type?: string; path?: string; hold?: boolean; dual?: boolean };
               if (m.type !== 'gif' || typeof m.path !== 'string' || !/\.gif$/i.test(m.path)) {
                 socket.write(JSON.stringify({ ok: false, error: 'expected type:gif and a .gif path' }) + '\n');
                 break;
               }
-              startGifAnimation(m.path, !!m.hold);
+              startGifAnimation(m.path, !!m.hold, !!m.dual);
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             }

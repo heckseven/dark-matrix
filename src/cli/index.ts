@@ -341,14 +341,15 @@ switch (cmd) {
       process.exit(1);
     }
     const hold = args.includes('--hold');
+    const dual = args.includes('--dual');
     const gifPath = args.filter(a => !a.startsWith('-')).slice(1).join('') ?? '';
     if (!gifPath) {
-      process.stderr.write('Usage: dark-matrix animate gif [--hold] <path>\n');
+      process.stderr.write('Usage: dark-matrix animate gif [--hold] [--dual] <path>\n');
       process.exit(1);
     }
     const absPath = path.resolve(gifPath);
     try {
-      const res = await sendToDaemon({ cmd: 'animate', type: 'gif', path: absPath, hold });
+      const res = await sendToDaemon({ cmd: 'animate', type: 'gif', path: absPath, hold, dual });
       if (!res['ok']) {
         process.stderr.write(`Error: ${res['error'] ?? JSON.stringify(res)}\n`);
         process.exit(1);
@@ -368,7 +369,7 @@ switch (cmd) {
       '  show-split <left> <right> [--mode bw|gray]',
       '  display [yeah|runes|0x07|panic]',
       '  image <path> [--preview] [--mode bw|gray]',
-      '  animate gif [--hold] <path>',
+      '  animate gif [--hold] [--dual] <path>',
       '  calibrate',
       '  ping',
       '  release',
