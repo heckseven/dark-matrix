@@ -71,14 +71,18 @@ describe('createGifAnimation', () => {
   });
 
   it('gray mode: raw pixel values are preserved', async () => {
+    // mockPixels is row-major (9 cols × 34 rows); frame is column-major
     mockPixels = Array.from({ length: 306 }, (_, i) => i % 256);
     const anim = await createGifAnimation({ path: 'test.gif', mode: 'gray' });
     const iter = anim[Symbol.asyncIterator]();
     const result = await iter.next();
     const frame = result.value;
+    // raw[0] = row0,col0 → frame[col0*34+row0] = frame[0]
     expect(frame[0]).toBe(0);
-    expect(frame[1]).toBe(1);
-    expect(frame[200]).toBe(200);
+    // raw[1] = row0,col1 → frame[col1*34+row0] = frame[34]
+    expect(frame[34]).toBe(1);
+    // raw[200]: row=floor(200/9)=22, col=200%9=2 → frame[2*34+22] = frame[90]
+    expect(frame[90]).toBe(200 % 256);
   });
 
   it('stop() causes iterator to return done', async () => {
