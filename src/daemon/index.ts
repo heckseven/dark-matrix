@@ -123,9 +123,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     }
   }
 
-  function runScrollOnModules(anim: ReturnType<typeof createScrollAnimation>): () => void {
+  function runScrollOnModules(anim: ReturnType<typeof createScrollAnimation>, fps = 20): () => void {
     const { left, right } = currentConfig.modules;
-    const fps = 20;
     const frameMs = 1000 / fps;
     let stopped = false;
     const iter = anim[Symbol.asyncIterator]();
@@ -412,18 +411,23 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               });
               break;
             case 'scroll': {
-              const m = msg as { cmd: string; text?: string; hold?: boolean; size?: string; style?: string };
+              const m = msg as { cmd: string; text?: string; hold?: boolean; size?: string; speed?: string };
               if (typeof m.text !== 'string' || m.text.trim() === '') {
                 socket.write(JSON.stringify({ ok: false, error: 'text required' }) + '\n');
                 break;
               }
               const safe = m.text.replace(/[^\x20-\x7e]/g, '').slice(0, SCROLL_MAX_LEN) || '???';
-              const scrollSize = (['small','medium','large','max'] as const).find(s => s === m.size) ?? 'small';
-              const scrollStyle = (['normal','bold','outline','thin','tiny'] as const).find(s => s === m.style) ?? 'normal';
+              const scrollSize = (['tiny','small','medium','large'] as const).find(s => s === m.size) ?? 'small';
+              const speedPresets: Record<string, { fps: number; pixelsPerTick: number }> = {
+                slow: { fps: 10, pixelsPerTick: 1 },
+                normal: { fps: 20, pixelsPerTick: 1 },
+                fast: { fps: 20, pixelsPerTick: 2 },
+              };
+              const { fps: scrollFps, pixelsPerTick } = speedPresets[m.speed ?? 'normal'] ?? speedPresets['normal']!;
               stopAnim();
               if (idleTimer) clearTimeout(idleTimer);
-              const scrollAnim = createScrollAnimation({ text: safe, loop: !!m.hold, size: scrollSize, style: scrollStyle });
-              stopCurrentAnim = runScrollOnModules(scrollAnim);
+              const scrollAnim = createScrollAnimation({ text: safe, loop: !!m.hold, size: scrollSize, pixelsPerTick });
+              stopCurrentAnim = runScrollOnModules(scrollAnim, scrollFps);
               if (!m.hold) {
                 const dur = safe.length * 100 + 2000;
                 setTimeout(() => { if (!dispatcher.current()) startIdleTimer(); }, dur);

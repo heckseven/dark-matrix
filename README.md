@@ -88,6 +88,7 @@ dark-matrix <command>
 |---|---|
 | `scroll <text>` | Scroll text across both modules |
 | `scroll --size tiny\|small\|medium\|large <text>` | Set text size (default: small) |
+| `scroll --speed slow\|normal\|fast <text>` | Set scroll speed (default: normal) |
 | `scroll --hold <text>` | Keep scrolling until `release` |
 | `animate gif <path>` | Play a GIF on the left module |
 | `animate gif --dual <path>` | Play a GIF spanning both modules (18×34 source) |
@@ -224,7 +225,7 @@ systemctl --user restart dark-matrix
 
 ### High priority
 
-- [ ] `--speed` option for `scroll` (slow/normal/fast — ticks per frame)
+- [x] `--speed` option for `scroll` (slow=10fps/1px, normal=20fps/1px, fast=20fps/2px)
 - [ ] Verify left/right calibration is correct on hardware (run `dark-matrix calibrate`)
 - [ ] Audio EQ: expose mic source option (`--source mic|monitor` config key)
 - [ ] GIF idle animation: add config option to set a GIF path as idle animation
