@@ -52,12 +52,13 @@ describe('scroll content', () => {
     // Frame 0 left of anim1 = frame N left of anim1 offset by N pixels.
     // Verify: advance anim1 by N, then compare to fresh anim2 at same position.
     // Simpler: check that frame at offset 0 ≠ frame at offset N for non-trivial text.
-    // For 'ABC', at x=0 we're at the start of 'A'. By x=6 we're past 'A'.
+    // Text starts at offset=-18 (blank lead-in). Skip 18 frames to reach offset=0 (start of 'A').
     const anim3 = createScrollAnimation({ text: 'ABC', loop: false });
     const iter3 = anim3[Symbol.asyncIterator]();
-    const frame0 = (await iter3.next()).value[0];
+    for (let i = 0; i < 18; i++) await iter3.next(); // skip blank lead-in
+    const frame0 = (await iter3.next()).value[0];     // offset=0: 'A' visible
     for (let i = 0; i < 5; i++) await iter3.next();
-    const frame6 = (await iter3.next()).value[0];
+    const frame6 = (await iter3.next()).value[0];     // offset=6: past 'A'
 
     // These frames are 6 pixels apart — they should differ (A vs space)
     expect(Buffer.from(frame0)).not.toEqual(Buffer.from(frame6));
@@ -90,7 +91,7 @@ describe('scroll loop=false', () => {
       if (count > 100) break; // safety
     }
 
-    // wrapAt = 1*6 + 18 = 24, yields frames at offset 0..23 = 24 frames
-    expect(count).toBe(24);
+    // offset starts at -18, wrapAt = 6+18 = 24, total frames = 24-(-18) = 42
+    expect(count).toBe(42);
   });
 });

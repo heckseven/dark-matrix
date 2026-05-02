@@ -385,11 +385,11 @@ function extractFrame(buf: Uint8Array, bufWidth: number, xOffset: number): Frame
 export function createScrollAnimation(opts: ScrollOptions): ScrollAnimation {
   const { text, fps = 20, pixelsPerTick = 1, loop = true, size = 'small', style = 'normal' } = opts;
   const { buf, width } = renderText(text, size, style);
-  // Scroll wraps when offset reaches width + 18 (text has fully passed through both modules)
-  const wrapAt = width + MODULE_COLS * 2;
+  const LEAD = MODULE_COLS * 2; // blank columns before text enters from right
+  const wrapAt = width + LEAD;  // reset when text has fully exited left + trailing blank
 
   let stopped = false;
-  let offset = 0;
+  let offset = -LEAD; // start off-screen right
 
   function stop(): void {
     stopped = true;
@@ -413,7 +413,7 @@ export function createScrollAnimation(opts: ScrollOptions): ScrollAnimation {
         if (!loop && offset >= wrapAt) {
           stopped = true;
         } else if (loop && offset >= wrapAt) {
-          offset = offset % wrapAt;
+          offset = -LEAD;
         }
 
         return { value: [left, right], done: false };
