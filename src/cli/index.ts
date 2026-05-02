@@ -50,7 +50,7 @@ const UNIT_DIR = path.join(os.homedir(), '.config', 'systemd', 'user');
 
 async function cmdInstallUserSystemd() {
   const nodeBin = process.execPath;
-  const daemonSrc = path.resolve(__dirname, '../daemon/index.js');
+  const distSrc = path.resolve(__dirname, '..');
   const unitSrc = path.resolve(__dirname, '../../systemd', UNIT_NAME);
 
   await fs.mkdir(INSTALL_DIR, { recursive: true });
@@ -58,7 +58,7 @@ async function cmdInstallUserSystemd() {
 
   await fs.copyFile(nodeBin, path.join(INSTALL_DIR, 'node'));
   await fs.chmod(path.join(INSTALL_DIR, 'node'), 0o755);
-  await fs.copyFile(daemonSrc, path.join(INSTALL_DIR, 'daemon.mjs'));
+  await fs.cp(distSrc, path.join(INSTALL_DIR, 'dist'), { recursive: true });
   await fs.copyFile(unitSrc, path.join(UNIT_DIR, UNIT_NAME));
 
   process.stdout.write(`Installed ${UNIT_NAME} to ${UNIT_DIR}\n`);
