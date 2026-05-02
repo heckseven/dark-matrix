@@ -27,7 +27,7 @@ const ConfigSchema = z.object({
   }),
   daemon: z.object({
     poll_interval_ms: z.number().int().min(100).max(60000),
-    idle_animation: z.enum(['heatmap', 'gol-random', 'scroll', 'none']),
+    idle_animation: z.enum(['heatmap', 'audio-eq', 'gol-random', 'scroll', 'none']),
     idle_after_ms: z.number().int().min(0),
   }),
 });
