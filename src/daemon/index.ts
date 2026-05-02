@@ -260,6 +260,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     });
   });
 
+  try { await fs.unlink(sockPath); } catch { /* no stale socket */ }
+
   await new Promise<void>((resolve, reject) => {
     server.listen(sockPath, resolve);
     server.once('error', reject);
@@ -307,13 +309,16 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   };
 
   const sigterm = async () => { await cleanup(); process.exit(0); };
+  const sigint = async () => { await cleanup(); process.exit(0); };
   const uncaught = async (err: unknown) => { await cleanup(); throw err; };
 
   process.once('SIGTERM', sigterm);
+  process.once('SIGINT', sigint);
   process.once('uncaughtException', uncaught);
 
   return async () => {
     process.off('SIGTERM', sigterm);
+    process.off('SIGINT', sigint);
     process.off('uncaughtException', uncaught);
     await cleanup();
   };
