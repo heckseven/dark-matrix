@@ -72,16 +72,17 @@ describe('packBW', () => {
     expect(out.slice(1).every((v) => v === 0)).toBe(true);
   });
 
-  it('single pixel at (0,7) → first byte bit 7 set (0x80)', () => {
+  it('single pixel at (7,0) → first byte bit 7 set (0x80) — row-major: i = col + 9*row', () => {
     const f = createFrame();
-    setPixel(f, 0, 7, 255);
+    setPixel(f, 7, 0, 255);
     const out = packBW(f);
     expect(out[0]).toBe(0x80);
+    expect(out.slice(1).every((v) => v === 0)).toBe(true);
   });
 
-  it('single pixel at (0,8) → second byte bit 0 set', () => {
+  it('single pixel at (8,0) → second byte bit 0 set — row boundary at i=8', () => {
     const f = createFrame();
-    setPixel(f, 0, 8, 255);
+    setPixel(f, 8, 0, 255);
     const out = packBW(f);
     expect(out[0]).toBe(0);
     expect(out[1]).toBe(0x01);

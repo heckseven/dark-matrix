@@ -23,13 +23,16 @@ export function getPixel(f: Frame, col: number, row: number): number {
 }
 
 // Pack 306 pixels into 39 bytes, LSB-first.
-// Bit index i = col * FRAME_ROWS + row (column-major).
-// Byte = i >> 3, bit position = i & 7.
+// Firmware expects row-major bit index: i = col + FRAME_COLS * row (x + 9*y).
+// Frame storage is column-major: f[col * FRAME_ROWS + row].
 export function packBW(f: Frame): Uint8Array {
   const out = new Uint8Array(39);
-  for (let i = 0; i < FRAME_SIZE; i++) {
-    if ((f[i] ?? 0) >= 128) {
-      out[i >> 3]! |= 1 << (i & 7);
+  for (let row = 0; row < FRAME_ROWS; row++) {
+    for (let col = 0; col < FRAME_COLS; col++) {
+      const i = col + FRAME_COLS * row;
+      if ((f[col * FRAME_ROWS + row] ?? 0) >= 128) {
+        out[i >> 3]! |= 1 << (i & 7);
+      }
     }
   }
   return out;
