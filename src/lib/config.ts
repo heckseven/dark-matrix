@@ -36,8 +36,8 @@ export type Config = z.infer<typeof ConfigSchema>;
 
 export const DEFAULT_CONFIG: Config = {
   modules: {
-    left: '/dev/serial/by-path/pci-0000:c5:00.3-usb-0:3.3:1.0',
-    right: '/dev/serial/by-path/pci-0000:c5:00.3-usb-0:4.2:1.0',
+    left: '/dev/serial/by-path/pci-0000:c5:00.3-usb-0:4.2:1.0',
+    right: '/dev/serial/by-path/pci-0000:c5:00.3-usb-0:3.3:1.0',
   },
   brightness: {
     mode: 'sensor',
