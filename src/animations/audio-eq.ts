@@ -60,13 +60,17 @@ function computeBandMagnitudes(
   return bands;
 }
 
+const MIN_DB = -60;
+
 function buildFrame(bands: number[], gain: number, fftSize: number): Frame {
-  const normFactor = fftSize / 2;
+  const ref = fftSize / 2;
   const frame = createFrame();
 
   for (let col = 0; col < BAND_COUNT; col++) {
-    const mag = bands[col] ?? 0;
-    const height = Math.min(ROWS, Math.round((mag * gain * ROWS) / normFactor));
+    const mag = (bands[col] ?? 0) * gain;
+    const db = mag > 0 ? 20 * Math.log10(mag / ref) : MIN_DB;
+    const t = Math.max(0, Math.min(1, (db - MIN_DB) / -MIN_DB));
+    const height = Math.round(t * ROWS);
 
     for (let row = 0; row < ROWS; row++) {
       frame[col * ROWS + row] = row >= ROWS - height ? 255 : 0;
