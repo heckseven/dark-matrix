@@ -25,7 +25,7 @@ function nextId() { return `intent-${++_seq}`; }
 
 export function ecSwitchIntent(e: SwitchEvent): DisplayIntent {
   const label = e.type === 'cam'
-    ? (e.value === 0 ? 'CAM OFF' : 'CAM ON')
+    ? (e.value === 1 ? 'CAM OFF' : 'CAM ON')
     : (e.value === 1 ? 'MIC OFF' : 'MIC ON');
   return {
     id: nextId(),
