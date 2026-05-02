@@ -8,12 +8,13 @@ import { startBrightnessLoop } from '../lib/brightness.js';
 import { watchSwitches } from '../lib/ec-switches.js';
 import { watchVms } from '../lib/vm-source.js';
 import { parseClaudeHook } from '../lib/claude-source.js';
-import { Dispatcher, ecSwitchIntent, vmIntent, claudeIntent } from '../lib/dispatcher.js';
+import { Dispatcher, ecSwitchIntent, vmIntent } from '../lib/dispatcher.js';
 import { SerialTransport } from '../lib/transport.js';
 import { runAnimation } from '../lib/animation.js';
 import { createStartupAnimation } from '../animations/startup.js';
 import { createScrollAnimation } from '../animations/scroll.js';
 import { createGolAnimation } from '../animations/gol.js';
+import { createHeatmapState, bumpTool, tickHeatmap, renderHeatmap } from '../animations/heatmap.js';
 import type { DisplayIntent } from '../lib/dispatcher.js';
 
 const SCROLL_MAX_LEN = 120;
@@ -50,7 +51,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   const dispatcher = new Dispatcher();
   let stopCurrentAnim: (() => void) | null = null;
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
-  let lastClaudeEventAt: number | null = null;
+  const heatmapState = createHeatmapState();
 
   function getModulePaths(): string[] {
     const { left, right } = currentConfig.modules;
@@ -146,10 +147,42 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     return () => { stopped = true; anim.stop(); };
   }
 
+  function runHeatmapOnModules(): () => void {
+    const { left, right } = currentConfig.modules;
+    const fps = 15;
+    const frameMs = 1000 / fps;
+    let stopped = false;
+
+    const loop = async () => {
+      const { packBW } = await import('../lib/frame.js');
+      let nextAt = Date.now();
+      while (!stopped) {
+        tickHeatmap(heatmapState);
+        const [leftFrame, rightFrame] = renderHeatmap(heatmapState);
+        try { if (left) await transport.frameBw(packBW(leftFrame), left); } catch { /* non-fatal */ }
+        try { if (right) await transport.frameBw(packBW(rightFrame), right); } catch { /* non-fatal */ }
+        nextAt += frameMs;
+        const wait = nextAt - Date.now();
+        if (wait > 0) await new Promise<void>(r => setTimeout(r, wait));
+      }
+      if (left) await transport.release(left).catch(() => {});
+      if (right) await transport.release(right).catch(() => {});
+    };
+
+    void loop();
+    return () => { stopped = true; };
+  }
+
+
   function startIdleAnimation() {
     stopAnim();
     const idleName = currentConfig.daemon.idle_animation;
     if (idleName === 'none') return;
+
+    if (idleName === 'heatmap') {
+      stopCurrentAnim = runHeatmapOnModules();
+      return;
+    }
 
     if (idleName === 'scroll') {
       const text = currentConfig.startup.scroll_text;
@@ -157,7 +190,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       return;
     }
 
-    // gol-random (default)
+    // gol-random
     runOnModules(null, () => createGolAnimation());
   }
 
@@ -216,10 +249,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       const body = extractHttpBody(buf);
       if (body !== null) {
         const event = parseClaudeHook(body.trim());
-        if (event) {
-          lastClaudeEventAt = Date.now();
-          const intent = claudeIntent(event);
-          if (intent) dispatcher.push(intent);
+        if (event && event.type !== 'unknown') {
+          const toolName = event.type === 'agent_spawn' ? 'Agent' : event.tool;
+          bumpTool(heatmapState, toolName);
         }
         socket.write('HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok');
         socket.end();
