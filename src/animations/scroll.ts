@@ -8,8 +8,7 @@ export interface ScrollAnimation {
   stop(): void;
 }
 
-export type ScrollSize = 'small' | 'medium' | 'large' | 'max';
-export type ScrollStyle = 'normal' | 'bold' | 'outline' | 'thin' | 'tiny';
+export type ScrollSize = 'tiny' | 'small' | 'medium' | 'large';
 
 export type ScrollOptions = {
   text: string;
@@ -17,7 +16,6 @@ export type ScrollOptions = {
   pixelsPerTick?: number;
   loop?: boolean;
   size?: ScrollSize;
-  style?: ScrollStyle;
 };
 
 // 5×7 bitmap font. Key = char code, value = 7 rows (one per row, MSB = leftmost pixel, 5 bits).
@@ -282,41 +280,18 @@ for (let i = 97; i <= 122; i++) {
 const LOGICAL_ROWS = 34;
 const MODULE_COLS = 9;
 
-const SCALE_MAP: Record<ScrollSize, number> = { small: 1, medium: 2, large: 3, max: 4 };
+const SCALE_MAP: Record<Exclude<ScrollSize, 'tiny'>, number> = { small: 1, medium: 2, large: 3 };
 
-// Decode a glyph from FONT or TINY_FONT into a [row][col] boolean grid.
 function decodeGlyph(code: number, tiny: boolean): boolean[][] {
   if (tiny) {
     const bits = TINY_FONT.get(code) ?? TINY_FONT.get(32)!;
     return bits.map(b => [(b >> 2 & 1) === 1, (b >> 1 & 1) === 1, (b & 1) === 1]);
   }
-  const FONT_HEIGHT = 7, FONT_CHAR_WIDTH = 5;
   const bits = FONT.get(code) ?? FONT.get(32)!;
-  return Array.from({ length: FONT_HEIGHT }, (_, r) => {
+  return Array.from({ length: 7 }, (_, r) => {
     const row = bits[r] ?? 0;
-    return Array.from({ length: FONT_CHAR_WIDTH }, (__, c) => ((row >> (FONT_CHAR_WIDTH - 1 - c)) & 1) === 1);
+    return Array.from({ length: 5 }, (__, c) => ((row >> (4 - c)) & 1) === 1);
   });
-}
-
-function applyStyle(px: boolean[][], style: ScrollStyle): boolean[][] {
-  if (style === 'bold') {
-    return px.map(row => row.map((v, c) => v || (c > 0 && (row[c - 1] ?? false))));
-  }
-  if (style === 'outline') {
-    return px.map((row, r) => row.map((v, c) => {
-      if (!v) return false;
-      return !(px[r - 1]?.[c] ?? false) || !(px[r + 1]?.[c] ?? false) ||
-             !(px[r]?.[c - 1] ?? false) || !(px[r]?.[c + 1] ?? false);
-    }));
-  }
-  if (style === 'thin') {
-    return px.map((row, r) => row.map((v, c) => {
-      if (!v) return false;
-      const n = [px[r - 1]?.[c], px[r + 1]?.[c], px[r]?.[c - 1], px[r]?.[c + 1]];
-      return n.filter(Boolean).length < 3;
-    }));
-  }
-  return px;
 }
 
 function scaleGlyph(px: boolean[][], scale: number): boolean[][] {
@@ -329,14 +304,14 @@ function scaleGlyph(px: boolean[][], scale: number): boolean[][] {
   return out;
 }
 
-function renderText(text: string, size: ScrollSize, style: ScrollStyle): { buf: Uint8Array; width: number } {
-  const tiny = style === 'tiny';
+function renderText(text: string, size: ScrollSize): { buf: Uint8Array; width: number } {
+  const tiny = size === 'tiny';
   const scale = tiny ? 1 : SCALE_MAP[size];
   const baseH = tiny ? 5 : 7;
   const baseW = tiny ? 3 : 5;
   const scaledH = baseH * scale;
   const scaledW = baseW * scale;
-  const step = scaledW + scale; // char width + scaled gap
+  const step = scaledW + scale;
   const top = Math.floor((LOGICAL_ROWS - scaledH) / 2);
 
   const width = text.length * step;
@@ -344,9 +319,7 @@ function renderText(text: string, size: ScrollSize, style: ScrollStyle): { buf: 
 
   for (let ci = 0; ci < text.length; ci++) {
     const code = text.charCodeAt(ci);
-    let glyph = decodeGlyph(code, tiny);
-    if (!tiny) glyph = applyStyle(glyph, style);
-    const scaled = scaleGlyph(glyph, scale);
+    const scaled = scaleGlyph(decodeGlyph(code, tiny), scale);
     const charCol = ci * step;
 
     for (let r = 0; r < scaled.length; r++) {
@@ -383,8 +356,8 @@ function extractFrame(buf: Uint8Array, bufWidth: number, xOffset: number): Frame
 }
 
 export function createScrollAnimation(opts: ScrollOptions): ScrollAnimation {
-  const { text, fps = 20, pixelsPerTick = 1, loop = true, size = 'small', style = 'normal' } = opts;
-  const { buf, width } = renderText(text, size, style);
+  const { text, fps = 20, pixelsPerTick = 1, loop = true, size = 'small' } = opts;
+  const { buf, width } = renderText(text, size);
   const LEAD = MODULE_COLS * 2; // blank columns before text enters from right
   const wrapAt = width + LEAD;  // reset when text has fully exited left + trailing blank
 
