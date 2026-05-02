@@ -306,6 +306,27 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       return;
     }
 
+    if (idleName === 'gif') {
+      const gifPath = currentConfig.daemon.idle_gif_path;
+      if (!gifPath) {
+        process.stderr.write('dark-matrix: idle_animation=gif but idle_gif_path not set\n');
+        return;
+      }
+      const home = os.homedir();
+      void fs.realpath(gifPath).then((resolved) => {
+        if (!resolved.startsWith(home + '/') && resolved !== home) {
+          process.stderr.write('dark-matrix: idle_gif_path outside home directory\n');
+          return;
+        }
+        const mode = currentConfig.daemon.idle_gif_mode ?? 'gray';
+        const dual = currentConfig.daemon.idle_gif_dual ?? false;
+        startGifAnimation(resolved, true, dual, mode);
+      }).catch(() => {
+        process.stderr.write(`dark-matrix: idle_gif_path not found: ${gifPath}\n`);
+      });
+      return;
+    }
+
     // gol-random
     runOnModules(null, () => createGolAnimation());
   }
