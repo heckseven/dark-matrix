@@ -228,7 +228,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     return () => { stopped = true; anim?.stop(); };
   }
 
-  function startGifAnimation(gifPath: string, hold: boolean, dual: boolean): void {
+  function startGifAnimation(gifPath: string, hold: boolean, dual: boolean, mode: 'bw' | 'gray' = 'gray'): void {
     stopAnim();
     if (idleTimer) clearTimeout(idleTimer);
 
@@ -239,7 +239,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       const { packBW, FRAME_COLS, FRAME_ROWS, createFrame: mkFrame } = await import('../lib/frame.js');
       let anim: GifAnimation;
       try {
-        anim = await createGifAnimation({ path: gifPath, loop: hold, dual });
+        anim = await createGifAnimation({ path: gifPath, loop: hold, dual, mode });
       } catch (err) {
         process.stderr.write(`dark-matrix: gif load failed: ${String(err)}\n`);
         if (!stopped && !hold) startIdleTimer();
@@ -409,12 +409,13 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               });
               break;
             case 'animate': {
-              const m = msg as { cmd: string; type?: string; path?: string; hold?: boolean; dual?: boolean };
+              const m = msg as { cmd: string; type?: string; path?: string; hold?: boolean; dual?: boolean; mode?: string };
               if (m.type !== 'gif' || typeof m.path !== 'string' || !/\.gif$/i.test(m.path)) {
                 socket.write(JSON.stringify({ ok: false, error: 'expected type:gif and a .gif path' }) + '\n');
                 break;
               }
-              startGifAnimation(m.path, !!m.hold, !!m.dual);
+              const gifMode = m.mode === 'bw' ? 'bw' : 'gray';
+              startGifAnimation(m.path, !!m.hold, !!m.dual, gifMode);
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             }
