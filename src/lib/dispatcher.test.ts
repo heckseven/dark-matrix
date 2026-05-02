@@ -70,7 +70,7 @@ describe('Dispatcher', () => {
 
 describe('intent factories', () => {
   it('ecSwitchIntent: mic off maps to URGENT priority', () => {
-    const i = ecSwitchIntent({ type: 'mic', value: 0, prev: 1 });
+    const i = ecSwitchIntent({ type: 'mic', value: 1, prev: 0 });
     expect(i.source).toBe('ec-switch');
     expect(i.priority).toBe(PRIORITY.URGENT);
     expect(i.content).toContain('MIC OFF');

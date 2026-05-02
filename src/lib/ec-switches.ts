@@ -55,9 +55,12 @@ export function watchSwitches(
   const ectoolPath = opts?.ectoolPath ?? DEFAULT_ECTOOL;
 
   let prev: SwitchState | null = null;
+  let polling = false;
   let handle: ReturnType<typeof setInterval> | null = null;
 
   handle = setInterval(async () => {
+    if (polling) return;
+    polling = true;
     try {
       const next = await readSwitches(ectoolPath);
       if (prev === null) {
@@ -69,6 +72,8 @@ export function watchSwitches(
       prev = next;
     } catch (err: unknown) {
       process.stderr.write(`ec-switches: ectool error: ${String(err)}\n`);
+    } finally {
+      polling = false;
     }
   }, intervalMs);
 

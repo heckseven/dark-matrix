@@ -129,9 +129,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     const loop = async () => {
       const { packBW } = await import('../lib/frame.js');
       let nextAt = Date.now();
+      let natural = false;
       while (!stopped) {
         const result = await iter.next();
-        if (result.done || stopped) break;
+        if (stopped) break;
+        if (result.done) { natural = true; break; }
         const [leftFrame, rightFrame] = result.value;
         try { if (left) await transport.frameBw(packBW(leftFrame), left); } catch { /* non-fatal */ }
         try { if (right) await transport.frameBw(packBW(rightFrame), right); } catch { /* non-fatal */ }
@@ -139,8 +141,12 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         const wait = nextAt - Date.now();
         if (wait > 0) await new Promise<void>(r => setTimeout(r, wait));
       }
-      if (left) await transport.release(left).catch(() => {});
-      if (right) await transport.release(right).catch(() => {});
+      // Only release on natural completion — force-stop means another animation
+      // is already starting and will reuse the open ports.
+      if (natural) {
+        if (left) await transport.release(left).catch(() => {});
+        if (right) await transport.release(right).catch(() => {});
+      }
     };
 
     void loop();
