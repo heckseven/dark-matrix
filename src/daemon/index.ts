@@ -165,8 +165,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         const wait = nextAt - Date.now();
         if (wait > 0) await new Promise<void>(r => setTimeout(r, wait));
       }
-      if (left) await transport.release(left).catch(() => {});
-      if (right) await transport.release(right).catch(() => {});
+      // No port release here — transport.close() handles it on shutdown.
+      // Releasing here races with the next animation starting immediately.
     };
 
     void loop();
