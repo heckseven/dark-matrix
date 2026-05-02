@@ -32,6 +32,7 @@ const ConfigSchema = z.object({
     idle_gif_path: z.string().regex(/\.gif$/i).optional(),
     idle_gif_mode: z.enum(['bw', 'gray']).optional(),
     idle_gif_dual: z.boolean().optional(),
+    idle_eq_source: z.enum(['monitor', 'mic']).optional(),
   }),
 });
 

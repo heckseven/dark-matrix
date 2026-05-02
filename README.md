@@ -123,10 +123,12 @@ Generated on first run. Send `SIGHUP` to daemon to hot-reload without restart.
     "poll_interval_ms": 500,
     "idle_animation": "gol-random",  // "gol-random" | "audio-eq" | "heatmap" | "scroll" | "gif" | "none"
     "idle_after_ms": 300000,
+    "idle_eq_source": "monitor",     // "monitor" | "mic" — audio source for audio-eq idle animation
     // required when idle_animation = "gif":
     "idle_gif_path": "/home/user/path/to/idle.gif",
     "idle_gif_mode": "gray",         // "bw" | "gray" (default: gray)
-    "idle_gif_dual": false           // true to span both modules
+    "idle_gif_dual": false,          // true to span both modules
+    // to reload config without restarting: kill -HUP $(systemctl --user show -p MainPID dark-matrix | cut -d= -f2)
   }
 }
 ```
@@ -231,7 +233,7 @@ systemctl --user restart dark-matrix
 
 - [x] `--speed` option for `scroll` (slow=10fps/1px, normal=20fps/1px, fast=20fps/2px)
 - [ ] Verify left/right calibration is correct on hardware (run `dark-matrix calibrate`)
-- [ ] Audio EQ: expose mic source option (`--source mic|monitor` config key)
+- [x] Audio EQ: `idle_eq_source: "monitor" | "mic"` config key
 - [x] GIF idle animation: `idle_animation: "gif"` + `idle_gif_path`, `idle_gif_mode`, `idle_gif_dual` config keys
 
 ### Medium priority
