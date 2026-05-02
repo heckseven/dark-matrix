@@ -60,14 +60,20 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   // Hot-plug: track which devices were last seen as available.
   const deviceAvailable = new Map<string, boolean>();
 
+  // Pre-populate so devices present at startup aren't treated as reconnects.
+  for (const dev of getModulePaths()) {
+    let available = false;
+    try { await fs.access(dev); available = true; } catch { /* unavailable */ }
+    deviceAvailable.set(dev, available);
+  }
+
   async function pollModules() {
     for (const dev of getModulePaths()) {
       let available = false;
       try { await fs.access(dev); available = true; } catch { /* unavailable */ }
       const prev = deviceAvailable.get(dev) ?? false;
       if (available && !prev) {
-        // Device (re)connected — run startup animation on it
-        process.stderr.write(`dark-matrix: module connected: ${dev}\n`);
+        process.stderr.write(`dark-matrix: module reconnected: ${dev}\n`);
         const anim = createStartupAnimation({ style: 'wipe' });
         runAnimation(anim, { transport, devicePath: dev, mode: 'bw' });
       }
