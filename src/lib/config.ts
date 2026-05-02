@@ -27,7 +27,7 @@ const ConfigSchema = z.object({
   }),
   daemon: z.object({
     poll_interval_ms: z.number().int().min(100).max(60000),
-    idle_animation: z.enum(['gol-random', 'scroll', 'none']),
+    idle_animation: z.enum(['heatmap', 'gol-random', 'scroll', 'none']),
     idle_after_ms: z.number().int().min(0),
   }),
 });
@@ -55,7 +55,7 @@ export const DEFAULT_CONFIG: Config = {
   },
   daemon: {
     poll_interval_ms: 500,
-    idle_animation: 'gol-random',
+    idle_animation: 'heatmap',
     idle_after_ms: 300000,
   },
 };
