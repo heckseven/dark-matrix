@@ -411,6 +411,24 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 socket.write(JSON.stringify({ ok: true }) + '\n');
               });
               break;
+            case 'scroll': {
+              const m = msg as { cmd: string; text?: string; hold?: boolean };
+              if (typeof m.text !== 'string' || m.text.trim() === '') {
+                socket.write(JSON.stringify({ ok: false, error: 'text required' }) + '\n');
+                break;
+              }
+              const safe = m.text.replace(/[^\x20-\x7e]/g, '').slice(0, SCROLL_MAX_LEN) || '???';
+              stopAnim();
+              if (idleTimer) clearTimeout(idleTimer);
+              const scrollAnim = createScrollAnimation({ text: safe, loop: !!m.hold });
+              stopCurrentAnim = runScrollOnModules(scrollAnim);
+              if (!m.hold) {
+                const dur = safe.length * 100 + 2000;
+                setTimeout(() => { if (!dispatcher.current()) startIdleTimer(); }, dur);
+              }
+              socket.write(JSON.stringify({ ok: true }) + '\n');
+              break;
+            }
             case 'animate': {
               const m = msg as { cmd: string; type?: string; path?: string; hold?: boolean; dual?: boolean; mode?: string };
               if (m.type !== 'gif' || typeof m.path !== 'string' || !/\.gif$/i.test(m.path)) {

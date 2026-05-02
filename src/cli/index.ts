@@ -334,6 +334,26 @@ switch (cmd) {
     }
     break;
   }
+  case 'scroll': {
+    const hold = args.includes('--hold');
+    const text = args.filter(a => !a.startsWith('-')).join(' ');
+    if (!text) {
+      process.stderr.write('Usage: dark-matrix scroll [--hold] <text>\n');
+      process.exit(1);
+    }
+    try {
+      const res = await sendToDaemon({ cmd: 'scroll', text, hold });
+      if (!res['ok']) {
+        process.stderr.write(`Error: ${res['error'] ?? JSON.stringify(res)}\n`);
+        process.exit(1);
+      }
+      process.stdout.write(hold ? 'Scrolling (run "release" to stop).\n' : 'Scrolling.\n');
+    } catch (err) {
+      process.stderr.write(`${(err as Error).message}\n`);
+      process.exit(1);
+    }
+    break;
+  }
   case 'animate': {
     const sub = args[0];
     if (sub !== 'gif') {
@@ -375,6 +395,7 @@ switch (cmd) {
       '  show-split <left> <right> [--mode bw|gray]',
       '  display [yeah|runes|0x07|panic]',
       '  image <path> [--preview] [--mode bw|gray]',
+      '  scroll [--hold] <text>',
       '  animate gif [--hold] [--dual] [--mode bw|gray] <path>',
       '  calibrate',
       '  ping',
