@@ -203,9 +203,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     const loop = async () => {
       const { packBW, FRAME_COLS, FRAME_ROWS, createFrame } = await import('../lib/frame.js');
-      const target = await resolveDefaultSinkId();
+      const eqSource = currentConfig.daemon.idle_eq_source ?? 'monitor';
+      const target = eqSource === 'monitor' ? await resolveDefaultSinkId() : undefined;
       if (stopped) return;
-      anim = createAudioEqAnimation({ source: 'monitor', ...(target ? { target } : {}) });
+      anim = createAudioEqAnimation({ source: eqSource, ...(target ? { target } : {}) });
       const iter = anim[Symbol.asyncIterator]();
       while (!stopped) {
         const result = await iter.next();
