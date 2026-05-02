@@ -237,6 +237,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     void (async () => {
       const { packBW, FRAME_COLS, FRAME_ROWS, createFrame: mkFrame } = await import('../lib/frame.js');
+      const sendFrame = mode === 'bw'
+        ? async (f: Awaited<ReturnType<typeof mkFrame>>, dev: string) => transport.frameBw(packBW(f), dev)
+        : async (f: Awaited<ReturnType<typeof mkFrame>>, dev: string) => transport.frameGray(f, dev);
       let anim: GifAnimation;
       try {
         anim = await createGifAnimation({ path: gifPath, loop: hold, dual, mode });
@@ -266,12 +269,12 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               rightFrame[col * FRAME_ROWS + row] = wide[(col + FRAME_COLS) * FRAME_ROWS + row] ?? 0;
             }
           }
-          try { if (left) await transport.frameBw(packBW(leftFrame), left); } catch { /* non-fatal */ }
-          try { if (right) await transport.frameBw(packBW(rightFrame), right); } catch { /* non-fatal */ }
+          try { if (left) await sendFrame(leftFrame, left); } catch { /* non-fatal */ }
+          try { if (right) await sendFrame(rightFrame, right); } catch { /* non-fatal */ }
         } else {
           const frame = result.value;
-          try { if (left) await transport.frameBw(packBW(frame), left); } catch { /* non-fatal */ }
-          try { if (right) await transport.frameBw(packBW(frame), right); } catch { /* non-fatal */ }
+          try { if (left) await sendFrame(frame, left); } catch { /* non-fatal */ }
+          try { if (right) await sendFrame(frame, right); } catch { /* non-fatal */ }
         }
 
         const delay = anim.delays[frameIdx % anim.delays.length] ?? 100;
