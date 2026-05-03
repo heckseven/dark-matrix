@@ -255,5 +255,5 @@ systemctl --user restart dark-matrix
 
 ### Open risks
 
-- **R2** Left/right USB path assignment unconfirmed — run `calibrate` to lock in
+- **R2** ~~Left/right USB path assignment unconfirmed~~ **Confirmed**: `4.2:1.0` = left, `3.3:1.0` = right
 - **R4** Audio EQ fps ceiling unverified empirically at 30fps target

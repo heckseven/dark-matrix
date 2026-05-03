@@ -262,6 +262,15 @@ async function cmdImage(args: string[]) {
 }
 
 async function cmdCalibrate() {
+  // Release daemon's port handles if it's running
+  try {
+    await sendToDaemon({ cmd: 'release' });
+    process.stdout.write('Released daemon port handles.\n');
+    await new Promise<void>(r => setTimeout(r, 200));
+  } catch {
+    // daemon not running — proceed directly
+  }
+
   const { createInterface } = await import('node:readline');
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const ask = (q: string) => new Promise<string>(res => rl.question(q, res));
