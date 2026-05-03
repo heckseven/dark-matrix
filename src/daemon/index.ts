@@ -20,6 +20,8 @@ import { createAudioEqAnimation } from '../animations/audio-eq.js';
 import { createGifAnimation } from '../animations/gif.js';
 import type { GifAnimation } from '../animations/gif.js';
 import type { DisplayIntent } from '../lib/dispatcher.js';
+import { packBW, FRAME_SIZE } from '../lib/frame.js';
+import type { Frame } from '../lib/frame.js';
 
 const SCROLL_MAX_LEN = 120;
 
@@ -55,6 +57,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   const dispatcher = new Dispatcher();
   let stopCurrentAnim: (() => void) | null = null;
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
+  let frameHeld = false;
   const heatmapState = createHeatmapState();
 
   function getModulePaths(): string[] {
@@ -468,6 +471,47 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             }
+            case 'frame': {
+              const m = msg as { cmd: string; left?: string; right?: string; mode?: string };
+              const mode = m.mode === 'gray' ? 'gray' : 'bw';
+              stopAnim();
+              if (idleTimer) clearTimeout(idleTimer);
+              frameHeld = true;
+              const pairs: Array<[string | undefined, string | undefined]> = [
+                [m.left, currentConfig.modules.left],
+                [m.right, currentConfig.modules.right],
+              ];
+              let validationError: string | null = null;
+              for (const [b64] of pairs) {
+                if (b64 === undefined) continue;
+                const buf = Buffer.from(b64, 'base64');
+                if (buf.length !== FRAME_SIZE) { validationError = 'invalid frame length'; break; }
+              }
+              if (validationError) {
+                socket.write(JSON.stringify({ ok: false, error: validationError }) + '\n');
+                break;
+              }
+              void (async () => {
+                for (const [b64, dev] of pairs) {
+                  if (b64 === undefined || !dev) continue;
+                  const frame = new Uint8Array(Buffer.from(b64, 'base64')) as Frame;
+                  try {
+                    if (mode === 'bw') {
+                      await transport.frameBw(packBW(frame), dev);
+                    } else {
+                      await transport.frameGray(frame, dev);
+                    }
+                  } catch { /* non-fatal */ }
+                }
+              })();
+              socket.write(JSON.stringify({ ok: true }) + '\n');
+              break;
+            }
+            case 'frame-stop':
+              frameHeld = false;
+              startIdleTimer();
+              socket.write(JSON.stringify({ ok: true }) + '\n');
+              break;
             default:
               socket.write(JSON.stringify({ ok: false, error: 'unknown command' }) + '\n');
           }
