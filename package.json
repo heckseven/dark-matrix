@@ -10,7 +10,8 @@
   },
   "scripts": {
     "dev": "node --watch dist/daemon/index.js",
-    "build": "tsc",
+    "build": "tsc && npm run build:designer",
+    "build:designer": "esbuild src/designer/web/main.ts --bundle --format=esm --outfile=dist/designer/web/main.js --target=es2022 && cp src/designer/web/index.html dist/designer/web/index.html && cp src/designer/web/style.css dist/designer/web/style.css",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
@@ -26,7 +27,8 @@
     "@types/node": "^22.0.0",
     "@vitest/coverage-v8": "^3.0.0",
     "typescript": "^5.0.0",
-    "vitest": "^3.0.0"
+    "vitest": "^3.0.0",
+    "esbuild": "^0.25.0"
   },
   "packageManager": "pnpm@10.0.0",
   "pnpm": {
