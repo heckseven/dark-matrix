@@ -108,6 +108,29 @@ describe('daemon', () => {
     });
   });
 
+  it('frame command with valid left base64 responds { ok: true }', async () => {
+    await withDaemon(async () => {
+      const frame = Buffer.alloc(306, 0);
+      const res = await send(sockPath, { cmd: 'frame', left: frame.toString('base64'), mode: 'bw' });
+      expect(res).toMatchObject({ ok: true });
+    });
+  });
+
+  it('frame command with invalid base64 length responds { ok: false }', async () => {
+    await withDaemon(async () => {
+      const frame = Buffer.alloc(10, 0);
+      const res = await send(sockPath, { cmd: 'frame', left: frame.toString('base64'), mode: 'bw' });
+      expect(res).toMatchObject({ ok: false, error: 'invalid frame length' });
+    });
+  });
+
+  it('frame-stop command responds { ok: true }', async () => {
+    await withDaemon(async () => {
+      const res = await send(sockPath, { cmd: 'frame-stop' });
+      expect(res).toMatchObject({ ok: true });
+    });
+  });
+
   it('HTTP POST /hook with valid Claude payload returns 200 and parses event', async () => {
     await withDaemon(async () => {
       const body = JSON.stringify({
