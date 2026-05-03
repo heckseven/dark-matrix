@@ -3,9 +3,9 @@
   "compilerOptions": {
     "lib": ["ES2022", "DOM"],
     "outDir": "./dist/designer/web",
-    "rootDir": "./src/designer/web",
+    "rootDir": "./src/designer",
     "noEmit": true
   },
-  "include": ["src/designer/web/**/*"],
+  "include": ["src/designer/**/*"],
   "exclude": ["node_modules", "dist"]
 }
