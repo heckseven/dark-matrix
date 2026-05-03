@@ -5,6 +5,9 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { z } from 'zod';
+import sharp from 'sharp';
+import { parseProject, frameToBase64 } from './format.js';
+import type { DmxProject } from './format.js';
 
 const require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -75,6 +78,337 @@ function readBody(req: http.IncomingMessage): Promise<string> {
   });
 }
 
+const MAX_UPLOAD = 5 * 1024 * 1024; // 5 MB
+
+function readBodyBuffer(req: http.IncomingMessage): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let total = 0;
+    let oversized = false;
+    req.on('data', (chunk: Buffer) => {
+      if (oversized) return; // drain without accumulating
+      total += chunk.length;
+      if (total > MAX_UPLOAD) {
+        oversized = true;
+        // Keep draining but don't accumulate
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      if (oversized) {
+        reject(new Error('payload too large'));
+      } else {
+        resolve(Buffer.concat(chunks));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+interface MultipartFile {
+  filename: string;
+  contentType: string;
+  data: Buffer;
+}
+
+function parseMultipart(body: Buffer, boundary: string): MultipartFile | null {
+  const boundaryBuf = Buffer.from('--' + boundary);
+  const crlf = Buffer.from('\r\n');
+  const crlfcrlf = Buffer.from('\r\n\r\n');
+
+  // Find the start of the first part
+  let pos = body.indexOf(boundaryBuf);
+  if (pos === -1) return null;
+  pos += boundaryBuf.length;
+
+  // Skip CRLF after boundary
+  if (body[pos] === 0x0d && body[pos + 1] === 0x0a) pos += 2;
+
+  // Find header/body separator
+  const headerEnd = body.indexOf(crlfcrlf, pos);
+  if (headerEnd === -1) return null;
+
+  const headerSection = body.slice(pos, headerEnd).toString('utf8');
+  const bodyStart = headerEnd + 4;
+
+  // Find the closing boundary
+  const closingBoundary = Buffer.from('\r\n--' + boundary);
+  const bodyEnd = body.indexOf(closingBoundary, bodyStart);
+  if (bodyEnd === -1) return null;
+
+  const fileData = body.slice(bodyStart, bodyEnd);
+
+  // Parse headers
+  let filename = 'upload';
+  let contentType = 'application/octet-stream';
+
+  for (const line of headerSection.split('\r\n')) {
+    const lower = line.toLowerCase();
+    if (lower.startsWith('content-disposition:')) {
+      const fnMatch = line.match(/filename="([^"]+)"/i);
+      if (fnMatch) filename = fnMatch[1]!;
+    } else if (lower.startsWith('content-type:')) {
+      contentType = line.slice('content-type:'.length).trim();
+    }
+  }
+
+  // Suppress unused variable warning
+  void crlf;
+
+  return { filename, contentType, data: fileData };
+}
+
+const ALLOWED_IMPORT_TYPES = new Set(['image/png', 'image/gif', 'application/json']);
+
+const DmxProjectExportSchema = z.object({
+  project: z.object({
+    format: z.literal('dark-matrix-designer'),
+    version: z.literal(1),
+    width: z.union([z.literal(9), z.literal(18)]),
+    height: z.literal(34),
+    mode: z.enum(['bw', 'gray']),
+    loop: z.boolean(),
+    frames: z.array(z.object({ delayMs: z.number().int().nonnegative(), pixels: z.string() })).min(1),
+  }),
+});
+
+const ExportPngSchema = DmxProjectExportSchema.extend({
+  frameIdx: z.number().int().nonnegative(),
+});
+
+async function handleImport(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  const contentType = req.headers['content-type'] ?? '';
+  const boundaryMatch = contentType.match(/boundary=([^\s;]+)/);
+  if (!boundaryMatch) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'missing boundary' }));
+    return;
+  }
+
+  let body: Buffer;
+  try {
+    body = await readBodyBuffer(req);
+  } catch {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'payload too large' }));
+    return;
+  }
+
+  const file = parseMultipart(body, boundaryMatch[1]!);
+  if (!file) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'invalid multipart' }));
+    return;
+  }
+
+  // Normalize content type (strip params)
+  const mimeType = file.contentType.split(';')[0]!.trim().toLowerCase();
+
+  if (!ALLOWED_IMPORT_TYPES.has(mimeType)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'unsupported file type' }));
+    return;
+  }
+
+  try {
+    let project: DmxProject;
+
+    if (mimeType === 'application/json') {
+      project = parseProject(file.data.toString('utf8'));
+    } else if (mimeType === 'image/png') {
+      const raw = await sharp(file.data)
+        .resize(9, 34, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 1 } })
+        .grayscale()
+        .raw()
+        .toBuffer();
+
+      // Convert from row-major (sharp output) to column-major (frame format)
+      const frameBytes = new Uint8Array(9 * 34);
+      for (let col = 0; col < 9; col++) {
+        for (let row = 0; row < 34; row++) {
+          frameBytes[col * 34 + row] = raw[row * 9 + col] ?? 0;
+        }
+      }
+
+      project = {
+        format: 'dark-matrix-designer',
+        version: 1,
+        width: 9,
+        height: 34,
+        mode: 'gray',
+        loop: true,
+        frames: [{ delayMs: 100, pixels: frameToBase64(frameBytes) }],
+      };
+    } else {
+      // GIF: extract all frames
+      const meta = await sharp(file.data, { animated: true }).metadata();
+      const pages = meta.pages ?? 1;
+      const delays: number[] = meta.delay ?? Array.from({ length: pages }, () => 100);
+
+      const stacked = await sharp(file.data, { animated: true })
+        .resize(9, 34, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 1 } })
+        .grayscale()
+        .raw()
+        .toBuffer();
+
+      const bytesPerFrame = 9 * 34;
+      const frames = [];
+      for (let i = 0; i < pages; i++) {
+        const slice = stacked.subarray(i * bytesPerFrame, (i + 1) * bytesPerFrame);
+        const frameBytes = new Uint8Array(bytesPerFrame);
+        for (let col = 0; col < 9; col++) {
+          for (let row = 0; row < 34; row++) {
+            frameBytes[col * 34 + row] = slice[row * 9 + col] ?? 0;
+          }
+        }
+        frames.push({ delayMs: delays[i] ?? 100, pixels: frameToBase64(frameBytes) });
+      }
+
+      project = {
+        format: 'dark-matrix-designer',
+        version: 1,
+        width: 9,
+        height: 34,
+        mode: 'gray',
+        loop: true,
+        frames,
+      };
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, project }));
+  } catch (err) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: String(err) }));
+  }
+}
+
+async function handleExportGif(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  let body: string;
+  try {
+    body = await readBody(req);
+  } catch {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'bad request' }));
+    return;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'invalid json' }));
+    return;
+  }
+
+  const result = DmxProjectExportSchema.safeParse(parsed);
+  if (!result.success) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: result.error.message }));
+    return;
+  }
+
+  const { project } = result.data;
+  const { width, height, frames } = project;
+  const N = frames.length;
+  const delays = frames.map(f => f.delayMs);
+
+  try {
+    // Build stacked raw buffer (all frames vertically stacked, row-major)
+    const bytesPerFrame = width * height;
+    const stacked = Buffer.allocUnsafe(bytesPerFrame * N);
+
+    for (let i = 0; i < N; i++) {
+      const frameBytes = Buffer.from(frames[i]!.pixels, 'base64');
+      // Convert column-major (stored format) to row-major (sharp needs row-major)
+      for (let row = 0; row < height; row++) {
+        for (let col = 0; col < width; col++) {
+          stacked[i * bytesPerFrame + row * width + col] = frameBytes[col * height + row] ?? 0;
+        }
+      }
+    }
+
+    const gifBuf = await sharp(stacked, {
+      raw: { width, height: height * N, channels: 1, pageHeight: height },
+    })
+      .gif({ delay: delays })
+      .toBuffer();
+
+    res.writeHead(200, {
+      'Content-Type': 'image/gif',
+      'Content-Length': gifBuf.length,
+      'Content-Disposition': 'attachment; filename="animation.gif"',
+    });
+    res.end(gifBuf);
+  } catch (err) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: String(err) }));
+  }
+}
+
+async function handleExportPng(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  let body: string;
+  try {
+    body = await readBody(req);
+  } catch {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'bad request' }));
+    return;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'invalid json' }));
+    return;
+  }
+
+  const result = ExportPngSchema.safeParse(parsed);
+  if (!result.success) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: result.error.message }));
+    return;
+  }
+
+  const { project, frameIdx } = result.data;
+  const { width, height, frames } = project;
+  const frame = frames[frameIdx];
+  if (!frame) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'frameIdx out of range' }));
+    return;
+  }
+
+  try {
+    const frameBytes = Buffer.from(frame.pixels, 'base64');
+    // Convert column-major to row-major for sharp
+    const rowMajor = Buffer.allocUnsafe(width * height);
+    for (let row = 0; row < height; row++) {
+      for (let col = 0; col < width; col++) {
+        rowMajor[row * width + col] = frameBytes[col * height + row] ?? 0;
+      }
+    }
+
+    const pngBuf = await sharp(rowMajor, { raw: { width, height, channels: 1 } })
+      .png()
+      .toBuffer();
+
+    res.writeHead(200, {
+      'Content-Type': 'image/png',
+      'Content-Length': pngBuf.length,
+      'Content-Disposition': `attachment; filename="frame-${frameIdx}.png"`,
+    });
+    res.end(pngBuf);
+  } catch (err) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: String(err) }));
+  }
+}
+
 export async function startDesignerServer(opts?: DesignerServerOptions): Promise<DesignerServer> {
   const host = opts?.host ?? '127.0.0.1';
   const configDir = opts?.configDir;
@@ -97,6 +431,24 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
     if (url === '/api/prefs' && method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(prefs));
+      return;
+    }
+
+    // Import
+    if (url === '/api/import' && method === 'POST') {
+      await handleImport(req, res);
+      return;
+    }
+
+    // Export GIF
+    if (url === '/api/export/gif' && method === 'POST') {
+      await handleExportGif(req, res);
+      return;
+    }
+
+    // Export PNG
+    if (url === '/api/export/png' && method === 'POST') {
+      await handleExportPng(req, res);
       return;
     }
 
