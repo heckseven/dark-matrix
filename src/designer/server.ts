@@ -8,6 +8,7 @@ import { z } from 'zod';
 import sharp from 'sharp';
 import { parseProject, frameToBase64 } from './format.js';
 import type { DmxProject } from './format.js';
+import { sendToDaemon } from '../lib/daemon-client.js';
 
 const require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -517,11 +518,28 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
   wss.on('connection', (ws: import('ws').WebSocket) => {
     ws.send(JSON.stringify({ type: 'connected' }));
     ws.on('message', (data: Buffer) => {
+      let msg: Record<string, unknown>;
       try {
-        JSON.parse(data.toString());
-        // Phase 3 will handle preview commands here
+        msg = JSON.parse(data.toString()) as Record<string, unknown>;
       } catch {
-        // ignore parse errors
+        return;
+      }
+      const type = msg['type'];
+      if (type === 'ping') {
+        ws.send(JSON.stringify({ type: 'pong' }));
+      } else if (type === 'preview') {
+        const frame = msg['frame'];
+        if (typeof frame !== 'string' || !frame) {
+          ws.send(JSON.stringify({ type: 'preview-error', message: 'invalid frame' }));
+          return;
+        }
+        sendToDaemon({ cmd: 'frame', frame }).then(() => {
+          ws.send(JSON.stringify({ type: 'preview-ack' }));
+        }).catch((err: Error) => {
+          ws.send(JSON.stringify({ type: 'preview-error', message: err.message }));
+        });
+      } else if (type === 'preview-stop') {
+        sendToDaemon({ cmd: 'frame-stop' }).catch(() => { /* ignore — daemon may not be running */ });
       }
     });
   });
