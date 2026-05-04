@@ -514,6 +514,7 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
   });
 
   const wss = new WebSocketServer({ server, path: '/ws' });
+  wss.setMaxListeners(50);
 
   wss.on('connection', (ws: import('ws').WebSocket) => {
     ws.send(JSON.stringify({ type: 'connected' }));
@@ -535,15 +536,20 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
           ws.send(JSON.stringify({ type: 'preview-error', message: 'invalid frame' }));
           return;
         }
+        const target = (msg['target'] as string) ?? 'left';
         let daemonCmd: Record<string, unknown>;
         if (width === 18) {
-          // Split 18×34 column-major frame into two 9×34 halves
           const bytes = Buffer.from(frame, 'base64');
-          const left = bytes.subarray(0, 306).toString('base64');
-          const right = bytes.subarray(306, 612).toString('base64');
-          daemonCmd = { cmd: 'frame', left, right, mode };
+          const leftHalf = bytes.subarray(0, 306).toString('base64');
+          const rightHalf = bytes.subarray(306, 612).toString('base64');
+          if (target === 'left')        daemonCmd = { cmd: 'frame', left: leftHalf, mode };
+          else if (target === 'right')  daemonCmd = { cmd: 'frame', right: rightHalf, mode };
+          else if (target === 'mirror') daemonCmd = { cmd: 'frame', left: leftHalf, right: leftHalf, mode };
+          else                          daemonCmd = { cmd: 'frame', left: leftHalf, right: rightHalf, mode };
         } else {
-          daemonCmd = { cmd: 'frame', left: frame, mode };
+          if (target === 'right')       daemonCmd = { cmd: 'frame', right: frame, mode };
+          else if (target === 'both' || target === 'mirror') daemonCmd = { cmd: 'frame', left: frame, right: frame, mode };
+          else                          daemonCmd = { cmd: 'frame', left: frame, mode };
         }
         sendToDaemon(daemonCmd).then(() => {
           ws.send(JSON.stringify({ type: 'preview-ack' }));
@@ -571,6 +577,8 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
     port: boundPort,
     stop(): Promise<void> {
       return new Promise((resolve, reject) => {
+        // Terminate all active WS connections so wss.close() doesn't hang
+        for (const client of wss.clients) client.terminate();
         wss.close(() => {
           server.close((err) => err ? reject(err) : resolve());
         });

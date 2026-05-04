@@ -2,6 +2,8 @@ import type { DmxFrame } from '../format.js';
 
 export type Frame = DmxFrame;
 
+export type PreviewTarget = 'left' | 'right' | 'both' | 'mirror';
+
 export interface StoreState {
   frames: Frame[];
   activeFrameIdx: number;
@@ -10,6 +12,7 @@ export interface StoreState {
   loop: boolean;
   activeColor: number;
   isPlaying: boolean;
+  previewTarget: PreviewTarget;
   undoStack: Frame[][];
   redoStack: Frame[][];
 }
@@ -30,6 +33,8 @@ export interface Store {
   setWidth(width: 9 | 18): void;
   setActiveColor(value: number): void;
   setLoop(loop: boolean): void;
+  setPreviewTarget(target: PreviewTarget): void;
+  clearFrame(idx: number): void;
 }
 
 const MAX_UNDO = 50;
@@ -69,6 +74,7 @@ export function createStore(): Store {
     loop: true,
     activeColor: 255,
     isPlaying: false,
+    previewTarget: 'left',
     undoStack: [],
     redoStack: [],
   };
@@ -203,6 +209,19 @@ export function createStore(): Store {
 
     setLoop(loop) {
       state.loop = loop;
+      notify();
+    },
+
+    setPreviewTarget(target) {
+      state.previewTarget = target;
+      notify();
+    },
+
+    clearFrame(idx) {
+      const frame = state.frames[idx];
+      if (!frame) return;
+      pushUndo();
+      state.frames[idx] = { ...frame, pixels: createBlankFrameData(state.width).pixels };
       notify();
     },
   };

@@ -1,4 +1,5 @@
-import type { Store } from './store.js';
+import type { Store, PreviewTarget } from './store.js';
+import { exportProject } from './files.js';
 
 export function mountToolbar(container: HTMLElement, store: Store): void {
   const bar = document.createElement('div');
@@ -85,6 +86,36 @@ export function mountToolbar(container: HTMLElement, store: Store): void {
   loopCheck.addEventListener('change', () => store.setLoop(loopCheck.checked));
   loopLabel.append(loopCheck, 'Loop');
 
+  // Preview target
+  const TARGET_OPTIONS: Array<{ label: string; value: PreviewTarget }> = [
+    { label: 'L', value: 'left' },
+    { label: 'R', value: 'right' },
+    { label: 'Both', value: 'both' },
+    { label: 'Mirror', value: 'mirror' },
+  ];
+  const targetBtns = TARGET_OPTIONS.map(({ label, value }) => {
+    const btn = document.createElement('button');
+    btn.textContent = label;
+    btn.title = `Preview target: ${value}`;
+    btn.addEventListener('click', () => store.setPreviewTarget(value));
+    return { btn, value };
+  });
+
+  const sep4 = document.createElement('span');
+  sep4.textContent = '|';
+  sep4.style.opacity = '0.3';
+
+  // Clear + Save
+  const clearBtn = document.createElement('button');
+  clearBtn.textContent = 'Clear';
+  clearBtn.title = 'Clear active frame';
+  clearBtn.addEventListener('click', () => store.clearFrame(store.state.activeFrameIdx));
+
+  const saveBtn = document.createElement('button');
+  saveBtn.textContent = 'Save';
+  saveBtn.title = 'Download .dmx.json';
+  saveBtn.addEventListener('click', () => void exportProject(store));
+
   bar.append(
     bwBtn, grayBtn, sep1,
     w9Btn, w18Btn,
@@ -94,12 +125,16 @@ export function mountToolbar(container: HTMLElement, store: Store): void {
     undoBtn, redoBtn,
     sep3.cloneNode(true),
     loopLabel,
+    sep4,
+    ...targetBtns.map(t => t.btn),
+    sep4.cloneNode(true),
+    clearBtn, saveBtn,
   );
 
   container.appendChild(bar);
 
   function render() {
-    const { mode, width, activeColor, undoStack, redoStack, loop } = store.state;
+    const { mode, width, activeColor, undoStack, redoStack, loop, previewTarget } = store.state;
 
     bwBtn.classList.toggle('active', mode === 'bw');
     grayBtn.classList.toggle('active', mode === 'gray');
@@ -115,6 +150,10 @@ export function mountToolbar(container: HTMLElement, store: Store): void {
     redoBtn.disabled = redoStack.length === 0;
 
     loopCheck.checked = loop;
+
+    for (const { btn, value } of targetBtns) {
+      btn.classList.toggle('active', previewTarget === value);
+    }
   }
 
   store.subscribe(render);

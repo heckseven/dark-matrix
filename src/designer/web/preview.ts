@@ -1,5 +1,7 @@
+export type { PreviewTarget } from './store.js';
+
 export interface PreviewBridge {
-  sendFrame(frameBase64: string, mode: 'bw' | 'gray', width: 9 | 18): void;
+  sendFrame(frameBase64: string, mode: 'bw' | 'gray', width: 9 | 18, target: import('./store.js').PreviewTarget): void;
   stop(): void;
   dispose(): void;
 }
@@ -26,9 +28,9 @@ export function createPreviewBridge(wsUrl: string): PreviewBridge {
   connect();
 
   return {
-    sendFrame(frameBase64: string, mode: 'bw' | 'gray', width: 9 | 18) {
+    sendFrame(frameBase64: string, mode: 'bw' | 'gray', width: 9 | 18, target: import('./store.js').PreviewTarget) {
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'preview', frame: frameBase64, mode, width }));
+        ws.send(JSON.stringify({ type: 'preview', frame: frameBase64, mode, width, target }));
       }
     },
     stop() {
