@@ -1,5 +1,5 @@
 export interface PreviewBridge {
-  sendFrame(frameBase64: string): void;
+  sendFrame(frameBase64: string, mode: 'bw' | 'gray', width: 9 | 18): void;
   stop(): void;
   dispose(): void;
 }
@@ -26,9 +26,9 @@ export function createPreviewBridge(wsUrl: string): PreviewBridge {
   connect();
 
   return {
-    sendFrame(frameBase64: string) {
+    sendFrame(frameBase64: string, mode: 'bw' | 'gray', width: 9 | 18) {
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'preview', frame: frameBase64 }));
+        ws.send(JSON.stringify({ type: 'preview', frame: frameBase64, mode, width }));
       }
     },
     stop() {

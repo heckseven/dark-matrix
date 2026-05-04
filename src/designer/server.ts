@@ -529,11 +529,23 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
         ws.send(JSON.stringify({ type: 'pong' }));
       } else if (type === 'preview') {
         const frame = msg['frame'];
+        const mode = msg['mode'] === 'gray' ? 'gray' : 'bw';
+        const width = msg['width'] === 18 ? 18 : 9;
         if (typeof frame !== 'string' || !frame) {
           ws.send(JSON.stringify({ type: 'preview-error', message: 'invalid frame' }));
           return;
         }
-        sendToDaemon({ cmd: 'frame', frame }).then(() => {
+        let daemonCmd: Record<string, unknown>;
+        if (width === 18) {
+          // Split 18×34 column-major frame into two 9×34 halves
+          const bytes = Buffer.from(frame, 'base64');
+          const left = bytes.subarray(0, 306).toString('base64');
+          const right = bytes.subarray(306, 612).toString('base64');
+          daemonCmd = { cmd: 'frame', left, right, mode };
+        } else {
+          daemonCmd = { cmd: 'frame', left: frame, mode };
+        }
+        sendToDaemon(daemonCmd).then(() => {
           ws.send(JSON.stringify({ type: 'preview-ack' }));
         }).catch((err: Error) => {
           ws.send(JSON.stringify({ type: 'preview-error', message: err.message }));
