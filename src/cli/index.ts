@@ -1,5 +1,4 @@
 import fs from 'node:fs/promises';
-import net from 'node:net';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -10,27 +9,7 @@ import { runAnimation } from '../lib/animation.js';
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-function daemonSocketPath(): string {
-  return process.env['DARK_MATRIX_SOCKET']
-    ?? `/run/user/${process.getuid!()}/dark-matrix.sock`;
-}
-
-function sendToDaemon(cmd: Record<string, unknown>): Promise<Record<string, unknown>> {
-  return new Promise((resolve, reject) => {
-    const sock = net.createConnection(daemonSocketPath());
-    let buf = '';
-    sock.on('connect', () => sock.write(JSON.stringify(cmd) + '\n'));
-    sock.on('data', (chunk) => {
-      buf += chunk.toString();
-      if (buf.includes('\n')) sock.end();
-    });
-    sock.on('end', () => {
-      try { resolve(JSON.parse(buf.trim()) as Record<string, unknown>); }
-      catch { reject(new Error(`daemon response parse error: ${buf}`)); }
-    });
-    sock.on('error', (err) => reject(new Error(`Cannot reach daemon: ${(err as NodeJS.ErrnoException).message}`)));
-  });
-}
+import { sendToDaemon } from '../lib/daemon-client.js';
 
 function staticAnim(frame: Frame) {
   let stopped = false;
@@ -305,6 +284,26 @@ async function cmdCalibrate() {
   rl.close();
 }
 
+async function cmdDesigner(args: string[]): Promise<void> {
+  const portIdx = args.indexOf('--port');
+  const port = portIdx !== -1 ? parseInt(args[portIdx + 1] ?? '7340', 10) : 7340;
+  const { startDesignerServer } = await import('../designer/server.js');
+  const server = await startDesignerServer({ port });
+  process.stdout.write(`Designer running at ${server.url}\nPress Ctrl-C to stop.\n`);
+
+  const openUrl = server.url;
+  const opener = process.platform === 'darwin' ? 'open'
+    : process.platform === 'win32' ? 'start'
+    : 'xdg-open';
+  const { spawn } = await import('node:child_process');
+  const child = spawn(opener, [openUrl], { stdio: 'ignore', detached: true });
+  child.unref();
+
+  const shutdown = async () => { await server.stop(); process.exit(0); };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+}
+
 const [,, cmd, ...args] = process.argv;
 
 switch (cmd) {
@@ -318,6 +317,7 @@ switch (cmd) {
         process.exit(1);
     }
     break;
+  case 'designer':   await cmdDesigner(args); break;
   case 'show':       await cmdShow(args); break;
   case 'show-split': await cmdShowSplit(args); break;
   case 'display':    await cmdDisplay(args); break;
@@ -414,6 +414,7 @@ switch (cmd) {
       '  show-split <left> <right> [--mode bw|gray]',
       '  display [yeah|runes|0x07|panic]',
       '  image <path> [--preview] [--mode bw|gray]',
+      '  designer [--port <n>]',
       '  scroll [--hold] [--size tiny|small|medium|large] [--speed slow|normal|fast] <text>',
       '  animate gif [--hold] [--dual] [--mode bw|gray] <path>',
       '  calibrate',
