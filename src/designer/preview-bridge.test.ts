@@ -139,16 +139,14 @@ describe('designer WebSocket preview bridge', () => {
     expect(JSON.parse(msg)).toEqual({ type: 'pong' });
   });
 
-  it('preview with daemon unreachable → preview-error', async () => {
+  it('preview with daemon unreachable → preview-ack (fire-and-forget)', async () => {
     const ws = await RawWs.connect('127.0.0.1', server.port, '/ws');
     await ws.receive(); // consume 'connected'
     const frame = Buffer.alloc(306).toString('base64');
     ws.send(JSON.stringify({ type: 'preview', frame }));
     const msg = await ws.receive();
     ws.close();
-    const parsed = JSON.parse(msg) as Record<string, unknown>;
-    expect(parsed['type']).toBe('preview-error');
-    expect(typeof parsed['message']).toBe('string');
+    expect(JSON.parse(msg)).toEqual({ type: 'preview-ack' });
   });
 
   it('preview-stop does not crash the connection', async () => {

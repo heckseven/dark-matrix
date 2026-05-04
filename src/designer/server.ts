@@ -8,7 +8,7 @@ import { z } from 'zod';
 import sharp from 'sharp';
 import { parseProject, frameToBase64 } from './format.js';
 import type { DmxProject } from './format.js';
-import { sendToDaemon } from '../lib/daemon-client.js';
+import { sendToDaemon, PersistentDaemonClient } from '../lib/daemon-client.js';
 
 const require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -517,7 +517,9 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
   wss.setMaxListeners(50);
 
   wss.on('connection', (ws: import('ws').WebSocket) => {
+    const previewClient = new PersistentDaemonClient();
     ws.send(JSON.stringify({ type: 'connected' }));
+    ws.on('close', () => previewClient.destroy());
     ws.on('message', (data: Buffer) => {
       let msg: Record<string, unknown>;
       try {
@@ -551,11 +553,8 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
           else if (target === 'both' || target === 'mirror') daemonCmd = { cmd: 'frame', left: frame, right: frame, mode };
           else                          daemonCmd = { cmd: 'frame', left: frame, mode };
         }
-        sendToDaemon(daemonCmd).then(() => {
-          ws.send(JSON.stringify({ type: 'preview-ack' }));
-        }).catch((err: Error) => {
-          ws.send(JSON.stringify({ type: 'preview-error', message: err.message }));
-        });
+        previewClient.send(daemonCmd);
+        ws.send(JSON.stringify({ type: 'preview-ack' }));
       } else if (type === 'preview-stop') {
         sendToDaemon({ cmd: 'frame-stop' }).catch(() => { /* ignore — daemon may not be running */ });
       }
