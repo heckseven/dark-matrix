@@ -33,9 +33,9 @@ previewBtn.addEventListener('click', () => {
   } else {
     bridge = createPreviewBridge(`ws://${location.host}/ws`);
     unsub = store.subscribe(() => {
-      const { frames, activeFrameIdx, mode, width } = store.state;
+      const { frames, activeFrameIdx, mode, width, previewTarget } = store.state;
       const frame = frames[activeFrameIdx];
-      if (frame && bridge) bridge.sendFrame(frame.pixels, mode, width);
+      if (frame && bridge) bridge.sendFrame(frame.pixels, mode, width, previewTarget);
     });
     previewBtn.textContent = 'Live Preview: ON';
     previewBtn.classList.add('active');
