@@ -46,7 +46,7 @@ export type StoreState = DesignerState;
 export type Store = { state: DesignerState; subscribe: (cb: () => void) => () => void } & DesignerActions;
 
 const MAX_UNDO = 50;
-const ROWS = 34;
+export const ROWS = 34;
 
 function blank(width: number): Frame {
   return { delayMs: 100, pixels: btoa(String.fromCharCode(...new Uint8Array(width * ROWS))) };

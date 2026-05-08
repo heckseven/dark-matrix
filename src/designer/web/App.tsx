@@ -25,15 +25,17 @@ function PreviewToggle() {
 export function App() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <div className="flex items-center gap-1.5 px-2 py-1 border-b border-border">
+      <header className="flex items-center gap-1.5 px-2 py-1 border-b border-border">
         <PreviewToggle />
-      </div>
+      </header>
       <Toolbar />
-      <div className="flex-1 overflow-auto p-2">
+      <main className="flex-1 overflow-auto p-2">
         <Grid />
-      </div>
-      <FrameStrip />
-      <Playback />
+      </main>
+      <footer className="flex flex-col">
+        <FrameStrip />
+        <Playback />
+      </footer>
     </div>
   );
 }

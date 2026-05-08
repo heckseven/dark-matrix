@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils.js';
 interface ToggleProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   pressed?: boolean;
   onPressedChange?: (pressed: boolean) => void;
-  pressedLabel: React.ReactNode;
+  pressedLabel?: React.ReactNode;
 }
 
 export const Toggle = React.forwardRef<HTMLButtonElement, ToggleProps>(

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import { expect } from 'storybook/test';
 import { FrameStrip } from './FrameStrip';
 import { designerStore } from '../store.js';
 
@@ -23,10 +24,17 @@ const meta = {
   title: 'Components/FrameStrip',
   component: FrameStripStory,
   tags: ['autodocs'],
+  parameters: {
+    docs: {
+      description: {
+        component: 'Scrollable strip of frame thumbnails. Supports click-to-select, drag-to-reorder, per-frame delay, and frame add/delete.',
+      },
+    },
+  },
   argTypes: {
     frameCount: {
       control: { type: 'range', min: 1, max: 6, step: 1 },
-      description: 'Number of frames in the store',
+      description: 'Number of frames in the store.',
     },
   },
   args: { frameCount: 1 },
@@ -39,4 +47,8 @@ export const Playground: Story = {};
 
 export const MultiFrame: Story = {
   args: { frameCount: 3 },
+  play: async ({ canvas }) => {
+    const items = canvas.getAllByRole('listitem');
+    await expect(items).toHaveLength(3);
+  },
 };

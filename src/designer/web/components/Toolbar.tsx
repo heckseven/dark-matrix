@@ -14,20 +14,20 @@ function Swatch({ value }: { value: number }) {
       type="button"
       className="w-5 h-5 p-0 border border-border rounded-sm shrink-0 cursor-pointer"
       style={{ background: `rgb(${value},${value},${value})` }}
-      title={`Value ${value}`}
+      aria-label={`Gray value ${value}`}
       onClick={() => setActiveColor(value)}
     />
   );
 }
 
-const TARGET_OPTIONS: Array<{ label: string; value: PreviewTarget }> = [
-  { label: 'L', value: 'left' },
-  { label: 'R', value: 'right' },
-  { label: 'Both', value: 'both' },
-  { label: 'Mirror', value: 'mirror' },
+const TARGET_OPTIONS: Array<{ label: string; value: PreviewTarget; ariaLabel: string }> = [
+  { label: 'L', value: 'left',   ariaLabel: 'Preview target: Left' },
+  { label: 'R', value: 'right',  ariaLabel: 'Preview target: Right' },
+  { label: 'Both', value: 'both', ariaLabel: 'Preview target: Both' },
+  { label: 'Mirror', value: 'mirror', ariaLabel: 'Preview target: Mirror' },
 ];
 
-const Sep = () => <span className="text-border select-none">|</span>;
+const Sep = () => <span className="text-border select-none" role="separator" aria-orientation="vertical">|</span>;
 
 export function Toolbar() {
   const mode = useDesignerStore(s => s.mode);
@@ -49,10 +49,12 @@ export function Toolbar() {
   const clearFrame = useDesignerStore(s => s.clearFrame);
 
   return (
-    <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border flex-wrap">
+    <div role="toolbar" aria-label="Designer tools" className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border flex-wrap">
       {/* Mode */}
-      <Toggle pressed={mode === 'bw'} onPressedChange={() => setMode('bw')} pressedLabel="BW">BW</Toggle>
-      <Toggle pressed={mode === 'gray'} onPressedChange={() => setMode('gray')} pressedLabel="Gray">Gray</Toggle>
+      <div role="group" aria-label="Drawing mode" className="flex items-center gap-1">
+        <Toggle pressed={mode === 'bw'} onPressedChange={() => setMode('bw')} pressedLabel="BW">BW</Toggle>
+        <Toggle pressed={mode === 'gray'} onPressedChange={() => setMode('gray')} pressedLabel="Gray">Gray</Toggle>
+      </div>
 
       <Sep />
 
@@ -67,9 +69,14 @@ export function Toolbar() {
           <Slider
             min={0} max={255}
             value={activeColor}
-            onChange={e => setActiveColor(Number((e.target as HTMLInputElement).value))}
+            aria-label="Active gray value"
+            aria-valuetext={`${activeColor}`}
+            onChange={e => setActiveColor(Number(e.target.value))}
           />
           <div
+            role="status"
+            aria-live="polite"
+            aria-label={`Active color: ${activeColor}`}
             className="w-5 h-5 rounded-sm border-2 border-ring shrink-0"
             style={{ background: `rgb(${activeColor},${activeColor},${activeColor})` }}
           />
@@ -93,11 +100,13 @@ export function Toolbar() {
       <Sep />
 
       {/* Preview target */}
-      {TARGET_OPTIONS.map(({ label, value }) => (
-        <Toggle key={value} pressed={previewTarget === value} onPressedChange={() => setPreviewTarget(value)} pressedLabel={label}>
-          {label}
-        </Toggle>
-      ))}
+      <div role="group" aria-label="Preview target" className="flex items-center gap-1">
+        {TARGET_OPTIONS.map(({ label, value, ariaLabel }) => (
+          <Toggle key={value} pressed={previewTarget === value} onPressedChange={() => setPreviewTarget(value)} pressedLabel={label} aria-label={ariaLabel}>
+            {label}
+          </Toggle>
+        ))}
+      </div>
 
       <Sep />
 
@@ -111,8 +120,8 @@ export function Toolbar() {
       <Sep />
 
       {/* Clear + Save */}
-      <Button onClick={() => clearFrame(activeFrameIdx)} title="Clear active frame">Clear</Button>
-      <Button onClick={() => void exportProject({ state: designerStore.getState() })} title="Download .dmx.json">
+      <Button onClick={() => clearFrame(activeFrameIdx)} aria-label="Clear active frame">Clear</Button>
+      <Button onClick={() => void exportProject({ state: designerStore.getState() })} aria-label="Save project as .dmx.json">
         Save
       </Button>
     </div>
