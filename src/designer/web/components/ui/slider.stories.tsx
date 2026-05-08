@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import { fn } from 'storybook/test';
 import { Slider } from './slider';
 
 const meta = {
@@ -24,8 +25,10 @@ const meta = {
     step: { control: 'number', description: 'Increment between values. Defaults to `1`.' },
     defaultValue: { control: 'number', description: 'Initial value for uncontrolled usage.' },
     value: { control: 'number', description: 'Current value for controlled usage. Requires `onChange`.' },
+    onChange: { description: 'Change handler for controlled usage.' },
     disabled: { control: 'boolean', description: 'Prevents interaction.' },
   },
+  args: { onChange: fn() },
 } satisfies Meta<typeof Slider>;
 
 export default meta;
@@ -34,12 +37,4 @@ type Story = StoryObj<typeof meta>;
 /** Full range configurable via controls. */
 export const Playground: Story = {
   args: { min: 0, max: 255, defaultValue: 128 },
-};
-
-export const MinValue: Story = {
-  args: { min: 0, max: 255, defaultValue: 0 },
-};
-
-export const MaxValue: Story = {
-  args: { min: 0, max: 255, defaultValue: 255 },
 };

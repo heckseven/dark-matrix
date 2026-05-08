@@ -31,6 +31,7 @@ const meta = {
       options: ['sm', 'md', 'lg', 'xl', 'full'],
       description: 'Max-width constraint.',
     },
+    children: { control: false, description: 'Content.' },
   },
 } satisfies Meta<typeof Container>;
 

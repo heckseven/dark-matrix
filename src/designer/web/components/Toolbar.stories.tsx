@@ -13,8 +13,15 @@ const meta = {
   title: 'Components/Toolbar',
   component: ToolbarStory,
   tags: ['autodocs'],
+  parameters: {
+    docs: {
+      description: {
+        component: 'Composed toolbar: drawing mode, palette, undo/redo, loop, preview target, and save controls.',
+      },
+    },
+  },
   argTypes: {
-    mode: { control: 'radio', options: ['bw', 'gray'], description: 'Drawing mode — switches between BW and grayscale palette' },
+    mode: { control: 'radio', options: ['bw', 'gray'], description: 'Drawing mode — switches between BW and grayscale palette.' },
   },
   args: { mode: 'bw' as const },
 } satisfies Meta<typeof ToolbarStory>;
@@ -22,13 +29,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Playground: Story = {};
-
-export const BwMode: Story = {
-  name: 'BW Mode',
+/** Mode and all controls configurable via controls panel. */
+export const Playground: Story = {
   args: { mode: 'bw' },
-};
-
-export const GrayMode: Story = {
-  args: { mode: 'gray' },
 };

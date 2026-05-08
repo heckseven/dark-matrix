@@ -37,11 +37,10 @@ type Story = StoryObj<typeof meta>;
 export const Playground: Story = {
   args: { children: 'Live preview: off', pressedLabel: 'Live preview: on', pressed: false },
   render: (args) => {
-    const [{ pressed }, updateArgs] = useArgs();
+    const [, updateArgs] = useArgs();
     return (
       <Toggle
         {...args}
-        pressed={pressed}
         onPressedChange={(p) => { args.onPressedChange?.(p); updateArgs({ pressed: p }); }}
       />
     );
@@ -57,4 +56,7 @@ export const Pressed: Story = {
 
 export const Disabled: Story = {
   args: { children: 'Live preview: off', pressedLabel: 'Live preview: on', disabled: true },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByRole('button', { name: /live preview: off/i })).toBeDisabled();
+  },
 };
