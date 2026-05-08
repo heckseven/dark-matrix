@@ -35,21 +35,24 @@ function buildBwPacket(packed: Uint8Array): Uint8Array {
   return buf;
 }
 
-function buildGrayPackets(frame: Frame): Uint8Array[] {
-  const packets: Uint8Array[] = [];
+function buildGrayFrame(frame: Frame): Uint8Array {
+  // 9 column packets (38 bytes each) + 1 commit packet (3 bytes) = 345 bytes
+  // Written as a single buffer to avoid multiple drain() round-trips per frame
+  const buf = new Uint8Array(FRAME_COLS * 38 + 3);
+  let off = 0;
   for (let col = 0; col < FRAME_COLS; col++) {
-    const pkt = new Uint8Array(38);
-    pkt[0] = FWK_MAGIC[0];
-    pkt[1] = FWK_MAGIC[1];
-    pkt[2] = CMD_SEND_COL;
-    pkt[3] = col;
+    buf[off++] = FWK_MAGIC[0];
+    buf[off++] = FWK_MAGIC[1];
+    buf[off++] = CMD_SEND_COL;
+    buf[off++] = col;
     for (let row = 0; row < FRAME_ROWS; row++) {
-      pkt[4 + row] = frame[col * FRAME_ROWS + row] ?? 0;
+      buf[off++] = frame[col * FRAME_ROWS + row] ?? 0;
     }
-    packets.push(pkt);
   }
-  packets.push(Uint8Array.from([FWK_MAGIC[0], FWK_MAGIC[1], CMD_COMMIT_COLS]));
-  return packets;
+  buf[off++] = FWK_MAGIC[0];
+  buf[off++] = FWK_MAGIC[1];
+  buf[off++] = CMD_COMMIT_COLS;
+  return buf;
 }
 
 export interface MatrixTransport {
@@ -87,7 +90,7 @@ function writePort(port: SerialPort, data: Uint8Array): Promise<void> {
 
 function openPort(devicePath: string): Promise<SerialPort> {
   return new Promise((resolve, reject) => {
-    const port = new SerialPort({ path: devicePath, baudRate: 115200, autoOpen: false });
+    const port = new SerialPort({ path: devicePath, baudRate: 921600, autoOpen: false });
     port.open((err) => (err ? reject(err) : resolve(port)));
   });
 }
@@ -124,9 +127,7 @@ export class BinaryTransport implements MatrixTransport {
     validatePath(devicePath);
     const port = await openPort(devicePath);
     try {
-      for (const pkt of buildGrayPackets(frame)) {
-        await writePort(port, pkt);
-      }
+      await writePort(port, buildGrayFrame(frame));
     } finally {
       await closePort(port);
     }
@@ -188,11 +189,7 @@ export class SerialTransport implements MatrixTransport {
   async liveFrameGray(frame: Frame, devicePath: string): Promise<void> {
     validatePath(devicePath);
     const port = await this.getPort(devicePath);
-    return this.runLive(devicePath, async () => {
-      for (const pkt of buildGrayPackets(frame)) {
-        await writePort(port, pkt);
-      }
-    });
+    return this.runLive(devicePath, () => writePort(port, buildGrayFrame(frame)));
   }
 
   private async getPort(devicePath: string): Promise<SerialPort> {
@@ -214,11 +211,7 @@ export class SerialTransport implements MatrixTransport {
   async frameGray(frame: Frame, devicePath: string): Promise<void> {
     validatePath(devicePath);
     const port = await this.getPort(devicePath);
-    return this.enqueue(devicePath, async () => {
-      for (const pkt of buildGrayPackets(frame)) {
-        await writePort(port, pkt);
-      }
-    });
+    return this.enqueue(devicePath, () => writePort(port, buildGrayFrame(frame)));
   }
 
   async command(devicePath: string, subcommand: string, args: string[]): Promise<void> {
