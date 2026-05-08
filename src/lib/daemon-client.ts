@@ -33,7 +33,8 @@ export class PersistentDaemonClient {
   constructor(private readonly socketPath = daemonSocketPath()) {}
 
   send(cmd: Record<string, unknown>): void {
-    this.queue.push(JSON.stringify(cmd) + '\n');
+    // Latest-wins: discard any pending unsent frame so backlog never builds
+    this.queue = [JSON.stringify(cmd) + '\n'];
     this.drain();
   }
 

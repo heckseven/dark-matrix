@@ -3,6 +3,7 @@ import type { Store } from './store.js';
 const CELL = 20;
 const GAP = 1;
 const ROWS = 34;
+const MODULE_GAP = 8;
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -40,9 +41,14 @@ export function mountGrid(container: HTMLElement, store: Store): void {
   let erasing = false;
   let cols = 0;
 
+  function colX(c: number, width: number): number {
+    const base = c * (CELL + GAP);
+    return width === 18 && c >= 9 ? base + MODULE_GAP : base;
+  }
+
   function buildGrid(width: number) {
     cols = width;
-    const svgW = width * (CELL + GAP) - GAP;
+    const svgW = width * (CELL + GAP) - GAP + (width === 18 ? MODULE_GAP : 0);
     const svgH = ROWS * (CELL + GAP) - GAP;
     svg.setAttribute('width', String(svgW));
     svg.setAttribute('height', String(svgH));
@@ -54,7 +60,7 @@ export function mountGrid(container: HTMLElement, store: Store): void {
       rects[c] = [];
       for (let r = 0; r < ROWS; r++) {
         const rect = document.createElementNS(SVG_NS, 'rect') as SVGRectElement;
-        rect.setAttribute('x', String(c * (CELL + GAP)));
+        rect.setAttribute('x', String(colX(c, width)));
         rect.setAttribute('y', String(r * (CELL + GAP)));
         rect.setAttribute('width', String(CELL));
         rect.setAttribute('height', String(CELL));
@@ -69,8 +75,13 @@ export function mountGrid(container: HTMLElement, store: Store): void {
 
   function hitTest(e: MouseEvent): { col: number; row: number } | null {
     const bbox = svg.getBoundingClientRect();
-    const x = e.clientX - bbox.left;
+    let x = e.clientX - bbox.left;
     const y = e.clientY - bbox.top;
+    if (cols === 18) {
+      const gapStart = 9 * (CELL + GAP);
+      if (x >= gapStart && x < gapStart + MODULE_GAP) return null;
+      if (x >= gapStart + MODULE_GAP) x -= MODULE_GAP;
+    }
     const col = Math.floor(x / (CELL + GAP));
     const row = Math.floor(y / (CELL + GAP));
     if (col < 0 || col >= cols || row < 0 || row >= ROWS) return null;

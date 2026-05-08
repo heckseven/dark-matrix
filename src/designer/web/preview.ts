@@ -27,15 +27,9 @@ export function createPreviewBridge(wsUrl: string): PreviewBridge {
 
   connect();
 
-  let lastSent = 0;
-  const INTERVAL_MS = 33; // ~30fps
-
   return {
     sendFrame(frameBase64: string, mode: 'bw' | 'gray', width: 9 | 18, target: import('./store.js').PreviewTarget) {
-      const now = Date.now();
-      if (now - lastSent < INTERVAL_MS) return;
       if (ws && ws.readyState === WebSocket.OPEN) {
-        lastSent = now;
         ws.send(JSON.stringify({ type: 'preview', frame: frameBase64, mode, width, target }));
       }
     },

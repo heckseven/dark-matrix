@@ -149,16 +149,50 @@ export class BinaryTransport implements MatrixTransport {
 // ---------------------------------------------------------------------------
 // SerialTransport — holds port open across animation frames.
 // All writes to a given device are serialized through a promise queue.
+// liveFrameBw/liveFrameGray use latest-wins semantics: a new frame replaces
+// any pending (not yet started) write rather than queueing behind it.
 // ---------------------------------------------------------------------------
 export class SerialTransport implements MatrixTransport {
   private readonly ports = new Map<string, SerialPort>();
   private readonly queues = new Map<string, Promise<void>>();
+  private readonly live = new Map<string, { next: (() => Promise<void>) | null; writing: boolean }>();
 
   private enqueue(devicePath: string, op: () => Promise<void>): Promise<void> {
     const tail = (this.queues.get(devicePath) ?? Promise.resolve()).then(op);
     // Keep queue moving even if op rejects
     this.queues.set(devicePath, tail.catch(() => {}));
     return tail;
+  }
+
+  private async runLive(devicePath: string, op: () => Promise<void>): Promise<void> {
+    let state = this.live.get(devicePath);
+    if (!state) { state = { next: null, writing: false }; this.live.set(devicePath, state); }
+    if (state.writing) { state.next = op; return; }
+    state.writing = true;
+    let cur = op;
+    while (true) {
+      state.next = null;
+      await cur().catch(() => {});
+      if (!state.next) break;
+      cur = state.next;
+    }
+    state.writing = false;
+  }
+
+  async liveFrameBw(packed: Uint8Array, devicePath: string): Promise<void> {
+    validatePath(devicePath);
+    const port = await this.getPort(devicePath);
+    return this.runLive(devicePath, () => writePort(port, buildBwPacket(packed)));
+  }
+
+  async liveFrameGray(frame: Frame, devicePath: string): Promise<void> {
+    validatePath(devicePath);
+    const port = await this.getPort(devicePath);
+    return this.runLive(devicePath, async () => {
+      for (const pkt of buildGrayPackets(frame)) {
+        await writePort(port, pkt);
+      }
+    });
   }
 
   private async getPort(devicePath: string): Promise<SerialPort> {
