@@ -2,6 +2,7 @@ import type { Preview } from '@storybook/tanstack-react'
 import '../src/designer/web/globals.css'
 
 const preview: Preview = {
+  tags: ['!autodocs'],
   parameters: {
     controls: {
       matchers: {

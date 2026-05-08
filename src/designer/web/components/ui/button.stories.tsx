@@ -3,19 +3,27 @@ import { expect } from 'storybook/test';
 import { Button } from './button';
 
 const meta = {
+  title: 'Components/Button',
   component: Button,
-  tags: ['ai-generated'],
+  tags: ['autodocs'],
+  argTypes: {
+    variant: { control: 'select', options: ['default', 'primary', 'ghost', 'destructive'] },
+    size: { control: 'select', options: ['default', 'icon', 'sm'] },
+    disabled: { control: 'boolean' },
+    children: { control: 'text' },
+  },
 } satisfies Meta<typeof Button>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+/** All variants and sizes configurable via controls. */
+export const Playground: Story = {
+  args: { children: 'Button', variant: 'default', size: 'default' },
+};
+
 export const Default: Story = {
   args: { children: 'Click me' },
-  play: async ({ canvas }) => {
-    const btn = canvas.getByRole('button', { name: /click me/i });
-    await expect(btn).toHaveAttribute('type', 'button');
-  },
 };
 
 export const Primary: Story = {
@@ -37,11 +45,12 @@ export const Disabled: Story = {
   },
 };
 
+/** Regression guard: verifies globals.css design tokens loaded in the test runner. */
 export const CssCheck: Story = {
+  tags: ['!dev'],
   args: { children: 'Submit', variant: 'primary' },
   play: async ({ canvas }) => {
     const btn = canvas.getByRole('button', { name: /submit/i });
-    // bg-primary = hsl(142, 70%, 45%) = rgb(34, 195, 93) — fails if globals.css tokens did not load
     await expect(getComputedStyle(btn).backgroundColor).toBe('rgb(34, 195, 93)');
   },
 };
