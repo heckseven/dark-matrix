@@ -35,9 +35,15 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** State and disabled configurable via controls. */
+/** State and disabled configurable via controls. Click to toggle. */
 export const Playground: Story = {
   args: { defaultChecked: false },
+  render: (args) => (
+    <label className="flex items-center gap-2 cursor-pointer">
+      <Checkbox {...args} />
+      <Text as="span" size="xs">Click to toggle</Text>
+    </label>
+  ),
 };
 
 export const Checked: Story = {
