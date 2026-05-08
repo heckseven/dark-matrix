@@ -4,3 +4,6 @@ coverage/
 *.js.map
 .pnpm-debug.log
 .claude/worktrees/
+
+*storybook.log
+storybook-static
