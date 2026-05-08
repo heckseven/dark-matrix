@@ -4,6 +4,7 @@ import { exportProject } from '../files.js';
 import { Button } from './ui/button.js';
 import { Toggle } from './ui/toggle.js';
 import { Slider } from './ui/slider.js';
+import { Text } from './ui/text.js';
 
 const GRAY_PALETTE = [51, 102, 153, 204];
 
@@ -27,7 +28,7 @@ const TARGET_OPTIONS: Array<{ label: string; value: PreviewTarget; ariaLabel: st
   { label: 'Mirror', value: 'mirror', ariaLabel: 'Preview target: Mirror' },
 ];
 
-const Sep = () => <span className="text-border select-none" role="separator" aria-orientation="vertical">|</span>;
+const Sep = () => <Text as="span" className="text-border select-none" role="separator" aria-orientation="vertical">|</Text>;
 
 export function Toolbar() {
   const mode = useDesignerStore(s => s.mode);

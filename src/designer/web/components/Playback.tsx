@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useDesignerStore, designerStore } from '../store.js';
 import { Button } from './ui/button.js';
+import { Text } from './ui/text.js';
 
 export function Playback() {
   const isPlaying = useDesignerStore(s => s.isPlaying);
@@ -47,9 +48,9 @@ export function Playback() {
       <Button aria-label="Previous frame" disabled={atStart} onClick={() => { designerStore.getState().setPlaying(false); designerStore.getState().setActiveFrame(activeFrameIdx - 1); }}>⏮</Button>
       <Button aria-label={isPlaying ? 'Pause' : 'Play'} onClick={() => designerStore.getState().setPlaying(!isPlaying)}>{isPlaying ? '⏸' : '▶'}</Button>
       <Button aria-label="Next frame" disabled={atEnd} onClick={() => { designerStore.getState().setPlaying(false); designerStore.getState().setActiveFrame(activeFrameIdx + 1); }}>⏭</Button>
-      <span aria-live="polite" aria-atomic="true" className="font-mono text-xs text-muted-foreground min-w-[60px] text-center">
+      <Text as="span" size="xs" variant="muted" aria-live="polite" aria-atomic="true" className="font-mono min-w-[60px] text-center">
         {activeFrameIdx + 1} / {frames.length}
-      </span>
+      </Text>
     </div>
   );
 }
