@@ -154,6 +154,7 @@ export class BinaryTransport implements MatrixTransport {
 // ---------------------------------------------------------------------------
 export class SerialTransport implements MatrixTransport {
   private readonly ports = new Map<string, SerialPort>();
+  private readonly opening = new Map<string, Promise<SerialPort>>();
   private readonly queues = new Map<string, Promise<void>>();
   private readonly live = new Map<string, { next: (() => Promise<void>) | null; writing: boolean }>();
 
@@ -169,7 +170,11 @@ export class SerialTransport implements MatrixTransport {
     if (!state) { state = { next: null, writing: false }; this.live.set(devicePath, state); }
     if (state.writing) { state.next = op; return; }
     state.writing = true;
-    let cur = op;
+    // Drain any in-flight enqueue writes (e.g. last animation frame) before
+    // starting live writes, so the two paths don't interleave on the serial port.
+    await (this.queues.get(devicePath) ?? Promise.resolve()).catch(() => {});
+    // A newer op may have arrived while draining — use it if so.
+    let cur = state.next ?? op;
     while (true) {
       state.next = null;
       await cur().catch(() => {});
@@ -195,14 +200,22 @@ export class SerialTransport implements MatrixTransport {
     });
   }
 
-  private async getPort(devicePath: string): Promise<SerialPort> {
-    let port = this.ports.get(devicePath);
-    if (!port) {
-      port = await openPort(devicePath);
+  private getPort(devicePath: string): Promise<SerialPort> {
+    const cached = this.ports.get(devicePath);
+    if (cached) return Promise.resolve(cached);
+    const inflight = this.opening.get(devicePath);
+    if (inflight) return inflight;
+    const promise = openPort(devicePath).then(port => {
       this.ports.set(devicePath, port);
       this.queues.set(devicePath, Promise.resolve());
-    }
-    return port;
+      this.opening.delete(devicePath);
+      return port;
+    }, err => {
+      this.opening.delete(devicePath);
+      throw err;
+    });
+    this.opening.set(devicePath, promise);
+    return promise;
   }
 
   async frameBw(packed: Uint8Array, devicePath: string): Promise<void> {
@@ -240,6 +253,7 @@ export class SerialTransport implements MatrixTransport {
   }
 
   async close(): Promise<void> {
+    this.opening.clear();
     await Promise.all([...this.ports.keys()].map((p) => this.release(p)));
   }
 }
