@@ -1,4 +1,5 @@
 import type { Preview } from '@storybook/tanstack-react'
+import { themes } from 'storybook/theming'
 import '../src/designer/web/globals.css'
 
 const preview: Preview = {
@@ -9,6 +10,15 @@ const preview: Preview = {
        color: /(background|color)$/i,
        date: /Date$/i,
       },
+    },
+
+    backgrounds: {
+      default: 'app',
+      values: [{ name: 'app', value: '#000000' }],
+    },
+
+    docs: {
+      theme: themes.dark,
     },
 
     a11y: {
