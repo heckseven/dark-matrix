@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useDesignerStore, designerStore } from '../store.js';
 import type { Frame } from '../store.js';
+import { Button } from './ui/button.js';
 
 const THUMB_W = 36;
 const THUMB_H = 68;
@@ -36,7 +37,7 @@ function FrameCell({ frame, idx, width }: { frame: Frame; idx: number; width: nu
 
   return (
     <div
-      className={`flex flex-col items-center gap-1 cursor-pointer p-1 rounded border-2 ${active ? 'border-[hsl(var(--ring))]' : 'border-transparent hover:border-[hsl(var(--border))]'}`}
+      className={`flex flex-col items-center gap-1 cursor-pointer p-1 rounded border-2 ${active ? 'border-ring' : 'border-transparent hover:border-border'}`}
       draggable
       onClick={() => designerStore.getState().setActiveFrame(idx)}
       onDragStart={e => { dragRef.current.fromIdx = idx; e.dataTransfer.effectAllowed = 'move'; }}
@@ -54,17 +55,18 @@ function FrameCell({ frame, idx, width }: { frame: Frame; idx: number; width: nu
         <input
           type="number" min={0} step={10}
           defaultValue={frame.delayMs}
-          className="w-12 bg-[hsl(var(--input))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))] text-center text-xs rounded px-0.5"
+          className="w-12 bg-input text-foreground border border-border text-center text-xs rounded px-0.5"
           onChange={e => designerStore.getState().setFrameDelay(idx, Math.max(0, Number(e.target.value)))}
           onClick={e => e.stopPropagation()}
         />
-        <button
-          className="px-1 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--destructive))] text-xs"
+        <Button
+          variant="destructive"
+          size="icon"
           title="Delete frame"
           onClick={e => { e.stopPropagation(); designerStore.getState().removeFrame(idx); }}
         >
           ×
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -76,17 +78,17 @@ export function FrameStrip() {
   const activeFrameIdx = useDesignerStore(s => s.activeFrameIdx);
 
   return (
-    <div className="flex items-start gap-1 p-2 border-t border-[hsl(var(--border))] overflow-x-auto">
+    <div className="flex items-start gap-1 p-2 border-t border-border overflow-x-auto">
       {frames.map((frame, idx) => (
         <FrameCell key={idx} frame={frame} idx={idx} width={width} />
       ))}
-      <button
-        className="self-center px-2 py-1 text-xs border border-[hsl(var(--border))] rounded hover:bg-[hsl(var(--accent))] shrink-0"
+      <Button
+        className="self-center shrink-0"
         title="Add frame"
         onClick={() => designerStore.getState().addFrame(activeFrameIdx)}
       >
         +
-      </button>
+      </Button>
     </div>
   );
 }

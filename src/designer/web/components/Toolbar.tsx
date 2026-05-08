@@ -1,6 +1,9 @@
 import { useDesignerStore, designerStore } from '../store.js';
 import type { PreviewTarget } from '../store.js';
 import { exportProject } from '../files.js';
+import { Button } from './ui/button.js';
+import { Toggle } from './ui/toggle.js';
+import { Slider } from './ui/slider.js';
 
 const GRAY_PALETTE = [51, 102, 153, 204];
 
@@ -8,7 +11,8 @@ function Swatch({ value }: { value: number }) {
   const setActiveColor = useDesignerStore(s => s.setActiveColor);
   return (
     <button
-      className="w-5 h-5 p-0 border border-[hsl(var(--border))] rounded-sm shrink-0"
+      type="button"
+      className="w-5 h-5 p-0 border border-border rounded-sm shrink-0 cursor-pointer"
       style={{ background: `rgb(${value},${value},${value})` }}
       title={`Value ${value}`}
       onClick={() => setActiveColor(value)}
@@ -23,7 +27,7 @@ const TARGET_OPTIONS: Array<{ label: string; value: PreviewTarget }> = [
   { label: 'Mirror', value: 'mirror' },
 ];
 
-const Sep = () => <span className="text-[hsl(var(--border))] select-none">|</span>;
+const Sep = () => <span className="text-border select-none">|</span>;
 
 export function Toolbar() {
   const mode = useDesignerStore(s => s.mode);
@@ -44,18 +48,11 @@ export function Toolbar() {
   const setPreviewBw = useDesignerStore(s => s.setPreviewBw);
   const clearFrame = useDesignerStore(s => s.clearFrame);
 
-  const btn = (active: boolean) =>
-    `px-2 py-0.5 rounded border text-xs cursor-pointer ${
-      active
-        ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] border-[hsl(var(--primary))]'
-        : 'bg-transparent text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]'
-    }`;
-
   return (
-    <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-[hsl(var(--border))] flex-wrap">
+    <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border flex-wrap">
       {/* Mode */}
-      <button className={btn(mode === 'bw')} onClick={() => setMode('bw')}>BW</button>
-      <button className={btn(mode === 'gray')} onClick={() => setMode('gray')}>Gray</button>
+      <Toggle pressed={mode === 'bw'} onPressedChange={() => setMode('bw')}>BW</Toggle>
+      <Toggle pressed={mode === 'gray'} onPressedChange={() => setMode('gray')}>Gray</Toggle>
 
       <Sep />
 
@@ -67,14 +64,13 @@ export function Toolbar() {
       {mode === 'gray' && (
         <>
           {GRAY_PALETTE.map(v => <Swatch key={v} value={v} />)}
-          <input
-            type="range" min={0} max={255}
+          <Slider
+            min={0} max={255}
             value={activeColor}
-            className="w-20 accent-[hsl(var(--primary))]"
-            onChange={e => setActiveColor(Number(e.target.value))}
+            onChange={e => setActiveColor(Number((e.target as HTMLInputElement).value))}
           />
           <div
-            className="w-5 h-5 rounded-sm border-2 border-[hsl(var(--ring))] shrink-0"
+            className="w-5 h-5 rounded-sm border-2 border-ring shrink-0"
             style={{ background: `rgb(${activeColor},${activeColor},${activeColor})` }}
           />
         </>
@@ -83,8 +79,8 @@ export function Toolbar() {
       <Sep />
 
       {/* Undo / Redo */}
-      <button className={btn(false)} disabled={undoStack.length === 0} onClick={undo}>Undo</button>
-      <button className={btn(false)} disabled={redoStack.length === 0} onClick={redo}>Redo</button>
+      <Button disabled={undoStack.length === 0} onClick={undo}>Undo</Button>
+      <Button disabled={redoStack.length === 0} onClick={redo}>Redo</Button>
 
       <Sep />
 
@@ -98,27 +94,27 @@ export function Toolbar() {
 
       {/* Preview target */}
       {TARGET_OPTIONS.map(({ label, value }) => (
-        <button key={value} className={btn(previewTarget === value)} onClick={() => setPreviewTarget(value)}>
+        <Toggle key={value} pressed={previewTarget === value} onPressedChange={() => setPreviewTarget(value)}>
           {label}
-        </button>
+        </Toggle>
       ))}
 
       <Sep />
 
       {/* Preview BW toggle — gray mode only */}
       {mode === 'gray' && (
-        <button className={btn(previewBw)} onClick={() => setPreviewBw(!previewBw)} title="Send frames as BW for faster hardware preview">
+        <Toggle pressed={previewBw} onPressedChange={setPreviewBw} title="Send frames as BW for faster hardware preview">
           Preview BW
-        </button>
+        </Toggle>
       )}
 
       <Sep />
 
       {/* Clear + Save */}
-      <button className={btn(false)} onClick={() => clearFrame(activeFrameIdx)} title="Clear active frame">Clear</button>
-      <button className={btn(false)} onClick={() => void exportProject({ state: designerStore.getState() })} title="Download .dmx.json">
+      <Button onClick={() => clearFrame(activeFrameIdx)} title="Clear active frame">Clear</Button>
+      <Button onClick={() => void exportProject({ state: designerStore.getState() })} title="Download .dmx.json">
         Save
-      </button>
+      </Button>
     </div>
   );
 }

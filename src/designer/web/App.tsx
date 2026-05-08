@@ -4,38 +4,28 @@ import { Grid } from './components/Grid.js';
 import { FrameStrip } from './components/FrameStrip.js';
 import { Playback } from './components/Playback.js';
 import { usePreviewBridge } from './components/LivePreview.js';
+import { Toggle } from './components/ui/toggle.js';
 
 function PreviewToggle() {
   const [on, setOn] = useState(false);
   const bridge = usePreviewBridge();
 
   function toggle() {
-    if (on) {
-      bridge.stop();
-      setOn(false);
-    } else {
-      bridge.start();
-      setOn(true);
-    }
+    if (on) { bridge.stop(); setOn(false); }
+    else { bridge.start(); setOn(true); }
   }
 
-  const btn = `px-2 py-0.5 rounded border text-xs cursor-pointer ${
-    on
-      ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] border-[hsl(var(--primary))]'
-      : 'bg-transparent text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]'
-  }`;
-
   return (
-    <button className={btn} onClick={toggle}>
+    <Toggle pressed={on} onPressedChange={toggle}>
       Preview: {on ? 'ON' : 'OFF'}
-    </button>
+    </Toggle>
   );
 }
 
 export function App() {
   return (
-    <div className="min-h-screen bg-[hsl(var(--background))] text-[hsl(var(--foreground))] flex flex-col">
-      <div className="flex items-center gap-1.5 px-2 py-1 border-b border-[hsl(var(--border))]">
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <div className="flex items-center gap-1.5 px-2 py-1 border-b border-border">
         <PreviewToggle />
       </div>
       <Toolbar />

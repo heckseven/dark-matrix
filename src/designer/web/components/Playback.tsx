@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useDesignerStore, designerStore } from '../store.js';
+import { Button } from './ui/button.js';
 
 export function Playback() {
   const isPlaying = useDesignerStore(s => s.isPlaying);
@@ -36,14 +37,12 @@ export function Playback() {
     }
   }, [isPlaying, activeFrameIdx]);
 
-  const btn = 'px-2 py-0.5 border border-[hsl(var(--border))] rounded hover:bg-[hsl(var(--accent))] text-sm';
-
   return (
-    <div className="flex items-center gap-1.5 px-2 py-1 border-t border-[hsl(var(--border))]">
-      <button className={btn} title="Previous frame" onClick={() => { designerStore.getState().setPlaying(false); designerStore.getState().setActiveFrame(activeFrameIdx - 1); }}>⏮</button>
-      <button className={btn} onClick={() => designerStore.getState().setPlaying(!isPlaying)}>{isPlaying ? '⏸' : '▶'}</button>
-      <button className={btn} title="Next frame" onClick={() => { designerStore.getState().setPlaying(false); designerStore.getState().setActiveFrame(activeFrameIdx + 1); }}>⏭</button>
-      <span className="font-mono text-xs text-[hsl(var(--muted-foreground))] min-w-[60px] text-center">
+    <div className="flex items-center gap-1.5 px-2 py-1 border-t border-border">
+      <Button size="icon" title="Previous frame" onClick={() => { designerStore.getState().setPlaying(false); designerStore.getState().setActiveFrame(activeFrameIdx - 1); }}>⏮</Button>
+      <Button size="icon" onClick={() => designerStore.getState().setPlaying(!isPlaying)}>{isPlaying ? '⏸' : '▶'}</Button>
+      <Button size="icon" title="Next frame" onClick={() => { designerStore.getState().setPlaying(false); designerStore.getState().setActiveFrame(activeFrameIdx + 1); }}>⏭</Button>
+      <span className="font-mono text-xs text-muted-foreground min-w-[60px] text-center">
         {activeFrameIdx + 1} / {frames.length}
       </span>
     </div>
