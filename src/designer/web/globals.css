@@ -3,43 +3,43 @@
 @source "../..";  /* scan src/ for class names outside designer/web/ */
 
 @theme {
-  --color-background: hsl(0, 0%, 6%);
-  --color-foreground: hsl(0, 0%, 90%);
-  --color-muted: hsl(0, 0%, 12%);
-  --color-muted-foreground: hsl(0, 0%, 55%);
-  --color-border: hsl(0, 0%, 18%);
-  --color-input: hsl(0, 0%, 12%);
-  --color-ring: hsl(142, 70%, 45%);
-  --color-primary: hsl(142, 70%, 45%);
-  --color-primary-foreground: hsl(0, 0%, 6%);
-  --color-secondary: hsl(0, 0%, 12%);
-  --color-secondary-foreground: hsl(0, 0%, 90%);
-  --color-accent: hsl(0, 0%, 16%);
-  --color-accent-foreground: hsl(0, 0%, 90%);
-  --color-destructive: hsl(0, 72%, 51%);
-  --color-destructive-foreground: hsl(0, 0%, 90%);
-  --radius-sm: calc(0.25rem - 2px);
+  --color-background: #000000;
+  --color-foreground: #ffffff;
+  --color-muted: #0f0f0f;
+  --color-muted-foreground: #666666;
+  --color-border: #2a2a2a;
+  --color-input: #0f0f0f;
+  --color-ring: #0DC45C;
+  --color-primary: #0DC45C;
+  --color-primary-foreground: #000000;
+  --color-secondary: #0f0f0f;
+  --color-secondary-foreground: #ffffff;
+  --color-accent: #1a1a1a;
+  --color-accent-foreground: #ffffff;
+  --color-destructive: #FF3131;
+  --color-destructive-foreground: #ffffff;
+  --radius-sm: 0.125rem;
   --radius-md: 0.25rem;
-  --radius-lg: calc(0.25rem + 2px);
+  --radius-lg: 0.375rem;
 }
 
 /* Raw HSL vars kept for direct hsl(var(...)) usage in CSS */
 :root {
-  --background: 0 0% 6%;
-  --foreground: 0 0% 90%;
-  --muted: 0 0% 12%;
-  --muted-foreground: 0 0% 55%;
-  --border: 0 0% 18%;
-  --input: 0 0% 12%;
-  --ring: 142 70% 45%;
-  --primary: 142 70% 45%;
-  --primary-foreground: 0 0% 6%;
-  --secondary: 0 0% 12%;
-  --secondary-foreground: 0 0% 90%;
-  --accent: 0 0% 16%;
-  --accent-foreground: 0 0% 90%;
-  --destructive: 0 72% 51%;
-  --destructive-foreground: 0 0% 90%;
+  --background: 0 0% 0%;
+  --foreground: 0 0% 100%;
+  --muted: 0 0% 6%;
+  --muted-foreground: 0 0% 40%;
+  --border: 0 0% 16%;
+  --input: 0 0% 6%;
+  --ring: 146 87% 41%;
+  --primary: 146 87% 41%;
+  --primary-foreground: 0 0% 0%;
+  --secondary: 0 0% 6%;
+  --secondary-foreground: 0 0% 100%;
+  --accent: 0 0% 10%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 100% 59%;
+  --destructive-foreground: 0 0% 100%;
   --radius: 0.25rem;
 }
 
@@ -48,8 +48,9 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: ui-monospace, 'JetBrains Mono', monospace;
-    font-size: 13px;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
     margin: 0;
   }
 }

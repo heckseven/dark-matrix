@@ -7,20 +7,20 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-transparent border-border text-foreground hover:bg-accent hover:text-accent-foreground',
+        default: 'bg-transparent border-foreground text-foreground hover:bg-foreground hover:text-background',
         primary: 'bg-primary border-primary text-primary-foreground hover:bg-primary/90',
         ghost: 'border-transparent bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground',
-        destructive: 'border-transparent bg-transparent text-muted-foreground hover:text-destructive',
+        destructive: 'border-transparent bg-transparent text-foreground hover:text-destructive',
       },
       size: {
-        default: 'px-2 py-0.5',
-        icon: 'h-5 w-5 p-0',
-        sm: 'px-1 py-0.5',
+        sm: 'px-2 py-1',
+        md: 'px-3 py-2',
+        lg: 'px-4 py-3',
       },
     },
     defaultVariants: {
       variant: 'default',
-      size: 'default',
+      size: 'sm',
     },
   }
 );

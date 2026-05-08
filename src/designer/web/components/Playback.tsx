@@ -39,9 +39,9 @@ export function Playback() {
 
   return (
     <div className="flex items-center gap-1.5 px-2 py-1 border-t border-border">
-      <Button size="icon" title="Previous frame" onClick={() => { designerStore.getState().setPlaying(false); designerStore.getState().setActiveFrame(activeFrameIdx - 1); }}>⏮</Button>
-      <Button size="icon" onClick={() => designerStore.getState().setPlaying(!isPlaying)}>{isPlaying ? '⏸' : '▶'}</Button>
-      <Button size="icon" title="Next frame" onClick={() => { designerStore.getState().setPlaying(false); designerStore.getState().setActiveFrame(activeFrameIdx + 1); }}>⏭</Button>
+      <Button aria-label="Previous frame" onClick={() => { designerStore.getState().setPlaying(false); designerStore.getState().setActiveFrame(activeFrameIdx - 1); }}>⏮</Button>
+      <Button aria-label={isPlaying ? 'Pause' : 'Play'} onClick={() => designerStore.getState().setPlaying(!isPlaying)}>{isPlaying ? '⏸' : '▶'}</Button>
+      <Button aria-label="Next frame" onClick={() => { designerStore.getState().setPlaying(false); designerStore.getState().setActiveFrame(activeFrameIdx + 1); }}>⏭</Button>
       <span className="font-mono text-xs text-muted-foreground min-w-[60px] text-center">
         {activeFrameIdx + 1} / {frames.length}
       </span>

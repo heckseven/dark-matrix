@@ -6,11 +6,41 @@ const meta = {
   title: 'Components/Button',
   component: Button,
   tags: ['autodocs'],
+  parameters: {
+    docs: {
+      description: {
+        component: [
+          'Triggers an action. Text-only — no icon support.',
+          '',
+          '**Usage**',
+          '- Provide an `aria-label` whenever the visible label is a symbol or ASCII art that does not describe the action.',
+        ].join('\n'),
+      },
+    },
+  },
   argTypes: {
-    variant: { control: 'select', options: ['default', 'primary', 'ghost', 'destructive'] },
-    size: { control: 'select', options: ['default', 'icon', 'sm'] },
-    disabled: { control: 'boolean' },
-    children: { control: 'text' },
+    variant: {
+      control: 'select',
+      options: ['default', 'primary', 'ghost', 'destructive'],
+      description: '`default` — white border, inverts on hover. `primary` — accent fill. `ghost` — no border, subtle hover. `destructive` — white at rest, red on hover.',
+    },
+    size: {
+      control: 'select',
+      options: ['sm', 'md', 'lg'],
+      description: 'Padding scale. `sm` 8×4px · `md` 12×8px · `lg` 16×12px.',
+    },
+    disabled: {
+      control: 'boolean',
+      description: 'Prevents interaction and reduces opacity to 40%.',
+    },
+    children: {
+      control: 'text',
+      description: 'Button label. Text only.',
+    },
+    'aria-label': {
+      control: 'text',
+      description: 'Accessible label. Use when `children` is a symbol or ASCII art that does not describe the action.',
+    },
   },
 } satisfies Meta<typeof Button>;
 
@@ -19,23 +49,28 @@ type Story = StoryObj<typeof meta>;
 
 /** All variants and sizes configurable via controls. */
 export const Playground: Story = {
-  args: { children: 'Button', variant: 'default', size: 'default' },
+  args: { children: 'Button', variant: 'default', size: 'sm' },
 };
 
-export const Default: Story = {
-  args: { children: 'Click me' },
+export const AllVariants: Story = {
+  render: () => (
+    <div className="flex gap-2 items-center">
+      <Button variant="default">Default</Button>
+      <Button variant="primary">Primary</Button>
+      <Button variant="ghost">Ghost</Button>
+      <Button variant="destructive">Destructive</Button>
+    </div>
+  ),
 };
 
-export const Primary: Story = {
-  args: { children: 'Submit', variant: 'primary' },
-};
-
-export const Ghost: Story = {
-  args: { children: 'Cancel', variant: 'ghost' },
-};
-
-export const Destructive: Story = {
-  args: { children: '×', variant: 'destructive', size: 'icon' },
+export const AllSizes: Story = {
+  render: () => (
+    <div className="flex gap-2 items-end">
+      <Button size="sm">Small</Button>
+      <Button size="md">Medium</Button>
+      <Button size="lg">Large</Button>
+    </div>
+  ),
 };
 
 export const Disabled: Story = {
@@ -51,6 +86,6 @@ export const CssCheck: Story = {
   args: { children: 'Submit', variant: 'primary' },
   play: async ({ canvas }) => {
     const btn = canvas.getByRole('button', { name: /submit/i });
-    await expect(getComputedStyle(btn).backgroundColor).toBe('rgb(34, 195, 93)');
+    await expect(getComputedStyle(btn).backgroundColor).toBe('rgb(13, 196, 92)'); // #0DC45C
   },
 };

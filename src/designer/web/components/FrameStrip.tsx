@@ -61,8 +61,7 @@ function FrameCell({ frame, idx, width }: { frame: Frame; idx: number; width: nu
         />
         <Button
           variant="destructive"
-          size="icon"
-          title="Delete frame"
+          aria-label="Delete frame"
           onClick={e => { e.stopPropagation(); designerStore.getState().removeFrame(idx); }}
         >
           ×
