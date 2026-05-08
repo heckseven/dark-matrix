@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/tanstack-react';
-import { expect } from 'storybook/test';
+import { expect, fn } from 'storybook/test';
 import { Button } from './button';
 
 const meta = {
@@ -42,6 +42,7 @@ const meta = {
       description: 'Accessible label. Use when `children` is a symbol or ASCII art that does not describe the action.',
     },
   },
+  args: { onClick: fn() },
 } satisfies Meta<typeof Button>;
 
 export default meta;
