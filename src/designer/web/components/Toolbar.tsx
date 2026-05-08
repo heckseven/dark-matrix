@@ -4,6 +4,7 @@ import { exportProject } from '../files.js';
 import { Button } from './ui/button.js';
 import { Toggle } from './ui/toggle.js';
 import { Slider } from './ui/slider.js';
+import { Checkbox } from './ui/checkbox.js';
 import { Text } from './ui/text.js';
 
 const GRAY_PALETTE = [51, 102, 153, 204];
@@ -93,9 +94,9 @@ export function Toolbar() {
       <Sep />
 
       {/* Loop */}
-      <label className="flex items-center gap-1 text-xs cursor-pointer">
-        <input type="checkbox" checked={loop} onChange={e => setLoop(e.target.checked)} />
-        Loop
+      <label className="flex items-center gap-1 cursor-pointer">
+        <Checkbox checked={loop} onChange={e => setLoop(e.target.checked)} />
+        <Text as="span" size="xs">Loop</Text>
       </label>
 
       <Sep />
