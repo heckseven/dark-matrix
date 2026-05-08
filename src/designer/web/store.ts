@@ -13,6 +13,7 @@ export interface StoreState {
   activeColor: number;
   isPlaying: boolean;
   previewTarget: PreviewTarget;
+  previewBw: boolean;
   undoStack: Frame[][];
   redoStack: Frame[][];
 }
@@ -34,6 +35,7 @@ export interface Store {
   setActiveColor(value: number): void;
   setLoop(loop: boolean): void;
   setPreviewTarget(target: PreviewTarget): void;
+  setPreviewBw(value: boolean): void;
   clearFrame(idx: number): void;
 }
 
@@ -75,6 +77,7 @@ export function createStore(): Store {
     activeColor: 255,
     isPlaying: false,
     previewTarget: 'left',
+    previewBw: false,
     undoStack: [],
     redoStack: [],
   };
@@ -213,7 +216,28 @@ export function createStore(): Store {
     },
 
     setPreviewTarget(target) {
+      const newWidth: 9 | 18 = target === 'both' ? 18 : 9;
+      if (newWidth !== state.width) {
+        pushUndo();
+        state.width = newWidth;
+        state.frames = state.frames.map(f => {
+          const old = framePixels(f);
+          const next = new Uint8Array(newWidth * 34);
+          const cols = Math.min(old.length / 34, newWidth);
+          for (let c = 0; c < cols; c++) {
+            for (let r = 0; r < 34; r++) {
+              next[c * 34 + r] = old[c * 34 + r] ?? 0;
+            }
+          }
+          return { ...f, pixels: pixelsToBase64(next) };
+        });
+      }
       state.previewTarget = target;
+      notify();
+    },
+
+    setPreviewBw(value) {
+      state.previewBw = value;
       notify();
     },
 

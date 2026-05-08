@@ -14,24 +14,8 @@ export function mountToolbar(container: HTMLElement, store: Store): void {
   grayBtn.textContent = 'Gray';
   grayBtn.addEventListener('click', () => store.setMode('gray'));
 
-  // Width toggle
-  const w9Btn = document.createElement('button');
-  w9Btn.textContent = '9';
-  w9Btn.addEventListener('click', () => store.setWidth(9));
-
-  const w18Btn = document.createElement('button');
-  w18Btn.textContent = '18';
-  w18Btn.addEventListener('click', () => store.setWidth(18));
-
-  // Separator
-  const sep1 = document.createElement('span');
-  sep1.textContent = '|';
-  sep1.style.opacity = '0.3';
-
   // Color palette swatches
-  const PALETTE = [0, 51, 102, 153, 204, 255];
-  const swatches: HTMLElement[] = [];
-  for (const v of PALETTE) {
+  function makeSwatch(v: number): HTMLButtonElement {
     const swatch = document.createElement('button');
     swatch.className = 'swatch';
     swatch.style.background = `rgb(${v},${v},${v})`;
@@ -41,10 +25,12 @@ export function mountToolbar(container: HTMLElement, store: Store): void {
     swatch.style.border = '1px solid #555';
     swatch.title = `Value ${v}`;
     swatch.addEventListener('click', () => store.setActiveColor(v));
-    swatches.push(swatch);
+    return swatch;
   }
+  const bwSwatches = [0, 255].map(makeSwatch);
+  const graySwatches = [51, 102, 153, 204].map(makeSwatch);
 
-  // Color slider (hidden in BW mode)
+  // Color slider
   const slider = document.createElement('input');
   slider.type = 'range';
   slider.min = '0';
@@ -58,6 +44,11 @@ export function mountToolbar(container: HTMLElement, store: Store): void {
   activeSwatch.style.height = '24px';
   activeSwatch.style.border = '2px solid #0f0';
   activeSwatch.style.display = 'inline-block';
+
+  // Grey swatches + slider + active swatch — hidden in BW mode
+  const colorPicker = document.createElement('span');
+  colorPicker.style.display = 'contents';
+  colorPicker.append(...graySwatches, slider, activeSwatch);
 
   const sep2 = document.createElement('span');
   sep2.textContent = '|';
@@ -105,6 +96,16 @@ export function mountToolbar(container: HTMLElement, store: Store): void {
   sep4.textContent = '|';
   sep4.style.opacity = '0.3';
 
+  // Preview BW toggle
+  const previewBwBtn = document.createElement('button');
+  previewBwBtn.textContent = 'Preview BW';
+  previewBwBtn.title = 'Send frames as BW for faster hardware preview';
+  previewBwBtn.addEventListener('click', () => store.setPreviewBw(!store.state.previewBw));
+
+  const sep5 = document.createElement('span');
+  sep5.textContent = '|';
+  sep5.style.opacity = '0.3';
+
   // Clear + Save
   const clearBtn = document.createElement('button');
   clearBtn.textContent = 'Clear';
@@ -117,10 +118,9 @@ export function mountToolbar(container: HTMLElement, store: Store): void {
   saveBtn.addEventListener('click', () => void exportProject(store));
 
   bar.append(
-    bwBtn, grayBtn, sep1,
-    w9Btn, w18Btn,
+    bwBtn, grayBtn,
     sep2,
-    ...swatches, slider, activeSwatch,
+    ...bwSwatches, colorPicker,
     sep3,
     undoBtn, redoBtn,
     sep3.cloneNode(true),
@@ -128,20 +128,20 @@ export function mountToolbar(container: HTMLElement, store: Store): void {
     sep4,
     ...targetBtns.map(t => t.btn),
     sep4.cloneNode(true),
+    previewBwBtn,
+    sep5,
     clearBtn, saveBtn,
   );
 
   container.appendChild(bar);
 
   function render() {
-    const { mode, width, activeColor, undoStack, redoStack, loop, previewTarget } = store.state;
+    const { mode, activeColor, undoStack, redoStack, loop, previewTarget, previewBw } = store.state;
 
     bwBtn.classList.toggle('active', mode === 'bw');
     grayBtn.classList.toggle('active', mode === 'gray');
-    w9Btn.classList.toggle('active', width === 9);
-    w18Btn.classList.toggle('active', width === 18);
 
-    slider.style.display = mode === 'bw' ? 'none' : '';
+    colorPicker.style.display = mode === 'bw' ? 'none' : 'contents';
     slider.value = String(activeColor);
 
     activeSwatch.style.background = `rgb(${activeColor},${activeColor},${activeColor})`;
@@ -154,6 +154,9 @@ export function mountToolbar(container: HTMLElement, store: Store): void {
     for (const { btn, value } of targetBtns) {
       btn.classList.toggle('active', previewTarget === value);
     }
+
+    previewBwBtn.classList.toggle('active', previewBw);
+    previewBwBtn.style.display = mode === 'bw' ? 'none' : '';
   }
 
   store.subscribe(render);

@@ -495,13 +495,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 for (const [b64, dev] of pairs) {
                   if (b64 === undefined || !dev) continue;
                   const frame = new Uint8Array(Buffer.from(b64, 'base64')) as Frame;
-                  try {
-                    if (mode === 'bw') {
-                      await transport.frameBw(packBW(frame), dev);
-                    } else {
-                      await transport.frameGray(frame, dev);
-                    }
-                  } catch { /* non-fatal */ }
+                  if (mode === 'bw') {
+                    transport.liveFrameBw(packBW(frame), dev).catch(() => {});
+                  } else {
+                    transport.liveFrameGray(frame, dev).catch(() => {});
+                  }
                 }
               })();
               socket.write(JSON.stringify({ ok: true }) + '\n');
