@@ -177,19 +177,22 @@ describe('BW frame byte construction', () => {
     const t = new BinaryTransport('/usr/bin/ipc');
     await t.frameGray(makeFrame(128), VALID_PATH);
 
-    // All 9 SendCol packets + CommitCols sent as a single 345-byte write
-    expect(_mockPort.write).toHaveBeenCalledTimes(1);
-    const buf: Buffer = (_mockPort.write.mock.calls[0] as [Buffer, unknown])[0];
-    expect(buf.length).toBe(345);
+    // 9 SendCol + 1 CommitCols = 10 writes
+    expect(_mockPort.write).toHaveBeenCalledTimes(10);
+    const totalBytes = (_mockPort.write.mock.calls as [Buffer, unknown][])
+      .reduce((sum, [buf]) => sum + buf.length, 0);
+    expect(totalBytes).toBe(345);
 
-    // First SendCol at offset 0: magic + 0x07 + col_idx(0) + 34 vals
-    expect(buf[0]).toBe(0x32);
-    expect(buf[1]).toBe(0xac);
-    expect(buf[2]).toBe(0x07);
-    expect(buf[3]).toBe(0); // col 0
+    // First SendCol: magic + 0x07 + col_idx(0) + 34 vals
+    const firstPkt: Buffer = _mockPort.write.mock.calls[0]![0] as Buffer;
+    expect(firstPkt[0]).toBe(0x32);
+    expect(firstPkt[1]).toBe(0xac);
+    expect(firstPkt[2]).toBe(0x07);
+    expect(firstPkt[3]).toBe(0); // col 0
 
-    // CommitCols at end
-    expect(Array.from(buf.subarray(342))).toEqual([0x32, 0xac, 0x08]);
+    // Last write: CommitCols
+    const lastPkt: Buffer = _mockPort.write.mock.calls[9]![0] as Buffer;
+    expect(Array.from(lastPkt)).toEqual([0x32, 0xac, 0x08]);
   });
 });
 
