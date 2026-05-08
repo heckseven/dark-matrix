@@ -11,6 +11,15 @@ export function createPreviewBridge(wsUrl: string): PreviewBridge {
   let disposed = false;
   let retries = 0;
   const MAX_RETRIES = 5;
+  let pending: Parameters<PreviewBridge['sendFrame']> | null = null;
+
+  function flush() {
+    if (pending && ws && ws.readyState === WebSocket.OPEN) {
+      const [frameBase64, mode, width, target] = pending;
+      ws.send(JSON.stringify({ type: 'preview', frame: frameBase64, mode, width, target }));
+      pending = null;
+    }
+  }
 
   function connect() {
     if (disposed) return;
@@ -22,16 +31,15 @@ export function createPreviewBridge(wsUrl: string): PreviewBridge {
         setTimeout(connect, 1000);
       }
     };
-    ws.onopen = () => { retries = 0; };
+    ws.onopen = () => { retries = 0; flush(); };
   }
 
   connect();
 
   return {
     sendFrame(frameBase64: string, mode: 'bw' | 'gray', width: 9 | 18, target: import('./store.js').PreviewTarget) {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'preview', frame: frameBase64, mode, width, target }));
-      }
+      pending = [frameBase64, mode, width, target];
+      flush();
     },
     stop() {
       if (ws && ws.readyState === WebSocket.OPEN) {

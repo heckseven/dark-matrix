@@ -1,10 +1,11 @@
+import { createStore } from 'zustand/vanilla';
+import { useStore } from 'zustand/react';
 import type { DmxFrame } from '../format.js';
 
 export type Frame = DmxFrame;
-
 export type PreviewTarget = 'left' | 'right' | 'both' | 'mirror';
 
-export interface StoreState {
+export interface DesignerState {
   frames: Frame[];
   activeFrameIdx: number;
   width: 9 | 18;
@@ -18,9 +19,7 @@ export interface StoreState {
   redoStack: Frame[][];
 }
 
-export interface Store {
-  state: StoreState;
-  subscribe(listener: () => void): () => void;
+export interface DesignerActions {
   setPixel(frameIdx: number, col: number, row: number, value: number): void;
   addFrame(afterIdx: number): void;
   removeFrame(idx: number): void;
@@ -37,39 +36,60 @@ export interface Store {
   setPreviewTarget(target: PreviewTarget): void;
   setPreviewBw(value: boolean): void;
   clearFrame(idx: number): void;
+  loadProject(project: unknown): void;
 }
 
-const MAX_UNDO = 50;
+export type DesignerStore = DesignerState & DesignerActions;
 
-function createBlankFrameData(width: number): Frame {
-  const pixels = btoa(String.fromCharCode(...new Uint8Array(width * 34)));
-  return { delayMs: 100, pixels };
+// Keep legacy alias for files that still reference StoreState/Store
+export type StoreState = DesignerState;
+export type Store = { state: DesignerState; subscribe: (cb: () => void) => () => void } & DesignerActions;
+
+const MAX_UNDO = 50;
+const ROWS = 34;
+
+function blank(width: number): Frame {
+  return { delayMs: 100, pixels: btoa(String.fromCharCode(...new Uint8Array(width * ROWS))) };
 }
 
 function cloneFrames(frames: Frame[]): Frame[] {
   return frames.map(f => ({ ...f }));
 }
 
-function pixelIndex(col: number, row: number): number {
-  return col * 34 + row;
-}
-
-function framePixels(frame: Frame): Uint8Array {
+function decode(frame: Frame): Uint8Array {
   const bin = atob(frame.pixels);
   const arr = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
   return arr;
 }
 
-function pixelsToBase64(arr: Uint8Array): string {
+function encode(arr: Uint8Array): string {
   let bin = '';
   for (let i = 0; i < arr.length; i++) bin += String.fromCharCode(arr[i]!);
   return btoa(bin);
 }
 
-export function createStore(): Store {
-  const state: StoreState = {
-    frames: [createBlankFrameData(9)],
+function resize(frames: Frame[], w: 9 | 18): Frame[] {
+  return frames.map(f => {
+    const old = decode(f);
+    const next = new Uint8Array(w * ROWS);
+    const cols = Math.min(old.length / ROWS, w);
+    for (let c = 0; c < cols; c++) {
+      for (let r = 0; r < ROWS; r++) next[c * ROWS + r] = old[c * ROWS + r] ?? 0;
+    }
+    return { ...f, pixels: encode(next) };
+  });
+}
+
+function pushUndo(frames: Frame[], stack: Frame[][]): Frame[][] {
+  const next = [...stack, cloneFrames(frames)];
+  if (next.length > MAX_UNDO) next.shift();
+  return next;
+}
+
+export function createDesignerStore() {
+  return createStore<DesignerStore>((set, get) => ({
+    frames: [blank(9)],
     activeFrameIdx: 0,
     width: 9,
     mode: 'gray',
@@ -80,175 +100,122 @@ export function createStore(): Store {
     previewBw: false,
     undoStack: [],
     redoStack: [],
-  };
-
-  const listeners = new Set<() => void>();
-
-  function notify() {
-    listeners.forEach(l => l());
-  }
-
-  function pushUndo() {
-    state.undoStack.push(cloneFrames(state.frames));
-    if (state.undoStack.length > MAX_UNDO) state.undoStack.shift();
-    state.redoStack = [];
-  }
-
-  const store: Store = {
-    state,
-
-    subscribe(listener) {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
 
     setPixel(frameIdx, col, row, value) {
-      const frame = state.frames[frameIdx];
+      const { frames, mode, undoStack } = get();
+      const frame = frames[frameIdx];
       if (!frame) return;
-      pushUndo();
-      const arr = framePixels(frame);
-      const idx = pixelIndex(col, row);
-      const snapped = state.mode === 'bw' ? (value >= 128 ? 255 : 0) : Math.max(0, Math.min(255, value));
-      arr[idx] = snapped;
-      state.frames[frameIdx] = { ...frame, pixels: pixelsToBase64(arr) };
-      notify();
+      const arr = decode(frame);
+      arr[col * ROWS + row] = mode === 'bw' ? (value >= 128 ? 255 : 0) : Math.max(0, Math.min(255, value));
+      const next = [...frames];
+      next[frameIdx] = { ...frame, pixels: encode(arr) };
+      set({ frames: next, undoStack: pushUndo(frames, undoStack), redoStack: [] });
     },
 
     addFrame(afterIdx) {
-      pushUndo();
-      const blank = createBlankFrameData(state.width);
-      state.frames.splice(afterIdx + 1, 0, blank);
-      state.activeFrameIdx = afterIdx + 1;
-      notify();
+      const { frames, width, undoStack } = get();
+      const next = [...frames];
+      next.splice(afterIdx + 1, 0, blank(width));
+      set({ frames: next, activeFrameIdx: afterIdx + 1, undoStack: pushUndo(frames, undoStack), redoStack: [] });
     },
 
     removeFrame(idx) {
-      if (state.frames.length <= 1) return;
-      pushUndo();
-      state.frames.splice(idx, 1);
-      state.activeFrameIdx = Math.min(state.activeFrameIdx, state.frames.length - 1);
-      notify();
+      const { frames, activeFrameIdx, undoStack } = get();
+      if (frames.length <= 1) return;
+      const next = [...frames];
+      next.splice(idx, 1);
+      set({ frames: next, activeFrameIdx: Math.min(activeFrameIdx, next.length - 1), undoStack: pushUndo(frames, undoStack), redoStack: [] });
     },
 
     moveFrame(fromIdx, toIdx) {
       if (fromIdx === toIdx) return;
-      pushUndo();
-      const [frame] = state.frames.splice(fromIdx, 1);
-      state.frames.splice(toIdx, 0, frame!);
-      if (state.activeFrameIdx === fromIdx) {
-        state.activeFrameIdx = toIdx;
-      } else if (fromIdx < toIdx && state.activeFrameIdx > fromIdx && state.activeFrameIdx <= toIdx) {
-        state.activeFrameIdx--;
-      } else if (fromIdx > toIdx && state.activeFrameIdx >= toIdx && state.activeFrameIdx < fromIdx) {
-        state.activeFrameIdx++;
-      }
-      notify();
+      const { frames, activeFrameIdx, undoStack } = get();
+      const next = [...frames];
+      const [f] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, f!);
+      let ai = activeFrameIdx;
+      if (ai === fromIdx) ai = toIdx;
+      else if (fromIdx < toIdx && ai > fromIdx && ai <= toIdx) ai--;
+      else if (fromIdx > toIdx && ai >= toIdx && ai < fromIdx) ai++;
+      set({ frames: next, activeFrameIdx: ai, undoStack: pushUndo(frames, undoStack), redoStack: [] });
     },
 
     setFrameDelay(idx, delayMs) {
-      const frame = state.frames[idx];
+      const { frames, undoStack } = get();
+      const frame = frames[idx];
       if (!frame) return;
-      pushUndo();
-      state.frames[idx] = { ...frame, delayMs };
-      notify();
+      const next = [...frames];
+      next[idx] = { ...frame, delayMs };
+      set({ frames: next, undoStack: pushUndo(frames, undoStack), redoStack: [] });
     },
 
     setActiveFrame(idx) {
-      state.activeFrameIdx = Math.max(0, Math.min(idx, state.frames.length - 1));
-      notify();
+      const { frames } = get();
+      set({ activeFrameIdx: Math.max(0, Math.min(idx, frames.length - 1)) });
     },
 
     undo() {
-      if (state.undoStack.length === 0) return;
-      state.redoStack.push(cloneFrames(state.frames));
-      if (state.redoStack.length > MAX_UNDO) state.redoStack.shift();
-      state.frames = state.undoStack.pop()!;
-      state.activeFrameIdx = Math.min(state.activeFrameIdx, state.frames.length - 1);
-      notify();
+      const { undoStack, frames, activeFrameIdx, redoStack } = get();
+      if (undoStack.length === 0) return;
+      const prev = [...undoStack];
+      const restored = prev.pop()!;
+      set({ frames: restored, activeFrameIdx: Math.min(activeFrameIdx, restored.length - 1), undoStack: prev, redoStack: pushUndo(frames, redoStack) });
     },
 
     redo() {
-      if (state.redoStack.length === 0) return;
-      state.undoStack.push(cloneFrames(state.frames));
-      if (state.undoStack.length > MAX_UNDO) state.undoStack.shift();
-      state.frames = state.redoStack.pop()!;
-      state.activeFrameIdx = Math.min(state.activeFrameIdx, state.frames.length - 1);
-      notify();
+      const { redoStack, frames, activeFrameIdx, undoStack } = get();
+      if (redoStack.length === 0) return;
+      const next = [...redoStack];
+      const restored = next.pop()!;
+      set({ frames: restored, activeFrameIdx: Math.min(activeFrameIdx, restored.length - 1), undoStack: pushUndo(frames, undoStack), redoStack: next });
     },
 
-    setPlaying(playing) {
-      state.isPlaying = playing;
-      notify();
-    },
-
-    setMode(mode) {
-      state.mode = mode;
-      notify();
-    },
+    setPlaying(playing) { set({ isPlaying: playing }); },
+    setMode(mode) { set({ mode }); },
 
     setWidth(width) {
-      if (state.width === width) return;
-      pushUndo();
-      state.width = width;
-      // Resize all frames
-      state.frames = state.frames.map(f => {
-        const old = framePixels(f);
-        const next = new Uint8Array(width * 34);
-        const cols = Math.min(old.length / 34, width);
-        for (let c = 0; c < cols; c++) {
-          for (let r = 0; r < 34; r++) {
-            next[c * 34 + r] = old[c * 34 + r] ?? 0;
-          }
-        }
-        return { ...f, pixels: pixelsToBase64(next) };
-      });
-      notify();
+      const { frames, width: cur, undoStack } = get();
+      if (cur === width) return;
+      set({ width, frames: resize(frames, width), undoStack: pushUndo(frames, undoStack), redoStack: [] });
     },
 
-    setActiveColor(value) {
-      state.activeColor = Math.max(0, Math.min(255, value));
-      notify();
-    },
-
-    setLoop(loop) {
-      state.loop = loop;
-      notify();
-    },
+    setActiveColor(value) { set({ activeColor: Math.max(0, Math.min(255, value)) }); },
+    setLoop(loop) { set({ loop }); },
 
     setPreviewTarget(target) {
       const newWidth: 9 | 18 = target === 'both' ? 18 : 9;
-      if (newWidth !== state.width) {
-        pushUndo();
-        state.width = newWidth;
-        state.frames = state.frames.map(f => {
-          const old = framePixels(f);
-          const next = new Uint8Array(newWidth * 34);
-          const cols = Math.min(old.length / 34, newWidth);
-          for (let c = 0; c < cols; c++) {
-            for (let r = 0; r < 34; r++) {
-              next[c * 34 + r] = old[c * 34 + r] ?? 0;
-            }
-          }
-          return { ...f, pixels: pixelsToBase64(next) };
-        });
+      const { frames, width, undoStack } = get();
+      if (newWidth !== width) {
+        set({ previewTarget: target, width: newWidth, frames: resize(frames, newWidth), undoStack: pushUndo(frames, undoStack), redoStack: [] });
+      } else {
+        set({ previewTarget: target });
       }
-      state.previewTarget = target;
-      notify();
     },
 
-    setPreviewBw(value) {
-      state.previewBw = value;
-      notify();
-    },
+    setPreviewBw(value) { set({ previewBw: value }); },
 
     clearFrame(idx) {
-      const frame = state.frames[idx];
+      const { frames, width, undoStack } = get();
+      const frame = frames[idx];
       if (!frame) return;
-      pushUndo();
-      state.frames[idx] = { ...frame, pixels: createBlankFrameData(state.width).pixels };
-      notify();
+      const next = [...frames];
+      next[idx] = { ...frame, pixels: blank(width).pixels };
+      set({ frames: next, undoStack: pushUndo(frames, undoStack), redoStack: [] });
     },
-  };
 
-  return store;
+    loadProject(project) {
+      const p = project as { frames?: Frame[]; width?: 9 | 18; mode?: 'bw' | 'gray'; loop?: boolean };
+      if (!p?.frames?.length) return;
+      set({ frames: p.frames, width: p.width ?? 9, mode: p.mode ?? 'gray', loop: p.loop ?? true, activeFrameIdx: 0, undoStack: [], redoStack: [] });
+    },
+  }));
 }
+
+// Singleton for the running app
+const _store = createDesignerStore();
+
+export const useDesignerStore = <T>(selector: (s: DesignerStore) => T): T =>
+  useStore(_store, selector);
+
+// Expose vanilla store for non-React consumers (preview bridge, etc.)
+export const designerStore = _store;

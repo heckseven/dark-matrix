@@ -1,11 +1,18 @@
 {
-  "extends": "./tsconfig.json",
   "compilerOptions": {
-    "lib": ["ES2022", "DOM"],
-    "outDir": "./dist/designer/web",
-    "rootDir": "./src/designer",
-    "noEmit": true
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true
   },
-  "include": ["src/designer/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/designer/web/**/*", "vite.config.ts"]
 }
