@@ -16,8 +16,8 @@ function PreviewToggle() {
   }
 
   return (
-    <Toggle pressed={on} onPressedChange={toggle}>
-      Preview: {on ? 'ON' : 'OFF'}
+    <Toggle pressed={on} onPressedChange={toggle} pressedLabel="Preview: ON">
+      Preview: OFF
     </Toggle>
   );
 }

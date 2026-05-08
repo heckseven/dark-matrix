@@ -51,8 +51,8 @@ export function Toolbar() {
   return (
     <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border flex-wrap">
       {/* Mode */}
-      <Toggle pressed={mode === 'bw'} onPressedChange={() => setMode('bw')}>BW</Toggle>
-      <Toggle pressed={mode === 'gray'} onPressedChange={() => setMode('gray')}>Gray</Toggle>
+      <Toggle pressed={mode === 'bw'} onPressedChange={() => setMode('bw')} pressedLabel="BW">BW</Toggle>
+      <Toggle pressed={mode === 'gray'} onPressedChange={() => setMode('gray')} pressedLabel="Gray">Gray</Toggle>
 
       <Sep />
 
@@ -94,7 +94,7 @@ export function Toolbar() {
 
       {/* Preview target */}
       {TARGET_OPTIONS.map(({ label, value }) => (
-        <Toggle key={value} pressed={previewTarget === value} onPressedChange={() => setPreviewTarget(value)}>
+        <Toggle key={value} pressed={previewTarget === value} onPressedChange={() => setPreviewTarget(value)} pressedLabel={label}>
           {label}
         </Toggle>
       ))}
@@ -103,7 +103,7 @@ export function Toolbar() {
 
       {/* Preview BW toggle — gray mode only */}
       {mode === 'gray' && (
-        <Toggle pressed={previewBw} onPressedChange={setPreviewBw} title="Send frames as BW for faster hardware preview">
+        <Toggle pressed={previewBw} onPressedChange={setPreviewBw} pressedLabel="Preview BW" title="Send frames as BW for faster hardware preview">
           Preview BW
         </Toggle>
       )}
