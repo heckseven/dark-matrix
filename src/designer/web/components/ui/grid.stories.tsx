@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/tanstack-react';
 import { Grid } from './grid';
+import { Text } from './text';
 
 const meta = {
   title: 'Layout/Grid',
@@ -42,9 +43,9 @@ type Story = StoryObj<typeof meta>;
 
 function Cell({ label }: { label: string }) {
   return (
-    <div className="border border-border rounded px-2 py-3 text-center text-xs text-muted-foreground">
+    <Text as="div" size="xs" variant="muted" className="border border-border rounded px-2 py-3 text-center">
       {label}
-    </div>
+    </Text>
   );
 }
 
@@ -77,9 +78,9 @@ export const FourColumns: Story = {
 export const TwelveColumnLayout: Story = {
   render: () => (
     <Grid cols="12" gap="xs">
-      <div className="col-span-3 border border-border rounded px-2 py-3 text-center text-xs text-muted-foreground">3 cols</div>
-      <div className="col-span-6 border border-primary rounded px-2 py-3 text-center text-xs text-primary">6 cols</div>
-      <div className="col-span-3 border border-border rounded px-2 py-3 text-center text-xs text-muted-foreground">3 cols</div>
+      <Text as="div" size="xs" variant="muted" className="col-span-3 border border-border rounded px-2 py-3 text-center">3 cols</Text>
+      <Text as="div" size="xs" variant="primary" className="col-span-6 border border-primary rounded px-2 py-3 text-center">6 cols</Text>
+      <Text as="div" size="xs" variant="muted" className="col-span-3 border border-border rounded px-2 py-3 text-center">3 cols</Text>
     </Grid>
   ),
 };
