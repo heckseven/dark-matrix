@@ -1,5 +1,5 @@
 import { useState, useLayoutEffect, useRef } from 'react';
-import { PixelCanvas } from './components/PixelCanvas.js';
+import { PixelCanvas, CANVAS_COMPONENT_H } from './components/PixelCanvas.js';
 import { FrameStrip } from './components/FrameStrip.js';
 import { ColorPalette } from './components/ColorPalette.js';
 import { usePreviewBridge } from './components/LivePreview.js';
@@ -7,9 +7,13 @@ import { Toggle } from './components/ui/toggle.js';
 import { Button } from './components/ui/button.js';
 import { Text } from './components/ui/text.js';
 import { TooltipProvider } from './components/ui/tooltip.js';
-import { exportProject } from './files.js';
+import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from './components/ui/menu.js';
+import { exportProject, saveProjectAs, importFile } from './files.js';
 import { useDesignerStore, designerStore } from './store.js';
-import { CANVAS_COMPONENT_H } from './components/PixelCanvas.js';
+
+function storeCompat() {
+  return { state: designerStore.getState(), loadProject: (p: unknown) => designerStore.getState().loadProject(p) };
+}
 
 function ProjectTitle() {
   const [editing, setEditing] = useState(false);
@@ -72,6 +76,7 @@ export function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
   const footerRef = useRef<HTMLElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [topPad, setTopPad] = useState(0);
 
   useLayoutEffect(() => {
@@ -97,18 +102,39 @@ export function App() {
   return (
     <TooltipProvider>
       <div ref={containerRef} className="relative h-screen bg-background text-foreground font-mono">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json,.dmx.json"
+          className="sr-only"
+          aria-hidden="true"
+          tabIndex={-1}
+          onChange={e => {
+            const file = e.target.files?.[0];
+            if (file) importFile(file, storeCompat()).catch(console.error);
+            e.target.value = '';
+          }}
+        />
 
         <header ref={headerRef} className="absolute top-0 inset-x-0 z-10 flex items-center gap-4 pl-7 pr-5 py-4" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
           <div className="flex items-center gap-1">
             <Text as="span" size="xs">◫</Text>
-            <Button variant="ghost">file <span aria-hidden="true">▾</span></Button>
+            <Menu>
+              <MenuTrigger asChild>
+                <Button variant="ghost">file <span aria-hidden="true">▾</span></Button>
+              </MenuTrigger>
+              <MenuContent align="start">
+                <MenuItem shortcut="^n" disabled onSelect={() => {}}>new</MenuItem>
+                <MenuItem shortcut="^o" onSelect={() => fileInputRef.current?.click()}>open</MenuItem>
+                <MenuSeparator />
+                <MenuItem shortcut="^s" onSelect={() => exportProject(storeCompat())}>save</MenuItem>
+                <MenuItem shortcut="^⇧s" onSelect={() => saveProjectAs(storeCompat()).catch(console.error)}>save as</MenuItem>
+              </MenuContent>
+            </Menu>
           </div>
           <div className="flex-1 flex justify-center">
             <ProjectTitle />
           </div>
-          <Button onClick={() => void exportProject({ state: designerStore.getState() })}>
-            save
-          </Button>
         </header>
 
         <div className="h-full flex overflow-hidden">

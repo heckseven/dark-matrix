@@ -36,8 +36,8 @@ export async function importFile(file: File, store: FileStoreCompat): Promise<vo
   }
 }
 
-export async function exportProject(store: FileStoreCompat): Promise<void> {
-  const project: DmxProject = {
+function buildProject(store: FileStoreCompat): DmxProject {
+  return {
     format: 'dark-matrix-designer',
     version: 1,
     width: store.state.width,
@@ -46,26 +46,38 @@ export async function exportProject(store: FileStoreCompat): Promise<void> {
     loop: store.state.loop,
     frames: store.state.frames,
   };
-  const json = serializeProject(project);
-  const blob = new Blob([json], { type: 'application/json' });
-  triggerDownload(blob, 'project.dmx.json');
+}
+
+export function exportProject(store: FileStoreCompat, name = 'project'): void {
+  const blob = new Blob([serializeProject(buildProject(store))], { type: 'application/json' });
+  triggerDownload(blob, `${name}.dmx.json`);
+}
+
+export async function saveProjectAs(store: FileStoreCompat, name = 'project'): Promise<void> {
+  const json = serializeProject(buildProject(store));
+  if ('showSaveFilePicker' in window) {
+    try {
+      const fh = await (window as Window & { showSaveFilePicker: (o: object) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
+        suggestedName: `${name}.dmx.json`,
+        types: [{ description: 'Dark Matrix project', accept: { 'application/json': ['.json'] } }],
+      });
+      const writable = await fh.createWritable();
+      await writable.write(json);
+      await writable.close();
+      return;
+    } catch (e) {
+      if ((e as DOMException).name === 'AbortError') return;
+      throw e;
+    }
+  }
+  triggerDownload(new Blob([json], { type: 'application/json' }), `${name}.dmx.json`);
 }
 
 export async function exportGif(store: FileStoreCompat): Promise<void> {
-  const project: DmxProject = {
-    format: 'dark-matrix-designer',
-    version: 1,
-    width: store.state.width,
-    height: 34,
-    mode: store.state.mode,
-    loop: store.state.loop,
-    frames: store.state.frames,
-  };
-
   const resp = await fetch('/api/export/gif', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ project }),
+    body: JSON.stringify({ project: buildProject(store) }),
   });
   if (!resp.ok) throw new Error(`Export GIF failed: ${resp.status}`);
 
@@ -75,20 +87,10 @@ export async function exportGif(store: FileStoreCompat): Promise<void> {
 }
 
 export async function exportPng(store: FileStoreCompat, frameIdx: number): Promise<void> {
-  const project: DmxProject = {
-    format: 'dark-matrix-designer',
-    version: 1,
-    width: store.state.width,
-    height: 34,
-    mode: store.state.mode,
-    loop: store.state.loop,
-    frames: store.state.frames,
-  };
-
   const resp = await fetch('/api/export/png', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ project, frameIdx }),
+    body: JSON.stringify({ project: buildProject(store), frameIdx }),
   });
   if (!resp.ok) throw new Error(`Export PNG failed: ${resp.status}`);
 
