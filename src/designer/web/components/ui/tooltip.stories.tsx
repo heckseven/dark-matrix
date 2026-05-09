@@ -1,0 +1,111 @@
+import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import { Tooltip, TooltipContent } from './tooltip.js';
+import * as TooltipPrimitive from '@radix-ui/react-tooltip';
+import { Button } from './button.js';
+
+function TooltipDemo({
+  content,
+  side,
+  delayDuration,
+}: {
+  content: string;
+  side: 'top' | 'right' | 'bottom' | 'left';
+  delayDuration: number;
+}) {
+  return (
+    <Tooltip content={content} side={side} delayDuration={delayDuration}>
+      <Button>hover me</Button>
+    </Tooltip>
+  );
+}
+
+const meta = {
+  title: 'Components/Tooltip',
+  component: TooltipDemo,
+  tags: ['autodocs'],
+  parameters: {
+    docs: {
+      description: {
+        component: [
+          'Hover label powered by `@radix-ui/react-tooltip`. Requires `TooltipProvider` in the tree (present in `App` and the Storybook decorator).',
+          '',
+          '**Usage**',
+          '```tsx',
+          '<Tooltip content="Delete frame">',
+          '  <Button aria-label="Delete frame" variant="ghost">×</Button>',
+          '</Tooltip>',
+          '```',
+          '',
+          'Or via the Button `tooltip` prop:',
+          '```tsx',
+          '<Button tooltip="Delete frame" aria-label="Delete frame" variant="ghost">×</Button>',
+          '```',
+        ].join('\n'),
+      },
+    },
+  },
+  argTypes: {
+    content: { control: 'text', description: 'Tooltip label.' },
+    side: {
+      control: 'select',
+      options: ['top', 'right', 'bottom', 'left'],
+      description: 'Preferred side. Flips automatically if there is no room.',
+    },
+    delayDuration: {
+      control: { type: 'range', min: 0, max: 1000, step: 50 },
+      description: 'Hover delay in ms before the tooltip appears.',
+    },
+  },
+  args: { content: 'Tooltip label', side: 'top', delayDuration: 400 },
+} satisfies Meta<typeof TooltipDemo>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+/** Adjust content, side, and delay via controls. */
+export const Playground: Story = {};
+
+export const Sides: Story = {
+  render: () => (
+    <div className="flex gap-8 items-center justify-center p-8">
+      {(['top', 'right', 'bottom', 'left'] as const).map(side => (
+        <Tooltip key={side} content={side} side={side} delayDuration={0}>
+          <Button variant="default">{side}</Button>
+        </Tooltip>
+      ))}
+    </div>
+  ),
+};
+
+/** Primary use-case: icon-only button with no visible label. */
+export const IconButton: Story = {
+  render: () => (
+    <div className="flex gap-2">
+      <Button tooltip="Add frame" aria-label="Add frame" variant="ghost">+</Button>
+      <Button tooltip="Delete frame" aria-label="Delete frame" variant="ghost">×</Button>
+      <Button tooltip="Undo" aria-label="Undo" variant="ghost">↩</Button>
+      <Button tooltip="Redo" aria-label="Redo" variant="ghost">↪</Button>
+    </div>
+  ),
+};
+
+/** Zero delay — tooltip appears immediately on hover. */
+export const Instant: Story = {
+  args: { content: 'No delay', delayDuration: 0 },
+};
+
+/** Custom content: use `TooltipContent` directly for non-string labels. */
+export const CustomContent: Story = {
+  render: () => (
+    <TooltipPrimitive.Root delayDuration={0}>
+      <TooltipPrimitive.Trigger asChild>
+        <Button>custom</Button>
+      </TooltipPrimitive.Trigger>
+      <TooltipContent>
+        <span className="font-mono text-xs">
+          <span className="text-muted-foreground">value</span> 128
+        </span>
+      </TooltipContent>
+    </TooltipPrimitive.Root>
+  ),
+};

@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils.js';
+import { Tooltip } from './tooltip.js';
 
 const buttonVariants = cva(
   'inline-flex items-center justify-center rounded border text-xs font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40',
@@ -27,12 +28,19 @@ const buttonVariants = cva(
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {}
+    VariantProps<typeof buttonVariants> {
+  /** Shows a tooltip on hover. Use whenever the visible label is a symbol or icon. */
+  tooltip?: string;
+}
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, ...props }, ref) => (
-    <button ref={ref} type="button" className={cn(buttonVariants({ variant, size }), className)} {...props} />
-  )
+  ({ className, variant, size, tooltip, ...props }, ref) => {
+    const btn = (
+      <button ref={ref} type="button" className={cn(buttonVariants({ variant, size }), className)} {...props} />
+    );
+    if (!tooltip) return btn;
+    return <Tooltip content={tooltip}>{btn}</Tooltip>;
+  }
 );
 Button.displayName = 'Button';
 

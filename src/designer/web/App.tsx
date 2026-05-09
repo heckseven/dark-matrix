@@ -5,6 +5,7 @@ import { FrameStrip } from './components/FrameStrip.js';
 import { Playback } from './components/Playback.js';
 import { usePreviewBridge } from './components/LivePreview.js';
 import { Toggle } from './components/ui/toggle.js';
+import { TooltipProvider } from './components/ui/tooltip.js';
 
 function PreviewToggle() {
   const [on, setOn] = useState(false);
@@ -24,6 +25,7 @@ function PreviewToggle() {
 
 export function App() {
   return (
+    <TooltipProvider>
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <header className="flex items-center gap-1.5 px-2 py-1 border-b border-border">
         <PreviewToggle />
@@ -37,5 +39,6 @@ export function App() {
         <Playback />
       </footer>
     </div>
+    </TooltipProvider>
   );
 }

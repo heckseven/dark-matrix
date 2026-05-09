@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useRef, useState } from 'react';
 import { Button } from './ui/button.js';
-import { Tooltip, TooltipProvider } from './ui/tooltip.js';
+import { Tooltip } from './ui/tooltip.js';
 
 const MONO: React.CSSProperties = { fontFamily: 'monospace', fontSize: 14, lineHeight: '14px' };
 const MIN_L = 48;
@@ -213,7 +213,6 @@ export function ColorPalette({ value: _value, onChange }: ColorPaletteProps) {
   }
 
   return (
-    <TooltipProvider>
     <div
       ref={containerRef}
       tabIndex={0}
@@ -249,6 +248,5 @@ export function ColorPalette({ value: _value, onChange }: ColorPaletteProps) {
         +
       </Button>
     </div>
-    </TooltipProvider>
   );
 }
