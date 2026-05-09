@@ -6,7 +6,6 @@ const dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(file
 
 const config: StorybookConfig = {
   stories: [
-    '../src/**/*.mdx',
     '../src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
   ],
   addons: [
