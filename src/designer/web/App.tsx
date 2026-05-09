@@ -70,17 +70,22 @@ export function App() {
   const activeFrameIdx = useDesignerStore(s => s.activeFrameIdx);
   const [cursor, setCursor] = useState({ col: 0, row: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  const footerRef = useRef<HTMLElement>(null);
   const [topPad, setTopPad] = useState(0);
 
   useLayoutEffect(() => {
     if (typeof ResizeObserver === 'undefined') return;
     const update = () => {
       const h = containerRef.current?.clientHeight ?? 0;
-      setTopPad(Math.max(0, Math.round((h - CANVAS_COMPONENT_H) / 2)));
+      const hh = headerRef.current?.offsetHeight ?? 0;
+      const fh = footerRef.current?.offsetHeight ?? 0;
+      const usable = h - hh - fh;
+      setTopPad(hh + Math.max(0, Math.round((usable - CANVAS_COMPONENT_H) / 2)));
     };
     update();
     const ro = new ResizeObserver(update);
-    if (containerRef.current) ro.observe(containerRef.current);
+    [containerRef, headerRef, footerRef].forEach(r => { if (r.current) ro.observe(r.current); });
     return () => ro.disconnect();
   }, []);
 
@@ -91,9 +96,9 @@ export function App() {
 
   return (
     <TooltipProvider>
-      <div className="h-screen flex flex-col bg-background text-foreground font-mono overflow-hidden">
+      <div ref={containerRef} className="relative h-screen bg-background text-foreground font-mono">
 
-        <header className="flex-none flex items-center gap-4 pl-7 pr-5 py-4">
+        <header ref={headerRef} className="absolute top-0 inset-x-0 z-10 flex items-center gap-4 pl-7 pr-5 py-4" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
           <div className="flex items-center gap-1">
             <Text as="span" size="xs">◫</Text>
             <Button variant="ghost">file <span aria-hidden="true">▾</span></Button>
@@ -106,13 +111,13 @@ export function App() {
           </Button>
         </header>
 
-        <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden flex">
+        <div className="h-full flex overflow-hidden">
           <aside aria-label="Color palette" className="flex-1 overflow-hidden flex items-start justify-end pl-4" style={{ paddingTop: topPad }}>
             <ColorPalette value={activeColor} onChange={pickColor} />
           </aside>
 
-          <main className="px-10 flex-none flex flex-col overflow-y-auto">
-            <div className="my-auto">
+          <main className="px-10 flex-none overflow-y-auto">
+            <div style={{ paddingTop: topPad }}>
               <PixelCanvas onCursorMove={(col, row) => setCursor({ col, row })} />
             </div>
           </main>
@@ -122,7 +127,7 @@ export function App() {
           </aside>
         </div>
 
-        <footer className="flex-none flex items-center px-7 py-4 text-xs">
+        <footer ref={footerRef} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
           <div className="flex items-center gap-4">
             <span>frame {activeFrameIdx + 1}</span>
             <span>row {cursor.row}</span>
