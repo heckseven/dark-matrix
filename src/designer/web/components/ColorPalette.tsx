@@ -57,7 +57,7 @@ function SwatchRow({ swatch, selected, editing, kbFocused, onSelect, onChange }:
       {kbFocused && <RowCursor editing={editing} />}
       {editing && onChange && (
         <div style={{ position: 'absolute', left: -66, top: -4, zIndex: 1 }}>
-          <ScrubInput value={v} onChange={onChange} min={0} max={255} className="w-6 text-center" />
+          <ScrubInput value={v} onChange={onChange} min={0} max={255} className="w-6 text-center" aria-label="Custom swatch value" />
         </div>
       )}
       <div
@@ -157,30 +157,34 @@ export function ColorPalette({ value: _value, onChange }: ColorPaletteProps) {
   return (
     <div
       ref={containerRef}
-      tabIndex={0}
-      role="listbox"
-      aria-label="Color palette"
       style={{ display: 'inline-flex', flexDirection: 'column', gap: 6, paddingLeft: 72, outline: 'none' }}
-      onKeyDown={handleKeyDown}
       onBlur={handleBlur}
       onPointerDown={e => {
         if (!(e.target as HTMLElement).closest('[data-swatch]')) setEditingId(null);
       }}
     >
-      {swatches.map((s, i) => (
-        <Tooltip key={s.id} content={String(s.value)} side="left" open={editingId === s.id ? false : undefined}>
-          <div data-swatch="">
-            <SwatchRow
-              swatch={s}
-              selected={selectedId === s.id}
-              editing={editingId === s.id}
-              kbFocused={kbIdx === i}
-              onSelect={() => selectSwatch(s.id)}
-              onChange={!s.preset ? v => updateValue(s.id, v) : undefined}
-            />
-          </div>
-        </Tooltip>
-      ))}
+      <div
+        role="listbox"
+        aria-label="Color palette"
+        tabIndex={0}
+        style={{ display: 'inline-flex', flexDirection: 'column', gap: 6, outline: 'none' }}
+        onKeyDown={handleKeyDown}
+      >
+        {swatches.map((s, i) => (
+          <Tooltip key={s.id} content={String(s.value)} side="left" open={editingId === s.id ? false : undefined}>
+            <div data-swatch="">
+              <SwatchRow
+                swatch={s}
+                selected={selectedId === s.id}
+                editing={editingId === s.id}
+                kbFocused={kbIdx === i}
+                onSelect={() => selectSwatch(s.id)}
+                onChange={!s.preset ? v => updateValue(s.id, v) : undefined}
+              />
+            </div>
+          </Tooltip>
+        ))}
+      </div>
       <Button
         variant="ghost"
         size="sm"
