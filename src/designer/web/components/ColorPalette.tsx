@@ -157,7 +157,7 @@ export function ColorPalette({ value: _value, onChange }: ColorPaletteProps) {
   return (
     <div
       ref={containerRef}
-      style={{ display: 'inline-flex', flexDirection: 'column', gap: 6, paddingLeft: 72, outline: 'none' }}
+      style={{ display: 'inline-flex', flexDirection: 'column', gap: 6, paddingLeft: 72, paddingTop: 12, outline: 'none' }}
       onBlur={handleBlur}
       onPointerDown={e => {
         if (!(e.target as HTMLElement).closest('[data-swatch]')) setEditingId(null);
