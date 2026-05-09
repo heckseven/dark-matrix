@@ -1,9 +1,13 @@
 import type { Preview } from '@storybook/tanstack-react'
 import { themes } from 'storybook/theming'
+import { TooltipProvider } from '../src/designer/web/components/ui/tooltip.js'
 import '../src/designer/web/globals.css'
 
 const preview: Preview = {
   tags: ['!autodocs'],
+  decorators: [
+    Story => <TooltipProvider><Story /></TooltipProvider>,
+  ],
   parameters: {
     controls: {
       matchers: {

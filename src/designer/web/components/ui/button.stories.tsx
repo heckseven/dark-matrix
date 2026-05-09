@@ -39,7 +39,11 @@ const meta = {
     },
     'aria-label': {
       control: 'text',
-      description: 'Accessible label. Use when `children` is a symbol or ASCII art that does not describe the action.',
+      description: 'Accessible label. Use when `children` is a symbol that does not describe the action.',
+    },
+    tooltip: {
+      control: 'text',
+      description: 'Tooltip shown on hover. Pass whenever the visible label is a symbol or icon and a visible description is useful.',
     },
   },
   args: { onClick: fn() },
@@ -70,6 +74,17 @@ export const AllSizes: Story = {
       <Button size="sm">Small</Button>
       <Button size="md">Medium</Button>
       <Button size="lg">Large</Button>
+    </div>
+  ),
+};
+
+/** Ghost icon buttons — `tooltip` prop provides the hover label and `aria-label` names them for screen readers. */
+export const WithTooltip: Story = {
+  render: () => (
+    <div className="flex gap-2">
+      <Button tooltip="Add frame" aria-label="Add frame" variant="ghost">+</Button>
+      <Button tooltip="Delete frame" aria-label="Delete frame" variant="ghost">×</Button>
+      <Button tooltip="Undo" aria-label="Undo" variant="ghost">↩</Button>
     </div>
   ),
 };
