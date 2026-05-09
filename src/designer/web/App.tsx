@@ -1,5 +1,5 @@
-import { useState, useLayoutEffect, useRef, useEffect } from 'react';
-import { PixelCanvas, CANVAS_COMPONENT_H } from './components/PixelCanvas.js';
+import { useState, useLayoutEffect, useRef, useEffect, useCallback } from 'react';
+import { PixelCanvas, canvasComponentH } from './components/PixelCanvas.js';
 import { FrameStrip } from './components/FrameStrip.js';
 import { ColorPalette } from './components/ColorPalette.js';
 import { usePreviewBridge } from './components/LivePreview.js';
@@ -7,9 +7,10 @@ import { Toggle } from './components/ui/toggle.js';
 import { Button } from './components/ui/button.js';
 import { Text } from './components/ui/text.js';
 import { Tooltip, TooltipProvider } from './components/ui/tooltip.js';
-import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from './components/ui/menu.js';
+import { Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger } from './components/ui/menu.js';
 import { exportProject, saveProjectAs, importFile } from './files.js';
-import { useDesignerStore, designerStore } from './store.js';
+import { useDesignerStore, designerStore, stepZoom, ZOOM_STEPS } from './store.js';
+import { ShortcutDialog } from './components/ui/shortcut-dialog.js';
 
 function storeCompat() {
   return { state: designerStore.getState(), loadProject: (p: unknown) => designerStore.getState().loadProject(p) };
@@ -136,6 +137,9 @@ function LivePreviewToggle() {
 export function App() {
   const activeColor = useDesignerStore(s => s.activeColor);
   const activeFrameIdx = useDesignerStore(s => s.activeFrameIdx);
+  const zoom = useDesignerStore(s => s.zoom);
+  const previewTarget = useDesignerStore(s => s.previewTarget);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [cursor, setCursor] = useState({ col: 0, row: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
@@ -150,13 +154,25 @@ export function App() {
       const hh = headerRef.current?.offsetHeight ?? 0;
       const fh = footerRef.current?.offsetHeight ?? 0;
       const usable = h - hh - fh;
-      setTopPad(hh + Math.max(0, Math.round((usable - CANVAS_COMPONENT_H) / 2)));
+      setTopPad(hh + Math.max(0, Math.round((usable - canvasComponentH(zoom)) / 2)));
     };
     update();
     const ro = new ResizeObserver(update);
     [containerRef, headerRef, footerRef].forEach(r => { if (r.current) ro.observe(r.current); });
     return () => ro.disconnect();
-  }, []);
+  }, [zoom]);
+
+  const toggleShortcuts = useCallback(() => setShortcutsOpen(v => !v), []);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== '?') return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      e.preventDefault();
+      toggleShortcuts();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [toggleShortcuts]);
 
   function pickColor(v: number) {
     designerStore.getState().setActiveColor(v);
@@ -165,6 +181,7 @@ export function App() {
 
   return (
     <TooltipProvider>
+      <ShortcutDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
       <div ref={containerRef} className="relative h-screen bg-background text-foreground font-mono">
         <input
           ref={fileInputRef}
@@ -193,6 +210,22 @@ export function App() {
                 <MenuSeparator />
                 <MenuItem shortcut="^s" onSelect={() => exportProject(storeCompat())}>save</MenuItem>
                 <MenuItem shortcut="^⇧s" onSelect={() => saveProjectAs(storeCompat()).catch(console.error)}>save as</MenuItem>
+              </MenuContent>
+            </Menu>
+            <Menu>
+              <MenuTrigger asChild>
+                <Button variant="ghost">matrix <span aria-hidden="true">▾</span></Button>
+              </MenuTrigger>
+              <MenuContent align="start">
+                <MenuRadioGroup aria-label="Preview target" value={previewTarget} onValueChange={v => {
+                    if (v === 'left' || v === 'right' || v === 'both' || v === 'mirror')
+                      designerStore.getState().setPreviewTarget(v);
+                  }}>
+                  <MenuRadioItem value="left">left</MenuRadioItem>
+                  <MenuRadioItem value="right">right</MenuRadioItem>
+                  <MenuRadioItem value="both">both</MenuRadioItem>
+                  <MenuRadioItem value="mirror">mirror</MenuRadioItem>
+                </MenuRadioGroup>
               </MenuContent>
             </Menu>
           </div>
@@ -224,15 +257,15 @@ export function App() {
             <span>row {cursor.row}</span>
             <span>col {cursor.col}</span>
           </div>
-          <Text as="span" size="xs" variant="muted">drag to draw · double-click or F to fill</Text>
+          <Text as="span" size="xs" variant="muted">drag to draw · ? for shortcuts</Text>
           <div className="flex-1 flex items-center justify-end gap-4">
             <LivePreviewToggle />
             <div className="flex items-center gap-2">
-              <Button variant="ghost" disabled>-</Button>
-              <Text as="span" size="xs">100%</Text>
-              <Button variant="ghost" disabled>+</Button>
+              <Button variant="ghost" aria-label="Zoom out" disabled={zoom <= ZOOM_STEPS[0]} onClick={() => designerStore.getState().setZoom(stepZoom(designerStore.getState().zoom, -1))}>-</Button>
+              <Text as="span" size="xs">{zoom * 100}%</Text>
+              <Button variant="ghost" aria-label="Zoom in" disabled={zoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]} onClick={() => designerStore.getState().setZoom(stepZoom(designerStore.getState().zoom, 1))}>+</Button>
             </div>
-            <Text as="span" size="xs" variant="muted" aria-hidden="true">???</Text>
+            <Button variant="ghost" tooltip="shortcuts" onClick={() => setShortcutsOpen(true)} aria-label="Keyboard shortcuts"><span aria-hidden="true">???</span></Button>
           </div>
         </footer>
 
