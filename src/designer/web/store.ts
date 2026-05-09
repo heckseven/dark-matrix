@@ -17,10 +17,13 @@ export interface DesignerState {
   previewBw: boolean;
   undoStack: Frame[][];
   redoStack: Frame[][];
+  strokeSnapshot: Frame[] | null;
 }
 
 export interface DesignerActions {
   setPixel(frameIdx: number, col: number, row: number, value: number): void;
+  beginStroke(): void;
+  commitStroke(): void;
   addFrame(afterIdx: number): void;
   removeFrame(idx: number): void;
   moveFrame(fromIdx: number, toIdx: number): void;
@@ -100,16 +103,40 @@ export function createDesignerStore() {
     previewBw: false,
     undoStack: [],
     redoStack: [],
+    strokeSnapshot: null,
 
     setPixel(frameIdx, col, row, value) {
-      const { frames, mode, undoStack } = get();
+      const { frames, mode, undoStack, strokeSnapshot } = get();
       const frame = frames[frameIdx];
       if (!frame) return;
       const arr = decode(frame);
       arr[col * ROWS + row] = mode === 'bw' ? (value >= 128 ? 255 : 0) : Math.max(0, Math.min(255, value));
       const next = [...frames];
       next[frameIdx] = { ...frame, pixels: encode(arr) };
-      set({ frames: next, undoStack: pushUndo(frames, undoStack), redoStack: [] });
+      // During a stroke batch, skip individual undo entries — commitStroke pushes one entry.
+      if (strokeSnapshot !== null) {
+        set({ frames: next });
+      } else {
+        set({ frames: next, undoStack: pushUndo(frames, undoStack), redoStack: [] });
+      }
+    },
+
+    beginStroke() {
+      const { frames } = get();
+      set({ strokeSnapshot: cloneFrames(frames), redoStack: [] });
+    },
+
+    commitStroke() {
+      const { strokeSnapshot, frames, undoStack } = get();
+      if (strokeSnapshot === null) return;
+      const changed = frames.some((f, i) => f.pixels !== strokeSnapshot[i]?.pixels);
+      if (changed) {
+        const next = [...undoStack, strokeSnapshot];
+        if (next.length > MAX_UNDO) next.shift();
+        set({ strokeSnapshot: null, undoStack: next });
+      } else {
+        set({ strokeSnapshot: null });
+      }
     },
 
     addFrame(afterIdx) {
@@ -159,7 +186,7 @@ export function createDesignerStore() {
       if (undoStack.length === 0) return;
       const prev = [...undoStack];
       const restored = prev.pop()!;
-      set({ frames: restored, activeFrameIdx: Math.min(activeFrameIdx, restored.length - 1), undoStack: prev, redoStack: pushUndo(frames, redoStack) });
+      set({ frames: restored, activeFrameIdx: Math.min(activeFrameIdx, restored.length - 1), undoStack: prev, redoStack: pushUndo(frames, redoStack), strokeSnapshot: null });
     },
 
     redo() {
@@ -167,7 +194,7 @@ export function createDesignerStore() {
       if (redoStack.length === 0) return;
       const next = [...redoStack];
       const restored = next.pop()!;
-      set({ frames: restored, activeFrameIdx: Math.min(activeFrameIdx, restored.length - 1), undoStack: pushUndo(frames, undoStack), redoStack: next });
+      set({ frames: restored, activeFrameIdx: Math.min(activeFrameIdx, restored.length - 1), undoStack: pushUndo(frames, undoStack), redoStack: next, strokeSnapshot: null });
     },
 
     setPlaying(playing) { set({ isPlaying: playing }); },
@@ -206,7 +233,7 @@ export function createDesignerStore() {
     loadProject(project) {
       const p = project as { frames?: Frame[]; width?: 9 | 18; mode?: 'bw' | 'gray'; loop?: boolean };
       if (!p?.frames?.length) return;
-      set({ frames: p.frames, width: p.width ?? 9, mode: p.mode ?? 'gray', loop: p.loop ?? true, activeFrameIdx: 0, undoStack: [], redoStack: [] });
+      set({ frames: p.frames, width: p.width ?? 9, mode: p.mode ?? 'gray', loop: p.loop ?? true, activeFrameIdx: 0, undoStack: [], redoStack: [], strokeSnapshot: null });
     },
   }));
 }

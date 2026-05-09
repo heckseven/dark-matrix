@@ -79,23 +79,28 @@ function bresenham(x0: number, y0: number, x1: number, y1: number): [number, num
 export function PixelCanvas({ className }: { className?: string }) {
   const width = useDesignerStore(s => s.width);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const liveRef = useRef<HTMLSpanElement>(null);
+  const focusMarksRef = useRef<HTMLDivElement>(null);
   const state = useRef({
     pixels: new Uint8Array(18 * ROWS),
     width: 9 as 9 | 18,
     hovered: null as { col: number; row: number } | null,
     cursor: { col: 0, row: 0 },
     painting: false,
-    erasing: false,
+    paintValue: 0,  // color applied during drag/keyboard-draw; 0 = erase
     lastHit: null as { col: number; row: number } | null,
     rafPending: false,
     keyboardFocused: false,
     hasMoved: false,
     mouseDownHit: null as { col: number; row: number } | null,
     spaceHeld: false,
-    dragErasing: false,
   });
 
   state.current.width = width;
+
+  function announce(msg: string) {
+    if (liveRef.current) liveRef.current.textContent = msg;
+  }
 
   function ctx(): CanvasRenderingContext2D | null {
     return canvasRef.current?.getContext('2d') ?? null;
@@ -104,7 +109,9 @@ export function PixelCanvas({ className }: { className?: string }) {
   function repaintCell(c: CanvasRenderingContext2D, col: number, row: number) {
     const { pixels, width: w, hovered, cursor, keyboardFocused } = state.current;
     const v = pixels[col * ROWS + row] ?? 0;
-    drawCell(c, col, row, v, w, hovered?.col === col && hovered?.row === row, keyboardFocused && cursor.col === col && cursor.row === row);
+    drawCell(c, col, row, v, w,
+      hovered?.col === col && hovered?.row === row,
+      keyboardFocused && cursor.col === col && cursor.row === row);
   }
 
   function paintAll() {
@@ -113,11 +120,10 @@ export function PixelCanvas({ className }: { className?: string }) {
     const { frames, activeFrameIdx, width: w } = designerStore.getState();
     const frame = frames[activeFrameIdx];
     if (!frame) return;
-    const bin = atob(frame.pixels);
-    const pixels = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) pixels[i] = bin.charCodeAt(i);
-    state.current.pixels = pixels;
-    const { hovered, cursor, keyboardFocused } = state.current;
+    try {
+      state.current.pixels = Uint8Array.from(atob(frame.pixels), ch => ch.charCodeAt(0));
+    } catch { return; }
+    const { pixels, hovered, cursor, keyboardFocused } = state.current;
     for (let col = 0; col < w; col++) {
       for (let row = 0; row < ROWS; row++) {
         drawCell(c, col, row, pixels[col * ROWS + row] ?? 0, w as 9 | 18,
@@ -128,6 +134,8 @@ export function PixelCanvas({ className }: { className?: string }) {
     state.current.rafPending = false;
   }
 
+  // paintAll/schedulePaint only close over stable refs (state, canvasRef, designerStore)
+  // so the stale-closure lint warning below is a false positive.
   function schedulePaint() {
     if (state.current.rafPending) return;
     state.current.rafPending = true;
@@ -141,6 +149,15 @@ export function PixelCanvas({ className }: { className?: string }) {
     state.current.cursor = { col, row };
     repaintCell(c, prev.col, prev.row);
     repaintCell(c, col, row);
+    announce(`Col ${col + 1}, row ${row + 1}`);
+  }
+
+  function moveAndPaint(col: number, row: number) {
+    moveCursor(col, row);
+    if (state.current.spaceHeld) {
+      const { activeFrameIdx, setPixel } = designerStore.getState();
+      setPixel(activeFrameIdx, col, row, state.current.paintValue);
+    }
   }
 
   function setHovered(next: { col: number; row: number } | null) {
@@ -172,20 +189,33 @@ export function PixelCanvas({ className }: { className?: string }) {
     return { col, row };
   }
 
+  function setFocusMarks(on: boolean) {
+    const el = focusMarksRef.current;
+    if (!el) return;
+    el.style.display = on ? 'block' : 'none';
+  }
+
   function doPaint(clientX: number, clientY: number) {
     const hit = hitTest(clientX, clientY);
     if (!hit) return;
-    const { activeFrameIdx, activeColor } = designerStore.getState();
-    const color = (state.current.erasing || state.current.dragErasing) ? 0 : activeColor;
+    const { activeFrameIdx, setPixel } = designerStore.getState();
+    const color = state.current.paintValue;
     const last = state.current.lastHit;
     const pts = last ? bresenham(last.col, last.row, hit.col, hit.row) : [[hit.col, hit.row] as [number, number]];
-    for (const [col, row] of pts) {
-      designerStore.getState().setPixel(activeFrameIdx, col, row, color);
-    }
+    for (const [col, row] of pts) setPixel(activeFrameIdx, col, row, color);
     state.current.lastHit = hit;
+    state.current.cursor = hit;
   }
 
-  // Resize canvas and (re)subscribe on width change
+  function resetPaintState() {
+    state.current.painting = false;
+    state.current.hasMoved = false;
+    state.current.lastHit = null;
+    state.current.mouseDownHit = null;
+    designerStore.getState().commitStroke();
+  }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -195,36 +225,54 @@ export function PixelCanvas({ className }: { className?: string }) {
     canvas.height = canvasH * dpr;
     canvas.style.width = `${w}px`;
     canvas.style.height = `${canvasH}px`;
-    const c = canvas.getContext('2d')!;
+    const c = canvas.getContext('2d');
+    if (!c) return;
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     state.current.cursor = { col: 0, row: 0 };
     state.current.hovered = null;
     paintAll();
     return designerStore.subscribe(schedulePaint);
-  }, [width]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [width]);
+
+  const corner = { position: 'absolute', width: 16, height: 16, pointerEvents: 'none' } as const;
+  const b = '2px solid white';
 
   return (
     <div className={cn('p-2', className)}>
-      <canvas
-        ref={canvasRef}
-        tabIndex={0}
-        className="block outline-none cursor-crosshair"
+      <span ref={liveRef} aria-live="polite" aria-atomic="true" className="sr-only" />
+      <div style={{ position: 'relative', display: 'inline-block' }}>
+        <div ref={focusMarksRef} style={{ display: 'none', position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <span style={{ ...corner, top: 0, left: 0,     borderTop: b, borderLeft: b }} />
+          <span style={{ ...corner, top: 0, right: 0,    borderTop: b, borderRight: b }} />
+          <span style={{ ...corner, bottom: 0, left: 0,  borderBottom: b, borderLeft: b }} />
+          <span style={{ ...corner, bottom: 0, right: 0, borderBottom: b, borderRight: b }} />
+        </div>
+        <canvas
+          ref={canvasRef}
+          role="application"
+          aria-label="Pixel editor — arrow keys move cursor, Space to paint or erase"
+          tabIndex={0}
+          className="block cursor-crosshair outline-none"
         onMouseDown={e => {
           e.preventDefault();
           if (state.current.keyboardFocused) {
             state.current.keyboardFocused = false;
+            setFocusMarks(false);
             const c = ctx();
             if (c) repaintCell(c, state.current.cursor.col, state.current.cursor.row);
           }
-          state.current.erasing = e.button === 2;
+          const downHit = hitTest(e.clientX, e.clientY);
+          const startLit = e.button !== 2 && downHit != null
+            ? (state.current.pixels[downHit.col * ROWS + downHit.row] ?? 0) > 0
+            : false;
+          state.current.paintValue = e.button === 2 || startLit
+            ? 0
+            : designerStore.getState().activeColor;
           state.current.painting = true;
           state.current.hasMoved = false;
           state.current.lastHit = null;
-          const downHit = hitTest(e.clientX, e.clientY);
           state.current.mouseDownHit = downHit;
-          state.current.dragErasing = !state.current.erasing && downHit != null
-            ? (state.current.pixels[downHit.col * ROWS + downHit.row] ?? 0) > 0
-            : false;
+          designerStore.getState().beginStroke();
           canvasRef.current?.focus();
         }}
         onMouseMove={e => {
@@ -240,80 +288,75 @@ export function PixelCanvas({ className }: { className?: string }) {
             const { activeFrameIdx, activeColor } = designerStore.getState();
             const currentVal = state.current.pixels[col * ROWS + row] ?? 0;
             designerStore.getState().setPixel(activeFrameIdx, col, row, currentVal > 0 ? 0 : activeColor);
+            state.current.cursor = { col, row };
           }
-          state.current.painting = false;
-          state.current.erasing = false;
-          state.current.dragErasing = false;
-          state.current.lastHit = null;
-          state.current.mouseDownHit = null;
+          resetPaintState();
         }}
-        onMouseLeave={() => { state.current.painting = false; state.current.erasing = false; state.current.dragErasing = false; state.current.lastHit = null; state.current.mouseDownHit = null; setHovered(null); }}
+        onMouseLeave={() => { resetPaintState(); setHovered(null); }}
         onContextMenu={e => e.preventDefault()}
         onKeyDown={e => {
-          state.current.keyboardFocused = true;
+          if (!state.current.keyboardFocused && !e.ctrlKey && !e.metaKey) {
+            state.current.keyboardFocused = true;
+            setFocusMarks(true);
+          }
           const ctrl = e.ctrlKey || e.metaKey;
           const { col, row } = state.current.cursor;
           const w = state.current.width;
           const { activeFrameIdx, activeColor } = designerStore.getState();
           if (e.key === 'ArrowLeft') {
             e.preventDefault();
-            if (col > 0) {
-              moveCursor(col - 1, row);
-              if (state.current.spaceHeld) designerStore.getState().setPixel(activeFrameIdx, col - 1, row, state.current.dragErasing ? 0 : activeColor);
-            } else if (!state.current.spaceHeld) {
-              designerStore.getState().setActiveFrame(activeFrameIdx - 1);
-            }
+            if (col > 0) moveAndPaint(col - 1, row);
+            else if (!state.current.spaceHeld) designerStore.getState().setActiveFrame(activeFrameIdx - 1);
           } else if (e.key === 'ArrowRight') {
             e.preventDefault();
-            if (col < w - 1) {
-              moveCursor(col + 1, row);
-              if (state.current.spaceHeld) designerStore.getState().setPixel(activeFrameIdx, col + 1, row, state.current.dragErasing ? 0 : activeColor);
-            } else if (!state.current.spaceHeld) {
-              designerStore.getState().setActiveFrame(activeFrameIdx + 1);
-            }
+            if (col < w - 1) moveAndPaint(col + 1, row);
+            else if (!state.current.spaceHeld) designerStore.getState().setActiveFrame(activeFrameIdx + 1);
           } else if (e.key === 'ArrowUp') {
             e.preventDefault();
-            if (row > 0) {
-              moveCursor(col, row - 1);
-              if (state.current.spaceHeld) designerStore.getState().setPixel(activeFrameIdx, col, row - 1, state.current.dragErasing ? 0 : activeColor);
-            }
+            if (row > 0) moveAndPaint(col, row - 1);
           } else if (e.key === 'ArrowDown') {
             e.preventDefault();
-            if (row < ROWS - 1) {
-              moveCursor(col, row + 1);
-              if (state.current.spaceHeld) designerStore.getState().setPixel(activeFrameIdx, col, row + 1, state.current.dragErasing ? 0 : activeColor);
-            }
+            if (row < ROWS - 1) moveAndPaint(col, row + 1);
           } else if (e.key === ' ' && !e.repeat) {
             e.preventDefault();
             const currentVal = state.current.pixels[col * ROWS + row] ?? 0;
+            state.current.paintValue = currentVal > 0 ? 0 : activeColor;
             state.current.spaceHeld = true;
-            state.current.dragErasing = currentVal > 0;
-            designerStore.getState().setPixel(activeFrameIdx, col, row, currentVal > 0 ? 0 : activeColor);
+            designerStore.getState().beginStroke();
+            designerStore.getState().setPixel(activeFrameIdx, col, row, state.current.paintValue);
+            announce(state.current.paintValue === 0 ? 'Erased' : 'Painted');
           } else if (e.key === ' ') {
             e.preventDefault();
           } else if (e.key === 'n' && !ctrl) {
             designerStore.getState().addFrame(activeFrameIdx);
           } else if (e.key === 'z' && ctrl && !e.shiftKey) {
             e.preventDefault();
+            state.current.spaceHeld = false;
             designerStore.getState().undo();
           } else if ((e.key === 'y' && ctrl) || (e.key === 'Z' && ctrl && e.shiftKey)) {
             e.preventDefault();
+            state.current.spaceHeld = false;
             designerStore.getState().redo();
           }
         }}
         onKeyUp={e => {
-          if (e.key === ' ') { state.current.spaceHeld = false; state.current.dragErasing = false; }
+          if (e.key === ' ') {
+            state.current.spaceHeld = false;
+            designerStore.getState().commitStroke();
+          }
         }}
         onBlur={() => {
           state.current.spaceHeld = false;
-          state.current.dragErasing = false;
+          designerStore.getState().commitStroke();
           if (state.current.keyboardFocused) {
             state.current.keyboardFocused = false;
+            setFocusMarks(false);
             const c = ctx();
             if (c) repaintCell(c, state.current.cursor.col, state.current.cursor.row);
           }
         }}
       />
+      </div>
     </div>
   );
 }

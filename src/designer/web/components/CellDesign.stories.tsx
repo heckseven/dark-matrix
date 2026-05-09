@@ -45,7 +45,7 @@ function Cell({ value, isHovered = false, isFocused = false }: {
 const meta = {
   title: 'Design/Cell',
   component: Cell,
-  tags: ['autodocs'],
+  tags: [],
   parameters: {
     backgrounds: { default: 'dark' },
     docs: {

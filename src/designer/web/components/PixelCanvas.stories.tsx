@@ -103,6 +103,7 @@ export const Gradient: Story = {
 
 /** Ctrl+Z undoes a painted pixel; Ctrl+Y redoes it. */
 export const UndoRedo: Story = {
+  beforeEach: () => resetStore(9),
   play: async ({ canvasElement }) => {
     const container = canvasElement.querySelector('[tabindex="0"]') as HTMLElement;
 
