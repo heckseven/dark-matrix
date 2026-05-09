@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useLayoutEffect, useRef } from 'react';
 import { PixelCanvas } from './components/PixelCanvas.js';
 import { FrameStrip } from './components/FrameStrip.js';
 import { ColorPalette } from './components/ColorPalette.js';
@@ -9,6 +9,7 @@ import { Text } from './components/ui/text.js';
 import { TooltipProvider } from './components/ui/tooltip.js';
 import { exportProject } from './files.js';
 import { useDesignerStore, designerStore } from './store.js';
+import { CANVAS_COMPONENT_H } from './components/PixelCanvas.js';
 
 function ProjectTitle() {
   const [editing, setEditing] = useState(false);
@@ -68,6 +69,20 @@ export function App() {
   const activeColor = useDesignerStore(s => s.activeColor);
   const activeFrameIdx = useDesignerStore(s => s.activeFrameIdx);
   const [cursor, setCursor] = useState({ col: 0, row: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [topPad, setTopPad] = useState(0);
+
+  useLayoutEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return;
+    const update = () => {
+      const h = containerRef.current?.clientHeight ?? 0;
+      setTopPad(Math.max(0, Math.round((h - CANVAS_COMPONENT_H) / 2)));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    if (containerRef.current) ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
 
   function pickColor(v: number) {
     designerStore.getState().setActiveColor(v);
@@ -81,7 +96,7 @@ export function App() {
         <header className="flex-none flex items-center gap-4 pl-7 pr-5 py-4">
           <div className="flex items-center gap-1">
             <Text as="span" size="xs">◫</Text>
-            <Button variant="ghost">file ▾</Button>
+            <Button variant="ghost">file <span aria-hidden="true">▾</span></Button>
           </div>
           <div className="flex-1 flex justify-center">
             <ProjectTitle />
@@ -91,22 +106,20 @@ export function App() {
           </Button>
         </header>
 
-        <div className="flex-1 min-h-0 overflow-hidden">
-          <div className="h-full grid grid-cols-[1fr_auto_1fr]">
-            <aside aria-label="Color palette" className="overflow-hidden flex items-start justify-end pl-4 pt-3">
-              <ColorPalette value={activeColor} onChange={pickColor} />
-            </aside>
+        <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden flex">
+          <aside aria-label="Color palette" className="flex-1 overflow-hidden flex items-start justify-end pl-4" style={{ paddingTop: topPad }}>
+            <ColorPalette value={activeColor} onChange={pickColor} />
+          </aside>
 
-            <main className="px-10 h-full overflow-y-auto flex flex-col">
-              <div className="my-auto py-2">
-                <PixelCanvas onCursorMove={(col, row) => setCursor({ col, row })} />
-              </div>
-            </main>
+          <main className="px-10 flex-none flex flex-col overflow-y-auto">
+            <div className="my-auto">
+              <PixelCanvas onCursorMove={(col, row) => setCursor({ col, row })} />
+            </div>
+          </main>
 
-            <aside aria-label="Animation frames" className="h-full overflow-hidden justify-self-start flex flex-col">
-              <FrameStrip />
-            </aside>
-          </div>
+          <aside aria-label="Animation frames" className="flex-1 overflow-hidden flex flex-col">
+            <FrameStrip topPadding={topPad} />
+          </aside>
         </div>
 
         <footer className="flex-none flex items-center px-7 py-4 text-xs">
@@ -125,7 +138,7 @@ export function App() {
               <Text as="span" size="xs">100%</Text>
               <Button variant="ghost" disabled>+</Button>
             </div>
-            <Text as="span" size="xs" variant="muted">???</Text>
+            <Text as="span" size="xs" variant="muted" aria-hidden="true">???</Text>
           </div>
         </footer>
 

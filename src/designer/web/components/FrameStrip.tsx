@@ -133,17 +133,17 @@ function FrameCell({
   );
 }
 
-export function FrameStrip() {
+export function FrameStrip({ topPadding = 0 }: { topPadding?: number }) {
   const frames = useDesignerStore(s => s.frames);
   const width = useDesignerStore(s => s.width);
   const [dropTarget, setDropTarget] = useState<number | null>(null);
 
   return (
-    <div className="flex flex-col overflow-y-auto pr-6">
+    <div className="flex flex-col overflow-y-auto pr-6 flex-1 min-h-0" style={{ paddingTop: topPadding }}>
       <Stack
         aria-label="Animation frames"
         gap="2xl"
-        className="pt-5 pb-5"
+        className="pb-5"
         onDragLeave={e => {
           if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropTarget(null);
         }}

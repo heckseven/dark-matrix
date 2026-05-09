@@ -6,6 +6,8 @@ const MIN_L = 48;
 const CELL = 20;
 const GAP = 1;
 const ROWS = 34;
+// Height of the PixelCanvas component including its p-2 wrapper padding
+export const CANVAS_COMPONENT_H = ROWS * (CELL + GAP) - GAP + 16;
 const MODULE_GAP = 8;
 const CORNER = 4;
 const CURSOR_COLOR = '#4ade80';
