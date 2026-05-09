@@ -18,12 +18,12 @@ function glyphChar(v: number) { return v === 0 ? '•' : '∗'; }
 // ── Row cursor (keyboard focus L-brackets) ────────────────────────────────────
 // Wrapper is height:16 with 12px content centered at y=2..y=14.
 // top:-2/bottom:-2 gives a 4px gap from content edges.
-// left shifts to -62 when the scrub input (left:-58) is visible.
+// left shifts to -70 when the scrub input (left:-66) is visible.
 
 function RowCursor({ editing }: { editing: boolean }) {
   const c: React.CSSProperties = { position: 'absolute', width: 6, height: 6, pointerEvents: 'none' };
   const b = '1px solid white';
-  const l = editing ? -62 : -4;
+  const l = editing ? -70 : -4;
   return (
     <>
       <span style={{ ...c, top: -2, left: l,    borderTop: b, borderLeft: b }} />
@@ -56,8 +56,8 @@ function SwatchRow({ swatch, selected, editing, kbFocused, onSelect, onChange }:
     >
       {kbFocused && <RowCursor editing={editing} />}
       {editing && onChange && (
-        <div style={{ position: 'absolute', left: -58, top: -3, zIndex: 1 }}>
-          <ScrubInput value={v} onChange={onChange} min={0} max={255} className="w-8 text-center" />
+        <div style={{ position: 'absolute', left: -66, top: -3, zIndex: 1 }}>
+          <ScrubInput value={v} onChange={onChange} min={0} max={255} className="w-6 text-center" />
         </div>
       )}
       <div
@@ -159,7 +159,7 @@ export function ColorPalette({ value: _value, onChange }: ColorPaletteProps) {
       tabIndex={0}
       role="listbox"
       aria-label="Color palette"
-      style={{ display: 'inline-flex', flexDirection: 'column', gap: 6, paddingLeft: 64, outline: 'none' }}
+      style={{ display: 'inline-flex', flexDirection: 'column', gap: 6, paddingLeft: 72, outline: 'none' }}
       onKeyDown={handleKeyDown}
       onBlur={handleBlur}
       onPointerDown={e => {
