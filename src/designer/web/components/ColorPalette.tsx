@@ -183,7 +183,7 @@ export function ColorPalette({ value: _value, onChange }: ColorPaletteProps) {
       <Button
         variant="ghost"
         size="sm"
-        className="font-mono px-0 self-start mt-0.5"
+        className="font-mono self-start mt-0.5"
         aria-label="Add swatch"
         tooltip="Add swatch"
         onClick={addSwatch}
