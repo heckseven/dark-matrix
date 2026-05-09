@@ -211,6 +211,111 @@ function RotaryDemo({ initial }: { initial: number }) {
   );
 }
 
+// ── F: Scrub Input ────────────────────────────────────────────────────────────
+// Adapts the bracket [ value ] pattern: drag either bracket to scrub,
+// click the number to type directly. Brackets show ew-resize cursor.
+
+function ScrubInputDemo({ initial }: { initial: number }) {
+  const [val, setVal] = useState(initial);
+  const drag = useRef<{ x: number; v: number } | null>(null);
+
+  function clamp(v: number) { return Math.max(0, Math.min(255, v)); }
+
+  function bracketDown(e: React.PointerEvent) {
+    e.preventDefault();
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    drag.current = { x: e.clientX, v: val };
+  }
+
+  function onMove(e: React.PointerEvent) {
+    if (!drag.current) return;
+    setVal(clamp(drag.current.v + Math.round((e.clientX - drag.current.x) * 1.5)));
+  }
+
+  function onUp() { drag.current = null; }
+
+  const bracket: React.CSSProperties = {
+    ...MONO, cursor: 'ew-resize', userSelect: 'none', color: '#555', padding: '0 2px',
+  };
+
+  return (
+    <span
+      style={{ display: 'inline-flex', alignItems: 'center', fontSize: 14, outline: '1px solid transparent' }}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+    >
+      <span style={bracket} onPointerDown={bracketDown}>[</span>
+      <input
+        type="number"
+        min={0} max={255}
+        value={val}
+        onChange={e => setVal(clamp(parseInt(e.target.value, 10) || 0))}
+        style={{
+          ...MONO, width: '3ch', textAlign: 'center',
+          background: 'transparent', border: 'none', outline: 'none',
+          color: 'white', MozAppearance: 'textfield',
+        }}
+      />
+      <span style={bracket} onPointerDown={bracketDown}>]</span>
+    </span>
+  );
+}
+
+// ── G: Char Preview ───────────────────────────────────────────────────────────
+// Scrub input paired with a live glyph preview — the same •/∗ character
+// from the pixel canvas, rendered at its actual brightness.
+
+function CharPreviewDemo({ initial }: { initial: number }) {
+  const [val, setVal] = useState(initial);
+  const drag = useRef<{ x: number; v: number } | null>(null);
+
+  function clamp(v: number) { return Math.max(0, Math.min(255, v)); }
+
+  function bracketDown(e: React.PointerEvent) {
+    e.preventDefault();
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    drag.current = { x: e.clientX, v: val };
+  }
+
+  function onMove(e: React.PointerEvent) {
+    if (!drag.current) return;
+    setVal(clamp(drag.current.v + Math.round((e.clientX - drag.current.x) * 1.5)));
+  }
+
+  function onUp() { drag.current = null; }
+
+  const bracket: React.CSSProperties = {
+    ...MONO, cursor: 'ew-resize', userSelect: 'none', color: '#555', padding: '0 2px',
+  };
+
+  return (
+    <span
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+    >
+      <span style={{ ...MONO, fontSize: 20, color: grayColor(val), lineHeight: 1, width: '1ch', textAlign: 'center' }}>
+        {val === 0 ? '•' : '∗'}
+      </span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 14 }}>
+        <span style={bracket} onPointerDown={bracketDown}>[</span>
+        <input
+          type="number"
+          min={0} max={255}
+          value={val}
+          onChange={e => setVal(clamp(parseInt(e.target.value, 10) || 0))}
+          style={{
+            ...MONO, width: '3ch', textAlign: 'center',
+            background: 'transparent', border: 'none', outline: 'none',
+            color: 'white', MozAppearance: 'textfield',
+          }}
+        />
+        <span style={bracket} onPointerDown={bracketDown}>]</span>
+      </span>
+    </span>
+  );
+}
+
 // ── Meta ──────────────────────────────────────────────────────────────────────
 
 function ColorValueDemo({ initial }: { initial: number }) {
@@ -268,21 +373,35 @@ export const E_Rotary: Story = {
   render: ({ initial }) => <RotaryDemo initial={initial} />,
 };
 
-/** All five options stacked for direct comparison. */
+/** Bracket input with scrubbing — drag the `[` / `]` brackets to scrub, click the number to type. */
+export const F_ScrubInput: Story = {
+  name: 'F — Scrub Input',
+  render: ({ initial }) => <ScrubInputDemo initial={initial} />,
+};
+
+/** Character preview alongside scrub input — glyph reflects brightness live. */
+export const G_CharPreview: Story = {
+  name: 'G — Char Preview',
+  render: ({ initial }) => <CharPreviewDemo initial={initial} />,
+};
+
+/** All options stacked for direct comparison. */
 export const Comparison: Story = {
   render: ({ initial }) => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, alignItems: 'flex-start' }}>
       {(
         [
-          ['A — Scrubber',     <ScrubberDemo    key="a" initial={initial} />],
-          ['B — Cell Palette', <CellPaletteDemo key="b" initial={initial} />],
-          ['C — Gradient Bar', <GradientBarDemo key="c" initial={initial} />],
-          ['D — Density Chars',<DensityCharsDemo key="d" initial={initial} />],
-          ['E — Rotary',       <RotaryDemo      key="e" initial={initial} />],
+          ['A — Scrubber',      <ScrubberDemo    key="a" initial={initial} />],
+          ['B — Cell Palette',  <CellPaletteDemo key="b" initial={initial} />],
+          ['C — Gradient Bar',  <GradientBarDemo key="c" initial={initial} />],
+          ['D — Density Chars', <DensityCharsDemo key="d" initial={initial} />],
+          ['E — Rotary',        <RotaryDemo      key="e" initial={initial} />],
+          ['F — Scrub Input',   <ScrubInputDemo  key="f" initial={initial} />],
+          ['G — Char Preview',  <CharPreviewDemo key="g" initial={initial} />],
         ] as [string, React.ReactNode][]
       ).map(([label, node]) => (
         <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span style={{ ...MONO, fontSize: 11, color: '#444', minWidth: 120 }}>{label}</span>
+          <span style={{ ...MONO, fontSize: 11, color: '#444', minWidth: 130 }}>{label}</span>
           {node}
         </div>
       ))}
