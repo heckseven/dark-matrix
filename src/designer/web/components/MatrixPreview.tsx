@@ -48,14 +48,19 @@ export function MatrixPreview({ pixels, width, className }: MatrixPreviewProps) 
     for (let i = 0; i < bin.length; i++) data[i] = bin.charCodeAt(i);
 
     const dpr = window.devicePixelRatio ?? 1;
-    canvas.width = w * dpr;
-    canvas.height = CANVAS_H * dpr;
+    const physW = Math.round(w * dpr);
+    const physH = Math.round(CANVAS_H * dpr);
+    canvas.width = physW;
+    canvas.height = physH;
     canvas.style.width = `${w}px`;
     canvas.style.height = `${CANVAS_H}px`;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, w, CANVAS_H);
+    ctx.fillRect(0, 0, physW, physH);
+
+    // Dot is Math.round(dpr) physical pixels — always an integer, always crisp.
+    // Position snapped to nearest physical pixel, centered in the 3×3 CSS cell.
+    const dot = Math.max(1, Math.round(dpr));
 
     for (let c = 0; c < width; c++) {
       for (let r = 0; r < ROWS; r++) {
@@ -63,7 +68,9 @@ export function MatrixPreview({ pixels, width, className }: MatrixPreviewProps) 
         const l = pixelLuminance(v);
         if (l === 0) continue;
         ctx.fillStyle = `rgb(${l},${l},${l})`;
-        ctx.fillRect(colX(c, wide) + 1, r * PITCH + 1, 1, 1);
+        const px = Math.round((colX(c, wide) + 1.5) * dpr) - Math.floor(dot / 2);
+        const py = Math.round((r * PITCH + 1.5) * dpr) - Math.floor(dot / 2);
+        ctx.fillRect(px, py, dot, dot);
       }
     }
   }, [pixels, width, w, wide]);
