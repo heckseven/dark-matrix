@@ -1,38 +1,16 @@
-import { useEffect, useRef } from 'react';
-import { useDesignerStore, designerStore, ROWS } from '../store.js';
+import { useRef } from 'react';
+import { useDesignerStore, designerStore } from '../store.js';
 import type { Frame } from '../store.js';
 import { Button } from './ui/button.js';
 import { Input } from './ui/input.js';
+import { MatrixPreview } from './MatrixPreview.js';
 
 const THUMB_W = 36;
 const THUMB_H = 68;
 
-function renderThumb(canvas: HTMLCanvasElement, frame: Frame, width: number) {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-  const bin = atob(frame.pixels);
-  const pixels = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) pixels[i] = bin.charCodeAt(i);
-  const scaleX = THUMB_W / width;
-  const scaleY = THUMB_H / ROWS;
-  ctx.clearRect(0, 0, THUMB_W, THUMB_H);
-  for (let c = 0; c < width; c++) {
-    for (let r = 0; r < ROWS; r++) {
-      const v = pixels[c * ROWS + r] ?? 0;
-      ctx.fillStyle = `rgb(${v},${v},${v})`;
-      ctx.fillRect(Math.round(c * scaleX), Math.round(r * scaleY), Math.max(1, Math.round(scaleX)), Math.max(1, Math.round(scaleY)));
-    }
-  }
-}
-
 function FrameCell({ frame, idx, width }: { frame: Frame; idx: number; width: number }) {
   const activeFrameIdx = useDesignerStore(s => s.activeFrameIdx);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const dragRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (canvasRef.current) renderThumb(canvasRef.current, frame, width);
-  }, [frame, width]);
 
   const active = idx === activeFrameIdx;
 
@@ -52,12 +30,11 @@ function FrameCell({ frame, idx, width }: { frame: Frame; idx: number; width: nu
       }}
       onDragEnd={() => { dragRef.current = null; }}
     >
-      <canvas
-        ref={canvasRef}
-        width={THUMB_W}
-        height={THUMB_H}
-        aria-label={`Frame ${idx + 1} thumbnail`}
-        className="[image-rendering:pixelated]"
+      <MatrixPreview
+        pixels={frame.pixels}
+        width={width as 9 | 18}
+        displayWidth={THUMB_W}
+        displayHeight={THUMB_H}
       />
       <div className="flex gap-1 items-center">
         <Input
