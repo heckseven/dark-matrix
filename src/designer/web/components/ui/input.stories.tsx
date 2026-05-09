@@ -48,7 +48,7 @@ export const Playground: Story = {
 };
 
 export const Number: Story = {
-  args: { type: 'number', min: 0, max: 60000, step: 10, defaultValue: 100, className: 'w-16 text-center' },
+  args: { type: 'number', min: 0, max: 60000, step: 10, defaultValue: 100, className: 'w-16 text-center', 'aria-label': 'Number input' },
   play: async ({ canvas }) => {
     const input = canvas.getByRole('spinbutton');
     await expect(input).toHaveValue(100);
@@ -56,7 +56,7 @@ export const Number: Story = {
 };
 
 export const Disabled: Story = {
-  args: { type: 'text', defaultValue: 'read only', disabled: true, className: 'w-32' },
+  args: { type: 'text', defaultValue: 'read only', disabled: true, className: 'w-32', 'aria-label': 'Disabled text input' },
   play: async ({ canvas }) => {
     await expect(canvas.getByRole('textbox')).toBeDisabled();
   },

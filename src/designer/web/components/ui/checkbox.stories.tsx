@@ -33,6 +33,13 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+// Disabled state decorative spans (aria-hidden) fail contrast at 40% opacity.
+// WCAG 1.4.3 exempts inactive controls; exclude the specific decorative elements
+// rather than disabling the rule for the whole story.
+const disabledA11yParams = {
+  a11y: { context: { exclude: ['[aria-hidden="true"]'] } },
+};
+
 /** State and disabled configurable via controls. Click to toggle. */
 export const Playground: Story = {
   args: { defaultChecked: false },
@@ -45,21 +52,23 @@ export const Playground: Story = {
 };
 
 export const Checked: Story = {
-  args: { defaultChecked: true },
+  args: { defaultChecked: true, 'aria-label': 'Example checkbox' },
   play: async ({ canvas }) => {
     await expect(canvas.getByRole('checkbox')).toBeChecked();
   },
 };
 
 export const Disabled: Story = {
-  args: { disabled: true },
+  args: { disabled: true, 'aria-label': 'Example checkbox' },
+  parameters: disabledA11yParams,
   play: async ({ canvas }) => {
     await expect(canvas.getByRole('checkbox')).toBeDisabled();
   },
 };
 
 export const DisabledChecked: Story = {
-  args: { defaultChecked: true, disabled: true },
+  args: { defaultChecked: true, disabled: true, 'aria-label': 'Example checkbox' },
+  parameters: disabledA11yParams,
 };
 
 /** Canonical usage: checkbox inside a label with a Text sibling. */
