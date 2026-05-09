@@ -76,19 +76,19 @@ function ScrubInput({ val, onChange }: { val: number; onChange: (v: number) => v
 
 // ── Row cursor (keyboard focus L-brackets) ────────────────────────────────────
 // Wrapper is height:16 with 12px content centered at y=2..y=14.
-// top:0/bottom:0 gives the 2px gap from content edges.
-// left shifts to -60 when the scrub input (left:-58) is visible.
+// top:-2/bottom:-2 gives a 4px gap from content edges.
+// left shifts to -62 when the scrub input (left:-58) is visible.
 
 function RowCursor({ editing }: { editing: boolean }) {
   const c: React.CSSProperties = { position: 'absolute', width: 6, height: 6, pointerEvents: 'none' };
   const b = '1px solid white';
-  const l = editing ? -60 : -2;
+  const l = editing ? -62 : -4;
   return (
     <>
-      <span style={{ ...c, top: 0, left: l,    borderTop: b, borderLeft: b }} />
-      <span style={{ ...c, top: 0, right: -2,  borderTop: b, borderRight: b }} />
-      <span style={{ ...c, bottom: 0, left: l,  borderBottom: b, borderLeft: b }} />
-      <span style={{ ...c, bottom: 0, right: -2, borderBottom: b, borderRight: b }} />
+      <span style={{ ...c, top: -2, left: l,    borderTop: b, borderLeft: b }} />
+      <span style={{ ...c, top: -2, right: -4,  borderTop: b, borderRight: b }} />
+      <span style={{ ...c, bottom: -2, left: l,  borderBottom: b, borderLeft: b }} />
+      <span style={{ ...c, bottom: -2, right: -4, borderBottom: b, borderRight: b }} />
     </>
   );
 }
