@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils.js';
 import { ROWS } from '../store.js';
 
 const MIN_L = 48;
+const PITCH = 3;
 
 function pixelLuminance(v: number): number {
   if (v === 0) return 0;
@@ -14,24 +15,12 @@ export interface MatrixPreviewProps {
   pixels: string;
   /** Matrix width — 9 or 18. */
   width: 9 | 18;
-  /**
-   * Diameter of each LED dot in CSS px. A fixed 1px gap separates adjacent dots.
-   * Canvas dimensions are derived: width × (cellSize + 1) by ROWS × (cellSize + 1).
-   * Default: 2 → 27 × 102 px for a 9-wide matrix.
-   */
-  cellSize?: number;
   className?: string;
 }
 
-export function MatrixPreview({
-  pixels,
-  width,
-  cellSize = 2,
-  className,
-}: MatrixPreviewProps) {
-  const pitch = cellSize + 1;
-  const w = width * pitch;
-  const h = ROWS * pitch;
+export function MatrixPreview({ pixels, width, className }: MatrixPreviewProps) {
+  const w = width * PITCH;
+  const h = ROWS * PITCH;
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -61,10 +50,10 @@ export function MatrixPreview({
         const l = pixelLuminance(v);
         if (l === 0) continue;
         ctx.fillStyle = `rgb(${l},${l},${l})`;
-        ctx.fillRect(c * pitch, r * pitch, cellSize, cellSize);
+        ctx.fillRect(c * PITCH + 1, r * PITCH + 1, 1, 1);
       }
     }
-  }, [pixels, width, cellSize, w, h]);
+  }, [pixels, width, w, h]);
 
   return (
     <canvas
