@@ -15,6 +15,8 @@ export interface ScrubInputProps {
   expandedClassName?: string;
   disabled?: boolean;
   'aria-label'?: string;
+  /** Text appended after the input (e.g. "ms"). */
+  suffix?: string;
 }
 
 export function ScrubInput({
@@ -27,6 +29,7 @@ export function ScrubInput({
   expandedClassName,
   disabled,
   'aria-label': ariaLabel,
+  suffix,
 }: ScrubInputProps) {
   const [editing, setEditing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -86,6 +89,7 @@ export function ScrubInput({
             onChange(clamp(value + (e.key === 'ArrowUp' ? step : -step)));
           }
         }}
+        suffix={suffix}
         className={className}
         expandedClassName={expandedClassName ?? className}
         style={{ pointerEvents: editing ? 'auto' : 'none', cursor: editing ? 'text' : 'ew-resize' }}

@@ -27,6 +27,7 @@ export interface DesignerActions {
   addFrame(afterIdx: number): void;
   removeFrame(idx: number): void;
   moveFrame(fromIdx: number, toIdx: number): void;
+  cloneFrame(idx: number): void;
   setFrameDelay(idx: number, delayMs: number): void;
   setActiveFrame(idx: number): void;
   undo(): void;
@@ -50,6 +51,7 @@ export type Store = { state: DesignerState; subscribe: (cb: () => void) => () =>
 
 const MAX_UNDO = 50;
 export const ROWS = 34;
+export const DEFAULT_WIDTH: 9 | 18 = 9;
 
 function blank(width: number): Frame {
   return { delayMs: 100, pixels: btoa(String.fromCharCode(...new Uint8Array(width * ROWS))) };
@@ -152,6 +154,15 @@ export function createDesignerStore() {
       const next = [...frames];
       next.splice(idx, 1);
       set({ frames: next, activeFrameIdx: Math.min(activeFrameIdx, next.length - 1), undoStack: pushUndo(frames, undoStack), redoStack: [] });
+    },
+
+    cloneFrame(idx) {
+      const { frames, undoStack } = get();
+      const frame = frames[idx];
+      if (!frame) return;
+      const next = [...frames];
+      next.splice(idx + 1, 0, { ...frame });
+      set({ frames: next, activeFrameIdx: idx + 1, undoStack: pushUndo(frames, undoStack), redoStack: [] });
     },
 
     moveFrame(fromIdx, toIdx) {

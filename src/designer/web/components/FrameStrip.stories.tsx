@@ -2,7 +2,23 @@ import { useEffect } from 'react';
 import type { Meta, StoryObj } from '@storybook/tanstack-react';
 import { expect } from 'storybook/test';
 import { FrameStrip } from './FrameStrip';
-import { designerStore } from '../store.js';
+import { designerStore, ROWS, DEFAULT_WIDTH } from '../store.js';
+
+const COLS = DEFAULT_WIDTH;
+
+function makePixels(fn: (c: number, r: number) => number): string {
+  const data = new Uint8Array(COLS * ROWS);
+  for (let c = 0; c < COLS; c++)
+    for (let r = 0; r < ROWS; r++)
+      data[c * ROWS + r] = fn(c, r);
+  return btoa(String.fromCharCode(...data));
+}
+
+const PATTERNS = [
+  makePixels((c, r) => Math.round(((c * ROWS + r) / (COLS * ROWS - 1)) * 255)),
+  makePixels((c, r) => ((c + r) % 2 === 0 ? 255 : 0)),
+  makePixels((c, r) => (r < Math.floor(ROWS / 2) ? 255 : 64)),
+];
 
 function syncFrameCount(target: number) {
   const t = Math.max(1, target);
@@ -15,15 +31,21 @@ function syncFrameCount(target: number) {
 }
 
 function FrameStripStory({ frameCount }: { frameCount: number }) {
-  useEffect(() => { syncFrameCount(frameCount); }, [frameCount]);
+  useEffect(() => {
+    syncFrameCount(frameCount);
+    const frames = designerStore.getState().frames.map((f, i) => ({
+      ...f,
+      pixels: PATTERNS[i % PATTERNS.length]!,
+    }));
+    designerStore.setState({ frames });
+  }, [frameCount]);
   return <FrameStrip />;
 }
 FrameStripStory.displayName = 'FrameStrip';
 
 const meta = {
-  title: 'Components/FrameStrip',
+  title: 'Layout/FrameStrip',
   component: FrameStripStory,
-  tags: ['autodocs'],
   parameters: {
     docs: {
       description: {
@@ -48,7 +70,7 @@ export const Playground: Story = {};
 export const MultiFrame: Story = {
   args: { frameCount: 3 },
   play: async ({ canvas }) => {
-    const items = canvas.getAllByRole('listitem');
+    const items = canvas.getAllByLabelText(/^Frame \d+$/);
     await expect(items).toHaveLength(3);
   },
 };
