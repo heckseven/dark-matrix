@@ -14,6 +14,7 @@ export interface ScrubInputProps {
   /** Width class applied to the inner input when focused for typing. */
   expandedClassName?: string;
   disabled?: boolean;
+  'aria-label'?: string;
 }
 
 export function ScrubInput({
@@ -25,6 +26,7 @@ export function ScrubInput({
   className = 'w-8 text-center',
   expandedClassName,
   disabled,
+  'aria-label': ariaLabel,
 }: ScrubInputProps) {
   const [editing, setEditing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -67,6 +69,7 @@ export function ScrubInput({
         min={min}
         max={max}
         value={value}
+        aria-label={ariaLabel}
         disabled={disabled}
         readOnly={!editing}
         onChange={e => {

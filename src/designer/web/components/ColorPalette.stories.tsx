@@ -9,7 +9,7 @@ function Controlled({ value, onChange }: { value: number; onChange: (v: number) 
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 24 }}>
       <ColorPalette value={v} onChange={next => { setV(next); onChange(next); }} />
-      <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#555', marginTop: 2 }}>
+      <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#888', marginTop: 2 }}>
         active: {v}
       </span>
     </div>
@@ -26,11 +26,6 @@ const meta = {
       description: {
         component: [
           'Grayscale color picker. Six preset swatches (255 → 0) plus user-defined custom swatches.',
-          '',
-          '**Usage**',
-          '```tsx',
-          '<ColorPalette value={color} onChange={setColor} />',
-          '```',
           '',
           '**Mouse** — click a swatch to select it. Click `+` to add a custom swatch; drag the `[  ]` label to scrub its value, or click to type.',
           '',
