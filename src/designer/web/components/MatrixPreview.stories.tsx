@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/tanstack-react';
 import { MatrixPreview } from './MatrixPreview.js';
 
@@ -17,14 +17,36 @@ const GRADIENT_18 = makePixels(18, (c, r) => Math.round(((c * ROWS + r) / (18 * 
 const CHECKER_9   = makePixels(9,  (c, r) => ((c + r) % 2 === 0 ? 255 : 0));
 const EMPTY_9     = makePixels(9,  () => 0);
 
-const FRAMES = [
-  makePixels(9, (c, r) => (r < 17 ? 255 : 0)),
-  makePixels(9, (c, r) => (r < 17 + c ? 255 : 0)),
-  makePixels(9, () => 255),
-  makePixels(9, (c, r) => (r > c ? 255 : 0)),
-  makePixels(9, (c, r) => (r > 17 ? 255 : 0)),
-  makePixels(9, () => 0),
-];
+const COLS = 9;
+
+function golStep(grid: Uint8Array): Uint8Array {
+  const next = new Uint8Array(grid.length);
+  for (let c = 0; c < COLS; c++) {
+    for (let r = 0; r < ROWS; r++) {
+      let n = 0;
+      for (let dc = -1; dc <= 1; dc++)
+        for (let dr = -1; dr <= 1; dr++) {
+          if (dc === 0 && dr === 0) continue;
+          const nc = (c + dc + COLS) % COLS;
+          const nr = (r + dr + ROWS) % ROWS;
+          if (grid[nc * ROWS + nr]) n++;
+        }
+      const alive = (grid[c * ROWS + r] ?? 0) > 0;
+      next[c * ROWS + r] = (alive ? n === 2 || n === 3 : n === 3) ? 255 : 0;
+    }
+  }
+  return next;
+}
+
+function randomGrid(): Uint8Array {
+  const d = new Uint8Array(COLS * ROWS);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() < 0.35 ? 255 : 0;
+  return d;
+}
+
+function gridToPixels(grid: Uint8Array): string {
+  return btoa(String.fromCharCode(...grid));
+}
 
 const meta = {
   title: 'Components/MatrixPreview',
@@ -81,14 +103,25 @@ export const Checkerboard: Story = {
   args: { pixels: CHECKER_9 },
 };
 
-/** Animated — cycles through frames to verify smooth redraws. */
+/** Animated — Conway's Game of Life on a 9×34 toroidal grid. */
 export const Animated: Story = {
   render: args => {
-    const [idx, setIdx] = useState(0);
+    const gridRef = useRef(randomGrid());
+    const genRef = useRef(0);
+    const [pixels, setPixels] = useState(() => gridToPixels(gridRef.current));
     useEffect(() => {
-      const id = setInterval(() => setIdx(i => (i + 1) % FRAMES.length), 120);
+      const id = setInterval(() => {
+        gridRef.current = golStep(gridRef.current);
+        genRef.current++;
+        const pop = gridRef.current.reduce((s, v) => s + (v > 0 ? 1 : 0), 0);
+        if (pop === 0 || genRef.current > 300) {
+          gridRef.current = randomGrid();
+          genRef.current = 0;
+        }
+        setPixels(gridToPixels(gridRef.current));
+      }, 150);
       return () => clearInterval(id);
     }, []);
-    return <MatrixPreview {...args} pixels={FRAMES[idx]!} />;
+    return <MatrixPreview {...args} pixels={pixels} />;
   },
 };
