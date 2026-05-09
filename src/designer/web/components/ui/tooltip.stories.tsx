@@ -65,14 +65,24 @@ type Story = StoryObj<typeof meta>;
 /** Adjust content, side, and delay via controls. */
 export const Playground: Story = {};
 
+/** Each button is positioned so its intended side has clear room. */
 export const Sides: Story = {
   render: () => (
-    <div className="flex gap-8 items-center justify-center p-8">
-      {(['top', 'right', 'bottom', 'left'] as const).map(side => (
-        <Tooltip key={side} content={side} side={side} delayDuration={0}>
-          <Button variant="default">{side}</Button>
-        </Tooltip>
-      ))}
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: '1fr auto 1fr',
+      gridTemplateRows: '1fr auto 1fr',
+      gap: 32,
+      padding: 48,
+      placeItems: 'center',
+      minWidth: 280,
+      minHeight: 200,
+    }}>
+      <span /><Tooltip content="top" side="top" delayDuration={0}><Button>top</Button></Tooltip><span />
+      <Tooltip content="left" side="left" delayDuration={0}><Button>left</Button></Tooltip>
+      <span />
+      <Tooltip content="right" side="right" delayDuration={0}><Button>right</Button></Tooltip>
+      <span /><Tooltip content="bottom" side="bottom" delayDuration={0}><Button>bottom</Button></Tooltip><span />
     </div>
   ),
 };
