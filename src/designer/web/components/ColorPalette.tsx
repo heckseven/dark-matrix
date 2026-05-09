@@ -115,7 +115,7 @@ function SwatchRow({ swatch, selected, editing, kbFocused, onSelect, onChange }:
     >
       {kbFocused && <RowCursor editing={editing} />}
       {editing && onChange && (
-        <div style={{ position: 'absolute', left: -58, top: -1, zIndex: 1 }}>
+        <div style={{ position: 'absolute', left: -58, top: -3, zIndex: 1 }}>
           <ScrubInput val={v} onChange={onChange} />
         </div>
       )}
