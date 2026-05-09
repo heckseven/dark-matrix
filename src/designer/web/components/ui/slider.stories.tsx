@@ -45,10 +45,10 @@ type Story = StoryObj<typeof meta>;
 
 /** Variant and range configurable via controls. */
 export const Playground: Story = {
-  args: { variant: 'value' },
+  args: { variant: 'value', 'aria-label': 'Slider' },
 };
 
 /** Thumb character cycles through a set as the handle moves. */
 export const Cycling: Story = {
-  args: { variant: 'cycling' },
+  args: { variant: 'cycling', 'aria-label': 'Slider' },
 };
