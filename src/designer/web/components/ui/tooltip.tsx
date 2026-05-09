@@ -14,7 +14,7 @@ export const TooltipContent = React.forwardRef<
       sideOffset={sideOffset}
       collisionPadding={collisionPadding}
       className={cn(
-        'z-50 font-mono text-xs bg-background text-foreground border border-border px-1.5 py-0.5',
+        'z-50 font-mono text-xs bg-background/80 backdrop-blur-sm text-foreground rounded-sm px-1.5 py-0.5',
         className,
       )}
       {...props}
