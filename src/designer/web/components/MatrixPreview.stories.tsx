@@ -35,35 +35,34 @@ const meta = {
     docs: {
       description: {
         component: [
-          'Canvas thumbnail of a pixel matrix frame. No text glyphs — pure pixel blocks.',
-          'Colors match `PixelCanvas` (minimum luminance `MIN_L=48` for non-zero values).',
+          'Canvas thumbnail of a pixel matrix frame. Renders LED-style dots with a 1px gap between cells.',
+          'Colors match `PixelCanvas` — minimum luminance `MIN_L=48` for non-zero values, black for zero.',
           '',
           '**Usage**',
           '```tsx',
           '<MatrixPreview pixels={frame.pixels} width={9} />',
           '```',
           '',
-          'Default size is `width × 3` × `ROWS × 3` (27 × 102 px for a 9-wide matrix).',
-          'Pass `displayWidth` / `displayHeight` to override.',
+          'Canvas size is derived from `cellSize`: `width × (cellSize + 1)` × `ROWS × (cellSize + 1)`.',
+          'Default `cellSize=2` → 27 × 102 px for a 9-wide matrix.',
         ].join('\n'),
       },
     },
   },
   argTypes: {
-    width: { control: 'radio', options: [9, 18], description: 'Matrix width.' },
-    displayWidth:  { control: { type: 'range', min: 9,  max: 200, step: 1 }, description: 'CSS display width in px.' },
-    displayHeight: { control: { type: 'range', min: 17, max: 400, step: 1 }, description: 'CSS display height in px.' },
+    width:    { control: 'radio', options: [9, 18], description: 'Matrix width.' },
+    cellSize: { control: { type: 'range', min: 1, max: 8, step: 1 }, description: 'LED dot diameter in px. Gap is always 1px.' },
   },
-  args: { pixels: GRADIENT_9, width: 9 },
+  args: { pixels: GRADIENT_9, width: 9, cellSize: 2 },
 } satisfies Meta<typeof MatrixPreview>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Drag the controls to explore dimensions and pixel data. */
+/** Drag the cellSize control to see how the dots scale. */
 export const Playground: Story = {};
 
-/** Column-major gradient, 18-wide matrix. */
+/** 18-wide matrix at default cell size. */
 export const Wide: Story = {
   args: { pixels: GRADIENT_18, width: 18 },
 };
@@ -73,19 +72,19 @@ export const Full: Story = {
   args: { pixels: makePixels(9, () => 255) },
 };
 
-/** All pixels off. */
+/** All pixels off — only the black background visible. */
 export const Empty: Story = {
   args: { pixels: EMPTY_9 },
 };
 
-/** Checkerboard — maximum contrast between adjacent cells. */
+/** Checkerboard — every other dot lit at full brightness. */
 export const Checkerboard: Story = {
   args: { pixels: CHECKER_9 },
 };
 
-/** Matches the size used in FrameStrip thumbnails. */
+/** cellSize=1 — matches the size used in FrameStrip thumbnails (18 × 68 px for 9-wide). */
 export const FrameStripSize: Story = {
-  args: { pixels: GRADIENT_9, displayWidth: 36, displayHeight: 68 },
+  args: { pixels: GRADIENT_9, cellSize: 1 },
 };
 
 /** Animated — cycles through frames to verify smooth redraws. */

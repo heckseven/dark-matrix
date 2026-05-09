@@ -5,8 +5,6 @@ import { Button } from './ui/button.js';
 import { Input } from './ui/input.js';
 import { MatrixPreview } from './MatrixPreview.js';
 
-const THUMB_W = 36;
-const THUMB_H = 68;
 
 function FrameCell({ frame, idx, width }: { frame: Frame; idx: number; width: number }) {
   const activeFrameIdx = useDesignerStore(s => s.activeFrameIdx);
@@ -30,12 +28,7 @@ function FrameCell({ frame, idx, width }: { frame: Frame; idx: number; width: nu
       }}
       onDragEnd={() => { dragRef.current = null; }}
     >
-      <MatrixPreview
-        pixels={frame.pixels}
-        width={width as 9 | 18}
-        displayWidth={THUMB_W}
-        displayHeight={THUMB_H}
-      />
+      <MatrixPreview pixels={frame.pixels} width={width as 9 | 18} cellSize={1} />
       <div className="flex gap-1 items-center">
         <Input
           type="number" min={0} max={60000} step={10}
