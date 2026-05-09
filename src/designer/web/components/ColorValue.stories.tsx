@@ -211,107 +211,86 @@ function RotaryDemo({ initial }: { initial: number }) {
   );
 }
 
-// ── F: Scrub Input ────────────────────────────────────────────────────────────
-// Adapts the bracket [ value ] pattern: drag either bracket to scrub,
-// click the number to type directly. Brackets show ew-resize cursor.
+// ── F & G: Scrub Input (shared core) ─────────────────────────────────────────
+// Click the text to enter edit mode; click-drag anywhere to scrub.
+// When not editing: ew-resize cursor, pointer events blocked on the input so
+// the wrapper captures all drags. Click without dragging focuses the input.
 
-function ScrubInputDemo({ initial }: { initial: number }) {
-  const [val, setVal] = useState(initial);
-  const drag = useRef<{ x: number; v: number } | null>(null);
+function ScrubInput({ val, onChange }: { val: number; onChange: (v: number) => void }) {
+  const [editing, setEditing] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const drag = useRef<{ x: number; v: number; moved: boolean } | null>(null);
+
+  useEffect(() => {
+    if (editing) { inputRef.current?.focus(); inputRef.current?.select(); }
+  }, [editing]);
 
   function clamp(v: number) { return Math.max(0, Math.min(255, v)); }
 
-  function bracketDown(e: React.PointerEvent) {
-    e.preventDefault();
+  function onPointerDown(e: React.PointerEvent) {
+    if (editing) return;
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
-    drag.current = { x: e.clientX, v: val };
+    drag.current = { x: e.clientX, v: val, moved: false };
   }
 
-  function onMove(e: React.PointerEvent) {
+  function onPointerMove(e: React.PointerEvent) {
     if (!drag.current) return;
-    setVal(clamp(drag.current.v + Math.round((e.clientX - drag.current.x) * 1.5)));
+    const delta = e.clientX - drag.current.x;
+    if (Math.abs(delta) > 2) drag.current.moved = true;
+    if (drag.current.moved) onChange(clamp(drag.current.v + Math.round(delta * 1.5)));
   }
 
-  function onUp() { drag.current = null; }
-
-  const bracket: React.CSSProperties = {
-    ...MONO, cursor: 'ew-resize', userSelect: 'none', color: '#555', padding: '0 2px',
-  };
+  function onPointerUp() {
+    if (drag.current && !drag.current.moved) setEditing(true);
+    drag.current = null;
+  }
 
   return (
     <span
-      style={{ display: 'inline-flex', alignItems: 'center', fontSize: 14, outline: '1px solid transparent' }}
-      onPointerMove={onMove}
-      onPointerUp={onUp}
+      style={{ ...MONO, display: 'inline-flex', alignItems: 'center', fontSize: 14, cursor: editing ? 'default' : 'ew-resize', userSelect: 'none' }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
     >
-      <span style={bracket} onPointerDown={bracketDown}>[</span>
+      <span style={{ color: '#555' }}>[</span>
       <input
+        ref={inputRef}
         type="number"
         min={0} max={255}
         value={val}
-        onChange={e => setVal(clamp(parseInt(e.target.value, 10) || 0))}
+        readOnly={!editing}
+        onChange={e => onChange(clamp(parseInt(e.target.value, 10) || 0))}
+        onBlur={() => setEditing(false)}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') inputRef.current?.blur(); }}
         style={{
           ...MONO, width: '3ch', textAlign: 'center',
           background: 'transparent', border: 'none', outline: 'none',
-          color: 'white', MozAppearance: 'textfield',
+          color: 'white', cursor: editing ? 'text' : 'ew-resize',
+          pointerEvents: editing ? 'auto' : 'none',
+          MozAppearance: 'textfield',
         }}
       />
-      <span style={bracket} onPointerDown={bracketDown}>]</span>
+      <span style={{ color: '#555' }}>]</span>
     </span>
   );
 }
 
+function ScrubInputDemo({ initial }: { initial: number }) {
+  const [val, setVal] = useState(initial);
+  return <ScrubInput val={val} onChange={setVal} />;
+}
+
 // ── G: Char Preview ───────────────────────────────────────────────────────────
-// Scrub input paired with a live glyph preview — the same •/∗ character
-// from the pixel canvas, rendered at its actual brightness.
+// Scrub input paired with a live •/∗ glyph rendered at actual brightness.
 
 function CharPreviewDemo({ initial }: { initial: number }) {
   const [val, setVal] = useState(initial);
-  const drag = useRef<{ x: number; v: number } | null>(null);
-
-  function clamp(v: number) { return Math.max(0, Math.min(255, v)); }
-
-  function bracketDown(e: React.PointerEvent) {
-    e.preventDefault();
-    (e.currentTarget as Element).setPointerCapture(e.pointerId);
-    drag.current = { x: e.clientX, v: val };
-  }
-
-  function onMove(e: React.PointerEvent) {
-    if (!drag.current) return;
-    setVal(clamp(drag.current.v + Math.round((e.clientX - drag.current.x) * 1.5)));
-  }
-
-  function onUp() { drag.current = null; }
-
-  const bracket: React.CSSProperties = {
-    ...MONO, cursor: 'ew-resize', userSelect: 'none', color: '#555', padding: '0 2px',
-  };
-
   return (
-    <span
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-      onPointerMove={onMove}
-      onPointerUp={onUp}
-    >
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
       <span style={{ ...MONO, fontSize: 20, color: grayColor(val), lineHeight: 1, width: '1ch', textAlign: 'center' }}>
         {val === 0 ? '•' : '∗'}
       </span>
-      <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 14 }}>
-        <span style={bracket} onPointerDown={bracketDown}>[</span>
-        <input
-          type="number"
-          min={0} max={255}
-          value={val}
-          onChange={e => setVal(clamp(parseInt(e.target.value, 10) || 0))}
-          style={{
-            ...MONO, width: '3ch', textAlign: 'center',
-            background: 'transparent', border: 'none', outline: 'none',
-            color: 'white', MozAppearance: 'textfield',
-          }}
-        />
-        <span style={bracket} onPointerDown={bracketDown}>]</span>
-      </span>
+      <ScrubInput val={val} onChange={setVal} />
     </span>
   );
 }
