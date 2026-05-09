@@ -90,14 +90,14 @@ function FrameCell({
       >
         <MatrixPreview pixels={frame.pixels} width={width} />
       </div>
-      <Stack justify="between" align="start" onClick={e => e.stopPropagation()}>
+      <Stack justify="between" align="start">
         <Stack gap="xs" align="start">
           <Button
             variant="ghost"
             aria-label="Move frame up"
             tooltip="Move up"
             disabled={idx === 0}
-            onClick={() => designerStore.getState().moveFrame(idx, idx - 1)}
+            onClick={e => { e.stopPropagation(); designerStore.getState().moveFrame(idx, idx - 1); }}
           >
             ↑
           </Button>
@@ -106,7 +106,7 @@ function FrameCell({
             aria-label="Move frame down"
             tooltip="Move down"
             disabled={idx === frameCount - 1}
-            onClick={() => designerStore.getState().moveFrame(idx, idx + 1)}
+            onClick={e => { e.stopPropagation(); designerStore.getState().moveFrame(idx, idx + 1); }}
           >
             ↓
           </Button>
@@ -115,7 +115,7 @@ function FrameCell({
           <Button
             variant="ghost"
             aria-label="Clone frame"
-            onClick={() => designerStore.getState().cloneFrame(idx)}
+            onClick={e => { e.stopPropagation(); designerStore.getState().cloneFrame(idx); }}
           >
             ⧉
           </Button>
@@ -139,7 +139,7 @@ export function FrameStrip() {
   const [dropTarget, setDropTarget] = useState<number | null>(null);
 
   return (
-    <div className="flex flex-col p-2 border-t border-border overflow-y-auto">
+    <div className="flex flex-col overflow-y-auto pr-6">
       <Stack
         aria-label="Animation frames"
         gap="2xl"
