@@ -235,7 +235,7 @@ export function PixelCanvas({ className }: { className?: string }) {
   }, [width]);
 
   const corner = { position: 'absolute', width: 16, height: 16, pointerEvents: 'none' } as const;
-  const b = '2px solid white';
+  const b = '1px solid white';
 
   return (
     <div className={cn('p-2', className)}>
