@@ -7,11 +7,12 @@ export const TooltipProvider = TooltipPrimitive.Provider;
 export const TooltipContent = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
->(({ className, sideOffset = 6, ...props }, ref) => (
+>(({ className, sideOffset = 6, collisionPadding = 8, ...props }, ref) => (
   <TooltipPrimitive.Portal>
     <TooltipPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
+      collisionPadding={collisionPadding}
       className={cn(
         'z-50 font-mono text-xs bg-background text-foreground border border-border px-1.5 py-0.5',
         className,
@@ -22,20 +23,32 @@ export const TooltipContent = React.forwardRef<
 ));
 TooltipContent.displayName = TooltipPrimitive.Content.displayName;
 
+type ContentProps = Pick<
+  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>,
+  'side' | 'align' | 'sideOffset' | 'collisionPadding'
+>;
+
 /** Convenience wrapper — pass `content` as the tooltip label. */
 export function Tooltip({
   children,
   content,
   delayDuration = 400,
-  ...props
+  side,
+  align,
+  sideOffset,
+  collisionPadding,
+  ...rootProps
 }: {
   children: React.ReactNode;
   content: React.ReactNode;
-} & Omit<React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Root>, 'children'>) {
+} & ContentProps
+  & Omit<React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Root>, 'children'>) {
   return (
-    <TooltipPrimitive.Root delayDuration={delayDuration} {...props}>
+    <TooltipPrimitive.Root delayDuration={delayDuration} {...rootProps}>
       <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
-      <TooltipContent>{content}</TooltipContent>
+      <TooltipContent side={side} align={align} sideOffset={sideOffset} collisionPadding={collisionPadding}>
+        {content}
+      </TooltipContent>
     </TooltipPrimitive.Root>
   );
 }
