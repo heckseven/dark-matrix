@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { useRef, useState } from 'react';
 import { Button } from './ui/button.js';
+import { Tooltip, TooltipProvider } from './ui/tooltip.js';
 
 const MONO: React.CSSProperties = { fontFamily: 'monospace', fontSize: 14, lineHeight: '14px' };
 const MIN_L = 48;
@@ -106,7 +107,12 @@ function SwatchRow({ swatch, selected, editing, kbFocused, onSelect, onChange }:
 }) {
   const v = swatch.value;
   return (
-    <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 12, height: 16 }}>
+    <div
+      role="option"
+      aria-selected={selected}
+      aria-label={`${v}${swatch.preset ? '' : ', custom'}`}
+      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 12, height: 16 }}
+    >
       {kbFocused && <RowCursor editing={editing} />}
       {editing && onChange && (
         <div style={{ position: 'absolute', left: -58, top: -1, zIndex: 1 }}>
@@ -207,6 +213,7 @@ export function ColorPalette({ value: _value, onChange }: ColorPaletteProps) {
   }
 
   return (
+    <TooltipProvider>
     <div
       ref={containerRef}
       tabIndex={0}
@@ -220,16 +227,18 @@ export function ColorPalette({ value: _value, onChange }: ColorPaletteProps) {
       }}
     >
       {swatches.map((s, i) => (
-        <div key={s.id} data-swatch="">
-          <SwatchRow
-            swatch={s}
-            selected={selectedId === s.id}
-            editing={editingId === s.id}
-            kbFocused={kbIdx === i}
-            onSelect={() => selectSwatch(s.id)}
-            onChange={!s.preset ? v => updateValue(s.id, v) : undefined}
-          />
-        </div>
+        <Tooltip key={s.id} content={String(s.value)}>
+          <div data-swatch="">
+            <SwatchRow
+              swatch={s}
+              selected={selectedId === s.id}
+              editing={editingId === s.id}
+              kbFocused={kbIdx === i}
+              onSelect={() => selectSwatch(s.id)}
+              onChange={!s.preset ? v => updateValue(s.id, v) : undefined}
+            />
+          </div>
+        </Tooltip>
       ))}
       <Button
         variant="ghost"
@@ -240,5 +249,6 @@ export function ColorPalette({ value: _value, onChange }: ColorPaletteProps) {
         +
       </Button>
     </div>
+    </TooltipProvider>
   );
 }
