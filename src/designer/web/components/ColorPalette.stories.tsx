@@ -1,44 +1,69 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import { fn } from 'storybook/test';
 import { ColorPalette } from './ColorPalette.js';
 
-function ColorPaletteDemo({ initial }: { initial: number }) {
-  const [value, setValue] = useState(initial);
+function Controlled({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const [v, setV] = useState(value);
+  useEffect(() => { setV(value); }, [value]);
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 24 }}>
-      <ColorPalette value={value} onChange={setValue} />
-      <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#444', marginTop: 2 }}>
-        active: {value}
+      <ColorPalette value={v} onChange={next => { setV(next); onChange(next); }} />
+      <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#555', marginTop: 2 }}>
+        active: {v}
       </span>
     </div>
   );
 }
 
 const meta = {
-  title: 'Design/ColorPalette',
-  component: ColorPaletteDemo,
-  tags: [],
+  title: 'Components/ColorPalette',
+  component: ColorPalette,
+  tags: ['autodocs'],
   parameters: {
     backgrounds: { default: 'dark' },
     docs: {
       description: {
         component: [
-          'Preset grayscale palette with custom swatch builder.',
+          'Grayscale color picker. Six preset swatches (255 → 0) plus user-defined custom swatches.',
           '',
-          '**Mouse** — click to select; click a custom swatch to re-open its scrub input.',
-          '**Keyboard** — `↑`/`↓` navigate, `Enter`/`Space` select, `Escape` dismiss.',
-          '**Custom swatches** — click `+` to add; drag `[128]` label to scrub value, click to type.',
+          '**Usage**',
+          '```tsx',
+          '<ColorPalette value={color} onChange={setColor} />',
+          '```',
+          '',
+          '**Mouse** — click a swatch to select it. Click `+` to add a custom swatch; drag the `[  ]` label to scrub its value, or click to type.',
+          '',
+          '**Keyboard** — `↑`/`↓` navigate rows, `Enter`/`Space` select, `Escape` dismiss. Arrow keys also step a focused custom swatch value; hold `Shift` for ×10.',
         ].join('\n'),
       },
     },
   },
   argTypes: {
-    initial: { control: { type: 'range', min: 0, max: 255, step: 1 }, description: 'Initial active color.' },
+    value: {
+      control: { type: 'range', min: 0, max: 255, step: 1 },
+      description: 'Currently selected color value (0–255).',
+    },
+    onChange: { description: 'Called whenever the selected color changes.' },
   },
-  args: { initial: 255 },
-} satisfies Meta<typeof ColorPaletteDemo>;
+  args: { value: 255, onChange: fn() },
+} satisfies Meta<typeof ColorPalette>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {};
+/** Full interaction: presets, custom swatches, keyboard navigation. */
+export const Playground: Story = {
+  render: args => <Controlled {...args} />,
+};
+
+function MinimalDemo({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const [v, setV] = useState(value);
+  useEffect(() => { setV(value); }, [value]);
+  return <ColorPalette value={v} onChange={next => { setV(next); onChange(next); }} />;
+}
+
+/** Component alone, no value readout. */
+export const Minimal: Story = {
+  render: args => <MinimalDemo {...args} />,
+};
