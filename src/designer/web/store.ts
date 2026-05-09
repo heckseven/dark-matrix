@@ -39,6 +39,7 @@ export interface DesignerActions {
   setLoop(loop: boolean): void;
   setPreviewTarget(target: PreviewTarget): void;
   setPreviewBw(value: boolean): void;
+  floodFill(frameIdx: number, col: number, row: number, color: number): void;
   clearFrame(idx: number): void;
   loadProject(project: unknown): void;
 }
@@ -231,6 +232,35 @@ export function createDesignerStore() {
     },
 
     setPreviewBw(value) { set({ previewBw: value }); },
+
+    floodFill(frameIdx, col, row, color) {
+      const { frames, width, mode, undoStack, strokeSnapshot } = get();
+      const frame = frames[frameIdx];
+      if (!frame) return;
+      const arr = decode(frame);
+      const fillColor = mode === 'bw' ? (color >= 128 ? 255 : 0) : Math.max(0, Math.min(255, color));
+      const targetColor = arr[col * ROWS + row] ?? 0;
+      if (targetColor === fillColor) return;
+      const queue: [number, number][] = [[col, row]];
+      let head = 0;
+      while (head < queue.length) {
+        const [c, r] = queue[head++]!;
+        const idx = c * ROWS + r;
+        if (arr[idx] !== targetColor) continue;
+        arr[idx] = fillColor;
+        if (c > 0) queue.push([c - 1, r]);
+        if (c < width - 1) queue.push([c + 1, r]);
+        if (r > 0) queue.push([c, r - 1]);
+        if (r < ROWS - 1) queue.push([c, r + 1]);
+      }
+      const next = [...frames];
+      next[frameIdx] = { ...frame, pixels: encode(arr) };
+      if (strokeSnapshot !== null) {
+        set({ frames: next });
+      } else {
+        set({ frames: next, undoStack: pushUndo(frames, undoStack), redoStack: [] });
+      }
+    },
 
     clearFrame(idx) {
       const { frames, width, undoStack } = get();
