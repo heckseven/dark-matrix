@@ -96,6 +96,8 @@ export function PixelCanvas({ className, onCursorMove }: { className?: string; o
     hasMoved: false,
     mouseDownHit: null as { col: number; row: number } | null,
     spaceHeld: false,
+    doubleClickPending: false,
+    preClickUndoLen: 0,
   });
 
   state.current.width = width;
@@ -215,6 +217,7 @@ export function PixelCanvas({ className, onCursorMove }: { className?: string; o
     state.current.hasMoved = false;
     state.current.lastHit = null;
     state.current.mouseDownHit = null;
+    state.current.doubleClickPending = false;
     designerStore.getState().commitStroke();
   }
 
@@ -233,6 +236,8 @@ export function PixelCanvas({ className, onCursorMove }: { className?: string; o
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     state.current.cursor = { col: 0, row: 0 };
     state.current.hovered = null;
+    state.current.doubleClickPending = false;
+    state.current.preClickUndoLen = 0;
     paintAll();
     return designerStore.subscribe(schedulePaint);
   }, [width]);
@@ -253,11 +258,19 @@ export function PixelCanvas({ className, onCursorMove }: { className?: string; o
         <canvas
           ref={canvasRef}
           role="application"
-          aria-label="Pixel editor — arrow keys move cursor, Space to paint or erase"
+          aria-label="Pixel editor — arrow keys move cursor, Space to paint or erase, F to flood fill"
           tabIndex={0}
           className="block cursor-crosshair outline-none"
         onMouseDown={e => {
           e.preventDefault();
+          if (e.detail === 2) {
+            state.current.doubleClickPending = true;
+            const s = designerStore.getState();
+            if (s.undoStack.length > state.current.preClickUndoLen) s.undo();
+            return;
+          }
+          state.current.doubleClickPending = false;
+          state.current.preClickUndoLen = designerStore.getState().undoStack.length;
           if (state.current.keyboardFocused) {
             state.current.keyboardFocused = false;
             setFocusMarks(false);
@@ -285,7 +298,18 @@ export function PixelCanvas({ className, onCursorMove }: { className?: string; o
             doPaint(e.clientX, e.clientY);
           }
         }}
+        onDoubleClick={e => {
+          e.preventDefault();
+          state.current.doubleClickPending = false;
+          const hit = hitTest(e.clientX, e.clientY);
+          if (!hit) return;
+          const { activeFrameIdx, activeColor, floodFill } = designerStore.getState();
+          floodFill(activeFrameIdx, hit.col, hit.row, activeColor);
+          state.current.cursor = hit;
+          announce(`Flood fill at col ${hit.col + 1}, row ${hit.row + 1}`);
+        }}
         onMouseUp={() => {
+          if (state.current.doubleClickPending) return;
           if (!state.current.hasMoved && state.current.mouseDownHit) {
             const { col, row } = state.current.mouseDownHit;
             const { activeFrameIdx, activeColor } = designerStore.getState();
@@ -330,6 +354,10 @@ export function PixelCanvas({ className, onCursorMove }: { className?: string; o
             announce(state.current.paintValue === 0 ? 'Erased' : 'Painted');
           } else if (e.key === ' ') {
             e.preventDefault();
+          } else if ((e.key === 'f' || e.key === 'F') && !ctrl) {
+            e.preventDefault();
+            designerStore.getState().floodFill(activeFrameIdx, col, row, activeColor);
+            announce(`Flood fill at col ${col + 1}, row ${row + 1}`);
           } else if (e.key === 'n' && !ctrl) {
             designerStore.getState().addFrame(activeFrameIdx);
           } else if (e.key === 'z' && ctrl && !e.shiftKey) {

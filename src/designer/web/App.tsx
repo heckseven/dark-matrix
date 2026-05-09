@@ -154,15 +154,13 @@ export function App() {
         </div>
 
         <footer ref={footerRef} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-          <div className="flex items-center gap-4">
+          <div className="flex-1 flex items-center gap-4">
             <span>frame {activeFrameIdx + 1}</span>
             <span>row {cursor.row}</span>
             <span>col {cursor.col}</span>
           </div>
-          <div className="flex-1 flex justify-center">
-            <Text as="span" size="xs" variant="muted">drag to draw. double click to fill</Text>
-          </div>
-          <div className="flex items-center gap-4">
+          <Text as="span" size="xs" variant="muted">drag to draw · double-click or F to fill</Text>
+          <div className="flex-1 flex items-center justify-end gap-4">
             <LivePreviewToggle />
             <div className="flex items-center gap-2">
               <Button variant="ghost" disabled>-</Button>
