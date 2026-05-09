@@ -92,7 +92,7 @@ export function createDesignerStore() {
     frames: [blank(9)],
     activeFrameIdx: 0,
     width: 9,
-    mode: 'gray',
+    mode: 'bw',
     loop: true,
     activeColor: 255,
     isPlaying: false,
