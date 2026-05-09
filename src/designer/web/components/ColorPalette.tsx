@@ -74,16 +74,20 @@ function ScrubInput({ val, onChange }: { val: number; onChange: (v: number) => v
 }
 
 // ── Row cursor (keyboard focus L-brackets) ────────────────────────────────────
+// Wrapper is height:16 with 12px content centered at y=2..y=14.
+// top:0/bottom:0 gives the 2px gap from content edges.
+// left shifts to -60 when the scrub input (left:-58) is visible.
 
-function RowCursor() {
+function RowCursor({ editing }: { editing: boolean }) {
   const c: React.CSSProperties = { position: 'absolute', width: 6, height: 6, pointerEvents: 'none' };
   const b = '1px solid white';
+  const l = editing ? -60 : -2;
   return (
     <>
-      <span style={{ ...c, top: -2, left: -2,    borderTop: b, borderLeft: b }} />
-      <span style={{ ...c, top: -2, right: -2,   borderTop: b, borderRight: b }} />
-      <span style={{ ...c, bottom: -2, left: -2,  borderBottom: b, borderLeft: b }} />
-      <span style={{ ...c, bottom: -2, right: -2, borderBottom: b, borderRight: b }} />
+      <span style={{ ...c, top: 0, left: l,    borderTop: b, borderLeft: b }} />
+      <span style={{ ...c, top: 0, right: -2,  borderTop: b, borderRight: b }} />
+      <span style={{ ...c, bottom: 0, left: l,  borderBottom: b, borderLeft: b }} />
+      <span style={{ ...c, bottom: 0, right: -2, borderBottom: b, borderRight: b }} />
     </>
   );
 }
@@ -103,7 +107,7 @@ function SwatchRow({ swatch, selected, editing, kbFocused, onSelect, onChange }:
   const v = swatch.value;
   return (
     <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 12, height: 16 }}>
-      {kbFocused && <RowCursor />}
+      {kbFocused && <RowCursor editing={editing} />}
       {editing && onChange && (
         <div style={{ position: 'absolute', left: -58, top: -1, zIndex: 1 }}>
           <ScrubInput val={v} onChange={onChange} />
