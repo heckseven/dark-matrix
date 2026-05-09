@@ -76,7 +76,7 @@ function bresenham(x0: number, y0: number, x1: number, y1: number): [number, num
   return pts;
 }
 
-export function PixelCanvas({ className }: { className?: string }) {
+export function PixelCanvas({ className, onCursorMove }: { className?: string; onCursorMove?: (col: number, row: number) => void }) {
   const width = useDesignerStore(s => s.width);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const liveRef = useRef<HTMLSpanElement>(null);
@@ -150,6 +150,7 @@ export function PixelCanvas({ className }: { className?: string }) {
     repaintCell(c, prev.col, prev.row);
     repaintCell(c, col, row);
     announce(`Col ${col + 1}, row ${row + 1}`);
+    onCursorMove?.(col, row);
   }
 
   function moveAndPaint(col: number, row: number) {
@@ -167,7 +168,7 @@ export function PixelCanvas({ className }: { className?: string }) {
     if (prev?.col === next?.col && prev?.row === next?.row) return;
     state.current.hovered = next;
     if (prev) repaintCell(c, prev.col, prev.row);
-    if (next) repaintCell(c, next.col, next.row);
+    if (next) { repaintCell(c, next.col, next.row); onCursorMove?.(next.col, next.row); }
   }
 
   function hitTest(clientX: number, clientY: number): { col: number; row: number } | null {
