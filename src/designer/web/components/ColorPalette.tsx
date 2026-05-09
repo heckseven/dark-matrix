@@ -226,7 +226,7 @@ export function ColorPalette({ value: _value, onChange }: ColorPaletteProps) {
       }}
     >
       {swatches.map((s, i) => (
-        <Tooltip key={s.id} content={String(s.value)} side="left">
+        <Tooltip key={s.id} content={String(s.value)} side="left" open={editingId === s.id ? false : undefined}>
           <div data-swatch="">
             <SwatchRow
               swatch={s}
