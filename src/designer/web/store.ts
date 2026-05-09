@@ -15,6 +15,7 @@ export interface DesignerState {
   isPlaying: boolean;
   previewTarget: PreviewTarget;
   previewBw: boolean;
+  zoom: number;
   undoStack: Frame[][];
   redoStack: Frame[][];
   strokeSnapshot: Frame[] | null;
@@ -39,6 +40,7 @@ export interface DesignerActions {
   setLoop(loop: boolean): void;
   setPreviewTarget(target: PreviewTarget): void;
   setPreviewBw(value: boolean): void;
+  setZoom(zoom: number): void;
   floodFill(frameIdx: number, col: number, row: number, color: number): void;
   clearFrame(idx: number): void;
   loadProject(project: unknown): void;
@@ -53,6 +55,11 @@ export type Store = { state: DesignerState; subscribe: (cb: () => void) => () =>
 const MAX_UNDO = 50;
 export const ROWS = 34;
 export const DEFAULT_WIDTH: 9 | 18 = 9;
+export const ZOOM_STEPS = [0.5, 1, 2, 3, 4] as const;
+export function stepZoom(zoom: number, dir: 1 | -1): number {
+  const idx = ZOOM_STEPS.indexOf(zoom as typeof ZOOM_STEPS[number]);
+  return ZOOM_STEPS[Math.max(0, Math.min(ZOOM_STEPS.length - 1, (idx < 0 ? 1 : idx) + dir))]!;
+}
 
 function blank(width: number): Frame {
   return { delayMs: 100, pixels: btoa(String.fromCharCode(...new Uint8Array(width * ROWS))) };
@@ -87,6 +94,23 @@ function resize(frames: Frame[], w: 9 | 18): Frame[] {
   });
 }
 
+function bfsFill(arr: Uint8Array, col: number, row: number, fillColor: number, width: number): void {
+  const targetColor = arr[col * ROWS + row] ?? 0;
+  if (targetColor === fillColor) return;
+  const queue: [number, number][] = [[col, row]];
+  let head = 0;
+  while (head < queue.length) {
+    const [c, r] = queue[head++]!;
+    const idx = c * ROWS + r;
+    if (arr[idx] !== targetColor) continue;
+    arr[idx] = fillColor;
+    if (c > 0) queue.push([c - 1, r]);
+    if (c < width - 1) queue.push([c + 1, r]);
+    if (r > 0) queue.push([c, r - 1]);
+    if (r < ROWS - 1) queue.push([c, r + 1]);
+  }
+}
+
 function pushUndo(frames: Frame[], stack: Frame[][]): Frame[][] {
   const next = [...stack, cloneFrames(frames)];
   if (next.length > MAX_UNDO) next.shift();
@@ -104,16 +128,19 @@ export function createDesignerStore() {
     isPlaying: false,
     previewTarget: 'left',
     previewBw: false,
+    zoom: 1,
     undoStack: [],
     redoStack: [],
     strokeSnapshot: null,
 
     setPixel(frameIdx, col, row, value) {
-      const { frames, mode, undoStack, strokeSnapshot } = get();
+      const { frames, mode, undoStack, strokeSnapshot, previewTarget, width } = get();
       const frame = frames[frameIdx];
       if (!frame) return;
       const arr = decode(frame);
-      arr[col * ROWS + row] = mode === 'bw' ? (value >= 128 ? 255 : 0) : Math.max(0, Math.min(255, value));
+      const v = mode === 'bw' ? (value >= 128 ? 255 : 0) : Math.max(0, Math.min(255, value));
+      arr[col * ROWS + row] = v;
+      if (previewTarget === 'mirror') arr[(width - 1 - col) * ROWS + row] = v;
       const next = [...frames];
       next[frameIdx] = { ...frame, pixels: encode(arr) };
       // During a stroke batch, skip individual undo entries — commitStroke pushes one entry.
@@ -222,37 +249,36 @@ export function createDesignerStore() {
     setLoop(loop) { set({ loop }); },
 
     setPreviewTarget(target) {
-      const newWidth: 9 | 18 = target === 'both' ? 18 : 9;
+      const newWidth: 9 | 18 = (target === 'both' || target === 'mirror') ? 18 : 9;
       const { frames, width, undoStack } = get();
       if (newWidth !== width) {
-        set({ previewTarget: target, width: newWidth, frames: resize(frames, newWidth), undoStack: pushUndo(frames, undoStack), redoStack: [] });
+        let resized = resize(frames, newWidth);
+        if (target === 'mirror' && width === 9) {
+          resized = resized.map(f => {
+            const arr = decode(f);
+            for (let c = 0; c < newWidth / 2; c++)
+              for (let r = 0; r < ROWS; r++)
+                arr[(newWidth - 1 - c) * ROWS + r] = arr[c * ROWS + r] ?? 0;
+            return { ...f, pixels: encode(arr) };
+          });
+        }
+        set({ previewTarget: target, width: newWidth, frames: resized, undoStack: pushUndo(frames, undoStack), redoStack: [] });
       } else {
         set({ previewTarget: target });
       }
     },
 
     setPreviewBw(value) { set({ previewBw: value }); },
+    setZoom(zoom) { set({ zoom: ZOOM_STEPS.reduce((a, b) => Math.abs(b - zoom) < Math.abs(a - zoom) ? b : a) }); },
 
     floodFill(frameIdx, col, row, color) {
-      const { frames, width, mode, undoStack, strokeSnapshot } = get();
+      const { frames, width, mode, undoStack, strokeSnapshot, previewTarget } = get();
       const frame = frames[frameIdx];
       if (!frame) return;
       const arr = decode(frame);
       const fillColor = mode === 'bw' ? (color >= 128 ? 255 : 0) : Math.max(0, Math.min(255, color));
-      const targetColor = arr[col * ROWS + row] ?? 0;
-      if (targetColor === fillColor) return;
-      const queue: [number, number][] = [[col, row]];
-      let head = 0;
-      while (head < queue.length) {
-        const [c, r] = queue[head++]!;
-        const idx = c * ROWS + r;
-        if (arr[idx] !== targetColor) continue;
-        arr[idx] = fillColor;
-        if (c > 0) queue.push([c - 1, r]);
-        if (c < width - 1) queue.push([c + 1, r]);
-        if (r > 0) queue.push([c, r - 1]);
-        if (r < ROWS - 1) queue.push([c, r + 1]);
-      }
+      bfsFill(arr, col, row, fillColor, width);
+      if (previewTarget === 'mirror') bfsFill(arr, (width - 1 - col), row, fillColor, width);
       const next = [...frames];
       next[frameIdx] = { ...frame, pixels: encode(arr) };
       if (strokeSnapshot !== null) {

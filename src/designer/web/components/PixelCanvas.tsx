@@ -1,27 +1,47 @@
 import { useEffect, useRef } from 'react';
-import { useDesignerStore, designerStore } from '../store.js';
+import { useDesignerStore, designerStore, stepZoom } from '../store.js';
 import { cn } from '@/lib/utils.js';
 
 const MIN_L = 48;
-const CELL = 20;
+const BASE_CELL = 20;
 const GAP = 1;
 const ROWS = 34;
-// Height of the PixelCanvas component including its p-2 wrapper padding
-export const CANVAS_COMPONENT_H = ROWS * (CELL + GAP) - GAP + 16;
-const MODULE_GAP = 8;
-const CORNER = 4;
+const BASE_MODULE_GAP = 8;
+const BASE_CORNER = 4;
 const CURSOR_COLOR = '#4ade80';
-const FONT = '14px monospace';
 
-function colX(c: number, width: number): number {
-  return c * (CELL + GAP) + (width === 18 && c >= 9 ? MODULE_GAP : 0);
+export function canvasComponentH(zoom: number): number {
+  return ROWS * (BASE_CELL * zoom + GAP) - GAP + 16;
 }
 
-function canvasW(width: number): number {
-  return width * (CELL + GAP) - GAP + (width === 18 ? MODULE_GAP : 0);
+interface Metrics {
+  cell: number;
+  gap: number;
+  moduleGap: number;
+  corner: number;
+  canvasH: number;
+  font: string;
 }
 
-const canvasH = ROWS * (CELL + GAP) - GAP;
+function computeMetrics(zoom: number): Metrics {
+  const cell = BASE_CELL * zoom;
+  return {
+    cell,
+    gap: GAP,
+    moduleGap: BASE_MODULE_GAP * zoom,
+    corner: BASE_CORNER * zoom,
+    canvasH: ROWS * (cell + GAP) - GAP,
+    font: `${Math.round(14 * zoom)}px monospace`,
+  };
+}
+
+function colX(c: number, width: number, m: Metrics): number {
+  return c * (m.cell + m.gap) + (width === 18 && c >= 9 ? m.moduleGap : 0);
+}
+
+function canvasW(width: number, m: Metrics): number {
+  return width * (m.cell + m.gap) - m.gap + (width === 18 ? m.moduleGap : 0);
+}
 
 function cellColor(v: number, hovered = false): string {
   const l = Math.round(MIN_L + (v / 255) * (255 - MIN_L));
@@ -33,32 +53,33 @@ function drawCell(
   ctx: CanvasRenderingContext2D,
   c: number, r: number, v: number,
   width: number, hovered: boolean, isCursor: boolean,
+  m: Metrics,
 ) {
-  const x = colX(c, width);
-  const y = r * (CELL + GAP);
+  const x = colX(c, width, m);
+  const y = r * (m.cell + m.gap);
 
   ctx.fillStyle = '#000';
-  ctx.fillRect(x, y, CELL, CELL);
+  ctx.fillRect(x, y, m.cell, m.cell);
   if (hovered) {
     ctx.fillStyle = 'rgba(255,255,255,0.05)';
-    ctx.fillRect(x, y, CELL, CELL);
+    ctx.fillRect(x, y, m.cell, m.cell);
   }
 
   ctx.fillStyle = cellColor(v, hovered);
-  ctx.font = FONT;
+  ctx.font = m.font;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(v === 0 ? '•' : '∗', x + CELL / 2, y + CELL / 2 + 1);
+  ctx.fillText(v === 0 ? '•' : '∗', x + m.cell / 2, y + m.cell / 2 + 1);
 
   if (isCursor) {
     ctx.strokeStyle = CURSOR_COLOR;
     ctx.lineWidth = 1;
-    const x1 = x + 1.5, y1 = y + 1.5, x2 = x + CELL - 1.5, y2 = y + CELL - 1.5;
+    const x1 = x + 1.5, y1 = y + 1.5, x2 = x + m.cell - 1.5, y2 = y + m.cell - 1.5;
     ctx.beginPath();
-    ctx.moveTo(x1, y1 + CORNER); ctx.lineTo(x1, y1); ctx.lineTo(x1 + CORNER, y1);
-    ctx.moveTo(x2 - CORNER, y1); ctx.lineTo(x2, y1); ctx.lineTo(x2, y1 + CORNER);
-    ctx.moveTo(x1, y2 - CORNER); ctx.lineTo(x1, y2); ctx.lineTo(x1 + CORNER, y2);
-    ctx.moveTo(x2 - CORNER, y2); ctx.lineTo(x2, y2); ctx.lineTo(x2, y2 - CORNER);
+    ctx.moveTo(x1, y1 + m.corner); ctx.lineTo(x1, y1); ctx.lineTo(x1 + m.corner, y1);
+    ctx.moveTo(x2 - m.corner, y1); ctx.lineTo(x2, y1); ctx.lineTo(x2, y1 + m.corner);
+    ctx.moveTo(x1, y2 - m.corner); ctx.lineTo(x1, y2); ctx.lineTo(x1 + m.corner, y2);
+    ctx.moveTo(x2 - m.corner, y2); ctx.lineTo(x2, y2); ctx.lineTo(x2, y2 - m.corner);
     ctx.stroke();
   }
 }
@@ -80,6 +101,7 @@ function bresenham(x0: number, y0: number, x1: number, y1: number): [number, num
 
 export function PixelCanvas({ className, onCursorMove }: { className?: string; onCursorMove?: (col: number, row: number) => void }) {
   const width = useDesignerStore(s => s.width);
+  const zoom = useDesignerStore(s => s.zoom);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const liveRef = useRef<HTMLSpanElement>(null);
   const focusMarksRef = useRef<HTMLDivElement>(null);
@@ -98,12 +120,18 @@ export function PixelCanvas({ className, onCursorMove }: { className?: string; o
     spaceHeld: false,
     doubleClickPending: false,
     preClickUndoLen: 0,
+    zoom: 1,
   });
 
   state.current.width = width;
+  state.current.zoom = zoom;
 
   function announce(msg: string) {
     if (liveRef.current) liveRef.current.textContent = msg;
+  }
+
+  function getMetrics(): Metrics {
+    return computeMetrics(state.current.zoom);
   }
 
   function ctx(): CanvasRenderingContext2D | null {
@@ -115,7 +143,8 @@ export function PixelCanvas({ className, onCursorMove }: { className?: string; o
     const v = pixels[col * ROWS + row] ?? 0;
     drawCell(c, col, row, v, w,
       hovered?.col === col && hovered?.row === row,
-      keyboardFocused && cursor.col === col && cursor.row === row);
+      keyboardFocused && cursor.col === col && cursor.row === row,
+      getMetrics());
   }
 
   function paintAll() {
@@ -128,11 +157,13 @@ export function PixelCanvas({ className, onCursorMove }: { className?: string; o
       state.current.pixels = Uint8Array.from(atob(frame.pixels), ch => ch.charCodeAt(0));
     } catch { return; }
     const { pixels, hovered, cursor, keyboardFocused } = state.current;
+    const m = computeMetrics(state.current.zoom);
     for (let col = 0; col < w; col++) {
       for (let row = 0; row < ROWS; row++) {
         drawCell(c, col, row, pixels[col * ROWS + row] ?? 0, w as 9 | 18,
           hovered?.col === col && hovered?.row === row,
-          keyboardFocused && cursor.col === col && cursor.row === row);
+          keyboardFocused && cursor.col === col && cursor.row === row,
+          m);
       }
     }
     state.current.rafPending = false;
@@ -182,15 +213,16 @@ export function PixelCanvas({ className, onCursorMove }: { className?: string; o
     let x = clientX - bbox.left;
     const y = clientY - bbox.top;
     const w = state.current.width;
+    const m = getMetrics();
     if (w === 18) {
-      const gapStart = 9 * (CELL + GAP) - GAP;
-      if (x >= gapStart && x < gapStart + GAP + MODULE_GAP) return null;
-      if (x >= gapStart + GAP + MODULE_GAP) x -= MODULE_GAP;
+      const gapStart = 9 * (m.cell + m.gap) - m.gap;
+      if (x >= gapStart && x < gapStart + m.gap + m.moduleGap) return null;
+      if (x >= gapStart + m.gap + m.moduleGap) x -= m.moduleGap;
     }
-    const col = Math.floor(x / (CELL + GAP));
-    const row = Math.floor(y / (CELL + GAP));
+    const col = Math.floor(x / (m.cell + m.gap));
+    const row = Math.floor(y / (m.cell + m.gap));
     if (col < 0 || col >= w || row < 0 || row >= ROWS) return null;
-    if (x % (CELL + GAP) >= CELL || y % (CELL + GAP) >= CELL) return null;
+    if (x % (m.cell + m.gap) >= m.cell || y % (m.cell + m.gap) >= m.cell) return null;
     return { col, row };
   }
 
@@ -226,11 +258,12 @@ export function PixelCanvas({ className, onCursorMove }: { className?: string; o
     const canvas = canvasRef.current;
     if (!canvas) return;
     const dpr = window.devicePixelRatio ?? 1;
-    const w = canvasW(width);
+    const m = computeMetrics(zoom);
+    const w = canvasW(width, m);
     canvas.width = w * dpr;
-    canvas.height = canvasH * dpr;
+    canvas.height = m.canvasH * dpr;
     canvas.style.width = `${w}px`;
-    canvas.style.height = `${canvasH}px`;
+    canvas.style.height = `${m.canvasH}px`;
     const c = canvas.getContext('2d');
     if (!c) return;
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -240,7 +273,7 @@ export function PixelCanvas({ className, onCursorMove }: { className?: string; o
     state.current.preClickUndoLen = 0;
     paintAll();
     return designerStore.subscribe(schedulePaint);
-  }, [width]);
+  }, [width, zoom]);
 
   const corner = { position: 'absolute', width: 16, height: 16, pointerEvents: 'none' } as const;
   const b = '1px solid white';
@@ -358,6 +391,12 @@ export function PixelCanvas({ className, onCursorMove }: { className?: string; o
             e.preventDefault();
             designerStore.getState().floodFill(activeFrameIdx, col, row, activeColor);
             announce(`Flood fill at col ${col + 1}, row ${row + 1}`);
+          } else if ((e.key === '+' || e.key === '=') && !ctrl) {
+            e.preventDefault();
+            designerStore.getState().setZoom(stepZoom(designerStore.getState().zoom, 1));
+          } else if (e.key === '-' && !ctrl) {
+            e.preventDefault();
+            designerStore.getState().setZoom(stepZoom(designerStore.getState().zoom, -1));
           } else if (e.key === 'n' && !ctrl) {
             designerStore.getState().addFrame(activeFrameIdx);
           } else if (e.key === 'z' && ctrl && !e.shiftKey) {
