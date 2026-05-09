@@ -50,11 +50,14 @@ function FrameCell({
   const active = idx === activeFrameIdx;
   const [dragging, setDragging] = useState(false);
 
+  const c = { position: 'absolute', width: 16, height: 16, pointerEvents: 'none' } as const;
+  const b = `1px solid ${active ? 'white' : 'rgba(255,255,255,0.35)'}`;
+
   return (
     <div
       aria-label={`Frame ${idx + 1}`}
       tabIndex={0}
-      className={`flex flex-row gap-3 p-1 rounded border-2 ${active ? 'border-ring' : 'border-transparent hover:border-border'}`}
+      className="group relative flex flex-row gap-3 p-1"
       onClick={() => designerStore.getState().setActiveFrame(idx)}
       onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -80,6 +83,12 @@ function FrameCell({
         if (to !== from) designerStore.getState().moveFrame(from, to);
       }}
     >
+      <div aria-hidden="true" className={`absolute inset-0 pointer-events-none transition-opacity ${active ? '' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'}`}>
+        <span style={{ ...c, top: 0,    left: 0,    borderTop: b, borderLeft: b }} />
+        <span style={{ ...c, top: 0,    right: 0,   borderTop: b, borderRight: b }} />
+        <span style={{ ...c, bottom: 0, left: 0,    borderBottom: b, borderLeft: b }} />
+        <span style={{ ...c, bottom: 0, right: 0,   borderBottom: b, borderRight: b }} />
+      </div>
       <div
         draggable
         aria-hidden="true"
