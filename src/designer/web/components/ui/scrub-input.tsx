@@ -74,7 +74,14 @@ export function ScrubInput({
           if (!isNaN(v)) onChange(clamp(v));
         }}
         onBlur={() => setEditing(false)}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') inputRef.current?.blur(); }}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === 'Escape') {
+            inputRef.current?.blur();
+          } else if (e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+            e.preventDefault();
+            onChange(clamp(value + (e.key === 'ArrowUp' ? 10 : -10)));
+          }
+        }}
         className={className}
         expandedClassName={expandedClassName ?? className}
         style={{ pointerEvents: editing ? 'auto' : 'none', cursor: editing ? 'text' : 'ew-resize' }}
