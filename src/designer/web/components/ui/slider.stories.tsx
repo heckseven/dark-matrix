@@ -10,16 +10,25 @@ const meta = {
     docs: {
       description: {
         component: [
-          'A thin wrapper around `<input type="range">`. All standard range attributes are forwarded.',
+          'Range input with two visual variants.',
+          '',
+          '**Variants**',
+          '- `value` (default): monospace track with the current value displayed as a readout at the thumb position.',
+          '- `cycling`: monospace track with a character thumb that cycles through a set as the handle moves.',
           '',
           '**Usage**',
-          '- Use `defaultValue` for uncontrolled usage. Use `value` + `onChange` for controlled usage — both are mutually exclusive.',
-          '- Default width is `5rem`. Override with `className` when a different width is needed.',
+          '- Use `defaultValue` for uncontrolled usage. Use `value` + `onChange` for controlled usage.',
+          '- Both variants render a fixed-width monospace track; `className` applies to the wrapper element.',
         ].join('\n'),
       },
     },
   },
   argTypes: {
+    variant: {
+      control: 'select',
+      options: ['value', 'cycling'],
+      description: 'Visual style.',
+    },
     min: { control: 'number', description: 'Minimum value.' },
     max: { control: 'number', description: 'Maximum value.' },
     step: { control: 'number', description: 'Increment between values. Defaults to `1`.' },
@@ -28,13 +37,18 @@ const meta = {
     onChange: { description: 'Change handler for controlled usage.' },
     disabled: { control: 'boolean', description: 'Prevents interaction.' },
   },
-  args: { onChange: fn() },
+  args: { onChange: fn(), min: 0, max: 255, defaultValue: 128 },
 } satisfies Meta<typeof Slider>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Full range configurable via controls. */
+/** Variant and range configurable via controls. */
 export const Playground: Story = {
-  args: { min: 0, max: 255, defaultValue: 128 },
+  args: { variant: 'value' },
+};
+
+/** Thumb character cycles through a set as the handle moves. */
+export const Cycling: Story = {
+  args: { variant: 'cycling' },
 };
