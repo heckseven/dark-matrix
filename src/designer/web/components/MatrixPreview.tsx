@@ -14,22 +14,24 @@ export interface MatrixPreviewProps {
   pixels: string;
   /** Matrix width — 9 or 18. */
   width: 9 | 18;
-  /** Display width in CSS px. Defaults to width × 3. */
-  displayWidth?: number;
-  /** Display height in CSS px. Defaults to ROWS × 3 = 102. */
-  displayHeight?: number;
+  /**
+   * Diameter of each LED dot in CSS px. A fixed 1px gap separates adjacent dots.
+   * Canvas dimensions are derived: width × (cellSize + 1) by ROWS × (cellSize + 1).
+   * Default: 2 → 27 × 102 px for a 9-wide matrix.
+   */
+  cellSize?: number;
   className?: string;
 }
 
 export function MatrixPreview({
   pixels,
   width,
-  displayWidth,
-  displayHeight,
+  cellSize = 2,
   className,
 }: MatrixPreviewProps) {
-  const w = displayWidth ?? width * 3;
-  const h = displayHeight ?? ROWS * 3;
+  const pitch = cellSize + 1;
+  const w = width * pitch;
+  const h = ROWS * pitch;
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -53,23 +55,16 @@ export function MatrixPreview({
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, w, h);
 
-    const scaleX = w / width;
-    const scaleY = h / ROWS;
     for (let c = 0; c < width; c++) {
       for (let r = 0; r < ROWS; r++) {
         const v = data[c * ROWS + r] ?? 0;
         const l = pixelLuminance(v);
         if (l === 0) continue;
         ctx.fillStyle = `rgb(${l},${l},${l})`;
-        ctx.fillRect(
-          Math.round(c * scaleX),
-          Math.round(r * scaleY),
-          Math.max(1, Math.round(scaleX)),
-          Math.max(1, Math.round(scaleY)),
-        );
+        ctx.fillRect(c * pitch, r * pitch, cellSize, cellSize);
       }
     }
-  }, [pixels, width, w, h]);
+  }, [pixels, width, cellSize, w, h]);
 
   return (
     <canvas
