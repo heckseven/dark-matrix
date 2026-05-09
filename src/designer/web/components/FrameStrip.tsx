@@ -28,7 +28,7 @@ function FrameCell({ frame, idx, width }: { frame: Frame; idx: number; width: nu
       }}
       onDragEnd={() => { dragRef.current = null; }}
     >
-      <MatrixPreview pixels={frame.pixels} width={width as 9 | 18} cellSize={1} />
+      <MatrixPreview pixels={frame.pixels} width={width as 9 | 18} />
       <div className="flex gap-1 items-center">
         <Input
           type="number" min={0} max={60000} step={10}
