@@ -77,6 +77,7 @@ function SwatchRow({ swatch, selected, editing, kbFocused, onSelect, onChange }:
         }} />
       </div>
       <span
+        aria-hidden="true"
         style={{ ...MONO, color: grayColor(v), cursor: 'pointer', userSelect: 'none' }}
         onClick={onSelect}
       >
