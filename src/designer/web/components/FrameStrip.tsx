@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useDesignerStore, designerStore, ROWS } from '../store.js';
 import type { Frame } from '../store.js';
 import { Button } from './ui/button.js';
+import { Input } from './ui/input.js';
 
 const THUMB_W = 36;
 const THUMB_H = 68;
@@ -59,11 +60,11 @@ function FrameCell({ frame, idx, width }: { frame: Frame; idx: number; width: nu
         className="[image-rendering:pixelated]"
       />
       <div className="flex gap-1 items-center">
-        <input
+        <Input
           type="number" min={0} max={60000} step={10}
           defaultValue={frame.delayMs}
           aria-label={`Frame ${idx + 1} delay in milliseconds`}
-          className="w-12 bg-input text-foreground border border-border text-center text-xs rounded px-0.5"
+          className="w-12 text-center"
           onChange={e => designerStore.getState().setFrameDelay(idx, Math.max(0, Math.min(60000, Number(e.target.value))))}
           onClick={e => e.stopPropagation()}
         />
