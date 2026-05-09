@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Toolbar } from './components/Toolbar.js';
-import { Grid } from './components/Grid.js';
+import { PixelCanvas } from './components/PixelCanvas.js';
 import { FrameStrip } from './components/FrameStrip.js';
 import { Playback } from './components/Playback.js';
 import { usePreviewBridge } from './components/LivePreview.js';
@@ -30,7 +30,7 @@ export function App() {
       </header>
       <Toolbar />
       <main className="flex-1 overflow-auto p-2">
-        <Grid />
+        <PixelCanvas />
       </main>
       <footer className="flex flex-col">
         <FrameStrip />
