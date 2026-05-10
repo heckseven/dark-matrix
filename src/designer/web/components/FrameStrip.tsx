@@ -1,4 +1,4 @@
-import { useState, Fragment } from 'react';
+import { useState, useRef, useEffect, Fragment } from 'react';
 import { useDesignerStore, designerStore } from '../store.js';
 import type { Frame } from '../store.js';
 import { Button } from './ui/button.js';
@@ -154,13 +154,64 @@ function FrameCell({
   );
 }
 
+const SCROLL_ZONE = 60;
+const SCROLL_SPEED = 8;
+const SCROLL_TICK = 40;
+
 export function FrameStrip({ topPadding = 0 }: { topPadding?: number }) {
   const frames = useDesignerStore(s => s.frames);
   const width = useDesignerStore(s => s.width);
   const [dropTarget, setDropTarget] = useState<number | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    let dir: 'up' | 'down' | null = null;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    function setDir(next: 'up' | 'down' | null) {
+      if (next === dir) return;
+      dir = next;
+      if (intervalId !== null) { clearInterval(intervalId); intervalId = null; }
+      if (next !== null) {
+        intervalId = setInterval(
+          () => el.scrollBy({ top: next === 'up' ? -SCROLL_SPEED : SCROLL_SPEED }),
+          SCROLL_TICK,
+        );
+      }
+    }
+
+    function onDragOver(e: DragEvent) {
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      if (y < SCROLL_ZONE) setDir('up');
+      else if (y > rect.height - SCROLL_ZONE) setDir('down');
+      else setDir(null);
+    }
+
+    function stop() { setDir(null); }
+
+    el.addEventListener('dragover', onDragOver);
+    document.addEventListener('dragend', stop);
+    document.addEventListener('drop', stop);
+
+    return () => {
+      stop();
+      el.removeEventListener('dragover', onDragOver);
+      document.removeEventListener('dragend', stop);
+      document.removeEventListener('drop', stop);
+    };
+  }, []);
 
   return (
-    <div className="flex flex-col overflow-y-auto pr-6 flex-1 min-h-0" style={{ paddingTop: topPadding }}>
+    <div
+      ref={scrollRef}
+      className="flex flex-col overflow-y-auto pr-6 flex-1 min-h-0"
+      style={{ paddingTop: topPadding }}
+    >
       <Stack
         aria-label="Animation frames"
         gap="2xl"
