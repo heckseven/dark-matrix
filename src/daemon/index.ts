@@ -420,6 +420,15 @@ export async function startDaemon(): Promise<() => Promise<void>> {
             case 'ping':
               socket.write(JSON.stringify({ ok: true, pong: true }) + '\n');
               break;
+            case 'status':
+              socket.write(JSON.stringify({
+                ok: true,
+                modules: {
+                  left:  deviceAvailable.get(currentConfig.modules.left)  ?? false,
+                  right: deviceAvailable.get(currentConfig.modules.right) ?? false,
+                },
+              }) + '\n');
+              break;
             case 'brightness':
               socket.write(JSON.stringify({ ok: true, value: currentBrightness }) + '\n');
               break;
@@ -467,8 +476,19 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 break;
               }
               const gifMode = m.mode === 'bw' ? 'bw' : 'gray';
-              startGifAnimation(m.path, !!m.hold, !!m.dual, gifMode);
-              socket.write(JSON.stringify({ ok: true }) + '\n');
+              void fs.realpath(m.path).then((resolved) => {
+                if (socket.destroyed) return;
+                const home = os.homedir();
+                if (!resolved.startsWith(home + '/') && resolved !== home) {
+                  socket.write(JSON.stringify({ ok: false, error: 'path outside home directory' }) + '\n');
+                  return;
+                }
+                startGifAnimation(resolved, !!m.hold, !!m.dual, gifMode);
+                socket.write(JSON.stringify({ ok: true }) + '\n');
+              }).catch(() => {
+                if (socket.destroyed) return;
+                socket.write(JSON.stringify({ ok: false, error: 'path not found' }) + '\n');
+              });
               break;
             }
             case 'frame': {

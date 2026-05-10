@@ -12,6 +12,8 @@ import { Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparat
 import { saveProjectAs, importFile } from './files.js';
 import { useDesignerStore, designerStore, stepZoom, ZOOM_STEPS, ROWS, DEFAULT_WIDTH } from './store.js';
 import { ShortcutDialog } from './components/ui/shortcut-dialog.js';
+import { ModePicker } from './components/ModePicker.js';
+import type { AppMode } from './components/ModePicker.js';
 
 function storeCompat() {
   return { state: designerStore.getState(), loadProject: (p: unknown) => designerStore.getState().loadProject(p) };
@@ -24,14 +26,13 @@ function newProject() {
   designerStore.setState({ zoom: 1 });
 }
 
-function ProjectTitle() {
+function ProjectTitle({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [editing, setEditing] = useState(false);
-  const [committed, setCommitted] = useState('untitled_animation');
-  const [draft, setDraft] = useState('untitled_animation');
+  const [draft, setDraft] = useState(value);
 
   function commit() {
     const next = draft.trim() || 'untitled_animation';
-    setCommitted(next);
+    onChange(next);
     setDraft(next);
     setEditing(false);
   }
@@ -45,7 +46,7 @@ function ProjectTitle() {
         onBlur={commit}
         onKeyDown={e => {
           if (e.key === 'Enter') { e.preventDefault(); commit(); }
-          if (e.key === 'Escape') { setDraft(committed); setEditing(false); }
+          if (e.key === 'Escape') { setDraft(value); setEditing(false); }
         }}
       />
     );
@@ -54,9 +55,9 @@ function ProjectTitle() {
   return (
     <button
       className="font-mono text-xs text-foreground bg-transparent border-none cursor-text hover:opacity-70 transition-opacity"
-      onClick={() => setEditing(true)}
+      onClick={() => { setDraft(value); setEditing(true); }}
     >
-      {committed}
+      {value}
     </button>
   );
 }
@@ -140,6 +141,9 @@ export function App() {
   const mode = useDesignerStore(s => s.mode);
   const previewTarget = useDesignerStore(s => s.previewTarget);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [modePickerOpen, setModePickerOpen] = useState(false);
+  const [activeMode, setActiveMode] = useState<AppMode>('design');
+  const [projectTitle, setProjectTitle] = useState('untitled_animation');
   const [livePreviewOn, setLivePreviewOn] = useState(false);
   const bridge = usePreviewBridge();
   const [cursor, setCursor] = useState({ col: 0, row: 0 });
@@ -148,6 +152,23 @@ export function App() {
   const footerRef = useRef<HTMLElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [topPad, setTopPad] = useState(0);
+  const [modules, setModules] = useState({ left: true, right: true });
+  const dualModule = modules.left && modules.right;
+  const dualModuleRef = useRef(true);
+  dualModuleRef.current = dualModule;
+
+  useEffect(() => {
+    let alive = true;
+    const poll = async () => {
+      try {
+        const r = await fetch('/api/modules');
+        if (r.ok && alive) setModules(await r.json() as { left: boolean; right: boolean });
+      } catch { /* daemon not reachable */ }
+    };
+    void poll();
+    const id = setInterval(() => void poll(), 2000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
 
   useLayoutEffect(() => {
     if (typeof ResizeObserver === 'undefined') return;
@@ -176,10 +197,10 @@ export function App() {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       switch (e.key) {
         case '?': e.preventDefault(); toggleShortcuts(); break;
-        case 'l': case 'L': e.preventDefault(); designerStore.getState().setPreviewTarget('left'); break;
-        case 'r': case 'R': e.preventDefault(); designerStore.getState().setPreviewTarget('right'); break;
-        case 'b': case 'B': e.preventDefault(); designerStore.getState().setPreviewTarget('both'); break;
-        case 'm': case 'M': e.preventDefault(); designerStore.getState().setPreviewTarget('mirror'); break;
+        case 'l': case 'L': if (dualModuleRef.current) { e.preventDefault(); designerStore.getState().setPreviewTarget('left'); } break;
+        case 'r': case 'R': if (dualModuleRef.current) { e.preventDefault(); designerStore.getState().setPreviewTarget('right'); } break;
+        case 'b': case 'B': if (dualModuleRef.current) { e.preventDefault(); designerStore.getState().setPreviewTarget('both'); } break;
+        case 'm': case 'M': if (dualModuleRef.current) { e.preventDefault(); designerStore.getState().setPreviewTarget('mirror'); } break;
       }
     }
     document.addEventListener('keydown', onKey);
@@ -193,7 +214,15 @@ export function App() {
 
   return (
     <TooltipProvider>
-      <ShortcutDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+      <ShortcutDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} dualModule={dualModule} />
+      {modePickerOpen && (
+        <ModePicker
+          activeMode={activeMode}
+          dualModule={dualModule}
+          onSelect={setActiveMode}
+          onClose={() => setModePickerOpen(false)}
+        />
+      )}
       <div ref={containerRef} className="relative h-screen bg-background text-foreground font-mono">
         <input
           ref={fileInputRef}
@@ -211,7 +240,7 @@ export function App() {
 
         <header ref={headerRef} className="absolute top-0 inset-x-0 z-10 flex items-center gap-4 pl-7 pr-5 py-4" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
           <div className="flex items-center gap-1">
-            <Text as="span" size="xs">◫</Text>
+            <Button variant="ghost" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
             <Menu>
               <MenuTrigger asChild>
                 <Button variant="ghost">file <span aria-hidden="true">▾</span></Button>
@@ -220,29 +249,31 @@ export function App() {
                 <MenuItem shortcut="^n" onSelect={newProject}>new</MenuItem>
                 <MenuItem shortcut="^o" onSelect={() => fileInputRef.current?.click()}>open</MenuItem>
                 <MenuSeparator />
-                <MenuItem shortcut="^s" onSelect={() => saveProjectAs(storeCompat()).catch(console.error)}>save</MenuItem>
+                <MenuItem shortcut="^s" onSelect={() => saveProjectAs(storeCompat(), projectTitle).catch(console.error)}>save</MenuItem>
               </MenuContent>
             </Menu>
-            <Menu>
-              <MenuTrigger asChild>
-                <Button variant="ghost">matrix <span aria-hidden="true">▾</span></Button>
-              </MenuTrigger>
-              <MenuContent align="start">
-                <MenuRadioGroup aria-label="Preview target" value={previewTarget} onValueChange={v => {
-                    if (v === 'left' || v === 'right' || v === 'both' || v === 'mirror')
-                      designerStore.getState().setPreviewTarget(v);
-                  }}>
-                  <MenuRadioItem value="left">left</MenuRadioItem>
-                  <MenuRadioItem value="right">right</MenuRadioItem>
-                  <MenuRadioItem value="both">both</MenuRadioItem>
-                  <MenuRadioItem value="mirror">mirror</MenuRadioItem>
-                </MenuRadioGroup>
-              </MenuContent>
-            </Menu>
+            {dualModule && (
+              <Menu>
+                <MenuTrigger asChild>
+                  <Button variant="ghost">matrix <span aria-hidden="true">▾</span></Button>
+                </MenuTrigger>
+                <MenuContent align="start">
+                  <MenuRadioGroup aria-label="Preview target" value={previewTarget} onValueChange={v => {
+                      if (v === 'left' || v === 'right' || v === 'both' || v === 'mirror')
+                        designerStore.getState().setPreviewTarget(v);
+                    }}>
+                    <MenuRadioItem value="left">left</MenuRadioItem>
+                    <MenuRadioItem value="right">right</MenuRadioItem>
+                    <MenuRadioItem value="both">both</MenuRadioItem>
+                    <MenuRadioItem value="mirror">mirror</MenuRadioItem>
+                  </MenuRadioGroup>
+                </MenuContent>
+              </Menu>
+            )}
           </div>
           <div className="absolute inset-x-0 flex justify-center pointer-events-none">
             <div className="pointer-events-auto">
-              <ProjectTitle />
+              <ProjectTitle value={projectTitle} onChange={setProjectTitle} />
             </div>
           </div>
           <div className="flex-1" />

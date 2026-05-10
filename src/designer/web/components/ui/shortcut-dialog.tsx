@@ -61,9 +61,11 @@ function Col({ header, rows }: { header: string; rows: Row[] }) {
 export function ShortcutDialog({
   open,
   onOpenChange,
+  dualModule = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  dualModule?: boolean;
 }) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
@@ -76,7 +78,7 @@ export function ShortcutDialog({
           <div className="flex gap-8">
             <Col header="canvas" rows={CANVAS} />
             <Col header="project" rows={PROJECT} />
-            <Col header="matrix" rows={MATRIX} />
+            {dualModule && <Col header="matrix" rows={MATRIX} />}
           </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
