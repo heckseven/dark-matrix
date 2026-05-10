@@ -22,6 +22,7 @@ function storeCompat() {
 function newProject() {
   const blank = btoa(String.fromCharCode(...new Uint8Array(DEFAULT_WIDTH * ROWS)));
   designerStore.getState().loadProject({ frames: [{ delayMs: 100, pixels: blank }], width: DEFAULT_WIDTH, mode: 'bw', loop: true });
+  designerStore.getState().setProjectTitle('untitled_animation');
   designerStore.getState().setPreviewTarget('left');
   designerStore.setState({ zoom: 1 });
 }
@@ -140,10 +141,10 @@ export function App() {
   const zoom = useDesignerStore(s => s.zoom);
   const mode = useDesignerStore(s => s.mode);
   const previewTarget = useDesignerStore(s => s.previewTarget);
+  const projectTitle = useDesignerStore(s => s.projectTitle);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [activeMode, setActiveMode] = useState<AppMode>('design');
-  const [projectTitle, setProjectTitle] = useState('untitled_animation');
   const [livePreviewOn, setLivePreviewOn] = useState(false);
   const bridge = usePreviewBridge();
   const [cursor, setCursor] = useState({ col: 0, row: 0 });
@@ -273,7 +274,7 @@ export function App() {
           </div>
           <div className="absolute inset-x-0 flex justify-center pointer-events-none">
             <div className="pointer-events-auto">
-              <ProjectTitle value={projectTitle} onChange={setProjectTitle} />
+              <ProjectTitle value={projectTitle} onChange={v => designerStore.getState().setProjectTitle(v)} />
             </div>
           </div>
           <div className="flex-1" />

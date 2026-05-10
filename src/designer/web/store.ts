@@ -19,6 +19,7 @@ export interface DesignerState {
   undoStack: Frame[][];
   redoStack: Frame[][];
   strokeSnapshot: Frame[] | null;
+  projectTitle: string;
 }
 
 export interface DesignerActions {
@@ -44,6 +45,7 @@ export interface DesignerActions {
   floodFill(frameIdx: number, col: number, row: number, color: number): void;
   clearFrame(idx: number): void;
   loadProject(project: unknown): void;
+  setProjectTitle(title: string): void;
 }
 
 export type DesignerStore = DesignerState & DesignerActions;
@@ -132,6 +134,7 @@ export function createDesignerStore() {
     undoStack: [],
     redoStack: [],
     strokeSnapshot: null,
+    projectTitle: 'untitled_animation',
 
     setPixel(frameIdx, col, row, value) {
       const { frames, mode, undoStack, strokeSnapshot, previewTarget, width } = get();
@@ -302,6 +305,8 @@ export function createDesignerStore() {
       if (!p?.frames?.length) return;
       set({ frames: p.frames, width: p.width ?? 9, mode: p.mode ?? 'gray', loop: p.loop ?? true, activeFrameIdx: 0, undoStack: [], redoStack: [], strokeSnapshot: null });
     },
+
+    setProjectTitle(title) { set({ projectTitle: title.trim() || 'untitled_animation' }); },
   }));
 }
 
@@ -313,3 +318,48 @@ export const useDesignerStore = <T>(selector: (s: DesignerStore) => T): T =>
 
 // Expose vanilla store for non-React consumers (preview bridge, etc.)
 export const designerStore = _store;
+
+// Session persistence — survives page refresh, not a substitute for saving a file.
+const SESSION_KEY = 'dark-matrix-designer';
+
+type SessionSnapshot = Pick<DesignerState,
+  'frames' | 'width' | 'mode' | 'loop' | 'activeFrameIdx' |
+  'zoom' | 'activeColor' | 'previewTarget' | 'projectTitle'
+>;
+
+if (typeof localStorage !== 'undefined') {
+  // Restore on load
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (raw) {
+      const s = JSON.parse(raw) as Partial<SessionSnapshot>;
+      if (Array.isArray(s.frames) && s.frames.length > 0) {
+        _store.setState({
+          frames: s.frames,
+          width: s.width ?? 9,
+          mode: s.mode ?? 'bw',
+          loop: s.loop ?? true,
+          activeFrameIdx: Math.min(s.activeFrameIdx ?? 0, s.frames.length - 1),
+          projectTitle: s.projectTitle ?? 'untitled_animation',
+          ...(s.zoom !== undefined ? { zoom: s.zoom } : {}),
+          ...(s.activeColor !== undefined ? { activeColor: s.activeColor } : {}),
+          ...(s.previewTarget !== undefined ? { previewTarget: s.previewTarget } : {}),
+        });
+      }
+    }
+  } catch { /* corrupt or unavailable */ }
+
+  // Debounced save on every state change
+  let _saveTimer: ReturnType<typeof setTimeout> | null = null;
+  _store.subscribe((state) => {
+    if (_saveTimer) clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(() => {
+      try {
+        const { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle } = state;
+        localStorage.setItem(SESSION_KEY, JSON.stringify(
+          { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle } satisfies SessionSnapshot
+        ));
+      } catch { /* storage full or unavailable */ }
+    }, 500);
+  });
+}
