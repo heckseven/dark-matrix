@@ -70,10 +70,17 @@ async function savePrefs(prefs: DesignerPrefs, configDir?: string): Promise<void
   await fs.rename(tmp, p);
 }
 
+const MAX_JSON_BODY = 1 * 1024 * 1024; // 1 MB
+
 function readBody(req: http.IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     let data = '';
-    req.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+    let total = 0;
+    req.on('data', (chunk: Buffer) => {
+      total += chunk.length;
+      if (total > MAX_JSON_BODY) { req.destroy(); reject(new Error('payload too large')); return; }
+      data += chunk.toString();
+    });
     req.on('end', () => resolve(data));
     req.on('error', reject);
   });
@@ -148,7 +155,7 @@ function parseMultipart(body: Buffer, boundary: string): MultipartFile | null {
     const lower = line.toLowerCase();
     if (lower.startsWith('content-disposition:')) {
       const fnMatch = line.match(/filename="([^"]+)"/i);
-      if (fnMatch) filename = fnMatch[1]!;
+      if (fnMatch) filename = path.basename(fnMatch[1]!);
     } else if (lower.startsWith('content-type:')) {
       contentType = line.slice('content-type:'.length).trim();
     }
@@ -475,11 +482,24 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
       return;
     }
 
+    // Module availability — proxies daemon status command
+    if (url === '/api/modules' && method === 'GET') {
+      try {
+        const s = await sendToDaemon({ cmd: 'status' }) as { ok: boolean; modules: { left: boolean; right: boolean } };
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(s.modules ?? { left: false, right: false }));
+      } catch {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ left: false, right: false }));
+      }
+      return;
+    }
+
     // Static files
     if (method === 'GET') {
       let filePath = path.join(staticDir, url === '/' ? 'index.html' : url);
       // Prevent path traversal
-      if (!filePath.startsWith(staticDir)) {
+      if (!filePath.startsWith(staticDir + path.sep) && filePath !== staticDir) {
         res.writeHead(403);
         res.end();
         return;

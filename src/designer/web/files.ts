@@ -12,6 +12,10 @@ interface FileStoreCompat {
   loadProject?: (project: unknown) => void;
 }
 
+function sanitizeFilename(name: string): string {
+  return name.trim().replace(/[^\w\s\-]/g, '_').slice(0, 100) || 'untitled_animation';
+}
+
 function triggerDownload(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -49,16 +53,18 @@ function buildProject(store: FileStoreCompat): DmxProject {
 }
 
 export function exportProject(store: FileStoreCompat, name = 'project'): void {
+  const safe = sanitizeFilename(name);
   const blob = new Blob([serializeProject(buildProject(store))], { type: 'application/json' });
-  triggerDownload(blob, `${name}.dmx.json`);
+  triggerDownload(blob, `${safe}.dmx.json`);
 }
 
 export async function saveProjectAs(store: FileStoreCompat, name = 'project'): Promise<void> {
+  const safe = sanitizeFilename(name);
   const json = serializeProject(buildProject(store));
   if ('showSaveFilePicker' in window) {
     try {
       const fh = await (window as Window & { showSaveFilePicker: (o: object) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
-        suggestedName: `${name}.dmx.json`,
+        suggestedName: `${safe}.dmx.json`,
         types: [{ description: 'Dark Matrix project', accept: { 'application/json': ['.json'] } }],
       });
       const writable = await fh.createWritable();
@@ -70,7 +76,7 @@ export async function saveProjectAs(store: FileStoreCompat, name = 'project'): P
       throw e;
     }
   }
-  triggerDownload(new Blob([json], { type: 'application/json' }), `${name}.dmx.json`);
+  triggerDownload(new Blob([json], { type: 'application/json' }), `${safe}.dmx.json`);
 }
 
 export async function exportGif(store: FileStoreCompat): Promise<void> {
