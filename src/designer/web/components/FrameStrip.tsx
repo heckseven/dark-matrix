@@ -121,23 +121,25 @@ function FrameCell({
           </Button>
         </Stack>
         <Stack gap="xs" align="start">
-          <Button
-            variant="ghost"
-            aria-label="Clone frame"
-            onClick={e => { e.stopPropagation(); designerStore.getState().cloneFrame(idx); }}
-          >
-            ⧉
-          </Button>
-          {frameCount > 1 && (
+          <div className="flex">
             <Button
               variant="ghost"
-              aria-label="Delete frame"
-              tooltip="Delete frame"
-              onClick={e => { e.stopPropagation(); designerStore.getState().removeFrame(idx); }}
+              aria-label="Clone frame"
+              onClick={e => { e.stopPropagation(); designerStore.getState().cloneFrame(idx); }}
             >
-              ×
+              ⧉
             </Button>
-          )}
+            {frameCount > 1 && (
+              <Button
+                variant="ghost"
+                aria-label="Delete frame"
+                tooltip="Delete frame"
+                onClick={e => { e.stopPropagation(); designerStore.getState().removeFrame(idx); }}
+              >
+                ×
+              </Button>
+            )}
+          </div>
           <ScrubInput
             value={frame.delayMs}
             onChange={v => designerStore.getState().setFrameDelay(idx, v)}

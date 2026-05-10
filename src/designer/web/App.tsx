@@ -168,6 +168,11 @@ export function App() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if ((e.ctrlKey || e.metaKey) && !(e.target instanceof HTMLCanvasElement)) {
+        if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); designerStore.getState().undo(); }
+        else if (e.key === 'y' || (e.key === 'Z' && e.shiftKey)) { e.preventDefault(); designerStore.getState().redo(); }
+        return;
+      }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       switch (e.key) {
         case '?': e.preventDefault(); toggleShortcuts(); break;
