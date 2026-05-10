@@ -234,7 +234,12 @@ export function App() {
           tabIndex={-1}
           onChange={e => {
             const file = e.target.files?.[0];
-            if (file) importFile(file, storeCompat()).catch(console.error);
+            if (file) {
+              importFile(file, storeCompat()).then(() => {
+                const title = file.name.replace(/\.dmx\.json$/i, '').replace(/\.json$/i, '');
+                if (title) designerStore.getState().setProjectTitle(title);
+              }).catch(console.error);
+            }
             e.target.value = '';
           }}
         />
