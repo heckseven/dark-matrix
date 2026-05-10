@@ -546,7 +546,15 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
           const rightHalf = bytes.subarray(306, 612).toString('base64');
           if (target === 'left')        daemonCmd = { cmd: 'frame', left: leftHalf, mode };
           else if (target === 'right')  daemonCmd = { cmd: 'frame', right: rightHalf, mode };
-          else if (target === 'mirror') daemonCmd = { cmd: 'frame', left: leftHalf, right: leftHalf, mode };
+          else if (target === 'mirror') {
+            const COLS = 9, ROWS = 34;
+            const src = bytes.subarray(0, 306);
+            const flipped = Buffer.allocUnsafe(306);
+            for (let c = 0; c < COLS; c++)
+              for (let r = 0; r < ROWS; r++)
+                flipped[c * ROWS + r] = src[(COLS - 1 - c) * ROWS + r] ?? 0;
+            daemonCmd = { cmd: 'frame', left: leftHalf, right: flipped.toString('base64'), mode };
+          }
           else                          daemonCmd = { cmd: 'frame', left: leftHalf, right: rightHalf, mode };
         } else {
           if (target === 'right')       daemonCmd = { cmd: 'frame', right: frame, mode };

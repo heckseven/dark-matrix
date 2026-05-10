@@ -40,7 +40,7 @@ export const MenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      'flex items-center w-full cursor-pointer rounded-sm px-1 py-1 select-none outline-none',
+      'flex items-center w-full cursor-pointer rounded-sm px-2 py-1 select-none outline-none',
       'text-foreground',
       'data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground',
       'data-[disabled]:opacity-40 data-[disabled]:pointer-events-none',
@@ -65,15 +65,15 @@ export const MenuRadioItem = React.forwardRef<
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      'flex items-center w-full cursor-pointer rounded-sm px-1 py-1 select-none outline-none',
+      'flex items-center w-full cursor-pointer rounded-sm px-2 py-1 select-none outline-none',
       'text-foreground',
       'data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground',
       className,
     )}
     {...props}
   >
-    <span className="w-4 shrink-0 flex items-center justify-center text-muted-foreground">
-      <DropdownMenuPrimitive.ItemIndicator aria-hidden="true">•</DropdownMenuPrimitive.ItemIndicator>
+    <span className="w-4 shrink-0 flex items-center justify-center text-green-500">
+      <DropdownMenuPrimitive.ItemIndicator aria-hidden="true">✓&nbsp;</DropdownMenuPrimitive.ItemIndicator>
     </span>
     <span className="flex-1">{children}</span>
   </DropdownMenuPrimitive.RadioItem>

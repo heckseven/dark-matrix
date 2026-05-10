@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import { userEvent, expect } from 'storybook/test';
 import { App } from './App';
 import { designerStore, ROWS, DEFAULT_WIDTH } from './store.js';
 import type { Frame } from './store.js';
@@ -27,22 +28,31 @@ function makeFrames(count: number, delayMs = 100): Frame[] {
   return Array.from({ length: count }, (_, i) => ({ pixels: SEQ[i % SEQ.length]!, delayMs }));
 }
 
-function setup(frames: Frame[], opts: { mode?: 'bw' | 'gray'; isPlaying?: boolean; activeFrameIdx?: number } = {}) {
+function setup(frames: Frame[], opts: {
+  mode?: 'bw' | 'gray';
+  isPlaying?: boolean;
+  activeFrameIdx?: number;
+  zoom?: number;
+  previewTarget?: 'left' | 'right' | 'both' | 'mirror';
+} = {}) {
   designerStore.getState().loadProject({ frames, width: W, mode: opts.mode ?? 'bw', loop: true });
-  designerStore.setState({ isPlaying: opts.isPlaying ?? false });
+  designerStore.setState({ isPlaying: opts.isPlaying ?? false, zoom: opts.zoom ?? 1 });
   if (opts.activeFrameIdx !== undefined) designerStore.setState({ activeFrameIdx: opts.activeFrameIdx });
+  if (opts.previewTarget !== undefined) designerStore.getState().setPreviewTarget(opts.previewTarget);
 }
 
 interface AppStoryArgs {
   mode: 'bw' | 'gray';
   frameCount: number;
   isPlaying: boolean;
+  zoom: number;
+  previewTarget: 'left' | 'right' | 'both' | 'mirror';
 }
 
-function AppStory({ mode, frameCount, isPlaying }: AppStoryArgs) {
+function AppStory({ mode, frameCount, isPlaying, zoom, previewTarget }: AppStoryArgs) {
   useEffect(() => {
-    setup(makeFrames(frameCount), { mode, isPlaying });
-  }, [mode, frameCount, isPlaying]);
+    setup(makeFrames(frameCount), { mode, isPlaying, zoom, previewTarget });
+  }, [mode, frameCount, isPlaying, zoom, previewTarget]);
   return <App />;
 }
 AppStory.displayName = 'App';
@@ -65,8 +75,18 @@ const meta = {
       control: 'boolean',
       description: 'Animation playback state.',
     },
+    zoom: {
+      control: 'select',
+      options: [0.5, 1, 2, 3, 4],
+      description: 'Canvas zoom level.',
+    },
+    previewTarget: {
+      control: 'radio',
+      options: ['left', 'right', 'both', 'mirror'],
+      description: 'Which hardware panel(s) to target.',
+    },
   },
-  args: { mode: 'bw', frameCount: 1, isPlaying: false },
+  args: { mode: 'bw', frameCount: 1, isPlaying: false, zoom: 1, previewTarget: 'left' },
 } satisfies Meta<typeof AppStory>;
 
 export default meta;
@@ -88,4 +108,29 @@ export const MultiFrame: Story = {
 /** Animation running — playback advances through frames on their own delays. */
 export const Playing: Story = {
   args: { frameCount: 4, isPlaying: true },
+};
+
+/** Canvas scaled to 50% — layout reflows to keep the canvas centered. */
+export const ZoomedOut: Story = {
+  args: { zoom: 0.5 },
+};
+
+/** Canvas scaled to 400% — pixel cells are large; scrolling may be needed. */
+export const ZoomedIn: Story = {
+  args: { zoom: 4 },
+};
+
+/** Wide 18-col canvas in mirror mode — drawing one half mirrors the other in real time. */
+export const MirrorMode: Story = {
+  args: { previewTarget: 'mirror', frameCount: 1 },
+};
+
+/** Gray mode with live preview active — footer shows the degraded-preview warning. */
+export const DegradedPreview: Story = {
+  args: { mode: 'gray', frameCount: 1 },
+  play: async ({ canvas }) => {
+    const toggle = canvas.getByRole('button', { name: 'live preview: off' });
+    await userEvent.click(toggle);
+    await expect(canvas.getByText('degraded live preview when using grey values')).toBeInTheDocument();
+  },
 };

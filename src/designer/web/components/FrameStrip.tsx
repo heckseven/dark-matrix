@@ -57,7 +57,7 @@ function FrameCell({
     <div
       aria-label={`Frame ${idx + 1}`}
       tabIndex={0}
-      className="group relative flex flex-row gap-3 p-1"
+      className="group relative flex flex-row gap-3 p-1 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       onClick={() => designerStore.getState().setActiveFrame(idx)}
       onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -128,6 +128,16 @@ function FrameCell({
           >
             ⧉
           </Button>
+          {frameCount > 1 && (
+            <Button
+              variant="ghost"
+              aria-label="Delete frame"
+              tooltip="Delete frame"
+              onClick={e => { e.stopPropagation(); designerStore.getState().removeFrame(idx); }}
+            >
+              ×
+            </Button>
+          )}
           <ScrubInput
             value={frame.delayMs}
             onChange={v => designerStore.getState().setFrameDelay(idx, v)}

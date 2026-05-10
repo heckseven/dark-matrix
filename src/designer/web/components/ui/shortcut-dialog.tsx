@@ -31,7 +31,13 @@ const PROJECT: Row[] = [
   { label: 'add frame', keys: 'N' },
   { label: 'open',      keys: '^O' },
   { label: 'save',      keys: '^S' },
-  { label: 'save as',   keys: '^⇧S' },
+];
+
+const MATRIX: Row[] = [
+  { label: 'left',   keys: 'L' },
+  { label: 'right',  keys: 'R' },
+  { label: 'both',   keys: 'B' },
+  { label: 'mirror', keys: 'M' },
 ];
 
 function Col({ header, rows }: { header: string; rows: Row[] }) {
@@ -70,6 +76,7 @@ export function ShortcutDialog({
           <div className="flex gap-8">
             <Col header="canvas" rows={CANVAS} />
             <Col header="project" rows={PROJECT} />
+            <Col header="matrix" rows={MATRIX} />
           </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

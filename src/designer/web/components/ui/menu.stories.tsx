@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/tanstack-react';
 import { fn, userEvent, expect, within } from 'storybook/test';
 import { Button } from './button.js';
-import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from './menu.js';
+import { Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger } from './menu.js';
 
 interface FileMenuArgs {
   onNew: () => void;
@@ -87,6 +88,52 @@ export const ItemInteraction: Story = {
     const saveItem = await body.findByRole('menuitem', { name: /^save$/ });
     await userEvent.click(saveItem);
     await expect(args.onSave).toHaveBeenCalledOnce();
+  },
+};
+
+function MatrixMenuDemo({ defaultOpen = false }: { defaultOpen?: boolean }) {
+  const [value, setValue] = useState('left');
+  return (
+    <Menu defaultOpen={defaultOpen}>
+      <MenuTrigger asChild>
+        <Button variant="ghost">matrix <span aria-hidden="true">▾</span></Button>
+      </MenuTrigger>
+      <MenuContent>
+        <MenuRadioGroup aria-label="Preview target" value={value} onValueChange={setValue}>
+          <MenuRadioItem value="left">left</MenuRadioItem>
+          <MenuRadioItem value="right">right</MenuRadioItem>
+          <MenuRadioItem value="both">both</MenuRadioItem>
+          <MenuRadioItem value="mirror">mirror</MenuRadioItem>
+        </MenuRadioGroup>
+      </MenuContent>
+    </Menu>
+  );
+}
+
+/** Matrix menu pre-opened; "left" is the initial selection. */
+export const RadioGroupOpen: Story = {
+  parameters: suppressRadixTriggerHidden,
+  render: () => <MatrixMenuDemo defaultOpen />,
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const items = await body.findAllByRole('menuitemradio');
+    await expect(items).toHaveLength(4);
+    await expect(items[0]).toHaveAttribute('data-state', 'checked');
+  },
+};
+
+/** Clicking "mirror" updates the selection; reopening confirms the new checked state. */
+export const RadioGroupSelectMirror: Story = {
+  parameters: suppressRadixTriggerHidden,
+  render: () => <MatrixMenuDemo />,
+  play: async ({ canvas, canvasElement }) => {
+    await userEvent.click(canvas.getByRole('button', { name: /matrix/i }));
+    const body = within(canvasElement.ownerDocument.body);
+    const mirrorItem = await body.findByRole('menuitemradio', { name: 'mirror' });
+    await userEvent.click(mirrorItem);
+    await userEvent.click(canvas.getByRole('button', { name: /matrix/i }));
+    const mirrorAfter = await body.findByRole('menuitemradio', { name: 'mirror' });
+    await expect(mirrorAfter).toHaveAttribute('data-state', 'checked');
   },
 };
 
