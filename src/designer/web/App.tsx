@@ -5,15 +5,23 @@ import { ColorPalette } from './components/ColorPalette.js';
 import { usePreviewBridge } from './components/LivePreview.js';
 import { Toggle } from './components/ui/toggle.js';
 import { Button } from './components/ui/button.js';
+import { Input } from './components/ui/input.js';
 import { Text } from './components/ui/text.js';
 import { Tooltip, TooltipProvider } from './components/ui/tooltip.js';
 import { Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger } from './components/ui/menu.js';
-import { exportProject, saveProjectAs, importFile } from './files.js';
-import { useDesignerStore, designerStore, stepZoom, ZOOM_STEPS } from './store.js';
+import { saveProjectAs, importFile } from './files.js';
+import { useDesignerStore, designerStore, stepZoom, ZOOM_STEPS, ROWS, DEFAULT_WIDTH } from './store.js';
 import { ShortcutDialog } from './components/ui/shortcut-dialog.js';
 
 function storeCompat() {
   return { state: designerStore.getState(), loadProject: (p: unknown) => designerStore.getState().loadProject(p) };
+}
+
+function newProject() {
+  const blank = btoa(String.fromCharCode(...new Uint8Array(DEFAULT_WIDTH * ROWS)));
+  designerStore.getState().loadProject({ frames: [{ delayMs: 100, pixels: blank }], width: DEFAULT_WIDTH, mode: 'bw', loop: true });
+  designerStore.getState().setPreviewTarget('left');
+  designerStore.setState({ zoom: 1 });
 }
 
 function ProjectTitle() {
@@ -30,9 +38,8 @@ function ProjectTitle() {
 
   if (editing) {
     return (
-      <input
+      <Input
         autoFocus
-        className="bg-transparent outline-none ring-1 ring-ring text-center font-mono text-xs text-foreground min-w-[180px] px-1"
         value={draft}
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}
@@ -118,17 +125,9 @@ function TransportControls() {
   );
 }
 
-function LivePreviewToggle() {
-  const [on, setOn] = useState(false);
-  const bridge = usePreviewBridge();
-
-  function toggle() {
-    if (on) { bridge.stop(); setOn(false); }
-    else { bridge.start(); setOn(true); }
-  }
-
+function LivePreviewToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
-    <Toggle pressed={on} onPressedChange={toggle} pressedLabel="live preview: on">
+    <Toggle pressed={on} onPressedChange={onToggle} pressedLabel="live preview: on">
       live preview: off
     </Toggle>
   );
@@ -138,8 +137,11 @@ export function App() {
   const activeColor = useDesignerStore(s => s.activeColor);
   const activeFrameIdx = useDesignerStore(s => s.activeFrameIdx);
   const zoom = useDesignerStore(s => s.zoom);
+  const mode = useDesignerStore(s => s.mode);
   const previewTarget = useDesignerStore(s => s.previewTarget);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [livePreviewOn, setLivePreviewOn] = useState(false);
+  const bridge = usePreviewBridge();
   const [cursor, setCursor] = useState({ col: 0, row: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
@@ -165,10 +167,15 @@ export function App() {
   const toggleShortcuts = useCallback(() => setShortcutsOpen(v => !v), []);
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key !== '?') return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      e.preventDefault();
-      toggleShortcuts();
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      switch (e.key) {
+        case '?': e.preventDefault(); toggleShortcuts(); break;
+        case 'l': case 'L': e.preventDefault(); designerStore.getState().setPreviewTarget('left'); break;
+        case 'r': case 'R': e.preventDefault(); designerStore.getState().setPreviewTarget('right'); break;
+        case 'b': case 'B': e.preventDefault(); designerStore.getState().setPreviewTarget('both'); break;
+        case 'm': case 'M': e.preventDefault(); designerStore.getState().setPreviewTarget('mirror'); break;
+      }
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -205,11 +212,10 @@ export function App() {
                 <Button variant="ghost">file <span aria-hidden="true">▾</span></Button>
               </MenuTrigger>
               <MenuContent align="start">
-                <MenuItem shortcut="^n" disabled onSelect={() => {}}>new</MenuItem>
+                <MenuItem shortcut="^n" onSelect={newProject}>new</MenuItem>
                 <MenuItem shortcut="^o" onSelect={() => fileInputRef.current?.click()}>open</MenuItem>
                 <MenuSeparator />
-                <MenuItem shortcut="^s" onSelect={() => exportProject(storeCompat())}>save</MenuItem>
-                <MenuItem shortcut="^⇧s" onSelect={() => saveProjectAs(storeCompat()).catch(console.error)}>save as</MenuItem>
+                <MenuItem shortcut="^s" onSelect={() => saveProjectAs(storeCompat()).catch(console.error)}>save</MenuItem>
               </MenuContent>
             </Menu>
             <Menu>
@@ -229,24 +235,27 @@ export function App() {
               </MenuContent>
             </Menu>
           </div>
-          <div className="flex-1 flex justify-center">
-            <ProjectTitle />
+          <div className="absolute inset-x-0 flex justify-center pointer-events-none">
+            <div className="pointer-events-auto">
+              <ProjectTitle />
+            </div>
           </div>
+          <div className="flex-1" />
           <TransportControls />
         </header>
 
-        <div className="h-full flex overflow-hidden">
-          <aside aria-label="Color palette" className="flex-1 overflow-hidden flex items-start justify-end pl-4" style={{ paddingTop: topPad }}>
+        <div className="h-full grid overflow-hidden" style={{ gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)' }}>
+          <aside aria-label="Color palette" className="overflow-hidden flex items-start justify-end pl-4" style={{ paddingTop: topPad }}>
             <ColorPalette value={activeColor} onChange={pickColor} />
           </aside>
 
-          <main className="px-10 flex-none overflow-y-auto">
+          <main className="px-10 overflow-y-auto">
             <div style={{ paddingTop: topPad }}>
               <PixelCanvas onCursorMove={(col, row) => setCursor({ col, row })} />
             </div>
           </main>
 
-          <aside aria-label="Animation frames" className="flex-1 overflow-hidden flex flex-col">
+          <aside aria-label="Animation frames" className="overflow-hidden flex flex-col">
             <FrameStrip topPadding={topPad} />
           </aside>
         </div>
@@ -257,9 +266,15 @@ export function App() {
             <span>row {cursor.row}</span>
             <span>col {cursor.col}</span>
           </div>
-          <Text as="span" size="xs" variant="muted">drag to draw · ? for shortcuts</Text>
+          {livePreviewOn && mode === 'gray'
+            ? <Text as="span" size="xs" className="text-red-500">degraded live preview when using grey values</Text>
+            : <Text as="span" size="xs" variant="muted">drag to draw · ? for shortcuts</Text>
+          }
           <div className="flex-1 flex items-center justify-end gap-4">
-            <LivePreviewToggle />
+            <LivePreviewToggle on={livePreviewOn} onToggle={() => {
+              if (livePreviewOn) { bridge.stop(); setLivePreviewOn(false); }
+              else { bridge.start(); setLivePreviewOn(true); }
+            }} />
             <div className="flex items-center gap-2">
               <Button variant="ghost" aria-label="Zoom out" disabled={zoom <= ZOOM_STEPS[0]} onClick={() => designerStore.getState().setZoom(stepZoom(designerStore.getState().zoom, -1))}>-</Button>
               <Text as="span" size="xs">{zoom * 100}%</Text>

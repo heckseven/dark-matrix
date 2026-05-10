@@ -36,10 +36,11 @@ function seedPixels(width: 9 | 18, pattern: 'blank' | 'checker' | 'gradient') {
   });
 }
 
-function PixelCanvasStory({ width, pattern }: { width: 9 | 18; pattern: 'blank' | 'checker' | 'gradient' }) {
+function PixelCanvasStory({ width, pattern, zoom = 1 }: { width: 9 | 18; pattern: 'blank' | 'checker' | 'gradient'; zoom?: number }) {
   useEffect(() => {
     seedPixels(width, pattern);
-  }, [width, pattern]);
+    designerStore.setState({ zoom });
+  }, [width, pattern, zoom]);
   return <PixelCanvas />;
 }
 PixelCanvasStory.displayName = 'PixelCanvas';
@@ -76,8 +77,13 @@ const meta = {
       options: ['blank', 'checker', 'gradient'],
       description: 'Initial pixel pattern for the story.',
     },
+    zoom: {
+      control: 'select',
+      options: [0.5, 1, 2, 3, 4],
+      description: 'Canvas zoom level.',
+    },
   },
-  args: { width: 9, pattern: 'blank' },
+  args: { width: 9, pattern: 'blank', zoom: 1 },
 } satisfies Meta<typeof PixelCanvasStory>;
 
 export default meta;
@@ -99,6 +105,16 @@ export const Checkerboard: Story = {
 /** Horizontal gradient — confirms grayscale value rendering. */
 export const Gradient: Story = {
   args: { pattern: 'gradient' },
+};
+
+/** Canvas at 50% — all pixels visible, cells are half the default size. */
+export const ZoomedOut: Story = {
+  args: { zoom: 0.5, pattern: 'checker' },
+};
+
+/** Canvas at 400% — large cells; confirms scaling math at the upper bound. */
+export const ZoomedIn: Story = {
+  args: { zoom: 4, pattern: 'gradient' },
 };
 
 /** Ctrl+Z undoes a painted pixel; Ctrl+Y redoes it. */
