@@ -10,15 +10,27 @@ function DropLine() {
   return <div aria-hidden="true" className="-my-[19px] h-0.5 bg-green-500 rounded-full pointer-events-none" />;
 }
 
-function GapZone({ afterIdx, showDrop, setDropTarget }: {
+function GapZone({ afterIdx, showDrop, setDropTarget, frameCount }: {
   afterIdx: number;
   showDrop: boolean;
   setDropTarget: (v: number | null) => void;
+  frameCount: number;
 }) {
   return (
     <div
       className={`-my-10 h-10 flex items-center gap-1 px-1 transition-opacity ${showDrop ? '' : 'opacity-0 hover:opacity-100 focus-within:opacity-100'}`}
       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropTarget(afterIdx + 1); }}
+      onDrop={e => {
+        e.preventDefault();
+        const raw = e.dataTransfer.getData('text/plain');
+        if (!raw) return;
+        const from = Number(raw);
+        setDropTarget(null);
+        if (!Number.isInteger(from) || from < 0 || from >= frameCount) return;
+        const target = afterIdx + 1;
+        const to = from < target ? target - 1 : target;
+        if (to !== from) designerStore.getState().moveFrame(from, to);
+      }}
     >
       {showDrop ? (
         <div className="flex-1 h-0.5 bg-green-500 rounded-full pointer-events-none" />
@@ -232,7 +244,7 @@ export function FrameStrip({ topPadding = 0 }: { topPadding?: number }) {
               setDropTarget={setDropTarget}
             />
             {idx < frames.length - 1 && (
-              <GapZone afterIdx={idx} showDrop={dropTarget === idx + 1} setDropTarget={setDropTarget} />
+              <GapZone afterIdx={idx} showDrop={dropTarget === idx + 1} setDropTarget={setDropTarget} frameCount={frames.length} />
             )}
           </Fragment>
         ))}
