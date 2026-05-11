@@ -1,7 +1,7 @@
 # dark-matrix
 
-Framework16 LED Matrix control daemon. Two 9×34 LED modules (left/right), driven over
-USB serial via a persistent TypeScript/Node.js daemon + CLI.
+Framework16 LED Matrix control daemon and pixel animation designer. Two 9×34 LED modules
+(left/right), driven over USB serial via a persistent TypeScript/Node.js daemon + CLI.
 
 ---
 
@@ -54,6 +54,61 @@ The mapping is stored in `~/.config/dark-matrix/config.json`.
 
 ---
 
+## Designer
+
+A browser-based pixel animation editor. Launches a local HTTP server and opens the UI.
+
+```sh
+dark-matrix designer [--port <n>]   # default: 7340
+```
+
+### Features
+
+- **Draw** on a hardware-accurate pixel canvas; BW or grayscale palette
+- **Animate** — add, remove, clone, reorder frames; set per-frame delay; play/pause/loop
+- **Live preview** — streams frames to the physical modules over WebSocket as you draw
+- **Zoom** — 50% to 400%
+- **Undo/redo** — 50-level history; stroke-batched so dragging counts as one undo step
+- **Import** — open `.dmx.json` projects, PNG images, or GIFs (all converted to frame format)
+- **Export** — save `.dmx.json` project, export GIF, export single frame as PNG
+- **Session persistence** — state is saved to `localStorage`; refreshing the page restores your work
+- **Module detection** — polls `/api/modules` every 2s; hides dual-module UI when only one module is connected
+- **Mode picker** (`◫` button) — application mode switcher overlay (design mode active; other modes planned)
+
+### Project format
+
+Projects are saved as `.dmx.json` files:
+
+```jsonc
+{
+  "format": "dark-matrix-designer",
+  "version": 1,
+  "width": 9,        // 9 (single) or 18 (dual spanning)
+  "height": 34,
+  "mode": "bw",      // "bw" | "gray"
+  "loop": true,
+  "frames": [
+    { "delayMs": 100, "pixels": "<base64>" }
+  ]
+}
+```
+
+Pixel data is column-major: `pixels[col * 34 + row]`, base64-encoded.
+
+### Keyboard shortcuts
+
+| Key | Action |
+|---|---|
+| `Ctrl+Z` / `Ctrl+Y` | Undo / redo |
+| `Ctrl+S` | Save project |
+| `Ctrl+O` | Open project |
+| `Ctrl+N` | New project |
+| `+` / `-` | Zoom in / out |
+| `?` | Show all shortcuts |
+| `L` / `R` / `B` / `M` | Live preview target: left / right / both / mirror _(dual-module only)_ |
+
+---
+
 ## CLI Reference
 
 ```
@@ -70,6 +125,7 @@ dark-matrix <command>
 | `ping` | Check if daemon is running |
 | `release` | Release serial port handles (for compatibility with `matrix.sh`) |
 | `calibrate` | Confirm left/right module assignment |
+| `designer [--port <n>]` | Launch pixel animation designer (default port 7340) |
 
 ### Images
 
@@ -128,7 +184,6 @@ Generated on first run. Send `SIGHUP` to daemon to hot-reload without restart.
     "idle_gif_path": "/home/user/path/to/idle.gif",
     "idle_gif_mode": "gray",         // "bw" | "gray" (default: gray)
     "idle_gif_dual": false,          // true to span both modules
-    // to reload config without restarting: kill -HUP $(systemctl --user show -p MainPID dark-matrix | cut -d= -f2)
   }
 }
 ```
@@ -174,8 +229,21 @@ src/
 │   └── index.ts          # Event loop, source watchers, Unix socket IPC
 ├── cli/
 │   └── index.ts          # CLI commands
+├── designer/
+│   ├── format.ts         # .dmx.json project format + serialization
+│   ├── server.ts         # HTTP server (static + API) + WebSocket live preview
+│   └── web/
+│       ├── App.tsx        # Main application shell
+│       ├── store.ts       # Zustand state + localStorage session persistence
+│       ├── files.ts       # Import/export helpers
+│       └── components/
+│           ├── PixelCanvas.tsx   # Drawing surface
+│           ├── FrameStrip.tsx    # Animation frame list + drag-reorder
+│           ├── ColorPalette.tsx  # BW/grayscale color picker
+│           ├── MatrixPreview.tsx # Hardware-accurate pixel thumbnail
+│           ├── ModePicker.tsx    # App mode switcher overlay
+│           └── LivePreview.tsx   # WebSocket → daemon live preview bridge
 ├── lib/
-│   ├── modules.ts         # Left/right module resolver (by USB topology)
 │   ├── transport.ts       # BinaryTransport (one-shot) + SerialTransport (held port)
 │   ├── frame.ts           # Frame type: 9×34 Uint8Array + packBW helper
 │   ├── animation.ts       # Async iterator animation runtime + tick loop
@@ -187,8 +255,6 @@ src/
 │   ├── claude-source.ts   # Claude hook payload parser
 │   └── image-convert.ts  # Image → Frame conversion (sharp)
 └── animations/
-    ├── animation.ts       # Tick loop + fps pacing
-    ├── brightness.ts      # Brightness-based frame adjuster
     ├── gol.ts             # Game of Life
     ├── scroll.ts          # Dual-module text scroll
     ├── gif.ts             # GIF decoder + frame iterator
@@ -199,14 +265,23 @@ src/
 ```
 
 **Transport modes:**
-- `BinaryTransport` — shells out to `inputmodule-control` per command. Safe for one-shot
-  use; daemon uses this for static frames and commands.
-- `SerialTransport` — holds the serial port open for animation. Daemon acquires on
-  animation start, releases on stop. Use `dark-matrix release` to reclaim port for
-  `matrix.sh` during transition.
+- `BinaryTransport` — shells out to `inputmodule-control` per command. Safe for one-shot use.
+- `SerialTransport` — holds the serial port open for animation. Acquired on animation start,
+  released on stop. Use `dark-matrix release` to reclaim the port for `matrix.sh`.
 
 **Frame storage:** column-major `Uint8Array` (`frame[col * 34 + row]`).
 Wire format for BW frames is row-major — `packBW` handles the transposition.
+
+**Designer server API:**
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/import` | POST | Multipart upload — converts PNG/GIF/JSON to project format |
+| `/api/export/gif` | POST | Render project frames to animated GIF |
+| `/api/export/png` | POST | Render a single frame to PNG |
+| `/api/modules` | GET | Returns `{ left, right }` availability from daemon |
+| `/api/prefs` | GET/PUT | Persist designer UI preferences |
+| `/ws` | WebSocket | Live preview — streams frame commands to daemon |
 
 ---
 
@@ -214,7 +289,7 @@ Wire format for BW frames is row-major — `packBW` handles the transposition.
 
 ```sh
 pnpm build          # compile TS → dist/
-pnpm test           # vitest (167 tests)
+pnpm test           # vitest (~290 tests)
 pnpm test --watch   # watch mode
 ```
 
@@ -235,6 +310,7 @@ systemctl --user restart dark-matrix
 - [ ] Verify left/right calibration is correct on hardware (run `dark-matrix calibrate`)
 - [x] Audio EQ: `idle_eq_source: "monitor" | "mic"` config key
 - [x] GIF idle animation: `idle_animation: "gif"` + `idle_gif_path`, `idle_gif_mode`, `idle_gif_dual` config keys
+- [x] Pixel animation designer (`dark-matrix designer`)
 
 ### Medium priority
 
@@ -243,6 +319,7 @@ systemctl --user restart dark-matrix
 - [ ] Scroll speed config in `daemon` config block (not just CLI flag)
 - [ ] Multiple idle animations in rotation (round-robin or random)
 - [ ] `dark-matrix status` — show current intent, brightness, module paths
+- [ ] Additional app modes beyond designer (hud, audio, ai, etc.)
 
 ### Low priority / nice to have
 
