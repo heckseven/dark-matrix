@@ -15,7 +15,7 @@ export const MODES: { id: AppMode; label: string }[] = [
   { id: 'video',  label: 'video' },
   { id: 'ai',     label: 'ai' },
   { id: 'runes',  label: 'runes' },
-  { id: 'games',  label: 'games' },
+  { id: 'games',  label: 'life' },
   { id: 'design', label: 'design' },
 ];
 
@@ -81,10 +81,8 @@ export function ModePicker({ activeMode, dualModule, onSelect, onClose }: {
       className="fixed inset-0 z-50 bg-background flex flex-col font-mono"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <header className="relative flex items-center pl-7 pr-5 py-4">
-        <div className="absolute inset-x-0 flex justify-center pointer-events-none">
-          <p className="font-mono text-xs text-foreground"><span aria-hidden="true">◫</span> dark matrix</p>
-        </div>
+      <header className="flex items-center justify-center pl-7 pr-5 py-4 min-h-[58px]">
+        <p className="font-mono text-xs text-foreground"><span aria-hidden="true">◫</span> dark matrix</p>
       </header>
       <div
         role="group"
