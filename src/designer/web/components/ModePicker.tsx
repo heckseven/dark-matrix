@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { MatrixPreview } from './MatrixPreview.js';
-
-const BLANK = 'A'.repeat(408); // 306 zero bytes (9×34)
+import { MODE_ICONS } from '../mode-icons.js';
 
 export type AppMode = 'hud' | 'data' | 'audio' | 'video' | 'ai' | 'runes' | 'games' | 'design';
 
@@ -16,11 +15,10 @@ export const MODES: { id: AppMode; label: string }[] = [
   { id: 'design', label: 'design' },
 ];
 
-function ModeCard({ id, label, active, dualModule, onSelect }: {
-  id: AppMode;
+function ModeCard({ label, active, pixels, onSelect }: {
   label: string;
   active: boolean;
-  dualModule: boolean;
+  pixels: string;
   onSelect: () => void;
 }) {
   const c = { position: 'absolute', width: 16, height: 16, pointerEvents: 'none' } as const;
@@ -39,9 +37,8 @@ function ModeCard({ id, label, active, dualModule, onSelect }: {
         <span style={{ ...c, bottom: 0, left: 0,    borderBottom: b, borderLeft: b }} />
         <span style={{ ...c, bottom: 0, right: 0,   borderBottom: b, borderRight: b }} />
       </div>
-      <div className="flex gap-1" aria-hidden="true">
-        <MatrixPreview pixels={BLANK} width={9} />
-        {dualModule && <MatrixPreview pixels={BLANK} width={9} />}
+      <div aria-hidden="true">
+        <MatrixPreview pixels={pixels} width={18} />
       </div>
       <span className="font-mono text-xs text-foreground">{label}</span>
     </button>
@@ -85,13 +82,12 @@ export function ModePicker({ activeMode, dualModule, onSelect, onClose }: {
         aria-label="Application mode"
         className="flex-1 flex flex-wrap gap-10 content-center justify-center px-10 pb-10"
       >
-        {MODES.map(m => (
+        {MODES.map((m, i) => (
           <ModeCard
             key={m.id}
-            id={m.id}
             label={m.label}
             active={m.id === activeMode}
-            dualModule={dualModule}
+            pixels={MODE_ICONS[i] ?? MODE_ICONS[0]!}
             onSelect={() => { onSelect(m.id); onClose(); }}
           />
         ))}
