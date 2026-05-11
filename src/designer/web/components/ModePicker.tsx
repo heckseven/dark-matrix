@@ -2,6 +2,10 @@ import { useEffect, useRef } from 'react';
 import { MatrixPreview } from './MatrixPreview.js';
 import { MODE_ICONS } from '../mode-icons.js';
 
+function leftHalf(pixels: string): string {
+  try { return btoa(atob(pixels).slice(0, 9 * 34)); } catch { return pixels; }
+}
+
 export type AppMode = 'hud' | 'data' | 'audio' | 'video' | 'ai' | 'runes' | 'games' | 'design';
 
 export const MODES: { id: AppMode; label: string }[] = [
@@ -15,10 +19,11 @@ export const MODES: { id: AppMode; label: string }[] = [
   { id: 'design', label: 'design' },
 ];
 
-function ModeCard({ label, active, pixels, onSelect }: {
+function ModeCard({ label, active, pixels, dualModule, onSelect }: {
   label: string;
   active: boolean;
   pixels: string;
+  dualModule: boolean;
   onSelect: () => void;
 }) {
   const c = { position: 'absolute', width: 16, height: 16, pointerEvents: 'none' } as const;
@@ -38,7 +43,7 @@ function ModeCard({ label, active, pixels, onSelect }: {
         <span style={{ ...c, bottom: 0, right: 0,   borderBottom: b, borderRight: b }} />
       </div>
       <div aria-hidden="true">
-        <MatrixPreview pixels={pixels} width={18} />
+        <MatrixPreview pixels={dualModule ? pixels : leftHalf(pixels)} width={dualModule ? 18 : 9} />
       </div>
       <span className="font-mono text-xs text-foreground">{label}</span>
     </button>
@@ -88,6 +93,7 @@ export function ModePicker({ activeMode, dualModule, onSelect, onClose }: {
             label={m.label}
             active={m.id === activeMode}
             pixels={MODE_ICONS[i] ?? MODE_ICONS[0]!}
+            dualModule={dualModule}
             onSelect={() => { onSelect(m.id); onClose(); }}
           />
         ))}
