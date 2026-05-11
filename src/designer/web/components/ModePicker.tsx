@@ -78,10 +78,14 @@ export function ModePicker({ activeMode, dualModule, onSelect, onClose }: {
       role="dialog"
       aria-label="Mode picker"
       aria-modal="true"
-      className="fixed inset-0 z-50 bg-background flex flex-col items-center font-mono"
+      className="fixed inset-0 z-50 bg-background flex flex-col font-mono"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <p className="mt-10 text-sm text-foreground"><span aria-hidden="true">◫</span> dark matrix</p>
+      <header className="relative flex items-center pl-7 pr-5 py-4">
+        <div className="absolute inset-x-0 flex justify-center pointer-events-none">
+          <p className="font-mono text-xs text-foreground"><span aria-hidden="true">◫</span> dark matrix</p>
+        </div>
+      </header>
       <div
         role="group"
         aria-label="Application mode"
