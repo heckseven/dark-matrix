@@ -18,7 +18,7 @@ export type RunOptions = {
 // Runs an animation, pulling frames from the async iterator and sending to
 // transport at the target fps. Frame timing is wall-clock anchored (not
 // chained) so late frames don't compound delay.
-// Returns a disposer that stops the animation and releases the port.
+// Returns a disposer that stops the animation. Port is released only on natural completion.
 export function runAnimation(anim: Animation, opts: RunOptions): () => void {
   const { transport, devicePath, mode = 'bw', fps = 30 } = opts;
   const frameMs = 1000 / fps;
@@ -28,10 +28,12 @@ export function runAnimation(anim: Animation, opts: RunOptions): () => void {
 
   const loop = async () => {
     let nextAt = Date.now();
+    let natural = false;
 
     while (!stopped) {
       const result = await iter.next();
-      if (result.done || stopped) break;
+      if (stopped) break;
+      if (result.done) { natural = true; break; }
 
       const frame = result.value;
       try {
@@ -50,7 +52,9 @@ export function runAnimation(anim: Animation, opts: RunOptions): () => void {
       if (wait > 0) await new Promise<void>(r => setTimeout(r, wait));
     }
 
-    await transport.release(devicePath);
+    // Only release on natural completion — external stop means another
+    // operation (e.g. live preview frame) is about to reuse the open port.
+    if (natural) await transport.release(devicePath).catch(() => {});
   };
 
   void loop();
