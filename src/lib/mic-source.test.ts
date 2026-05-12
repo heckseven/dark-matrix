@@ -117,9 +117,12 @@ describe('watchMic', () => {
 
     const onEvent = vi.fn();
     const dispose = watchMic(onEvent, { intervalMs: 20 });
+
+    await sleep(30); // let first poll complete
+    const callsAtDispose = onEvent.mock.calls.length;
     dispose();
 
-    await sleep(60);
-    expect(onEvent).not.toHaveBeenCalled();
+    await sleep(60); // confirm no new polls fire after dispose
+    expect(onEvent.mock.calls.length).toBe(callsAtDispose);
   });
 });

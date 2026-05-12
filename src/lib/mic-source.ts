@@ -42,8 +42,8 @@ export function watchMic(
         prev = active;
         onEvent({ active });
       }
-    } catch {
-      // pactl unavailable — non-fatal
+    } catch (err) {
+      process.stderr.write(`dark-matrix: mic-source: pactl poll failed: ${String(err)}\n`);
     } finally {
       polling = false;
     }
