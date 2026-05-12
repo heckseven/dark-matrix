@@ -1,7 +1,7 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'ripple' | 'life' | 'life-fade' | 'life-strict' | 'life-wave';
+export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'ripple' | 'life' | 'life-strict' | 'life-pulse' | 'life-wave';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'dark-matter',     label: 'dark matter' },
@@ -10,8 +10,8 @@ export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'wake',            label: 'wake' },
   { id: 'ripple',          label: 'ripple' },
   { id: 'life',            label: 'life' },
-  { id: 'life-fade',       label: 'life fade' },
   { id: 'life-strict',     label: 'life strict' },
+  { id: 'life-pulse',      label: 'life pulse' },
   { id: 'life-wave',       label: 'life wave' },
   { id: 'eq-bars',         label: 'eq bars' },
   { id: 'spectrum-fall',   label: 'spectrum fall' },
@@ -382,7 +382,7 @@ function ripple(): Renderer {
   };
 }
 
-type LifeOpts = { seedRate: number; threshold: number; decay: number; survive: (n: number) => boolean; born: (n: number) => boolean; wipeOnTransient?: boolean };
+type LifeOpts = { seedRate: number; threshold: number; decay: number; survive: (n: number) => boolean; born: (n: number) => boolean; transientWipe?: number };
 
 function makeLife(opts: LifeOpts): Renderer {
   const cells = new Float32Array(BAND_COUNT * ROWS);
@@ -396,7 +396,9 @@ function makeLife(opts: LifeOpts): Renderer {
     smoothed = smoothed * 0.85 + t * 0.15;
     if (cooldown > 0) cooldown--;
     if (delta > 0.10 && cooldown === 0) {
-      if (opts.wipeOnTransient) cells.fill(0);
+      if (opts.transientWipe !== undefined) {
+        for (let i = 0; i < cells.length; i++) cells[i] = (cells[i] ?? 0) * opts.transientWipe;
+      }
       for (let col = 0; col < BAND_COUNT; col++) {
         const e = dbLevel(bands[col] ?? 0, gain, ref);
         for (let row = 0; row < ROWS; row++) {
@@ -435,12 +437,6 @@ function makeLife(opts: LifeOpts): Renderer {
 // Standard GoL rules, seeding toned down from original
 function life(): Renderer {
   return makeLife({ seedRate: 0.12, threshold: 0.4, decay: 0.75, survive: n => n === 2 || n === 3, born: n => n === 3 });
-}
-
-// Very sparse seeding, slow decay — isolated cells leave long phosphor trails
-// No births — cells only injected by transients, GoL only erodes, population strictly shrinks between beats
-function lifeFade(): Renderer {
-  return makeLife({ seedRate: 0.18, threshold: 0.45, decay: 0.80, survive: n => n === 2 || n === 3, born: () => false });
 }
 
 // Dual-generation: transient seeds "new" cells that can birth; existing cells age to "old" (survive only, no births).
@@ -519,9 +515,14 @@ function lifeWave(): Renderer {
   };
 }
 
-// Grid wiped on each transient — every beat is a fresh sparse GoL run, no accumulation between beats
+// Grid hard-cleared on each transient — every beat is a fresh sparse GoL run, no accumulation between beats
 function lifeStrict(): Renderer {
-  return makeLife({ seedRate: 0.10, threshold: 0.4, decay: 0.65, survive: n => n === 2 || n === 3, born: n => n === 3, wipeOnTransient: true });
+  return makeLife({ seedRate: 0.10, threshold: 0.4, decay: 0.65, survive: n => n === 2 || n === 3, born: n => n === 3, transientWipe: 0 });
+}
+
+// Like life-strict but transient multiplies cells toward zero instead of hard-clearing — softer flash between beats
+function lifePulse(): Renderer {
+  return makeLife({ seedRate: 0.10, threshold: 0.4, decay: 0.65, survive: n => n === 2 || n === 3, born: n => n === 3, transientWipe: 0.15 });
 }
 
 const FACTORIES: Record<AudioStyle, () => Renderer> = {
@@ -535,8 +536,8 @@ const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'wake':            wake,
   'ripple':          ripple,
   'life':            life,
-  'life-fade':       lifeFade,
   'life-strict':     lifeStrict,
+  'life-pulse':      lifePulse,
   'life-wave':       lifeWave,
   'bounce':          bounce,
   'waterfall':       waterfall,
