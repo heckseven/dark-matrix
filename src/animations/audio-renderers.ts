@@ -1,7 +1,7 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'sparks-tug' | 'sparks-kaleido' | 'sparks-kaleido-b' | 'flame-bars' | 'flame-sparks-a' | 'flame-life' | 'flame-life-a' | 'flame-life-b' | 'flame-life-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'drip' | 'drip-a' | 'life-erode-4';
+export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'bounce-drift' | 'bounce-gravity' | 'waterfall' | 'sparks' | 'sparks-tug' | 'sparks-kaleido' | 'sparks-kaleido-b' | 'flame-bars' | 'flame-sparks-a' | 'flame-life' | 'flame-life-a' | 'flame-life-b' | 'flame-life-sparks' | 'flame-life-sparks-a' | 'flame-life-sparks-b' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'drip' | 'drip-a' | 'life-erode-4';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'dark-matter',      label: 'dark matter' },
@@ -13,14 +13,18 @@ export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'flame-life',       label: 'flame life' },
   { id: 'flame-life-a',     label: 'flame life a' },
   { id: 'flame-life-b',     label: 'flame life b' },
-  { id: 'flame-life-sparks', label: 'flame life sparks' },
-  { id: 'drip',             label: 'drip' },
+  { id: 'flame-life-sparks',   label: 'flame life sparks' },
+  { id: 'flame-life-sparks-a', label: 'flame life sparks a' },
+  { id: 'flame-life-sparks-b', label: 'flame life sparks b' },
+  { id: 'drip',              label: 'drip' },
   { id: 'drip-a',           label: 'drip a' },
   { id: 'spectrum-fall',    label: 'spectrum fall' },
   { id: 'life-erode-4',     label: 'replicants' },
   { id: 'eq-bars',          label: 'eq bars' },
   { id: 'vu-meter',         label: 'vu meter' },
   { id: 'bounce',           label: 'bounce' },
+  { id: 'bounce-drift',     label: 'bounce drift' },
+  { id: 'bounce-gravity',   label: 'bounce gravity' },
   { id: 'waterfall',        label: 'waterfall' },
   { id: 'sparks',           label: 'sparks' },
   { id: 'sparks-tug',       label: 'sparks tug' },
@@ -103,6 +107,47 @@ function bounce(): Renderer {
     return frame;
   };
 }
+
+type Ball = { x: number; y: number; vx: number; vy: number };
+
+function makeBounce(gravity: number, restitution: number, lateralKick: number): Renderer {
+  const balls: Ball[] = Array.from({ length: BAND_COUNT }, (_, i) => ({
+    x: i, y: (ROWS - 1) * (i % 3) / 2, vx: 0, vy: 0,
+  }));
+  const envelope = new Float32Array(BAND_COUNT);
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    const frame = createFrame();
+    for (let i = 0; i < BAND_COUNT; i++) {
+      const ball = balls[i]!;
+      const col = Math.min(BAND_COUNT - 1, Math.max(0, Math.round(ball.x)));
+      const t = dbLevel(bands[col] ?? 0, gain, ref);
+      envelope[col] = Math.max(t, (envelope[col] ?? 0) * 0.88);
+      // physics step
+      ball.vy -= gravity;
+      ball.x  += ball.vx;
+      ball.y  += ball.vy;
+      // floor
+      if (ball.y <= 0) {
+        ball.y  = 0;
+        ball.vy = Math.max((envelope[col] ?? 0) * (ROWS - 1), -ball.vy * restitution);
+        ball.vx += (Math.random() - 0.5) * lateralKick;
+        ball.vx *= 0.80;
+      }
+      // ceiling
+      if (ball.y >= ROWS - 1) { ball.y = ROWS - 1; ball.vy = -Math.abs(ball.vy) * 0.4; }
+      // walls
+      if (ball.x < 0)             { ball.x = 0;             ball.vx =  Math.abs(ball.vx) * 0.8; }
+      if (ball.x > BAND_COUNT - 1) { ball.x = BAND_COUNT - 1; ball.vx = -Math.abs(ball.vx) * 0.8; }
+      const r = ROWS - 1 - Math.round(Math.min(ROWS - 1, Math.max(0, ball.y)));
+      const c = Math.round(Math.min(BAND_COUNT - 1, Math.max(0, ball.x)));
+      frame[c * ROWS + r] = 255;
+    }
+    return frame;
+  };
+}
+function bounceDrift():   Renderer { return makeBounce(0.5, 0.7, 2.0); }
+function bounceGravity(): Renderer { return makeBounce(1.2, 0.4, 0.8); }
 
 function waterfall(): Renderer {
   const history: Uint8Array[] = Array.from({ length: ROWS }, () => new Uint8Array(BAND_COUNT));
@@ -279,8 +324,8 @@ function makeFlameSparks(spawnsPerFrame: number, sparkDecay = 0.85, riseBase = 0
 }
 function flameSparksA(): Renderer { return makeFlameSparks(4, 0.93, 0.6); }
 
-function flameLifeSparks(): Renderer {
-  const lifeR   = makeFlameLife(0.70);
+function makeFlameLifeSparks(cull: number, centerSeed: boolean, heightScale: number): Renderer {
+  const lifeR   = makeFlameLife(cull, centerSeed, heightScale);
   const sparksR = makeFlameSparks(4, 0.93, 0.6, true);
   return (ctx) => {
     const lifeFrame   = lifeR(ctx);
@@ -290,8 +335,11 @@ function flameLifeSparks(): Renderer {
     return lifeFrame;
   };
 }
+function flameLifeSparks():  Renderer { return makeFlameLifeSparks(0.70, false, 1.0); }
+function flameLifeSparksA(): Renderer { return makeFlameLifeSparks(0.70, false, 0.50); }
+function flameLifeSparksB(): Renderer { return makeFlameLifeSparks(0.70, false, 0.25); }
 
-function makeFlameLife(cull: number, centerSeed = false): Renderer {
+function makeFlameLife(cull: number, centerSeed = false, heightScale = 1.0): Renderer {
   const envelope = new Float32Array(BAND_COUNT);
   const cells = new Float32Array(BAND_COUNT * ROWS);
   for (let i = 0; i < cells.length; i++) if (Math.random() < 0.35) cells[i] = 1.0;
@@ -303,7 +351,7 @@ function makeFlameLife(cull: number, centerSeed = false): Renderer {
       const t = dbLevel(bands[BAND_COUNT - 1 - col] ?? 0, gain, ref);
       envelope[col] = t > (envelope[col] ?? 0) ? t : (envelope[col] ?? 0) * 0.85 + t * 0.15;
       const flicker = (envelope[col] ?? 0) * (0.7 + Math.random() * 0.5);
-      heights[col] = Math.round(Math.min(1, flicker) * ROWS);
+      heights[col] = Math.round(Math.min(1, flicker) * ROWS * heightScale);
     }
     const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
     const tAvg = dbLevel(avg, gain, ref);
@@ -486,7 +534,7 @@ function wake(): Renderer {
     slow = slow * 0.95 + t * 0.05;
     const delta = fast - slow;
     if (cooldown > 0) cooldown--;
-    if (delta > 0.07 && cooldown === 0) { waves.push(ROWS - 1); cooldown = 8; }
+    if (delta > 0.03 && cooldown === 0) { waves.push(ROWS - 1); cooldown = 8; }
     for (let w = waves.length - 1; w >= 0; w--) {
       waves[w]! -= 0.5 + t * 2.0;
       if (waves[w]! < 0) {
@@ -515,7 +563,7 @@ function tickRipples(ripples: Ripple[], bands: number[], gain: number, ref: numb
   smoothed.fast = smoothed.fast * 0.5 + t * 0.5;
   smoothed.slow = smoothed.slow * 0.95 + t * 0.05;
   const delta = smoothed.fast - smoothed.slow;
-  if (cooldown.v > 0) { cooldown.v--; } else if (delta > 0.06) {
+  if (cooldown.v > 0) { cooldown.v--; } else if (delta > 0.02) {
     const totalE = bands.reduce((s, e) => s + e, 0);
     const cx = totalE > 0 ? bands.reduce((s, e, i) => s + e * i, 0) / totalE : BAND_COUNT / 2;
     ripples.push({ cx, cy: ROWS / 2 + (Math.random() - 0.5) * ROWS * 0.5, r: 0 });
@@ -667,6 +715,8 @@ const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'drip-a':             dripA,
   'life-erode-4':       lifeErode4,
   'bounce':             bounce,
+  'bounce-drift':       bounceDrift,
+  'bounce-gravity':     bounceGravity,
   'waterfall':          waterfall,
   'sparks':             sparks,
   'sparks-tug':         sparksTug,
@@ -677,7 +727,9 @@ const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'flame-life':         flameLife,
   'flame-life-a':       flameLifeA,
   'flame-life-b':       flameLifeB,
-  'flame-life-sparks':  flameLifeSparks,
+  'flame-life-sparks':    flameLifeSparks,
+  'flame-life-sparks-a':  flameLifeSparksA,
+  'flame-life-sparks-b':  flameLifeSparksB,
 };
 
 export function createRenderer(style: AudioStyle): Renderer {
