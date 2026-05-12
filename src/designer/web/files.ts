@@ -79,6 +79,44 @@ export async function saveProjectAs(store: FileStoreCompat, name = 'project'): P
   triggerDownload(new Blob([json], { type: 'application/json' }), `${safe}.dmx.json`);
 }
 
+export async function saveToLibrary(store: FileStoreCompat, name = 'untitled_animation'): Promise<string> {
+  const safe = sanitizeFilename(name);
+  const resp = await fetch('/api/library', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: safe, project: buildProject(store) }),
+  });
+  if (!resp.ok) throw new Error(`Save failed: ${resp.status}`);
+  const data = await resp.json() as { ok: boolean; name: string };
+  if (!data.ok) throw new Error('Save failed');
+  return data.name;
+}
+
+export async function saveLibraryCopy(store: FileStoreCompat, name = 'untitled_animation'): Promise<void> {
+  const safe = sanitizeFilename(name);
+  const resp = await fetch('/api/library', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: safe, project: buildProject(store), copy: true }),
+  });
+  if (!resp.ok) throw new Error(`Save copy failed: ${resp.status}`);
+  const data = await resp.json() as { ok: boolean };
+  if (!data.ok) throw new Error('Save copy failed');
+}
+
+export async function renameLibraryFile(oldName: string, newName: string): Promise<string> {
+  const safe = sanitizeFilename(newName);
+  const resp = await fetch(`/api/library/${encodeURIComponent(oldName)}/rename`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ newName: safe }),
+  });
+  if (!resp.ok) throw new Error(`Rename failed: ${resp.status}`);
+  const data = await resp.json() as { ok: boolean; name: string };
+  if (!data.ok) throw new Error('Rename failed');
+  return data.name;
+}
+
 export async function exportGif(store: FileStoreCompat): Promise<void> {
   const resp = await fetch('/api/export/gif', {
     method: 'POST',

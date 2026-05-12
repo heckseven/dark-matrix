@@ -52,6 +52,32 @@ function prefsPath(configDir?: string): string {
   return path.join(dir, 'designer-prefs.json');
 }
 
+function libraryDir(configDir?: string): string {
+  const dir = configDir ?? path.join(os.homedir(), '.config', 'dark-matrix');
+  return path.join(dir, 'library');
+}
+
+function safeLibraryPath(name: string, configDir?: string): string | null {
+  const base = path.basename(name);
+  if (!/^[\w\s\-]{1,100}$/.test(base)) return null;
+  const stem = base.replace(/\.dmx\.json$/i, '');
+  const dir = libraryDir(configDir);
+  const candidate = path.join(dir, `${stem}.dmx.json`);
+  if (!candidate.startsWith(dir + path.sep)) return null;
+  return candidate;
+}
+
+async function uniqueLibraryCopyPath(stem: string, dir: string): Promise<string> {
+  const base = `${stem}_copy`;
+  let candidate = path.join(dir, `${base}.dmx.json`);
+  try { await fs.access(candidate); } catch { return candidate; }
+  for (let i = 2; i <= 99; i++) {
+    candidate = path.join(dir, `${base}_${i}.dmx.json`);
+    try { await fs.access(candidate); } catch { return candidate; }
+  }
+  return candidate;
+}
+
 async function loadPrefs(configDir?: string): Promise<DesignerPrefs> {
   try {
     const raw = await fs.readFile(prefsPath(configDir), 'utf8');
@@ -480,6 +506,130 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
         res.end(JSON.stringify({ ok: false, error: 'bad request' }));
       }
       return;
+    }
+
+    // Library list
+    if (url === '/api/library' && method === 'GET') {
+      try {
+        const dir = libraryDir(configDir);
+        await fs.mkdir(dir, { recursive: true });
+        const entries = await fs.readdir(dir);
+        const files = entries
+          .filter(e => /\.dmx\.json$/i.test(e))
+          .map(e => ({ name: e.replace(/\.dmx\.json$/i, '') }));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, files }));
+      } catch {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'failed to list library' }));
+      }
+      return;
+    }
+
+    // Library save
+    if (url === '/api/library' && method === 'POST') {
+      try {
+        const body = await readBody(req);
+        const parsed = JSON.parse(body) as { name?: unknown; project?: unknown; copy?: unknown };
+        if (typeof parsed.name !== 'string' || !parsed.name) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'missing name' }));
+          return;
+        }
+        const filePath = safeLibraryPath(parsed.name, configDir);
+        if (!filePath) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid name' }));
+          return;
+        }
+        const dir = libraryDir(configDir);
+        await fs.mkdir(dir, { recursive: true });
+        let targetPath = filePath;
+        if (parsed.copy) {
+          const stem = path.basename(parsed.name as string).replace(/\.dmx\.json$/i, '');
+          targetPath = await uniqueLibraryCopyPath(stem, dir);
+        }
+        const project = parsed.project;
+        const result = DmxProjectExportSchema.shape.project.safeParse(project);
+        if (!result.success) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: result.error.message }));
+          return;
+        }
+        const tmp = targetPath + '.tmp';
+        await fs.writeFile(tmp, JSON.stringify(result.data, null, 2) + '\n', { mode: 0o600 });
+        await fs.rename(tmp, targetPath);
+        const savedName = path.basename(targetPath).replace(/\.dmx\.json$/i, '');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, name: savedName }));
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'bad request' }));
+      }
+      return;
+    }
+
+    // Library single-file operations
+    const libMatch = url.match(/^\/api\/library\/([^/]+)(\/rename)?$/);
+    if (libMatch) {
+      const rawName = decodeURIComponent(libMatch[1]!);
+      const isRename = !!libMatch[2];
+
+      if (method === 'GET' && !isRename) {
+        const filePath = safeLibraryPath(rawName, configDir);
+        if (!filePath) { res.writeHead(400); res.end(); return; }
+        try {
+          const content = await fs.readFile(filePath, 'utf-8');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(content);
+        } catch {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'not found' }));
+        }
+        return;
+      }
+
+      if (method === 'PUT' && isRename) {
+        const oldPath = safeLibraryPath(rawName, configDir);
+        if (!oldPath) { res.writeHead(400); res.end(); return; }
+        try {
+          const body = await readBody(req);
+          const parsed = JSON.parse(body) as { newName?: unknown };
+          if (typeof parsed.newName !== 'string' || !parsed.newName) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: 'missing newName' }));
+            return;
+          }
+          const newPath = safeLibraryPath(parsed.newName, configDir);
+          if (!newPath) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: 'invalid newName' }));
+            return;
+          }
+          await fs.rename(oldPath, newPath);
+          const newName = path.basename(newPath).replace(/\.dmx\.json$/i, '');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, name: newName }));
+        } catch {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'rename failed' }));
+        }
+        return;
+      }
+
+      if (method === 'DELETE' && !isRename) {
+        const filePath = safeLibraryPath(rawName, configDir);
+        if (!filePath) { res.writeHead(400); res.end(); return; }
+        try {
+          await fs.unlink(filePath);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true }));
+        } catch {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'not found' }));
+        }
+        return;
+      }
     }
 
     // Module availability — proxies daemon status command

@@ -22,8 +22,9 @@ const ConfigSchema = z.object({
     manual_value: z.number().int().min(0).max(255),
   }),
   startup: z.object({
-    animation: z.enum(['gol-random', 'scroll', 'image', 'none']),
+    animation: z.enum(['gol-random', 'scroll', 'dmx', 'none']),
     scroll_text: z.string().max(100),
+    dmx_path: z.string().regex(/\.dmx\.json$/i).optional(),
   }),
   daemon: z.object({
     poll_interval_ms: z.number().int().min(100).max(60000),

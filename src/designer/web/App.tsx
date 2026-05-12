@@ -9,11 +9,10 @@ import { Input } from './components/ui/input.js';
 import { Text } from './components/ui/text.js';
 import { Tooltip, TooltipProvider } from './components/ui/tooltip.js';
 import { Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger } from './components/ui/menu.js';
-import { saveProjectAs, importFile } from './files.js';
+import { saveToLibrary, saveLibraryCopy, renameLibraryFile, exportProject, importFile } from './files.js';
 import { useDesignerStore, designerStore, stepZoom, ZOOM_STEPS, ROWS, DEFAULT_WIDTH } from './store.js';
 import { ShortcutDialog } from './components/ui/shortcut-dialog.js';
 import { ModePicker } from './components/ModePicker.js';
-import type { AppMode } from './components/ModePicker.js';
 
 function storeCompat() {
   return { state: designerStore.getState(), loadProject: (p: unknown) => designerStore.getState().loadProject(p) };
@@ -24,6 +23,7 @@ function newProject() {
   designerStore.getState().loadProject({ frames: [{ delayMs: 100, pixels: blank }], width: DEFAULT_WIDTH, mode: 'bw', loop: true });
   designerStore.getState().setProjectTitle('untitled_animation');
   designerStore.getState().setPreviewTarget('left');
+  designerStore.getState().setLibraryPath(null);
   designerStore.setState({ zoom: 1 });
 }
 
@@ -142,9 +142,10 @@ export function App() {
   const mode = useDesignerStore(s => s.mode);
   const previewTarget = useDesignerStore(s => s.previewTarget);
   const projectTitle = useDesignerStore(s => s.projectTitle);
+  const activeMode = useDesignerStore(s => s.activeMode);
+  const libraryPath = useDesignerStore(s => s.libraryPath);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [modePickerOpen, setModePickerOpen] = useState(false);
-  const [activeMode, setActiveMode] = useState<AppMode>('design');
   const [livePreviewOn, setLivePreviewOn] = useState(false);
   const bridge = usePreviewBridge();
   const [cursor, setCursor] = useState({ col: 0, row: 0 });
@@ -220,7 +221,7 @@ export function App() {
         <ModePicker
           activeMode={activeMode}
           dualModule={dualModule}
-          onSelect={setActiveMode}
+          onSelect={m => designerStore.getState().setActiveMode(m)}
           onClose={() => setModePickerOpen(false)}
         />
       )}
@@ -238,6 +239,7 @@ export function App() {
               importFile(file, storeCompat()).then(() => {
                 const title = file.name.replace(/\.dmx\.json$/i, '').replace(/\.json$/i, '');
                 if (title) designerStore.getState().setProjectTitle(title);
+                designerStore.getState().setLibraryPath(null);
               }).catch(console.error);
             }
             e.target.value = '';
@@ -255,7 +257,14 @@ export function App() {
                 <MenuItem shortcut="^n" onSelect={newProject}>new</MenuItem>
                 <MenuItem shortcut="^o" onSelect={() => fileInputRef.current?.click()}>open</MenuItem>
                 <MenuSeparator />
-                <MenuItem shortcut="^s" onSelect={() => saveProjectAs(storeCompat(), projectTitle).catch(console.error)}>save</MenuItem>
+                <MenuItem shortcut="^s" onSelect={() => {
+                  saveToLibrary(storeCompat(), projectTitle)
+                    .then(name => designerStore.getState().setLibraryPath(name))
+                    .catch(console.error);
+                }}>save</MenuItem>
+                <MenuItem shortcut="^S" onSelect={() => saveLibraryCopy(storeCompat(), projectTitle).catch(console.error)}>save as</MenuItem>
+                <MenuSeparator />
+                <MenuItem onSelect={() => exportProject(storeCompat(), projectTitle)}>export</MenuItem>
               </MenuContent>
             </Menu>
             {dualModule && (
@@ -279,7 +288,15 @@ export function App() {
           </div>
           <div className="absolute inset-x-0 flex justify-center pointer-events-none">
             <div className="pointer-events-auto">
-              <ProjectTitle value={projectTitle} onChange={v => designerStore.getState().setProjectTitle(v)} />
+              <ProjectTitle value={projectTitle} onChange={v => {
+                designerStore.getState().setProjectTitle(v);
+                const lp = libraryPath;
+                if (lp !== null && v !== projectTitle) {
+                  renameLibraryFile(lp, v)
+                    .then(newName => designerStore.getState().setLibraryPath(newName))
+                    .catch(console.error);
+                }
+              }} />
             </div>
           </div>
           <div className="flex-1" />
