@@ -1,7 +1,7 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'cascade' | 'cipher' | 'wake' | 'wake-transient';
+export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'cascade' | 'cipher' | 'wake' | 'wake-transient' | 'wake-multi';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'dark-matter',     label: 'dark matter' },
@@ -9,6 +9,7 @@ export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'cipher',          label: 'cipher' },
   { id: 'wake',            label: 'wake' },
   { id: 'wake-transient',  label: 'wake transient' },
+  { id: 'wake-multi',      label: 'wake multi' },
   { id: 'eq-bars',         label: 'eq bars' },
   { id: 'spectrum-fall',   label: 'spectrum fall' },
   { id: 'vu-meter',        label: 'vu meter' },
@@ -361,6 +362,39 @@ function wakeTransient(): Renderer {
   };
 }
 
+function wakeMulti(): Renderer {
+  const waves: number[] = [];
+  let smoothed = 0;
+  let cooldown = 0;
+  const glow = new Float32Array(BAND_COUNT * ROWS);
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
+    const t = dbLevel(avg, gain, ref);
+    const delta = t - smoothed;
+    smoothed = smoothed * 0.85 + t * 0.15;
+    if (cooldown > 0) cooldown--;
+    if (delta > 0.12 && cooldown === 0) { waves.push(0); cooldown = 8; }
+    for (let w = waves.length - 1; w >= 0; w--) {
+      waves[w]! += 0.5 + t * 2.0;
+      if (waves[w]! >= ROWS) {
+        waves.splice(w, 1);
+      } else {
+        const sr = Math.round(waves[w]!);
+        for (let col = 0; col < BAND_COUNT; col++) {
+          glow[col * ROWS + sr] = dbLevel(bands[col] ?? 0, gain, ref);
+        }
+      }
+    }
+    for (let i = 0; i < BAND_COUNT * ROWS; i++) glow[i] = (glow[i] ?? 0) * 0.88;
+    const frame = createFrame();
+    for (let i = 0; i < BAND_COUNT * ROWS; i++) {
+      frame[i] = Math.min(255, Math.round((glow[i] ?? 0) * 255));
+    }
+    return frame;
+  };
+}
+
 const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'eq-bars':         eqBars,
   'spectrum-fall':   spectrumFall,
@@ -371,6 +405,7 @@ const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'cipher':          cipher,
   'wake':            wake,
   'wake-transient':  wakeTransient,
+  'wake-multi':      wakeMulti,
   'bounce':          bounce,
   'waterfall':       waterfall,
   'sparks':          sparks,
