@@ -195,11 +195,35 @@ export function App() {
       if ((e.ctrlKey || e.metaKey) && !(e.target instanceof HTMLCanvasElement)) {
         if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); designerStore.getState().undo(); }
         else if (e.key === 'y' || (e.key === 'Z' && e.shiftKey)) { e.preventDefault(); designerStore.getState().redo(); }
+        else if (e.key === 's' && !e.shiftKey) {
+          e.preventDefault();
+          const { projectTitle: t } = designerStore.getState();
+          saveToLibrary(storeCompat(), t)
+            .then(name => { designerStore.getState().setLibraryPath(name); designerStore.getState().addRecentFile(name); })
+            .catch(console.error);
+        }
+        else if (e.key === 'S' && e.shiftKey) {
+          e.preventDefault();
+          const { projectTitle: t } = designerStore.getState();
+          saveLibraryCopy(storeCompat(), t)
+            .then(copyName => {
+              designerStore.getState().setProjectTitle(copyName);
+              designerStore.getState().setLibraryPath(copyName);
+              designerStore.getState().addRecentFile(copyName);
+            })
+            .catch(console.error);
+        }
         return;
       }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       switch (e.key) {
         case '?': e.preventDefault(); toggleShortcuts(); break;
+        case 'n': case 'N': {
+          e.preventDefault();
+          const { activeFrameIdx: afi } = designerStore.getState();
+          designerStore.getState().addFrame(afi);
+          break;
+        }
         case 'l': case 'L': if (dualModuleRef.current) { e.preventDefault(); designerStore.getState().setPreviewTarget('left'); } break;
         case 'r': case 'R': if (dualModuleRef.current) { e.preventDefault(); designerStore.getState().setPreviewTarget('right'); } break;
         case 'b': case 'B': if (dualModuleRef.current) { e.preventDefault(); designerStore.getState().setPreviewTarget('both'); } break;
@@ -258,8 +282,8 @@ export function App() {
                 <Button variant="ghost">file <span aria-hidden="true">▾</span></Button>
               </MenuTrigger>
               <MenuContent align="start">
-                <MenuItem shortcut="^n" onSelect={newProject}>new</MenuItem>
-                <MenuItem shortcut="^o" onSelect={() => fileInputRef.current?.click()}>open</MenuItem>
+                <MenuItem onSelect={newProject}>new</MenuItem>
+                <MenuItem onSelect={() => fileInputRef.current?.click()}>open</MenuItem>
                 {recentFiles.length > 0 && (
                   <MenuSub>
                     <MenuSubTrigger>open recent</MenuSubTrigger>
@@ -323,10 +347,11 @@ export function App() {
           <div className="absolute inset-x-0 flex justify-center pointer-events-none">
             <div className="pointer-events-auto">
               <ProjectTitle value={projectTitle} onChange={v => {
+                const { libraryPath: lp } = designerStore.getState();
                 designerStore.getState().setProjectTitle(v);
-                const { libraryPath: lp, projectTitle: currentTitle } = designerStore.getState();
-                if (lp !== null && v !== currentTitle) {
-                  renameLibraryFile(lp, v)
+                if (lp !== null) {
+                  const normalized = designerStore.getState().projectTitle;
+                  renameLibraryFile(lp, normalized)
                     .then(newName => designerStore.getState().setLibraryPath(newName))
                     .catch(console.error);
                 }
