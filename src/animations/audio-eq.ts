@@ -2,7 +2,10 @@ import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import type { Frame } from '../lib/frame.js';
 import type { Animation } from '../lib/animation.js';
-import { createFrame } from '../lib/frame.js';
+import { createRenderer } from './audio-renderers.js';
+import type { AudioStyle } from './audio-renderers.js';
+
+export type { AudioStyle };
 
 const require = createRequire(import.meta.url);
 const FFT = require('fft.js') as typeof import('fft.js');
@@ -14,15 +17,13 @@ export type AudioEqOptions = {
   loop?: boolean;
   fftSize?: number;
   gain?: number;
-  target?: string;  // pw-record --target override (node ID or name)
+  target?: string;  // pw-record --target override (resolved node ID)
+  style?: AudioStyle;
 };
 
 export interface AudioEqAnimation extends Animation {
   readonly source: AudioSource;
 }
-
-const MONITOR_NODE = 'alsa_output.pci-0000_c5_00.6.analog-stereo.monitor';
-const MIC_NODE = 'alsa_input.pci-0000_c5_00.6.analog-stereo';
 
 const BAND_EDGES = [20, 60, 120, 250, 500, 1000, 2000, 6000, 14000, 20000];
 const BAND_COUNT = 9;
@@ -60,32 +61,14 @@ function computeBandMagnitudes(
   return bands;
 }
 
-const MIN_DB = -60;
-
-function buildFrame(bands: number[], gain: number, fftSize: number): Frame {
-  const ref = fftSize / 2;
-  const frame = createFrame();
-
-  for (let col = 0; col < BAND_COUNT; col++) {
-    const mag = (bands[col] ?? 0) * gain;
-    const db = mag > 0 ? 20 * Math.log10(mag / ref) : MIN_DB;
-    const t = Math.max(0, Math.min(1, (db - MIN_DB) / -MIN_DB));
-    const height = Math.round(t * ROWS);
-
-    for (let row = 0; row < ROWS; row++) {
-      frame[col * ROWS + row] = row >= ROWS - height ? 255 : 0;
-    }
-  }
-
-  return frame;
-}
-
 export function createAudioEqAnimation(opts?: AudioEqOptions): AudioEqAnimation {
   const source = opts?.source ?? 'monitor';
   const fftSize = opts?.fftSize ?? 2048;
   const gain = opts?.gain ?? 1.0;
+  const style = opts?.style ?? 'eq-bars';
+  const renderer = createRenderer(style);
 
-  const targetNode = opts?.target ?? (source === 'monitor' ? MONITOR_NODE : MIC_NODE);
+  const targetArgs = opts?.target ? ['--target', opts.target] : [];
 
   let stopped = false;
   let resolveChunk: ((frame: Frame | null) => void) | null = null;
@@ -95,7 +78,7 @@ export function createAudioEqAnimation(opts?: AudioEqOptions): AudioEqAnimation 
 
   const proc = spawn(
     'pw-record',
-    ['--target', targetNode, '--format=s16', '--rate=48000', '--channels=1', '-'],
+    [...targetArgs, '--format=s16', '--rate=48000', '--channels=1', '-'],
     { stdio: ['ignore', 'pipe', 'ignore'] },
   );
 
@@ -118,7 +101,7 @@ export function createAudioEqAnimation(opts?: AudioEqOptions): AudioEqAnimation 
       fft.completeSpectrum(out);
 
       const bands = computeBandMagnitudes(out, fftSize);
-      const frame = buildFrame(bands, gain, fftSize);
+      const frame = renderer({ bands, gain, fftSize });
 
       if (resolveChunk) {
         const resolve = resolveChunk;

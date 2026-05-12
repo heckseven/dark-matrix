@@ -2,11 +2,14 @@ import { createStore } from 'zustand/vanilla';
 import { useStore } from 'zustand/react';
 import type { DmxFrame } from '../format.js';
 import type { AppMode } from './components/ModePicker.js';
+import type { AudioStyle } from '../../animations/audio-renderers.js';
 
 export type Frame = DmxFrame;
 export type PreviewTarget = 'left' | 'right' | 'both' | 'mirror';
+export type AudioSource = 'monitor' | 'mic';
 
 export type { AppMode };
+export type { AudioStyle };
 
 export interface DesignerState {
   frames: Frame[];
@@ -24,6 +27,8 @@ export interface DesignerState {
   strokeSnapshot: Frame[] | null;
   projectTitle: string;
   activeMode: AppMode;
+  audioStyle: AudioStyle;
+  audioSource: AudioSource;
   libraryPath: string | null;
   recentFiles: string[];
 }
@@ -53,6 +58,8 @@ export interface DesignerActions {
   loadProject(project: unknown): void;
   setProjectTitle(title: string): void;
   setActiveMode(mode: AppMode): void;
+  setAudioStyle(style: AudioStyle): void;
+  setAudioSource(source: AudioSource): void;
   setLibraryPath(path: string | null): void;
   addRecentFile(name: string): void;
 }
@@ -145,6 +152,8 @@ export function createDesignerStore() {
     strokeSnapshot: null,
     projectTitle: 'untitled_animation',
     activeMode: 'design',
+    audioStyle: 'eq-bars',
+    audioSource: 'monitor',
     libraryPath: null,
     recentFiles: [],
 
@@ -320,6 +329,8 @@ export function createDesignerStore() {
 
     setProjectTitle(title) { set({ projectTitle: title.trim() || 'untitled_animation' }); },
     setActiveMode(mode) { set({ activeMode: mode }); },
+    setAudioStyle(style) { set({ audioStyle: style }); },
+    setAudioSource(source) { set({ audioSource: source }); },
     setLibraryPath(p) { set({ libraryPath: p }); },
     addRecentFile(name) {
       const { recentFiles } = get();
@@ -343,7 +354,7 @@ const SESSION_KEY = 'dark-matrix-designer';
 type SessionSnapshot = Pick<DesignerState,
   'frames' | 'width' | 'mode' | 'loop' | 'activeFrameIdx' |
   'zoom' | 'activeColor' | 'previewTarget' | 'projectTitle' |
-  'activeMode' | 'libraryPath' | 'recentFiles'
+  'activeMode' | 'audioStyle' | 'audioSource' | 'libraryPath' | 'recentFiles'
 >;
 
 if (typeof localStorage !== 'undefined') {
@@ -364,6 +375,8 @@ if (typeof localStorage !== 'undefined') {
           ...(s.activeColor !== undefined ? { activeColor: s.activeColor } : {}),
           ...(s.previewTarget !== undefined ? { previewTarget: s.previewTarget } : {}),
           ...(s.activeMode !== undefined ? { activeMode: s.activeMode } : {}),
+          ...(s.audioStyle !== undefined ? { audioStyle: s.audioStyle } : {}),
+          ...(s.audioSource !== undefined ? { audioSource: s.audioSource } : {}),
           ...(s.libraryPath !== undefined ? { libraryPath: s.libraryPath } : {}),
           ...(Array.isArray(s.recentFiles) ? { recentFiles: (s.recentFiles as unknown[]).filter((f): f is string => typeof f === 'string').slice(0, 7) } : {}),
         });
@@ -377,9 +390,9 @@ if (typeof localStorage !== 'undefined') {
     if (_saveTimer) clearTimeout(_saveTimer);
     _saveTimer = setTimeout(() => {
       try {
-        const { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, libraryPath, recentFiles } = state;
+        const { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, libraryPath, recentFiles } = state;
         localStorage.setItem(SESSION_KEY, JSON.stringify(
-          { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, libraryPath, recentFiles } satisfies SessionSnapshot
+          { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, libraryPath, recentFiles } satisfies SessionSnapshot
         ));
       } catch { /* storage full or unavailable */ }
     }, 500);
