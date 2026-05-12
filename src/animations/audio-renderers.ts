@@ -1,12 +1,14 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'spectrum-mirror' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars';
+export type AudioStyle = 'eq-bars' | 'spectrum-mirror' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-waterfall' | 'vu-sparks';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'eq-bars',         label: 'eq bars' },
   { id: 'spectrum-mirror', label: 'spectrum mirror' },
   { id: 'vu-meter',        label: 'vu meter' },
+  { id: 'vu-waterfall',    label: 'vu waterfall' },
+  { id: 'vu-sparks',       label: 'vu sparks' },
   { id: 'bounce',          label: 'bounce' },
   { id: 'waterfall',       label: 'waterfall' },
   { id: 'sparks',          label: 'sparks' },
@@ -169,10 +171,73 @@ function flameBars(): Renderer {
   };
 }
 
+function vuWaterfall(): Renderer {
+  let peak = 0;
+  const history: Uint8Array[] = Array.from({ length: ROWS }, () => new Uint8Array(BAND_COUNT));
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
+    const t = dbLevel(avg, gain, ref);
+    const height = Math.round(t * ROWS);
+    peak = Math.max(t, peak * 0.98);
+    const peakRow = ROWS - 1 - Math.round(peak * (ROWS - 1));
+    const newRow = new Uint8Array(BAND_COUNT);
+    for (let b = 0; b < BAND_COUNT; b++) {
+      newRow[b] = Math.round(dbLevel(bands[b] ?? 0, gain, ref) * 255);
+    }
+    history.shift();
+    history.push(newRow);
+    const frame = createFrame();
+    for (let col = 0; col < BAND_COUNT; col++) {
+      for (let row = 0; row < ROWS; row++) {
+        if (row === peakRow && peak > t) { frame[col * ROWS + row] = 255; continue; }
+        if (row >= ROWS - height) {
+          frame[col * ROWS + row] = 255 - (history[row]?.[col] ?? 0);
+        }
+      }
+    }
+    return frame;
+  };
+}
+
+function vuSparks(): Renderer {
+  let peak = 0;
+  const grid = new Uint8Array(BAND_COUNT * ROWS);
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
+    const t = dbLevel(avg, gain, ref);
+    const height = Math.round(t * ROWS);
+    peak = Math.max(t, peak * 0.98);
+    const peakRow = ROWS - 1 - Math.round(peak * (ROWS - 1));
+    for (let row = 0; row < ROWS - 1; row++) {
+      for (let col = 0; col < BAND_COUNT; col++) {
+        grid[col * ROWS + row] = grid[col * ROWS + row + 1] ?? 0;
+      }
+    }
+    for (let col = 0; col < BAND_COUNT; col++) {
+      const energy = dbLevel(bands[col] ?? 0, gain, ref);
+      grid[col * ROWS + (ROWS - 1)] = Math.random() < energy ? 255 : 0;
+    }
+    const frame = createFrame();
+    for (let col = 0; col < BAND_COUNT; col++) {
+      for (let row = 0; row < ROWS; row++) {
+        if (row === peakRow && peak > t) { frame[col * ROWS + row] = 255; continue; }
+        if (row >= ROWS - height) {
+          frame[col * ROWS + row] = (grid[col * ROWS + row] ?? 0) > 0 ? 0 : 255;
+        }
+      }
+    }
+    return frame;
+  };
+}
+
 const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'eq-bars':         eqBars,
   'spectrum-mirror': spectrumMirror,
   'vu-meter':        vuMeter,
+  'vu-waterfall':    vuWaterfall,
+  'vu-sparks':       vuSparks,
   'bounce':          bounce,
   'waterfall':       waterfall,
   'sparks':          sparks,
