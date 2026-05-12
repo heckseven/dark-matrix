@@ -69,8 +69,11 @@ dark-matrix designer [--port <n>]   # default: 7340
 - **Live preview** — streams frames to the physical modules over WebSocket as you draw
 - **Zoom** — 50% to 400%
 - **Undo/redo** — 50-level history; stroke-batched so dragging counts as one undo step
-- **Import** — open `.dmx.json` projects, PNG images, or GIFs (all converted to frame format)
-- **Export** — save `.dmx.json` project, export GIF, export single frame as PNG
+- **Library** — save and open projects in `~/.config/dark-matrix/library/`; rename by editing the title
+- **Open recent** — last 7 saved/opened projects in the File menu, persisted across reloads
+- **Duplicate** — saves a `_copy` variant without overwriting the current file
+- **Import** — open `.dmx.json` projects from disk, PNG images, or GIFs (all converted to frame format)
+- **Export** — download `.dmx.json` project, export GIF, export single frame as PNG
 - **Session persistence** — state is saved to `localStorage`; refreshing the page restores your work
 - **Module detection** — polls `/api/modules` every 2s; hides dual-module UI when only one module is connected
 - **Mode picker** (`◫` button) — application mode switcher overlay (design mode active; other modes planned)
@@ -100,9 +103,9 @@ Pixel data is column-major: `pixels[col * 34 + row]`, base64-encoded.
 | Key | Action |
 |---|---|
 | `Ctrl+Z` / `Ctrl+Y` | Undo / redo |
-| `Ctrl+S` | Save project |
-| `Ctrl+O` | Open project |
-| `Ctrl+N` | New project |
+| `Ctrl+S` | Save to library |
+| `Ctrl+Shift+S` | Duplicate (save as copy) |
+| `N` | Add frame after current |
 | `+` / `-` | Zoom in / out |
 | `?` | Show all shortcuts |
 | `L` / `R` / `B` / `M` | Live preview target: left / right / both / mirror _(dual-module only)_ |
@@ -150,6 +153,8 @@ dark-matrix <command>
 | `animate gif --dual <path>` | Play a GIF spanning both modules (18×34 source) |
 | `animate gif --mode bw\|gray <path>` | Rendering mode |
 | `animate gif --hold <path>` | Loop until `release` |
+| `play <path>` | Play a `.dmx.json` project once, then return to idle |
+| `play --loop <path>` | Loop a `.dmx.json` project until `release` |
 
 ---
 
@@ -172,8 +177,9 @@ Generated on first run. Send `SIGHUP` to daemon to hot-reload without restart.
     "manual_value": 100
   },
   "startup": {
-    "animation": "gol-random",   // "gol-random" | "scroll" | "image" | "none"
-    "scroll_text": "DARK MATRIX"
+    "animation": "gol-random",   // "gol-random" | "scroll" | "dmx" | "none"
+    "scroll_text": "DARK MATRIX",
+    "dmx_path": "~/.config/dark-matrix/library/intro.dmx.json"  // required when animation = "dmx"
   },
   "daemon": {
     "poll_interval_ms": 500,
@@ -281,6 +287,11 @@ Wire format for BW frames is row-major — `packBW` handles the transposition.
 | `/api/export/png` | POST | Render a single frame to PNG |
 | `/api/modules` | GET | Returns `{ left, right }` availability from daemon |
 | `/api/prefs` | GET/PUT | Persist designer UI preferences |
+| `/api/library` | GET | List saved projects in `~/.config/dark-matrix/library/` |
+| `/api/library` | POST | Save project `{ name, project, copy? }` — `copy:true` writes a `_copy` variant |
+| `/api/library/:name` | GET | Load a saved project |
+| `/api/library/:name/rename` | PUT | Rename a project `{ newName }` |
+| `/api/library/:name` | DELETE | Delete a project |
 | `/ws` | WebSocket | Live preview — streams frame commands to daemon |
 
 ---
@@ -289,15 +300,22 @@ Wire format for BW frames is row-major — `packBW` handles the transposition.
 
 ```sh
 pnpm build          # compile TS → dist/
-pnpm test           # vitest (~290 tests)
+pnpm test           # vitest (~313 tests)
 pnpm test --watch   # watch mode
 ```
 
-Reinstall daemon after build changes:
+Deploy daemon changes after build:
+
+```sh
+cp -r dist/* ~/.local/share/dark-matrix/dist/
+systemctl --user restart dark-matrix
+```
+
+Or reinstall fully (also updates node binary and systemd unit):
 
 ```sh
 node dist/cli/index.js install --user-systemd
-systemctl --user restart dark-matrix
+systemctl --user daemon-reload && systemctl --user restart dark-matrix
 ```
 
 ---
