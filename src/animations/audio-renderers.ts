@@ -1,7 +1,7 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'sparks-squeeze' | 'sparks-spread' | 'sparks-tug' | 'flame-bars' | 'flame-sparks' | 'flame-sparks-2' | 'flame-sparks-3' | 'flame-sparks-4' | 'flame-sparks-hi' | 'flame-life' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'drip' | 'life-erode-4';
+export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'sparks-squeeze' | 'sparks-spread' | 'sparks-tug' | 'flame-bars' | 'flame-sparks-hi' | 'flame-life' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'drip' | 'life-erode-4';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'dark-matter',     label: 'dark matter' },
@@ -9,10 +9,6 @@ export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'cipher',          label: 'cipher' },
   { id: 'wake',            label: 'wake' },
   { id: 'flame-bars',      label: 'flame bars' },
-  { id: 'flame-sparks',    label: 'flame sparks' },
-  { id: 'flame-sparks-2',  label: 'flame sparks 2' },
-  { id: 'flame-sparks-3',  label: 'flame sparks 3' },
-  { id: 'flame-sparks-4',  label: 'flame sparks 4' },
   { id: 'flame-sparks-hi', label: 'flame sparks hi' },
   { id: 'flame-life',      label: 'flame life' },
   { id: 'drip',            label: 'drip' },
@@ -253,10 +249,6 @@ function makeFlameSparks(spawnsPerFrame: number, sparkDecay = 0.85, riseBase = 0
     return frame;
   };
 }
-function flameSparks():   Renderer { return makeFlameSparks(1); }
-function flameSparks2():  Renderer { return makeFlameSparks(3); }
-function flameSparks3():  Renderer { return makeFlameSparks(6); }
-function flameSparks4():  Renderer { return makeFlameSparks(12); }
 function flameSparksHi(): Renderer { return makeFlameSparks(12, 0.93, 0.6); }
 
 // Flame envelope with GoL-erode texture inside the body — alive cells invert to dark, dead cells stay bright
@@ -630,10 +622,6 @@ const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'sparks-spread':    sparksSpread,
   'sparks-tug':       sparksTug,
   'flame-bars':       flameBars,
-  'flame-sparks':     flameSparks,
-  'flame-sparks-2':   flameSparks2,
-  'flame-sparks-3':   flameSparks3,
-  'flame-sparks-4':   flameSparks4,
   'flame-sparks-hi':  flameSparksHi,
   'flame-life':       flameLife,
 };
