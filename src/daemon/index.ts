@@ -9,7 +9,7 @@ import { startBrightnessLoop } from '../lib/brightness.js';
 import { watchSwitches } from '../lib/ec-switches.js';
 import { watchVms } from '../lib/vm-source.js';
 import { parseClaudeHook } from '../lib/claude-source.js';
-import { parseProject } from '../designer/format.js';
+import { parseProject, base64ToFrame } from '../designer/format.js';
 import type { DmxProject } from '../designer/format.js';
 import { Dispatcher, ecSwitchIntent, vmIntent } from '../lib/dispatcher.js';
 import { SerialTransport } from '../lib/transport.js';
@@ -314,11 +314,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       }
 
       if (stopped) return;
-      stopCurrentAnim = () => { stopped = true; };
 
       const { left, right } = currentConfig.modules;
       const { frames, mode, width, height } = project;
-      const { base64ToFrame } = await import('../designer/format.js');
       const dual = width === 18;
 
       do {
@@ -642,6 +640,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     } else if (currentConfig.startup.animation === 'dmx') {
       const dmxPath = currentConfig.startup.dmx_path;
       if (dmxPath) startDmxAnimation(dmxPath, false);
+      else process.stderr.write('dark-matrix: startup.animation is dmx but dmx_path is not set\n');
     } else {
       runOnModules(null, () => createStartupAnimation({ style: 'wipe' }));
     }

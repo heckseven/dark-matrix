@@ -290,8 +290,8 @@ export function App() {
             <div className="pointer-events-auto">
               <ProjectTitle value={projectTitle} onChange={v => {
                 designerStore.getState().setProjectTitle(v);
-                const lp = libraryPath;
-                if (lp !== null && v !== projectTitle) {
+                const { libraryPath: lp, projectTitle: currentTitle } = designerStore.getState();
+                if (lp !== null && v !== currentTitle) {
                   renameLibraryFile(lp, v)
                     .then(newName => designerStore.getState().setLibraryPath(newName))
                     .catch(console.error);

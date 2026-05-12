@@ -68,6 +68,30 @@ describe('loadConfig', () => {
   it('throws on missing file (ENOENT)', async () => {
     await expect(loadConfig()).rejects.toThrow();
   });
+
+  it('accepts startup.animation: dmx with a valid dmx_path', async () => {
+    await write({ ...DEFAULT_CONFIG, startup: { ...DEFAULT_CONFIG.startup, animation: 'dmx', dmx_path: '/home/user/lib/test.dmx.json' } });
+    const cfg = await loadConfig();
+    expect(cfg.startup.animation).toBe('dmx');
+    expect(cfg.startup.dmx_path).toBe('/home/user/lib/test.dmx.json');
+  });
+
+  it('throws ConfigError for startup.animation: image (removed value)', async () => {
+    await write({ ...DEFAULT_CONFIG, startup: { ...DEFAULT_CONFIG.startup, animation: 'image' } });
+    await expect(loadConfig()).rejects.toBeInstanceOf(ConfigError);
+  });
+
+  it('throws ConfigError for dmx_path without .dmx.json extension', async () => {
+    await write({ ...DEFAULT_CONFIG, startup: { ...DEFAULT_CONFIG.startup, animation: 'dmx', dmx_path: '/home/user/lib/test.gif' } });
+    await expect(loadConfig()).rejects.toBeInstanceOf(ConfigError);
+  });
+
+  it('accepts startup.animation: dmx without dmx_path (optional field)', async () => {
+    await write({ ...DEFAULT_CONFIG, startup: { ...DEFAULT_CONFIG.startup, animation: 'dmx' } });
+    const cfg = await loadConfig();
+    expect(cfg.startup.animation).toBe('dmx');
+    expect(cfg.startup.dmx_path).toBeUndefined();
+  });
 });
 
 describe('writeDefaultConfig', () => {

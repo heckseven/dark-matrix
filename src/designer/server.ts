@@ -58,9 +58,8 @@ function libraryDir(configDir?: string): string {
 }
 
 function safeLibraryPath(name: string, configDir?: string): string | null {
-  const base = path.basename(name);
-  if (!/^[\w\s\-]{1,100}$/.test(base)) return null;
-  const stem = base.replace(/\.dmx\.json$/i, '');
+  const stem = path.basename(name).replace(/\.dmx\.json$/i, '');
+  if (!/^[a-zA-Z0-9_ \-]{1,100}$/.test(stem)) return null;
   const dir = libraryDir(configDir);
   const candidate = path.join(dir, `${stem}.dmx.json`);
   if (!candidate.startsWith(dir + path.sep)) return null;
@@ -75,7 +74,7 @@ async function uniqueLibraryCopyPath(stem: string, dir: string): Promise<string>
     candidate = path.join(dir, `${base}_${i}.dmx.json`);
     try { await fs.access(candidate); } catch { return candidate; }
   }
-  return candidate;
+  throw new Error(`could not find a unique copy name for ${stem} after 99 attempts`);
 }
 
 async function loadPrefs(configDir?: string): Promise<DesignerPrefs> {

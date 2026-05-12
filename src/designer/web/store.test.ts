@@ -105,4 +105,20 @@ describe('Store', () => {
     expect(store.getState().frames[1]!.delayMs).toBe(500);
     expect(store.getState().frames[0]!.delayMs).toBe(100);
   });
+
+  it('11. initial activeMode is design, setActiveMode updates it', () => {
+    expect(store.getState().activeMode).toBe('design');
+    store.getState().setActiveMode('hud');
+    expect(store.getState().activeMode).toBe('hud');
+    store.getState().setActiveMode('games');
+    expect(store.getState().activeMode).toBe('games');
+  });
+
+  it('12. initial libraryPath is null, setLibraryPath updates and clears it', () => {
+    expect(store.getState().libraryPath).toBeNull();
+    store.getState().setLibraryPath('my_animation');
+    expect(store.getState().libraryPath).toBe('my_animation');
+    store.getState().setLibraryPath(null);
+    expect(store.getState().libraryPath).toBeNull();
+  });
 });
