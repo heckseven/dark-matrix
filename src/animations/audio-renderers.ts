@@ -1,7 +1,7 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'ripple' | 'life-erode-4';
+export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'flame-sparks' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'ripple' | 'ripple-dissolve' | 'ripple-warp' | 'ripple-invert' | 'life-erode-4';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'dark-matter',     label: 'dark matter' },
@@ -9,7 +9,11 @@ export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'cipher',          label: 'cipher' },
   { id: 'wake',            label: 'wake' },
   { id: 'flame-bars',      label: 'flame bars' },
+  { id: 'flame-sparks',    label: 'flame sparks' },
   { id: 'ripple',          label: 'ripple' },
+  { id: 'ripple-dissolve', label: 'ripple dissolve' },
+  { id: 'ripple-warp',     label: 'ripple warp' },
+  { id: 'ripple-invert',   label: 'ripple invert' },
   { id: 'spectrum-fall',   label: 'spectrum fall' },
   { id: 'life-erode-4',    label: 'replicants' },
   { id: 'eq-bars',         label: 'eq bars' },
@@ -156,6 +160,40 @@ function flameBars(): Renderer {
       for (let row = 0; row < ROWS; row++) {
         frame[col * ROWS + row] = row >= ROWS - height ? 255 : 0;
       }
+    }
+    return frame;
+  };
+}
+
+type Spark = { col: number; pos: number; v: number };
+
+function flameSparks(): Renderer {
+  const envelope = new Float32Array(BAND_COUNT);
+  const sparks: Spark[] = [];
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    const frame = createFrame();
+    for (let col = 0; col < BAND_COUNT; col++) {
+      const t = dbLevel(bands[BAND_COUNT - 1 - col] ?? 0, gain, ref);
+      envelope[col] = t > (envelope[col] ?? 0)
+        ? t
+        : (envelope[col] ?? 0) * 0.85 + t * 0.15;
+      const flicker = (envelope[col] ?? 0) * (0.7 + Math.random() * 0.5);
+      const height = Math.round(Math.min(1, flicker) * ROWS);
+      for (let row = 0; row < ROWS; row++) {
+        frame[col * ROWS + row] = row >= ROWS - height ? 255 : 0;
+      }
+      if (height > 0 && Math.random() < (envelope[col] ?? 0) * 0.5) {
+        sparks.push({ col, pos: ROWS - height - 0.5, v: 200 + Math.random() * 55 });
+      }
+    }
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const s = sparks[i]!;
+      s.pos -= 0.4 + Math.random() * 0.4;
+      s.v *= 0.85;
+      if (s.pos < 0 || s.v < 15) { sparks.splice(i, 1); continue; }
+      const r = Math.round(s.pos);
+      if (r >= 0 && r < ROWS) frame[s.col * ROWS + r] = Math.max(frame[s.col * ROWS + r] ?? 0, Math.round(s.v));
     }
     return frame;
   };
@@ -339,31 +377,30 @@ function wake(): Renderer {
 
 type Ripple = { cx: number; cy: number; r: number };
 
+function tickRipples(ripples: Ripple[], bands: number[], gain: number, ref: number, smoothed: { v: number }, cooldown: { v: number }) {
+  const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
+  const t = dbLevel(avg, gain, ref);
+  const delta = t - smoothed.v;
+  smoothed.v = smoothed.v * 0.85 + t * 0.15;
+  if (cooldown.v > 0) { cooldown.v--; } else if (delta > 0.10) {
+    const totalE = bands.reduce((s, e) => s + e, 0);
+    const cx = totalE > 0 ? bands.reduce((s, e, i) => s + e * i, 0) / totalE : BAND_COUNT / 2;
+    ripples.push({ cx, cy: ROWS / 2 + (Math.random() - 0.5) * ROWS * 0.5, r: 0 });
+    cooldown.v = 6;
+  }
+  const maxR = Math.sqrt(BAND_COUNT ** 2 + ROWS ** 2);
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    ripples[i]!.r += 0.6;
+    if (ripples[i]!.r > maxR) ripples.splice(i, 1);
+  }
+}
+
 function ripple(): Renderer {
   const ripples: Ripple[] = [];
-  let smoothed = 0;
-  let cooldown = 0;
+  const smoothed = { v: 0 }, cooldown = { v: 0 };
   return ({ bands, gain, fftSize }) => {
     const ref = fftSize / 2;
-    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
-    const t = dbLevel(avg, gain, ref);
-    const delta = t - smoothed;
-    smoothed = smoothed * 0.85 + t * 0.15;
-    if (cooldown > 0) cooldown--;
-    if (delta > 0.10 && cooldown === 0) {
-      const totalE = bands.reduce((s, e) => s + e, 0);
-      const cx = totalE > 0
-        ? bands.reduce((s, e, i) => s + e * i, 0) / totalE
-        : BAND_COUNT / 2;
-      const cy = ROWS / 2 + (Math.random() - 0.5) * ROWS * 0.5;
-      ripples.push({ cx, cy, r: 0 });
-      cooldown = 6;
-    }
-    const maxR = Math.sqrt(BAND_COUNT ** 2 + ROWS ** 2);
-    for (let i = ripples.length - 1; i >= 0; i--) {
-      ripples[i]!.r += 0.6;
-      if (ripples[i]!.r > maxR) ripples.splice(i, 1);
-    }
+    tickRipples(ripples, bands, gain, ref, smoothed, cooldown);
     const frame = createFrame();
     for (let col = 0; col < BAND_COUNT; col++) {
       for (let row = 0; row < ROWS; row++) {
@@ -372,6 +409,77 @@ function ripple(): Renderer {
           const dist = Math.sqrt((col - rp.cx) ** 2 + (row - rp.cy) ** 2);
           v = Math.max(v, Math.max(0, 1 - Math.abs(dist - rp.r) / 1.5));
         }
+        frame[col * ROWS + row] = Math.round(v * 255);
+      }
+    }
+    return frame;
+  };
+}
+
+// Ring pixels randomly killed per-column proportional to band energy — ring tears under loud audio
+function rippleDissolve(): Renderer {
+  const ripples: Ripple[] = [];
+  const smoothed = { v: 0 }, cooldown = { v: 0 };
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    tickRipples(ripples, bands, gain, ref, smoothed, cooldown);
+    const frame = createFrame();
+    for (let col = 0; col < BAND_COUNT; col++) {
+      const energy = dbLevel(bands[col] ?? 0, gain, ref);
+      for (let row = 0; row < ROWS; row++) {
+        let v = 0;
+        for (const rp of ripples) {
+          const dist = Math.sqrt((col - rp.cx) ** 2 + (row - rp.cy) ** 2);
+          v = Math.max(v, Math.max(0, 1 - Math.abs(dist - rp.r) / 1.5));
+        }
+        if (v > 0 && Math.random() < energy * 0.7) v = 0;
+        frame[col * ROWS + row] = Math.round(v * 255);
+      }
+    }
+    return frame;
+  };
+}
+
+// Ring radius offset per column by band energy — ring bends outward in loud columns
+function rippleWarp(): Renderer {
+  const ripples: Ripple[] = [];
+  const smoothed = { v: 0 }, cooldown = { v: 0 };
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    tickRipples(ripples, bands, gain, ref, smoothed, cooldown);
+    const frame = createFrame();
+    for (let col = 0; col < BAND_COUNT; col++) {
+      const warp = dbLevel(bands[col] ?? 0, gain, ref) * 4;
+      for (let row = 0; row < ROWS; row++) {
+        let v = 0;
+        for (const rp of ripples) {
+          const dist = Math.sqrt((col - rp.cx) ** 2 + (row - rp.cy) ** 2);
+          v = Math.max(v, Math.max(0, 1 - Math.abs(dist - (rp.r + warp)) / 1.5));
+        }
+        frame[col * ROWS + row] = Math.round(v * 255);
+      }
+    }
+    return frame;
+  };
+}
+
+// Ring pixels inverted in columns where band energy exceeds threshold — negative-space rings in loud columns
+function rippleInvert(): Renderer {
+  const ripples: Ripple[] = [];
+  const smoothed = { v: 0 }, cooldown = { v: 0 };
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    tickRipples(ripples, bands, gain, ref, smoothed, cooldown);
+    const frame = createFrame();
+    for (let col = 0; col < BAND_COUNT; col++) {
+      const energy = dbLevel(bands[col] ?? 0, gain, ref);
+      for (let row = 0; row < ROWS; row++) {
+        let v = 0;
+        for (const rp of ripples) {
+          const dist = Math.sqrt((col - rp.cx) ** 2 + (row - rp.cy) ** 2);
+          v = Math.max(v, Math.max(0, 1 - Math.abs(dist - rp.r) / 1.5));
+        }
+        if (v > 0 && energy > 0.35) v = 1 - v;
         frame[col * ROWS + row] = Math.round(v * 255);
       }
     }
@@ -453,20 +561,24 @@ function lifeErode4(): Renderer {
   return makeLife({ seedRate: 0.15, threshold: 0.4, decay: 0.75, survive: n => n === 2 || n === 3, born: n => n === 3, continuousCull: 0.70 });
 }
 const FACTORIES: Record<AudioStyle, () => Renderer> = {
-  'eq-bars':         eqBars,
-  'spectrum-fall':   spectrumFall,
-  'vu-meter':        vuMeter,
-  'vu-sparks':       vuSparks,
-  'dark-matter':     eqSparks,
-  'neo':             neo,
-  'cipher':          cipher,
-  'wake':            wake,
-  'ripple':          ripple,
-  'life-erode-4':    lifeErode4,
-  'bounce':          bounce,
-  'waterfall':       waterfall,
-  'sparks':          sparks,
-  'flame-bars':      flameBars,
+  'eq-bars':          eqBars,
+  'spectrum-fall':    spectrumFall,
+  'vu-meter':         vuMeter,
+  'vu-sparks':        vuSparks,
+  'dark-matter':      eqSparks,
+  'neo':              neo,
+  'cipher':           cipher,
+  'wake':             wake,
+  'ripple':           ripple,
+  'ripple-dissolve':  rippleDissolve,
+  'ripple-warp':      rippleWarp,
+  'ripple-invert':    rippleInvert,
+  'life-erode-4':     lifeErode4,
+  'bounce':           bounce,
+  'waterfall':        waterfall,
+  'sparks':           sparks,
+  'flame-bars':       flameBars,
+  'flame-sparks':     flameSparks,
 };
 
 export function createRenderer(style: AudioStyle): Renderer {
