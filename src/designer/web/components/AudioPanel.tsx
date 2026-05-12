@@ -39,6 +39,7 @@ const PLACEHOLDER: Record<AudioStyle, string> = {
   'bounce':          makeFrame((c, r) => r === ROWS - 1 - [0, 4, 10, 16, 20, 16, 10, 4, 0][c]! ? 255 : 0),
   'waterfall':       makeFrame((_c, r) => Math.round((r / (ROWS - 1)) * 255)),
   'sparks':          makeFrame((c, r) => ((c * 7 + r * 11) % 13 < Math.round((1 - r / (ROWS - 1)) * 6)) ? 255 : 0),
+  'sparks-drift':    makeFrame((c, r) => { const edge = c <= 1 || c >= 7; return (c * 7 + r * 11) % 13 < (edge ? Math.round((1 - r / (ROWS - 1)) * 9) : Math.round((1 - r / (ROWS - 1)) * 2)) ? 255 : 0; }),
   'flame-bars':      makeFrame((c, r) => r >= ROWS - (EQ_H[c]! + (c % 3 === 0 ? 4 : c % 3 === 1 ? -3 : 2)) ? 255 : 0),
   'flame-sparks':    makeFrame((c, r) => { const h = EQ_H[c]! + (c % 3 === 0 ? 4 : c % 3 === 1 ? -3 : 2); return r >= ROWS - h ? 255 : r === ROWS - h - 2 && c % 3 === 0 ? 200 : r === ROWS - h - 4 && c % 2 === 1 ? 140 : 0; }),
 };
