@@ -2,8 +2,8 @@
 
 ## Foundation
 
-- [ ] File library — `~/.config/dark-matrix/library/` convention for `.dmx.json` files; extend config with `startup.animation: 'dmx'` + `startup.dmx_path`; designer API endpoint to save directly to library
-- [ ] Persist active mode — add `activeMode` to designer `SessionSnapshot` so it survives page reload
+- [x] File library — `~/.config/dark-matrix/library/` convention for `.dmx.json` files; extend config with `startup.animation: 'dmx'` + `startup.dmx_path`; designer API endpoint to save directly to library
+- [x] Persist active mode — add `activeMode` to designer `SessionSnapshot` so it survives page reload
 
 ## Platform extensions
 
