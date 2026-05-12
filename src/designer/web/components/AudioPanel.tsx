@@ -4,17 +4,62 @@ import { useDesignerStore, designerStore } from '../store.js';
 import type { AudioStyle, AudioSource } from '../store.js';
 import { AUDIO_STYLES } from '../../../animations/audio-renderers.js';
 
-const BLANK = btoa(String.fromCharCode(...new Uint8Array(9 * 34)));
+const COLS = 9;
+const ROWS = 34;
+const BLANK = btoa(String.fromCharCode(...new Uint8Array(COLS * ROWS)));
+
+function makeFrame(fill: (c: number, r: number) => number): string {
+  const data = new Uint8Array(COLS * ROWS);
+  for (let c = 0; c < COLS; c++)
+    for (let r = 0; r < ROWS; r++)
+      data[c * ROWS + r] = fill(c, r);
+  return btoa(String.fromCharCode(...data));
+}
+
+const EQ_H    = [10, 16, 22, 28, 30, 28, 22, 16, 10] as const;
+const SPEC_H  = [ 4,  7, 10, 13, 14, 13, 10,  7,  4] as const;
+const CTR     = Math.floor(ROWS / 2);
+const VU_BAR  = ROWS - 24;           // bar fills bottom 24 rows
+const VU_PEAK = ROWS - 1 - 28;       // peak dot near top
+
+const PLACEHOLDER: Record<AudioStyle, string> = {
+  'eq-bars':         makeFrame((c, r) => r >= ROWS - EQ_H[c]! ? 255 : 0),
+  'spectrum-mirror': makeFrame((c, r) => Math.abs(r - CTR) <= SPEC_H[c]! ? 255 : 0),
+  'vu-meter':        makeFrame((_c, r) => r >= VU_BAR || r === VU_PEAK ? 255 : 0),
+  'bounce':          makeFrame((c, r) => r === ROWS - 1 - [0, 4, 10, 16, 20, 16, 10, 4, 0][c]! ? 255 : 0),
+  'waterfall':       makeFrame((_c, r) => Math.round((r / (ROWS - 1)) * 255)),
+  'fire':            makeFrame((_c, r) => Math.round((r / (ROWS - 1)) * 255)),
+};
+
+function mirrorFrame(b64: string): string {
+  const src = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
+  const dst = new Uint8Array(COLS * 2 * ROWS);
+  for (let c = 0; c < COLS; c++) {
+    for (let r = 0; r < ROWS; r++) {
+      const v = src[c * ROWS + r] ?? 0;
+      dst[c * ROWS + r] = v;
+      dst[(COLS * 2 - 1 - c) * ROWS + r] = v;
+    }
+  }
+  return btoa(String.fromCharCode(...dst));
+}
+
+function resolvePixels(id: AudioStyle, livePixels: string, active: boolean, dualModule: boolean): string {
+  const base = active && livePixels !== BLANK ? livePixels : PLACEHOLDER[id];
+  return dualModule ? mirrorFrame(base) : base;
+}
 
 function AudioStyleCard({
   label,
   active,
   pixels,
+  dualModule,
   onSelect,
 }: {
   label: string;
   active: boolean;
   pixels: string;
+  dualModule: boolean;
   onSelect: () => void;
 }) {
   const c = { position: 'absolute' as const, width: 16, height: 16, pointerEvents: 'none' as const };
@@ -33,7 +78,7 @@ function AudioStyleCard({
         <span style={{ ...c, bottom: 0, left: 0,    borderBottom: b, borderLeft: b }} />
         <span style={{ ...c, bottom: 0, right: 0,   borderBottom: b, borderRight: b }} />
       </div>
-      <MatrixPreview pixels={pixels} width={9} />
+      <MatrixPreview pixels={pixels} width={dualModule ? 18 : 9} />
       <span className="font-mono text-xs text-foreground">{label}</span>
     </button>
   );
@@ -56,7 +101,7 @@ function SourceToggle({ value, onChange }: { value: AudioSource; onChange: (s: A
   );
 }
 
-export function AudioPanel() {
+export function AudioPanel({ dualModule = false }: { dualModule?: boolean }) {
   const audioStyle = useDesignerStore(s => s.audioStyle);
   const audioSource = useDesignerStore(s => s.audioSource);
   const [livePixels, setLivePixels] = useState(BLANK);
@@ -114,7 +159,8 @@ export function AudioPanel() {
               key={id}
               label={label}
               active={active}
-              pixels={active ? livePixels : BLANK}
+              pixels={resolvePixels(id, livePixels, active, dualModule)}
+              dualModule={dualModule}
               onSelect={() => designerStore.getState().setAudioStyle(id as AudioStyle)}
             />
           );

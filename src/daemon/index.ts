@@ -208,7 +208,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     });
   }
 
-  function runAudioEqOnModules(sourceOverride?: AudioSource): () => void {
+  function runAudioEqOnModules(sourceOverride?: AudioSource, style: AudioStyle = 'eq-bars'): () => void {
     const { left, right } = currentConfig.modules;
     let stopped = false;
     let anim: ReturnType<typeof createAudioEqAnimation> | null = null;
@@ -220,7 +220,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         eqSource === 'monitor' ? '@DEFAULT_AUDIO_SINK@' : '@DEFAULT_AUDIO_SOURCE@',
       );
       if (stopped) return;
-      anim = createAudioEqAnimation({ source: eqSource, ...(target ? { target } : {}) });
+      anim = createAudioEqAnimation({ source: eqSource, style, ...(target ? { target } : {}) });
       const iter = anim[Symbol.asyncIterator]();
       while (!stopped) {
         const result = await iter.next();
@@ -691,6 +691,24 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               });
               socket.once('close', stopViz);
               socket.once('error', stopViz);
+              break;
+            }
+            case 'audio-hardware-start': {
+              const m = msg as { cmd: string; style?: string; source?: string };
+              const knownStyles = AUDIO_STYLES.map(s => s.id as string);
+              const isAudioStyle = (s: string): s is AudioStyle => knownStyles.includes(s);
+              const style: AudioStyle = m.style && isAudioStyle(m.style) ? m.style : 'eq-bars';
+              const source: AudioSource = m.source === 'mic' ? 'mic' : 'monitor';
+              stopAnim();
+              if (idleTimer) clearTimeout(idleTimer);
+              stopCurrentAnim = runAudioEqOnModules(source, style);
+              socket.write(JSON.stringify({ ok: true }) + '\n');
+              break;
+            }
+            case 'audio-hardware-stop': {
+              stopAnim();
+              startIdleTimer();
+              socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             }
             default:
