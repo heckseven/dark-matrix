@@ -1,7 +1,7 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'sparks-drift' | 'flame-bars' | 'flame-sparks' | 'flame-sparks-2' | 'flame-sparks-3' | 'flame-sparks-4' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'drip' | 'life-erode-4';
+export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'sparks-squeeze' | 'sparks-spread' | 'sparks-tug' | 'flame-bars' | 'flame-sparks' | 'flame-sparks-2' | 'flame-sparks-3' | 'flame-sparks-4' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'drip' | 'life-erode-4';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'dark-matter',     label: 'dark matter' },
@@ -22,7 +22,9 @@ export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'bounce',          label: 'bounce' },
   { id: 'waterfall',       label: 'waterfall' },
   { id: 'sparks',          label: 'sparks' },
-  { id: 'sparks-drift',    label: 'sparks drift' },
+  { id: 'sparks-squeeze',  label: 'sparks squeeze' },
+  { id: 'sparks-spread',   label: 'sparks spread' },
+  { id: 'sparks-tug',      label: 'sparks tug' },
 ];
 
 export type RenderCtx = {
@@ -144,28 +146,25 @@ function sparks(): Renderer {
   };
 }
 
-function sparksDrift(): Renderer {
+function makeSparksDrift(colPush: (col: number, e: Float32Array) => number): Renderer {
   const grid = new Float32Array(BAND_COUNT * ROWS);
   const rowBuf = new Float32Array(BAND_COUNT);
+  const energies = new Float32Array(BAND_COUNT);
   return ({ bands, gain, fftSize }) => {
     const ref = fftSize / 2;
+    for (let c = 0; c < BAND_COUNT; c++) energies[c] = dbLevel(bands[c] ?? 0, gain, ref);
     for (let row = 0; row < ROWS - 1; row++)
       for (let col = 0; col < BAND_COUNT; col++)
         grid[col * ROWS + row] = grid[col * ROWS + row + 1] ?? 0;
-    for (let col = 0; col < BAND_COUNT; col++) {
-      const energy = dbLevel(bands[col] ?? 0, gain, ref);
-      grid[col * ROWS + (ROWS - 1)] = Math.random() < energy ? 1.0 : 0;
-    }
+    for (let col = 0; col < BAND_COUNT; col++)
+      grid[col * ROWS + (ROWS - 1)] = Math.random() < (energies[col] ?? 0) ? 1.0 : 0;
     const frame = createFrame();
     for (let row = 0; row < ROWS; row++) {
-      const bandIdx = Math.floor(row * BAND_COUNT / ROWS);
-      const push = dbLevel(bands[bandIdx] ?? 0, gain, ref) * 2.5;
       rowBuf.fill(0);
       for (let col = 0; col < BAND_COUNT; col++) {
         const v = grid[col * ROWS + row] ?? 0;
         if (v === 0) continue;
-        const dir = col < 4 ? -1 : col > 4 ? 1 : 0;
-        const target = Math.min(BAND_COUNT - 1, Math.max(0, col + dir * push));
+        const target = Math.min(BAND_COUNT - 1, Math.max(0, col + colPush(col, energies)));
         const lo = Math.floor(target);
         const frac = target - lo;
         rowBuf[lo] = Math.min(1, (rowBuf[lo] ?? 0) + v * (1 - frac));
@@ -176,6 +175,21 @@ function sparksDrift(): Renderer {
     }
     return frame;
   };
+}
+
+// Band energy pushes sparks inward toward center — columns compress together at high volume
+function sparksSqueeze(): Renderer {
+  return makeSparksDrift((col, e) => (col < 4 ? 1 : col > 4 ? -1 : 0) * (e[col] ?? 0) * 3);
+}
+
+// Band energy pushes sparks outward toward edges — columns spread apart at high volume
+function sparksSpread(): Renderer {
+  return makeSparksDrift((col, e) => (col < 4 ? -1 : col > 4 ? 1 : 0) * (e[col] ?? 0) * 3);
+}
+
+// Net force = left-side energy pushes right, right-side energy pushes left — spectral balance steers the flow
+function sparksTug(): Renderer {
+  return makeSparksDrift((col, e) => ((e[col] ?? 0) - (e[BAND_COUNT - 1 - col] ?? 0)) * 2.5);
 }
 
 function flameBars(): Renderer {
@@ -548,7 +562,9 @@ const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'bounce':           bounce,
   'waterfall':        waterfall,
   'sparks':           sparks,
-  'sparks-drift':     sparksDrift,
+  'sparks-squeeze':   sparksSqueeze,
+  'sparks-spread':    sparksSpread,
+  'sparks-tug':       sparksTug,
   'flame-bars':       flameBars,
   'flame-sparks':     flameSparks,
   'flame-sparks-2':   flameSparks2,
