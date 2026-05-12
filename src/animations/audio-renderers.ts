@@ -1,10 +1,13 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'spectrum-mirror' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall';
+export type AudioStyle = 'eq-bars' | 'spectrum-mirror' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'cascade' | 'cipher' | 'wake';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'dark-matter',     label: 'dark matter' },
+  { id: 'cascade',         label: 'cascade' },
+  { id: 'cipher',          label: 'cipher' },
+  { id: 'wake',            label: 'wake' },
   { id: 'eq-bars',         label: 'eq bars' },
   { id: 'spectrum-mirror', label: 'spectrum mirror' },
   { id: 'spectrum-fall',   label: 'spectrum fall' },
@@ -260,6 +263,85 @@ function spectrumFall(): Renderer {
   };
 }
 
+type Drop = { pos: number; speed: number };
+
+function cascade(): Renderer {
+  const drops: Drop[][] = Array.from({ length: BAND_COUNT }, () => []);
+  const TRAIL = 9;
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    const frame = createFrame();
+    for (let col = 0; col < BAND_COUNT; col++) {
+      const energy = dbLevel(bands[col] ?? 0, gain, ref);
+      if ((drops[col]?.length ?? 0) < 3 && Math.random() < energy * 0.18) {
+        drops[col]!.push({ pos: 0, speed: 0.4 + energy * 2.0 });
+      }
+      drops[col] = (drops[col] ?? []).filter(drop => {
+        drop.pos += drop.speed;
+        const head = Math.round(drop.pos);
+        for (let t = 0; t < TRAIL; t++) {
+          const r = head - t;
+          if (r >= 0 && r < ROWS) {
+            const v = Math.round(255 * Math.pow(0.65, t));
+            const idx = col * ROWS + r;
+            frame[idx] = Math.max(frame[idx] ?? 0, v);
+          }
+        }
+        return drop.pos < ROWS + TRAIL;
+      });
+    }
+    return frame;
+  };
+}
+
+function cipher(): Renderer {
+  const state = new Float32Array(BAND_COUNT * ROWS);
+  for (let i = 0; i < state.length; i++) state[i] = Math.random();
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    const frame = createFrame();
+    for (let col = 0; col < BAND_COUNT; col++) {
+      const energy = dbLevel(bands[col] ?? 0, gain, ref);
+      const flipRate = energy * 0.35;
+      const decay = 0.94 - energy * 0.1;
+      for (let row = 0; row < ROWS; row++) {
+        const idx = col * ROWS + row;
+        if (Math.random() < flipRate) {
+          state[idx] = Math.random() < energy ? 1 : 0;
+        } else {
+          state[idx] = (state[idx] ?? 0) * decay;
+        }
+        frame[idx] = Math.round((state[idx] ?? 0) * 255);
+      }
+    }
+    return frame;
+  };
+}
+
+function wake(): Renderer {
+  let scanPos = 0;
+  let scanDir = 1;
+  const glow = new Float32Array(BAND_COUNT * ROWS);
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
+    const t = dbLevel(avg, gain, ref);
+    scanPos += scanDir * (0.3 + t * 2.5);
+    if (scanPos >= ROWS - 1) { scanPos = ROWS - 1; scanDir = -1; }
+    if (scanPos <= 0)        { scanPos = 0;         scanDir = 1;  }
+    const sr = Math.round(scanPos);
+    for (let col = 0; col < BAND_COUNT; col++) {
+      glow[col * ROWS + sr] = dbLevel(bands[col] ?? 0, gain, ref);
+    }
+    for (let i = 0; i < BAND_COUNT * ROWS; i++) glow[i] = (glow[i] ?? 0) * 0.88;
+    const frame = createFrame();
+    for (let i = 0; i < BAND_COUNT * ROWS; i++) {
+      frame[i] = Math.min(255, Math.round((glow[i] ?? 0) * 255));
+    }
+    return frame;
+  };
+}
+
 const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'eq-bars':         eqBars,
   'spectrum-mirror': spectrumMirror,
@@ -267,6 +349,9 @@ const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'vu-meter':        vuMeter,
   'vu-sparks':       vuSparks,
   'dark-matter':     eqSparks,
+  'cascade':         cascade,
+  'cipher':          cipher,
+  'wake':            wake,
   'bounce':          bounce,
   'waterfall':       waterfall,
   'sparks':          sparks,
