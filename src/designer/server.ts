@@ -149,7 +149,6 @@ interface MultipartFile {
 
 function parseMultipart(body: Buffer, boundary: string): MultipartFile | null {
   const boundaryBuf = Buffer.from('--' + boundary);
-  const crlf = Buffer.from('\r\n');
   const crlfcrlf = Buffer.from('\r\n\r\n');
 
   // Find the start of the first part
@@ -187,9 +186,6 @@ function parseMultipart(body: Buffer, boundary: string): MultipartFile | null {
       contentType = line.slice('content-type:'.length).trim();
     }
   }
-
-  // Suppress unused variable warning
-  void crlf;
 
   return { filename, contentType, data: fileData };
 }
@@ -714,16 +710,29 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
   const wss = new WebSocketServer({ server, path: '/ws' });
   wss.setMaxListeners(50);
 
+  let retryGen = 0;
+  async function sendToDaemonWithRetry(cmd: Record<string, unknown>, gen: number, retries = 6, baseMs = 250): Promise<void> {
+    for (let i = 0; i <= retries; i++) {
+      if (gen !== retryGen) return;
+      try { await sendToDaemon(cmd); return; } catch { /* retry */ }
+      if (i < retries) await new Promise(r => setTimeout(r, baseMs * (i + 1)));
+    }
+    if (gen === retryGen) console.error('[designer] daemon unreachable after retries:', cmd['cmd']);
+  }
+
+  // Tracks which WS connection currently owns the hardware audio animation.
+  // Only that connection's close event should send audio-hardware-stop.
+  let audioOwnerWs: import('ws').WebSocket | null = null;
+
   wss.on('connection', (ws: import('ws').WebSocket) => {
     const previewClient = new PersistentDaemonClient();
     let audioStream: net.Socket | null = null;
-    let audioHardwareActive = false;
     ws.send(JSON.stringify({ type: 'connected' }));
     ws.on('close', () => {
       previewClient.destroy();
       audioStream?.destroy();
-      if (audioHardwareActive) {
-        audioHardwareActive = false;
+      if (audioOwnerWs === ws) {
+        audioOwnerWs = null;
         sendToDaemon({ cmd: 'audio-hardware-stop' }).catch(() => {});
       }
     });
@@ -783,13 +792,13 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
             ws.send(JSON.stringify({ type: 'audio-bands', ...ctx }));
           }
         });
-        audioHardwareActive = true;
-        sendToDaemon({ cmd: 'audio-hardware-start', style, source }).catch(() => {});
+        audioOwnerWs = ws;
+        void sendToDaemonWithRetry({ cmd: 'audio-hardware-start', style, source }, ++retryGen);
       } else if (type === 'audio-viz-stop') {
         audioStream?.destroy();
         audioStream = null;
-        if (audioHardwareActive) {
-          audioHardwareActive = false;
+        if (audioOwnerWs === ws) {
+          audioOwnerWs = null;
           sendToDaemon({ cmd: 'audio-hardware-stop' }).catch(() => {});
         }
       }

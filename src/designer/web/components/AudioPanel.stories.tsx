@@ -15,13 +15,11 @@ function makeFrame(fill: (c: number, r: number) => number): string {
   return btoa(String.fromCharCode(...data));
 }
 
-const STYLE_FRAMES: Record<AudioStyle, string> = {
-  'eq-bars':         makeFrame((c, r) => r >= ROWS - Math.round((c + 1) * 5) ? 255 : 0),
-  'spectrum-mirror': makeFrame((_c, r) => r >= 10 && r <= 23 ? 255 : 0),
-  'vu-meter':        makeFrame((c, r) => c < 2 && r >= 6 ? 255 : 0),
-  'bounce':          makeFrame((c, r) => r === ROWS - 1 - (c % 6) ? 255 : 0),
-  'waterfall':       makeFrame((_c, r) => r < 10 ? 255 : 0),
-  'fire':            makeFrame((_c, r) => r >= 28 ? 255 : 0),
+const STYLE_FRAMES: Partial<Record<AudioStyle, string>> = {
+  'eq-bars':   makeFrame((c, r) => r >= ROWS - Math.round((c + 1) * 5) ? 255 : 0),
+  'vu-meter':  makeFrame((c, r) => c < 2 && r >= 6 ? 255 : 0),
+  'waterfall': makeFrame((_c, r) => r < 10 ? 255 : 0),
+  'heat':      makeFrame((_c, r) => r >= 28 ? 255 : 0),
 };
 
 // Replaces globalThis.WebSocket for the duration of a story.
@@ -117,12 +115,12 @@ export const WaterfallStyle: Story = {
   ],
 };
 
-/** Fire style active. */
-export const FireStyle: Story = {
+/** Heat style active. */
+export const HeatStyle: Story = {
   decorators: [
     (Story) => {
-      designerStore.setState({ audioStyle: 'fire' });
-      installMockWs(STYLE_FRAMES['fire']);
+      designerStore.setState({ audioStyle: 'heat' });
+      installMockWs(STYLE_FRAMES['heat']);
       return <Story />;
     },
   ],

@@ -11,6 +11,7 @@ import { Tooltip, TooltipProvider } from './components/ui/tooltip.js';
 import { Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger } from './components/ui/menu.js';
 import { saveToLibrary, saveLibraryCopy, renameLibraryFile, exportProject, importFile, openFromLibrary } from './files.js';
 import { useDesignerStore, designerStore, stepZoom, ZOOM_STEPS, ROWS, DEFAULT_WIDTH } from './store.js';
+import type { AudioSource } from './store.js';
 import { ShortcutDialog } from './components/ui/shortcut-dialog.js';
 import { ModePicker } from './components/ModePicker.js';
 import { AudioPanel } from './components/AudioPanel.js';
@@ -144,6 +145,7 @@ export function App() {
   const previewTarget = useDesignerStore(s => s.previewTarget);
   const projectTitle = useDesignerStore(s => s.projectTitle);
   const activeMode = useDesignerStore(s => s.activeMode);
+  const audioSource = useDesignerStore(s => s.audioSource);
   const libraryPath = useDesignerStore(s => s.libraryPath);
   const recentFiles = useDesignerStore(s => s.recentFiles);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -281,6 +283,18 @@ export function App() {
               <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
               <div className="absolute inset-x-0 flex justify-center pointer-events-none">
                 <span className="font-mono text-xs text-foreground">audio</span>
+              </div>
+              <div className="ml-auto flex items-center gap-0 font-mono text-xs border border-foreground/30">
+                {(['monitor', 'mic'] as const satisfies AudioSource[]).map((src) => (
+                  <button
+                    key={src}
+                    aria-pressed={audioSource === src}
+                    className={`px-4 py-1 transition-colors ${audioSource === src ? 'bg-foreground text-background' : 'text-foreground/60 hover:text-foreground'}`}
+                    onClick={() => designerStore.getState().setAudioSource(src)}
+                  >
+                    {src}
+                  </button>
+                ))}
               </div>
             </>
           ) : (
