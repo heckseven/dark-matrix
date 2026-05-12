@@ -1,35 +1,23 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'bounce-drift' | 'bounce-gravity' | 'waterfall' | 'sparks' | 'sparks-tug' | 'sparks-kaleido' | 'sparks-kaleido-b' | 'flame-bars' | 'flame-sparks-a' | 'flame-life' | 'flame-life-a' | 'flame-life-b' | 'flame-life-sparks' | 'flame-life-sparks-a' | 'flame-life-sparks-b' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'drip' | 'drip-a' | 'life-erode-4';
+export type AudioStyle = 'eq-bars' | 'vu-meter' | 'kick' | 'waterfall' | 'sparks' | 'hex' | 'specter' | 'heat' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'rhythm' | 'drop' | 'life-erode-4';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
-  { id: 'dark-matter',      label: 'dark matter' },
-  { id: 'neo',              label: 'neo' },
-  { id: 'cipher',           label: 'cipher' },
-  { id: 'wake',             label: 'wake' },
-  { id: 'flame-bars',       label: 'flame bars' },
-  { id: 'flame-sparks-a',   label: 'flame sparks' },
-  { id: 'flame-life',       label: 'flame life' },
-  { id: 'flame-life-a',     label: 'flame life a' },
-  { id: 'flame-life-b',     label: 'flame life b' },
-  { id: 'flame-life-sparks',   label: 'flame life sparks' },
-  { id: 'flame-life-sparks-a', label: 'flame life sparks a' },
-  { id: 'flame-life-sparks-b', label: 'flame life sparks b' },
-  { id: 'drip',              label: 'drip' },
-  { id: 'drip-a',           label: 'drip a' },
-  { id: 'spectrum-fall',    label: 'spectrum fall' },
-  { id: 'life-erode-4',     label: 'replicants' },
-  { id: 'eq-bars',          label: 'eq bars' },
-  { id: 'vu-meter',         label: 'vu meter' },
-  { id: 'bounce',           label: 'bounce' },
-  { id: 'bounce-drift',     label: 'bounce drift' },
-  { id: 'bounce-gravity',   label: 'bounce gravity' },
-  { id: 'waterfall',        label: 'waterfall' },
-  { id: 'sparks',           label: 'sparks' },
-  { id: 'sparks-tug',       label: 'sparks tug' },
-  { id: 'sparks-kaleido',   label: 'sparks kaleido' },
-  { id: 'sparks-kaleido-b', label: 'sparks kaleido b' },
+  { id: 'dark-matter',         label: 'dark matter' },
+  { id: 'neo',                 label: 'neo' },
+  { id: 'cipher',              label: 'cipher' },
+  { id: 'wake',                label: 'wake' },
+  { id: 'heat',                label: 'heat' },
+  { id: 'rhythm',              label: 'rhythm' },
+  { id: 'drop',                label: 'drop' },
+  { id: 'spectrum-fall',       label: 'spectrum fall' },
+  { id: 'life-erode-4',        label: 'replicants' },
+  { id: 'kick',                label: 'kick' },
+  { id: 'waterfall',           label: 'waterfall' },
+  { id: 'sparks',              label: 'sparks' },
+  { id: 'hex',                 label: 'hex' },
+  { id: 'specter',             label: 'specter' },
 ];
 
 export type RenderCtx = {
@@ -85,69 +73,40 @@ function vuMeter(): Renderer {
   };
 }
 
-function bounce(): Renderer {
-  const positions = new Float32Array(BAND_COUNT);
-  const velocities = new Float32Array(BAND_COUNT);
+function kick(): Renderer {
+  const y  = new Float32Array(BAND_COUNT).fill(0);
+  const vy = new Float32Array(BAND_COUNT).fill(0);
+  let smoothed = 0, cooldown = 0;
   return ({ bands, gain, fftSize }) => {
     const ref = fftSize / 2;
+    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
+    const t = dbLevel(avg, gain, ref);
+    const delta = t - smoothed;
+    smoothed = smoothed * 0.88 + t * 0.12;
+    if (cooldown > 0) cooldown--;
+    if (delta > 0.06 && cooldown === 0) {
+      for (let col = 0; col < BAND_COUNT; col++) {
+        const e = dbLevel(bands[col] ?? 0, gain, ref);
+        vy[col]! += e * (ROWS - 1) * 0.85;
+      }
+      cooldown = 8;
+    }
     const frame = createFrame();
     for (let col = 0; col < BAND_COUNT; col++) {
-      const t = dbLevel(bands[col] ?? 0, gain, ref);
-      const target = t * (ROWS - 1);
-      if (target > (positions[col] ?? 0)) {
-        positions[col] = target;
-        velocities[col] = 0;
-      } else {
-        velocities[col] = (velocities[col] ?? 0) - 0.5;
-        positions[col] = Math.max(0, (positions[col] ?? 0) + (velocities[col] ?? 0));
+      vy[col]! -= 0.7;
+      y[col]!  += vy[col]!;
+      if (y[col]! <= 0) {
+        y[col]!  = 0;
+        const b  = -vy[col]! * 0.65;
+        vy[col]! = b < 0.5 ? 0 : b;
       }
-      const ballRow = Math.max(0, Math.min(ROWS - 1, ROWS - 1 - Math.round(positions[col] ?? 0)));
-      frame[col * ROWS + ballRow] = 255;
+      if (y[col]! >= ROWS - 1) { y[col]! = ROWS - 1; vy[col]! = -Math.abs(vy[col]!) * 0.4; }
+      const r = ROWS - 1 - Math.round(Math.min(ROWS - 1, Math.max(0, y[col]!)));
+      frame[col * ROWS + r] = 255;
     }
     return frame;
   };
 }
-
-type Ball = { x: number; y: number; vx: number; vy: number };
-
-function makeBounce(gravity: number, restitution: number, lateralKick: number): Renderer {
-  const balls: Ball[] = Array.from({ length: BAND_COUNT }, (_, i) => ({
-    x: i, y: (ROWS - 1) * (i % 3) / 2, vx: 0, vy: 0,
-  }));
-  const envelope = new Float32Array(BAND_COUNT);
-  return ({ bands, gain, fftSize }) => {
-    const ref = fftSize / 2;
-    const frame = createFrame();
-    for (let i = 0; i < BAND_COUNT; i++) {
-      const ball = balls[i]!;
-      const col = Math.min(BAND_COUNT - 1, Math.max(0, Math.round(ball.x)));
-      const t = dbLevel(bands[col] ?? 0, gain, ref);
-      envelope[col] = Math.max(t, (envelope[col] ?? 0) * 0.88);
-      // physics step
-      ball.vy -= gravity;
-      ball.x  += ball.vx;
-      ball.y  += ball.vy;
-      // floor
-      if (ball.y <= 0) {
-        ball.y  = 0;
-        ball.vy = Math.max((envelope[col] ?? 0) * (ROWS - 1), -ball.vy * restitution);
-        ball.vx += (Math.random() - 0.5) * lateralKick;
-        ball.vx *= 0.80;
-      }
-      // ceiling
-      if (ball.y >= ROWS - 1) { ball.y = ROWS - 1; ball.vy = -Math.abs(ball.vy) * 0.4; }
-      // walls
-      if (ball.x < 0)             { ball.x = 0;             ball.vx =  Math.abs(ball.vx) * 0.8; }
-      if (ball.x > BAND_COUNT - 1) { ball.x = BAND_COUNT - 1; ball.vx = -Math.abs(ball.vx) * 0.8; }
-      const r = ROWS - 1 - Math.round(Math.min(ROWS - 1, Math.max(0, ball.y)));
-      const c = Math.round(Math.min(BAND_COUNT - 1, Math.max(0, ball.x)));
-      frame[c * ROWS + r] = 255;
-    }
-    return frame;
-  };
-}
-function bounceDrift():   Renderer { return makeBounce(0.5, 0.7, 2.0); }
-function bounceGravity(): Renderer { return makeBounce(1.2, 0.4, 0.8); }
 
 function waterfall(): Renderer {
   const history: Uint8Array[] = Array.from({ length: ROWS }, () => new Uint8Array(BAND_COUNT));
@@ -192,98 +151,112 @@ function sparks(): Renderer {
   };
 }
 
-function makeSparksDrift(colPush: (col: number, e: Float32Array) => number): Renderer {
-  const grid = new Float32Array(BAND_COUNT * ROWS);
-  const rowBuf = new Float32Array(BAND_COUNT);
-  const energies = new Float32Array(BAND_COUNT);
-  return ({ bands, gain, fftSize }) => {
-    const ref = fftSize / 2;
-    for (let c = 0; c < BAND_COUNT; c++) energies[c] = dbLevel(bands[c] ?? 0, gain, ref);
-    for (let row = 0; row < ROWS - 1; row++)
-      for (let col = 0; col < BAND_COUNT; col++)
-        grid[col * ROWS + row] = grid[col * ROWS + row + 1] ?? 0;
-    for (let col = 0; col < BAND_COUNT; col++)
-      grid[col * ROWS + (ROWS - 1)] = Math.random() < (energies[col] ?? 0) ? 1.0 : 0;
-    const frame = createFrame();
-    for (let row = 0; row < ROWS; row++) {
-      rowBuf.fill(0);
-      for (let col = 0; col < BAND_COUNT; col++) {
-        const v = grid[col * ROWS + row] ?? 0;
-        if (v === 0) continue;
-        const target = Math.min(BAND_COUNT - 1, Math.max(0, col + colPush(col, energies)));
-        const lo = Math.floor(target);
-        const frac = target - lo;
-        rowBuf[lo] = Math.min(1, (rowBuf[lo] ?? 0) + v * (1 - frac));
-        if (lo + 1 < BAND_COUNT) rowBuf[lo + 1] = Math.min(1, (rowBuf[lo + 1] ?? 0) + v * frac);
-      }
-      for (let col = 0; col < BAND_COUNT; col++)
-        frame[col * ROWS + row] = Math.round((rowBuf[col] ?? 0) * 255);
-    }
-    return frame;
-  };
-}
 
-function sparksTug(): Renderer {
-  return makeSparksDrift((col, e) => ((e[col] ?? 0) - (e[BAND_COUNT - 1 - col] ?? 0)) * 2.5);
-}
-type KSpark = { col: number; row: number; v: number };
-
-function makeSparksKaleido(inward: number): Renderer {
-  const energies = new Float32Array(BAND_COUNT);
-  const ks: KSpark[] = [];
-  return ({ bands, gain, fftSize }) => {
-    const ref = fftSize / 2;
-    for (let c = 0; c < BAND_COUNT; c++) energies[c] = dbLevel(bands[c] ?? 0, gain, ref);
-    // Spawn on left half (0-4), mirror to right half
-    for (let col = 0; col <= 4; col++) {
-      if (Math.random() < (energies[col] ?? 0)) {
-        ks.push({ col, row: ROWS - 1, v: 1.0 });
-        if (col !== 4) ks.push({ col: BAND_COUNT - 1 - col, row: ROWS - 1, v: 1.0 });
-      }
-    }
-    // Advance particles: rise up, drift toward center col 4
-    for (let i = ks.length - 1; i >= 0; i--) {
-      const s = ks[i]!;
-      s.row--;
-      s.col += (4 - s.col) * inward;
-      s.v *= 0.92;
-      if (s.row < 0 || s.v < 0.08) { ks.splice(i, 1); continue; }
-    }
-    const frame = createFrame();
-    for (const s of ks) {
-      const c = Math.min(BAND_COUNT - 1, Math.max(0, Math.round(s.col)));
-      if (s.row >= 0 && s.row < ROWS) {
-        const idx = c * ROWS + s.row;
-        frame[idx] = Math.max(frame[idx] ?? 0, Math.round(s.v * 255));
-      }
-    }
-    return frame;
-  };
-}
-function sparksKaleidoA(): Renderer { return makeSparksKaleido(0.08); }
-function sparksKaleidoB(): Renderer { return makeSparksKaleido(0.20); }
-
-function flameBars(): Renderer {
-  // Smooth envelope (fast attack, slow release) with per-frame random flicker.
-  const envelope = new Float32Array(BAND_COUNT);
+function makeSparksNeo(spawnRate: number, maxPerCol: number): Renderer {
+  interface Rise { pos: number; col: number; speed: number; }
+  const TRAIL = 9;
+  const colCount = new Uint8Array(BAND_COUNT);
+  let particles: Rise[] = [];
   return ({ bands, gain, fftSize }) => {
     const ref = fftSize / 2;
     const frame = createFrame();
+    colCount.fill(0);
+    for (const p of particles) { colCount[p.col] = (colCount[p.col] ?? 0) + 1; }
     for (let col = 0; col < BAND_COUNT; col++) {
-      const t = dbLevel(bands[BAND_COUNT - 1 - col] ?? 0, gain, ref);
-      envelope[col] = t > (envelope[col] ?? 0)
-        ? t
-        : (envelope[col] ?? 0) * 0.85 + t * 0.15;
-      // Flicker: random height between 70% and 120% of envelope
-      const flicker = (envelope[col] ?? 0) * (0.7 + Math.random() * 0.5);
-      const height = Math.round(Math.min(1, flicker) * ROWS);
-      for (let row = 0; row < ROWS; row++) {
-        frame[col * ROWS + row] = row >= ROWS - height ? 255 : 0;
+      const energy = dbLevel(bands[col] ?? 0, gain, ref);
+      if ((colCount[col] ?? 0) < maxPerCol && Math.random() < energy * spawnRate) {
+        particles.push({ pos: ROWS - 1, col, speed: 0.4 + energy * 2.0 });
       }
     }
+    particles = particles.filter(p => {
+      p.pos -= p.speed;
+      const head = Math.round(p.pos);
+      for (let t = 0; t < TRAIL; t++) {
+        const r = head + t;
+        if (r >= 0 && r < ROWS) {
+          const v = Math.round(255 * Math.pow(0.65, t));
+          const idx = p.col * ROWS + r;
+          frame[idx] = Math.max(frame[idx] ?? 0, v);
+        }
+      }
+      return p.pos > -TRAIL;
+    });
     return frame;
   };
 }
+function sparksNeoB(): Renderer { return makeSparksNeo(0.45, 5); }
+
+
+
+
+
+// inward sparks with a directional comet tail + 2 rotating mirrors.
+// Each particle carries a tail pointing back toward where it came from,
+// so motion toward center is visible without accumulation.
+// keep: fraction of columns that can spawn per frame; trailLen: pixels behind head
+function makeSparksKaleidoH(keep: number, trailLen: number): Renderer {
+  const TRAVEL = ROWS - 1 - Math.floor(ROWS / 2);
+  const MAX_P = 300;
+  const pcf = new Float32Array(MAX_P);
+  const prr = new Float32Array(MAX_P);
+  const pdc = new Float32Array(MAX_P);
+  let count = 0;
+  const CC = (BAND_COUNT - 1) / 2;
+  const CR = (ROWS - 1) / 2;
+  let tick = 0;
+
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    let write = 0;
+    for (let i = 0; i < count; i++) {
+      const ri = (prr[i] ?? 0) - 1;
+      const ci = (pcf[i] ?? 0) + (pdc[i] ?? 0);
+      if (ri >= 0) { prr[write] = ri; pcf[write] = ci; pdc[write] = pdc[i] ?? 0; write++; }
+    }
+    count = write;
+    for (let col = 0; col < BAND_COUNT; col++) {
+      const energy = dbLevel(bands[col] ?? 0, gain, ref);
+      if (Math.random() < energy * keep && count < MAX_P) {
+        pcf[count] = col; prr[count] = ROWS - 1; pdc[count] = (CC - col) / TRAVEL; count++;
+      }
+    }
+
+    const buf = new Float32Array(BAND_COUNT * ROWS);
+    const a1 = tick * 0.015;
+    const a2 = tick * 0.0091;
+
+    const paint = (c: number, r: number, v: number) => {
+      if (c < 0 || c >= BAND_COUNT || r < 0 || r >= ROWS || v <= 0) return;
+      if (v <= (buf[c * ROWS + r] ?? 0)) return;
+      buf[c * ROWS + r] = v;
+      const nx = (c - CC) / CC, ny = (r - CR) / CR;
+      for (const a of [a1, a2]) {
+        const c2a = Math.cos(2 * a), s2a = Math.sin(2 * a);
+        const mc = Math.round((nx * c2a + ny * s2a) * CC + CC);
+        const mr = Math.round((nx * s2a - ny * c2a) * CR + CR);
+        if (mc >= 0 && mc < BAND_COUNT && mr >= 0 && mr < ROWS)
+          buf[mc * ROWS + mr] = Math.max(buf[mc * ROWS + mr] ?? 0, v);
+      }
+    };
+
+    for (let i = 0; i < count; i++) {
+      paint(Math.round(pcf[i] ?? 0), Math.round(prr[i] ?? 0), 255);
+      for (let t = 1; t < trailLen; t++) {
+        const tc = Math.round((pcf[i] ?? 0) - (pdc[i] ?? 0) * t);
+        const tr = Math.round((prr[i] ?? 0) + t);
+        paint(tc, tr, Math.round(255 * Math.pow(0.55, t)));
+      }
+    }
+
+    tick++;
+    const frame = createFrame();
+    for (let i = 0; i < buf.length; i++) frame[i] = Math.round(buf[i] ?? 0);
+    return frame;
+  };
+}
+function specter(): Renderer { return makeSparksKaleidoH(0.12, 4); }
+
+
 
 type Spark = { col: number; pos: number; v: number };
 
@@ -322,8 +295,6 @@ function makeFlameSparks(spawnsPerFrame: number, sparkDecay = 0.85, riseBase = 0
     return frame;
   };
 }
-function flameSparksA(): Renderer { return makeFlameSparks(4, 0.93, 0.6); }
-
 function makeFlameLifeSparks(cull: number, centerSeed: boolean, heightScale: number): Renderer {
   const lifeR   = makeFlameLife(cull, centerSeed, heightScale);
   const sparksR = makeFlameSparks(4, 0.93, 0.6, true);
@@ -335,8 +306,6 @@ function makeFlameLifeSparks(cull: number, centerSeed: boolean, heightScale: num
     return lifeFrame;
   };
 }
-function flameLifeSparks():  Renderer { return makeFlameLifeSparks(0.70, false, 1.0); }
-function flameLifeSparksA(): Renderer { return makeFlameLifeSparks(0.70, false, 0.50); }
 function flameLifeSparksB(): Renderer { return makeFlameLifeSparks(0.70, false, 0.25); }
 
 function makeFlameLife(cull: number, centerSeed = false, heightScale = 1.0): Renderer {
@@ -405,11 +374,6 @@ function makeFlameLife(cull: number, centerSeed = false, heightScale = 1.0): Ren
     return frame;
   };
 }
-function flameLife():  Renderer { return makeFlameLife(0.70); }
-function flameLifeA(): Renderer { return makeFlameLife(0.78, true); }
-function flameLifeB(): Renderer { return makeFlameLife(0.86, true); }
-
-
 function eqSparks(): Renderer {
   const peaks = new Float32Array(BAND_COUNT);
   const grid = new Uint8Array(BAND_COUNT * ROWS);
@@ -523,18 +487,17 @@ function cipher(): Renderer {
 
 function wake(): Renderer {
   const waves: number[] = [];
-  let fast = 0, slow = 0;
+  let smoothed = 0;
   let cooldown = 0;
   const glow = new Float32Array(BAND_COUNT * ROWS);
   return ({ bands, gain, fftSize }) => {
     const ref = fftSize / 2;
     const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
     const t = dbLevel(avg, gain, ref);
-    fast = fast * 0.5 + t * 0.5;
-    slow = slow * 0.95 + t * 0.05;
-    const delta = fast - slow;
+    const delta = t - smoothed;
+    smoothed = smoothed * 0.88 + t * 0.12;
     if (cooldown > 0) cooldown--;
-    if (delta > 0.03 && cooldown === 0) { waves.push(ROWS - 1); cooldown = 8; }
+    if (delta > 0.06 && cooldown === 0) { waves.push(ROWS - 1); cooldown = 8; }
     for (let w = waves.length - 1; w >= 0; w--) {
       waves[w]! -= 0.5 + t * 2.0;
       if (waves[w]! < 0) {
@@ -557,13 +520,12 @@ function wake(): Renderer {
 
 type Ripple = { cx: number; cy: number; r: number };
 
-function tickRipples(ripples: Ripple[], bands: number[], gain: number, ref: number, smoothed: { fast: number; slow: number }, cooldown: { v: number }) {
+function tickRipples(ripples: Ripple[], bands: number[], gain: number, ref: number, smoothed: { v: number }, cooldown: { v: number }) {
   const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
   const t = dbLevel(avg, gain, ref);
-  smoothed.fast = smoothed.fast * 0.5 + t * 0.5;
-  smoothed.slow = smoothed.slow * 0.95 + t * 0.05;
-  const delta = smoothed.fast - smoothed.slow;
-  if (cooldown.v > 0) { cooldown.v--; } else if (delta > 0.02) {
+  const delta = t - smoothed.v;
+  smoothed.v = smoothed.v * 0.88 + t * 0.12;
+  if (cooldown.v > 0) { cooldown.v--; } else if (delta > 0.05) {
     const totalE = bands.reduce((s, e) => s + e, 0);
     const cx = totalE > 0 ? bands.reduce((s, e, i) => s + e * i, 0) / totalE : BAND_COUNT / 2;
     ripples.push({ cx, cy: ROWS / 2 + (Math.random() - 0.5) * ROWS * 0.5, r: 0 });
@@ -576,32 +538,9 @@ function tickRipples(ripples: Ripple[], bands: number[], gain: number, ref: numb
   }
 }
 
-function drip(): Renderer {
+function makeDrip(innerTrailWidth: number, trailDecay: number, ringWidth = 1.5, solidEdge = false): Renderer {
   const ripples: Ripple[] = [];
-  const smoothed = { fast: 0, slow: 0 }, cooldown = { v: 0 };
-  return ({ bands, gain, fftSize }) => {
-    const ref = fftSize / 2;
-    tickRipples(ripples, bands, gain, ref, smoothed, cooldown);
-    const frame = createFrame();
-    for (let col = 0; col < BAND_COUNT; col++) {
-      const energy = dbLevel(bands[col] ?? 0, gain, ref);
-      for (let row = 0; row < ROWS; row++) {
-        let v = 0;
-        for (const rp of ripples) {
-          const dist = Math.sqrt((col - rp.cx) ** 2 + (row - rp.cy) ** 2);
-          v = Math.max(v, Math.max(0, 1 - Math.abs(dist - rp.r) / 1.5));
-        }
-        if (v > 0 && Math.random() < energy * 0.7) v = 0;
-        frame[col * ROWS + row] = Math.round(v * 255);
-      }
-    }
-    return frame;
-  };
-}
-
-function makeDrip(innerTrailWidth: number, trailDecay: number): Renderer {
-  const ripples: Ripple[] = [];
-  const smoothed = { fast: 0, slow: 0 }, cooldown = { v: 0 };
+  const smoothed = { v: 0 }, cooldown = { v: 0 };
   const trail = new Float32Array(BAND_COUNT * ROWS);
   return ({ bands, gain, fftSize }) => {
     const ref = fftSize / 2;
@@ -612,23 +551,71 @@ function makeDrip(innerTrailWidth: number, trailDecay: number): Renderer {
       const energy = dbLevel(bands[col] ?? 0, gain, ref);
       for (let row = 0; row < ROWS; row++) {
         const idx = col * ROWS + row;
-        let v = 0;
+        let v = 0, atLeadingEdge = false;
         for (const rp of ripples) {
           const dist = Math.sqrt((col - rp.cx) ** 2 + (row - rp.cy) ** 2);
-          v = Math.max(v, Math.max(0, 1 - Math.abs(dist - rp.r) / 1.5));
+          const rv = Math.max(0, 1 - Math.abs(dist - rp.r) / ringWidth);
+          v = Math.max(v, rv);
+          if (solidEdge && rv > 0 && dist >= rp.r - 0.5) atLeadingEdge = true;
           if (dist <= rp.r && rp.r - dist <= innerTrailWidth) {
             trail[idx] = Math.max(trail[idx] ?? 0, (1 - (rp.r - dist) / innerTrailWidth) * 0.9);
           }
         }
-        if (v > 0 && Math.random() < energy * 0.7) v = 0;
+        if (v > 0 && !atLeadingEdge && Math.random() < energy * 0.7) v = 0;
         frame[idx] = Math.min(255, Math.round(Math.max(v, trail[idx] ?? 0) * 255));
       }
     }
     return frame;
   };
 }
-function dripA(): Renderer { return makeDrip(5,   0.88); }
-function dripB(): Renderer { return makeDrip(2.5, 0.94); }
+function dripE(): Renderer { return makeDrip(3, 0.65, 0.5, true); }
+
+function makeDripLine(innerTrailWidth: number, trailDecay: number, ringWidth = 1.5, solidEdge = false): Renderer {
+  const ripples: { y: number }[] = [];
+  const smoothed = { v: 0 }, cooldown = { v: 0 };
+  const trail = new Float32Array(BAND_COUNT * ROWS);
+  const CENTER = Math.floor(ROWS / 2);
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
+    const t = dbLevel(avg, gain, ref);
+    const delta = t - smoothed.v;
+    smoothed.v = smoothed.v * 0.88 + t * 0.12;
+    if (cooldown.v > 0) { cooldown.v--; } else if (delta > 0.05) {
+      ripples.push({ y: 0 });
+      cooldown.v = 6;
+    }
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      ripples[i]!.y += 0.6;
+      if (ripples[i]!.y > ROWS / 2 + ringWidth) ripples.splice(i, 1);
+    }
+    for (let i = 0; i < trail.length; i++) trail[i] = (trail[i] ?? 0) * trailDecay;
+    const frame = createFrame();
+    for (let col = 0; col < BAND_COUNT; col++) {
+      const energy = dbLevel(bands[col] ?? 0, gain, ref);
+      for (let row = 0; row < ROWS; row++) {
+        const idx = col * ROWS + row;
+        let v = 0, atLeadingEdge = false;
+        for (const rp of ripples) {
+          const rowDist = Math.abs(row - CENTER);
+          const distUp   = Math.abs(row - (CENTER - rp.y));
+          const distDown = Math.abs(row - (CENTER + rp.y));
+          const dist = Math.min(distUp, distDown);
+          const rv = Math.max(0, 1 - dist / ringWidth);
+          v = Math.max(v, rv);
+          if (solidEdge && rv > 0 && (row <= CENTER - rp.y + 0.5 || row >= CENTER + rp.y - 0.5)) atLeadingEdge = true;
+          if (rowDist < rp.y && rp.y - rowDist <= innerTrailWidth) {
+            trail[idx] = Math.max(trail[idx] ?? 0, (1 - (rp.y - rowDist) / innerTrailWidth) * 0.9);
+          }
+        }
+        if (v > 0 && !atLeadingEdge && Math.random() < energy * 0.7) v = 0;
+        frame[idx] = Math.min(255, Math.round(Math.max(v, trail[idx] ?? 0) * 255));
+      }
+    }
+    return frame;
+  };
+}
+function dripB(): Renderer { return makeDripLine(5, 0.88); }
 
 type LifeOpts = { seedRate: number; threshold: number; decay: number; survive: (n: number) => boolean; born: (n: number) => boolean; transientWipe?: number; transientCull?: number; continuousCull?: number };
 
@@ -704,32 +691,22 @@ function lifeErode4(): Renderer {
   return makeLife({ seedRate: 0.15, threshold: 0.4, decay: 0.75, survive: n => n === 2 || n === 3, born: n => n === 3, continuousCull: 0.70 });
 }
 const FACTORIES: Record<AudioStyle, () => Renderer> = {
-  'eq-bars':            eqBars,
-  'spectrum-fall':      spectrumFall,
-  'vu-meter':           vuMeter,
-  'dark-matter':        eqSparks,
-  'neo':                neo,
-  'cipher':             cipher,
-  'wake':               wake,
-  'drip':               drip,
-  'drip-a':             dripA,
-  'life-erode-4':       lifeErode4,
-  'bounce':             bounce,
-  'bounce-drift':       bounceDrift,
-  'bounce-gravity':     bounceGravity,
-  'waterfall':          waterfall,
-  'sparks':             sparks,
-  'sparks-tug':         sparksTug,
-  'sparks-kaleido':     sparksKaleidoA,
-  'sparks-kaleido-b':   sparksKaleidoB,
-  'flame-bars':         flameBars,
-  'flame-sparks-a':     flameSparksA,
-  'flame-life':         flameLife,
-  'flame-life-a':       flameLifeA,
-  'flame-life-b':       flameLifeB,
-  'flame-life-sparks':    flameLifeSparks,
-  'flame-life-sparks-a':  flameLifeSparksA,
-  'flame-life-sparks-b':  flameLifeSparksB,
+  'eq-bars':             eqBars,
+  'spectrum-fall':       spectrumFall,
+  'vu-meter':            vuMeter,
+  'dark-matter':         eqSparks,
+  'neo':                 neo,
+  'cipher':              cipher,
+  'wake':                wake,
+  'rhythm':              dripB,
+  'drop':                dripE,
+  'life-erode-4':        lifeErode4,
+  'kick':                kick,
+  'waterfall':           waterfall,
+  'sparks':              sparks,
+  'hex':                 sparksNeoB,
+  'specter':             specter,
+  'heat':                flameLifeSparksB,
 };
 
 export function createRenderer(style: AudioStyle): Renderer {
