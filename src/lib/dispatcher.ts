@@ -1,8 +1,9 @@
 import type { SwitchEvent } from './ec-switches.js';
 import type { VmEvent } from './vm-source.js';
 import type { ClaudeActivityEvent } from './claude-source.js';
+import type { DesktopNotification } from './dbus-notifications.js';
 
-export type DisplaySource = 'ec-switch' | 'vm' | 'claude' | 'manual';
+export type DisplaySource = 'ec-switch' | 'vm' | 'claude' | 'desktop-notification' | 'manual';
 
 export type DisplayIntent = {
   id: string;
@@ -63,6 +64,19 @@ export function claudeIntent(e: ClaudeActivityEvent): DisplayIntent | null {
     content: label,
     durationMs: 3000,
     expiresAt: Date.now() + 3000,
+  };
+}
+
+export function notificationIntent(n: DesktopNotification): DisplayIntent {
+  const content = n.summary || n.appName || 'notification';
+  const durationMs = Math.max(5000, content.length * 120 + 2000);
+  return {
+    id: nextId(),
+    source: 'desktop-notification',
+    priority: PRIORITY.NORMAL,
+    content,
+    durationMs,
+    expiresAt: Date.now() + durationMs,
   };
 }
 

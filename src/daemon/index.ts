@@ -11,7 +11,8 @@ import { watchVms } from '../lib/vm-source.js';
 import { parseClaudeHook } from '../lib/claude-source.js';
 import { parseProject, base64ToFrame } from '../designer/format.js';
 import type { DmxProject } from '../designer/format.js';
-import { Dispatcher, ecSwitchIntent, vmIntent } from '../lib/dispatcher.js';
+import { watchDesktopNotifications } from '../lib/dbus-notifications.js';
+import { Dispatcher, ecSwitchIntent, vmIntent, notificationIntent } from '../lib/dispatcher.js';
 import { SerialTransport } from '../lib/transport.js';
 import { runAnimation } from '../lib/animation.js';
 import { createStartupAnimation } from '../animations/startup.js';
@@ -451,6 +452,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     const intent = vmIntent(e);
     dispatcher.push(intent);
   }, { intervalMs: 2000 }));
+
+  disposeWatches.push(watchDesktopNotifications((n) => {
+    dispatcher.push(notificationIntent(n));
+  }));
 
   // Brightness loop
   let disposeBrightness = startBrightnessLoop(currentConfig, async (pct) => {
