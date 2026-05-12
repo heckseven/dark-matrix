@@ -1,7 +1,7 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'ripple' | 'life' | 'life-fade' | 'life-strict';
+export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'ripple' | 'life' | 'life-fade' | 'life-strict' | 'life-wave';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'dark-matter',     label: 'dark matter' },
@@ -12,6 +12,7 @@ export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'life',            label: 'life' },
   { id: 'life-fade',       label: 'life fade' },
   { id: 'life-strict',     label: 'life strict' },
+  { id: 'life-wave',       label: 'life wave' },
   { id: 'eq-bars',         label: 'eq bars' },
   { id: 'spectrum-fall',   label: 'spectrum fall' },
   { id: 'vu-meter',        label: 'vu meter' },
@@ -439,7 +440,83 @@ function life(): Renderer {
 // Very sparse seeding, slow decay — isolated cells leave long phosphor trails
 // No births — cells only injected by transients, GoL only erodes, population strictly shrinks between beats
 function lifeFade(): Renderer {
-  return makeLife({ seedRate: 0.08, threshold: 0.45, decay: 0.60, survive: n => n === 2 || n === 3, born: () => false });
+  return makeLife({ seedRate: 0.18, threshold: 0.45, decay: 0.80, survive: n => n === 2 || n === 3, born: () => false });
+}
+
+// Dual-generation: transient seeds "new" cells that can birth; existing cells age to "old" (survive only, no births).
+// On each transient, all current cells become old; new cells are injected proportional to transient peak.
+function lifeWave(): Renderer {
+  const cells = new Float32Array(BAND_COUNT * ROWS);
+  const isNew = new Uint8Array(BAND_COUNT * ROWS);
+  let smoothed = 0;
+  let cooldown = 0;
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
+    const t = dbLevel(avg, gain, ref);
+    const delta = t - smoothed;
+    smoothed = smoothed * 0.85 + t * 0.15;
+    if (cooldown > 0) cooldown--;
+    if (delta > 0.10 && cooldown === 0) {
+      isNew.fill(0); // existing cells lose birth rights
+      const count = Math.round(delta * BAND_COUNT * ROWS * 0.20);
+      for (let i = 0; i < count; i++) {
+        const idx = Math.floor(Math.random() * BAND_COUNT * ROWS);
+        cells[idx] = 1.0;
+        isNew[idx] = 1;
+      }
+      cooldown = 5;
+    }
+    const aliveAll = new Uint8Array(BAND_COUNT * ROWS);
+    const aliveNew = new Uint8Array(BAND_COUNT * ROWS);
+    for (let i = 0; i < cells.length; i++) {
+      if ((cells[i] ?? 0) > 0.4) {
+        aliveAll[i] = 1;
+        if (isNew[i]) aliveNew[i] = 1;
+      }
+    }
+    const nextCells = new Float32Array(cells.length);
+    const nextIsNew = new Uint8Array(cells.length);
+    for (let col = 0; col < BAND_COUNT; col++) {
+      for (let row = 0; row < ROWS; row++) {
+        let nAll = 0, nNew = 0;
+        for (let dc = -1; dc <= 1; dc++) {
+          for (let dr = -1; dr <= 1; dr++) {
+            if (dc === 0 && dr === 0) continue;
+            const nc = col + dc, nr = row + dr;
+            if (nc >= 0 && nc < BAND_COUNT && nr >= 0 && nr < ROWS) {
+              nAll += aliveAll[nc * ROWS + nr] ?? 0;
+              nNew += aliveNew[nc * ROWS + nr] ?? 0;
+            }
+          }
+        }
+        const idx = col * ROWS + row;
+        const alive = aliveAll[idx] === 1;
+        if (alive) {
+          if (nAll === 2 || nAll === 3) {
+            nextCells[idx] = 1.0;
+            nextIsNew[idx] = isNew[idx] ?? 0;
+          } else {
+            nextCells[idx] = (cells[idx] ?? 0) * 0.65;
+          }
+        } else {
+          if (nNew === 3) { // born only from new-cell neighbors
+            nextCells[idx] = 1.0;
+            nextIsNew[idx] = 1;
+          } else {
+            nextCells[idx] = (cells[idx] ?? 0) * 0.65;
+          }
+        }
+      }
+    }
+    for (let i = 0; i < cells.length; i++) {
+      cells[i] = nextCells[i] ?? 0;
+      isNew[i] = nextIsNew[i] ?? 0;
+    }
+    const frame = createFrame();
+    for (let i = 0; i < cells.length; i++) frame[i] = Math.round((cells[i] ?? 0) * 255);
+    return frame;
+  };
 }
 
 // Grid wiped on each transient — every beat is a fresh sparse GoL run, no accumulation between beats
@@ -460,6 +537,7 @@ const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'life':            life,
   'life-fade':       lifeFade,
   'life-strict':     lifeStrict,
+  'life-wave':       lifeWave,
   'bounce':          bounce,
   'waterfall':       waterfall,
   'sparks':          sparks,
