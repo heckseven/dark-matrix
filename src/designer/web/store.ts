@@ -1,9 +1,12 @@
 import { createStore } from 'zustand/vanilla';
 import { useStore } from 'zustand/react';
 import type { DmxFrame } from '../format.js';
+import type { AppMode } from './components/ModePicker.js';
 
 export type Frame = DmxFrame;
 export type PreviewTarget = 'left' | 'right' | 'both' | 'mirror';
+
+export type { AppMode };
 
 export interface DesignerState {
   frames: Frame[];
@@ -20,6 +23,8 @@ export interface DesignerState {
   redoStack: Frame[][];
   strokeSnapshot: Frame[] | null;
   projectTitle: string;
+  activeMode: AppMode;
+  libraryPath: string | null;
 }
 
 export interface DesignerActions {
@@ -46,6 +51,8 @@ export interface DesignerActions {
   clearFrame(idx: number): void;
   loadProject(project: unknown): void;
   setProjectTitle(title: string): void;
+  setActiveMode(mode: AppMode): void;
+  setLibraryPath(path: string | null): void;
 }
 
 export type DesignerStore = DesignerState & DesignerActions;
@@ -135,6 +142,8 @@ export function createDesignerStore() {
     redoStack: [],
     strokeSnapshot: null,
     projectTitle: 'untitled_animation',
+    activeMode: 'design',
+    libraryPath: null,
 
     setPixel(frameIdx, col, row, value) {
       const { frames, mode, undoStack, strokeSnapshot, previewTarget, width } = get();
@@ -307,6 +316,8 @@ export function createDesignerStore() {
     },
 
     setProjectTitle(title) { set({ projectTitle: title.trim() || 'untitled_animation' }); },
+    setActiveMode(mode) { set({ activeMode: mode }); },
+    setLibraryPath(p) { set({ libraryPath: p }); },
   }));
 }
 
@@ -324,7 +335,8 @@ const SESSION_KEY = 'dark-matrix-designer';
 
 type SessionSnapshot = Pick<DesignerState,
   'frames' | 'width' | 'mode' | 'loop' | 'activeFrameIdx' |
-  'zoom' | 'activeColor' | 'previewTarget' | 'projectTitle'
+  'zoom' | 'activeColor' | 'previewTarget' | 'projectTitle' |
+  'activeMode' | 'libraryPath'
 >;
 
 if (typeof localStorage !== 'undefined') {
@@ -344,6 +356,8 @@ if (typeof localStorage !== 'undefined') {
           ...(s.zoom !== undefined ? { zoom: s.zoom } : {}),
           ...(s.activeColor !== undefined ? { activeColor: s.activeColor } : {}),
           ...(s.previewTarget !== undefined ? { previewTarget: s.previewTarget } : {}),
+          ...(s.activeMode !== undefined ? { activeMode: s.activeMode } : {}),
+          ...(s.libraryPath !== undefined ? { libraryPath: s.libraryPath } : {}),
         });
       }
     }
@@ -355,9 +369,9 @@ if (typeof localStorage !== 'undefined') {
     if (_saveTimer) clearTimeout(_saveTimer);
     _saveTimer = setTimeout(() => {
       try {
-        const { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle } = state;
+        const { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, libraryPath } = state;
         localStorage.setItem(SESSION_KEY, JSON.stringify(
-          { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle } satisfies SessionSnapshot
+          { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, libraryPath } satisfies SessionSnapshot
         ));
       } catch { /* storage full or unavailable */ }
     }, 500);

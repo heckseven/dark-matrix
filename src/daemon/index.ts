@@ -9,6 +9,8 @@ import { startBrightnessLoop } from '../lib/brightness.js';
 import { watchSwitches } from '../lib/ec-switches.js';
 import { watchVms } from '../lib/vm-source.js';
 import { parseClaudeHook } from '../lib/claude-source.js';
+import { parseProject } from '../designer/format.js';
+import type { DmxProject } from '../designer/format.js';
 import { Dispatcher, ecSwitchIntent, vmIntent } from '../lib/dispatcher.js';
 import { SerialTransport } from '../lib/transport.js';
 import { runAnimation } from '../lib/animation.js';
@@ -20,7 +22,7 @@ import { createAudioEqAnimation } from '../animations/audio-eq.js';
 import { createGifAnimation } from '../animations/gif.js';
 import type { GifAnimation } from '../animations/gif.js';
 import type { DisplayIntent } from '../lib/dispatcher.js';
-import { packBW, FRAME_SIZE } from '../lib/frame.js';
+import { packBW, FRAME_SIZE, FRAME_COLS, FRAME_ROWS } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
 const SCROLL_MAX_LEN = 120;
@@ -286,6 +288,80 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       }
 
       if (!stopped && !hold) startIdleTimer();
+    })();
+  }
+
+  function startDmxAnimation(filePath: string, loop: boolean): void {
+    stopAnim();
+    let stopped = false;
+    stopCurrentAnim = () => { stopped = true; };
+
+    void (async () => {
+      let raw: string;
+      try {
+        raw = await fs.readFile(filePath, 'utf-8');
+      } catch (err) {
+        process.stderr.write(`dark-matrix: dmx load failed: ${String(err)}\n`);
+        return;
+      }
+
+      let project: DmxProject;
+      try {
+        project = parseProject(raw);
+      } catch (err) {
+        process.stderr.write(`dark-matrix: dmx parse failed: ${String(err)}\n`);
+        return;
+      }
+
+      if (stopped) return;
+      stopCurrentAnim = () => { stopped = true; };
+
+      const { left, right } = currentConfig.modules;
+      const { frames, mode, width, height } = project;
+      const { base64ToFrame } = await import('../designer/format.js');
+      const dual = width === 18;
+
+      do {
+        for (const dmxFrame of frames) {
+          if (stopped) break;
+          const pixels = base64ToFrame(dmxFrame.pixels, width * height);
+          if (dual) {
+            const leftBuf = new Uint8Array(FRAME_SIZE) as unknown as Frame;
+            const rightBuf = new Uint8Array(FRAME_SIZE) as unknown as Frame;
+            for (let col = 0; col < FRAME_COLS; col++) {
+              for (let row = 0; row < FRAME_ROWS; row++) {
+                leftBuf[col * FRAME_ROWS + row] = pixels[col * FRAME_ROWS + row] ?? 0;
+                rightBuf[col * FRAME_ROWS + row] = pixels[(col + FRAME_COLS) * FRAME_ROWS + row] ?? 0;
+              }
+            }
+            if (mode === 'bw') {
+              try { if (left) await transport.frameBw(packBW(leftBuf), left); } catch { /* non-fatal */ }
+              try { if (right) await transport.frameBw(packBW(rightBuf), right); } catch { /* non-fatal */ }
+            } else {
+              try { if (left) await transport.frameGray(leftBuf, left); } catch { /* non-fatal */ }
+              try { if (right) await transport.frameGray(rightBuf, right); } catch { /* non-fatal */ }
+            }
+          } else {
+            const frame = pixels as unknown as Frame;
+            if (mode === 'bw') {
+              const packed = packBW(frame);
+              try { if (left) await transport.frameBw(packed, left); } catch { /* non-fatal */ }
+              try { if (right) await transport.frameBw(packed, right); } catch { /* non-fatal */ }
+            } else {
+              try { if (left) await transport.frameGray(frame, left); } catch { /* non-fatal */ }
+              try { if (right) await transport.frameGray(frame, right); } catch { /* non-fatal */ }
+            }
+          }
+          if (dmxFrame.delayMs > 0 && !stopped) {
+            await new Promise<void>(r => setTimeout(r, dmxFrame.delayMs));
+          }
+        }
+      } while (!stopped && loop);
+
+      if (!stopped) {
+        if (left) await transport.release(left).catch(() => {});
+        if (right) await transport.release(right).catch(() => {});
+      }
     })();
   }
 
@@ -563,6 +639,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     } else if (currentConfig.startup.animation === 'scroll') {
       const text = currentConfig.startup.scroll_text;
       runOnModules(createScrollAnimation({ text, loop: false }));
+    } else if (currentConfig.startup.animation === 'dmx') {
+      const dmxPath = currentConfig.startup.dmx_path;
+      if (dmxPath) startDmxAnimation(dmxPath, false);
     } else {
       runOnModules(null, () => createStartupAnimation({ style: 'wipe' }));
     }
