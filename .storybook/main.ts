@@ -2,7 +2,7 @@ import type { StorybookConfig } from '@storybook/tanstack-react';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url));
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const config: StorybookConfig = {
   stories: [
@@ -21,7 +21,7 @@ const config: StorybookConfig = {
     const { mergeConfig } = await import('vite');
     return mergeConfig(config, {
       resolve: {
-        alias: { '@': path.resolve(dirname, '../src') },
+        alias: { '@': path.resolve(__dirname, '../src') },
       },
       optimizeDeps: {
         include: ['react', 'react-dom'],
