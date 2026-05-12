@@ -22,6 +22,7 @@ import { createGolAnimation } from '../animations/gol.js';
 import { createHeatmapState, bumpTool, tickHeatmap, renderHeatmap } from '../animations/heatmap.js';
 import { createAudioEqAnimation } from '../animations/audio-eq.js';
 import type { AudioSource } from '../animations/audio-eq.js';
+import { AUDIO_STYLES } from '../animations/audio-renderers.js';
 import type { AudioStyle } from '../animations/audio-renderers.js';
 import { createGifAnimation } from '../animations/gif.js';
 import type { GifAnimation } from '../animations/gif.js';
@@ -192,22 +193,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   }
 
 
-  async function resolveDefaultSinkId(): Promise<string | undefined> {
+  async function resolveDefaultDeviceId(
+    role: '@DEFAULT_AUDIO_SINK@' | '@DEFAULT_AUDIO_SOURCE@',
+  ): Promise<string | undefined> {
     return new Promise((resolve) => {
-      const proc = spawn('wpctl', ['inspect', '@DEFAULT_AUDIO_SINK@'], { shell: false });
-      let out = '';
-      proc.stdout?.on('data', (d: Buffer) => { out += d.toString(); });
-      proc.on('close', () => {
-        const m = /^id (\d+)/.exec(out);
-        resolve(m ? m[1] : undefined);
-      });
-      proc.on('error', () => resolve(undefined));
-    });
-  }
-
-  async function resolveDefaultSourceId(): Promise<string | undefined> {
-    return new Promise((resolve) => {
-      const proc = spawn('wpctl', ['inspect', '@DEFAULT_AUDIO_SOURCE@'], { shell: false });
+      const proc = spawn('wpctl', ['inspect', role], { shell: false });
       let out = '';
       proc.stdout?.on('data', (d: Buffer) => { out += d.toString(); });
       proc.on('close', () => {
@@ -226,9 +216,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     const loop = async () => {
       const { packBW, FRAME_COLS, FRAME_ROWS, createFrame } = await import('../lib/frame.js');
       const eqSource = sourceOverride ?? currentConfig.daemon.idle_eq_source ?? 'monitor';
-      const target = eqSource === 'monitor'
-        ? await resolveDefaultSinkId()
-        : await resolveDefaultSourceId();
+      const target = await resolveDefaultDeviceId(
+        eqSource === 'monitor' ? '@DEFAULT_AUDIO_SINK@' : '@DEFAULT_AUDIO_SOURCE@',
+      );
       if (stopped) return;
       anim = createAudioEqAnimation({ source: eqSource, ...(target ? { target } : {}) });
       const iter = anim[Symbol.asyncIterator]();
@@ -261,9 +251,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     let anim: ReturnType<typeof createAudioEqAnimation> | null = null;
 
     const run = async () => {
-      const target = source === 'monitor'
-        ? await resolveDefaultSinkId()
-        : await resolveDefaultSourceId();
+      const target = await resolveDefaultDeviceId(
+        source === 'monitor' ? '@DEFAULT_AUDIO_SINK@' : '@DEFAULT_AUDIO_SOURCE@',
+      );
       if (stopped) return;
       anim = createAudioEqAnimation({ source, style, ...(target ? { target } : {}) });
       const iter = anim[Symbol.asyncIterator]();
@@ -690,10 +680,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               break;
             case 'audio-viz': {
               const m = msg as { cmd: string; style?: string; source?: string };
-              const validStyles = ['eq-bars', 'spectrum-mirror', 'vu-meter', 'bounce', 'waterfall', 'fire'] as const;
-              const style: AudioStyle = (validStyles as readonly string[]).includes(m.style ?? '')
-                ? m.style as AudioStyle
-                : 'eq-bars';
+              const knownStyles = AUDIO_STYLES.map(s => s.id as string);
+              const isAudioStyle = (s: string): s is AudioStyle => knownStyles.includes(s);
+              const style: AudioStyle = m.style && isAudioStyle(m.style) ? m.style : 'eq-bars';
               const source: AudioSource = m.source === 'mic' ? 'mic' : 'monitor';
               socket.write(JSON.stringify({ ok: true }) + '\n');
               const stopViz = streamAudioViz(style, source, (pixels) => {
