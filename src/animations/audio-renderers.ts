@@ -1,12 +1,13 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'spectrum-mirror' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter';
+export type AudioStyle = 'eq-bars' | 'spectrum-mirror' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'dark-matter',     label: 'dark matter' },
   { id: 'eq-bars',         label: 'eq bars' },
   { id: 'spectrum-mirror', label: 'spectrum mirror' },
+  { id: 'spectrum-fall',   label: 'spectrum fall' },
   { id: 'vu-meter',        label: 'vu meter' },
   { id: 'vu-sparks',       label: 'vu sparks' },
   { id: 'bounce',          label: 'bounce' },
@@ -234,9 +235,35 @@ function eqSparks(): Renderer {
   };
 }
 
+function spectrumFall(): Renderer {
+  const history: Uint8Array[] = Array.from({ length: ROWS }, () => new Uint8Array(BAND_COUNT));
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    const center = Math.floor(ROWS / 2);
+    const newRow = new Uint8Array(BAND_COUNT);
+    for (let b = 0; b < BAND_COUNT; b++) {
+      newRow[b] = Math.round(dbLevel(bands[b] ?? 0, gain, ref) * 255);
+    }
+    history.shift();
+    history.push(newRow);
+    const frame = createFrame();
+    for (let col = 0; col < BAND_COUNT; col++) {
+      const t = dbLevel(bands[col] ?? 0, gain, ref);
+      const halfH = Math.round(t * center);
+      for (let row = 0; row < ROWS; row++) {
+        if (Math.abs(row - center) <= halfH) {
+          frame[col * ROWS + row] = 255 - (history[row]?.[col] ?? 0);
+        }
+      }
+    }
+    return frame;
+  };
+}
+
 const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'eq-bars':         eqBars,
   'spectrum-mirror': spectrumMirror,
+  'spectrum-fall':   spectrumFall,
   'vu-meter':        vuMeter,
   'vu-sparks':       vuSparks,
   'dark-matter':     eqSparks,

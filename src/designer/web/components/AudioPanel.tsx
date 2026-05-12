@@ -25,6 +25,7 @@ const VU_PEAK = ROWS - 1 - 28;
 const PLACEHOLDER: Record<AudioStyle, string> = {
   'eq-bars':         makeFrame((c, r) => r >= ROWS - EQ_H[c]! ? 255 : 0),
   'spectrum-mirror': makeFrame((c, r) => Math.abs(r - CTR) <= SPEC_H[c]! ? 255 : 0),
+  'spectrum-fall':   makeFrame((c, r) => Math.abs(r - CTR) <= SPEC_H[c]! ? 255 - Math.round((r / (ROWS - 1)) * 255) : 0),
   'vu-meter':        makeFrame((_c, r) => r >= VU_BAR || r === VU_PEAK ? 255 : 0),
   'vu-sparks':       makeFrame((c, r) => r >= VU_BAR ? ((c * 7 + r * 11) % 9 < 7 ? 255 : 0) : r === VU_PEAK ? 255 : 0),
   'dark-matter':     makeFrame((c, r) => { const t = ROWS - EQ_H[c]!; return r === t - 2 ? 255 : r >= t ? ((c * 13 + r * 7) % 11 < 9 ? 255 : 0) : 0; }),
