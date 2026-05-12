@@ -35,6 +35,7 @@ const PLACEHOLDER: Record<AudioStyle, string> = {
   'life':            makeFrame((c, r) => (c * 17 + r * 31 + c * r * 7) % 11 < 3 ? 255 : 0),
   'life-pulse':      makeFrame((c, r) => (c * 11 + r * 23 + c * r * 13) % 17 < 3 ? 255 : 0),
   'life-erode-4':    makeFrame((c, r) => (c * 19 + r * 37 + c * r * 5) % 13 < 1 ? 255 : 0),
+  'life-erode-4b':   makeFrame((c, r) => (c * 19 + r * 37 + c * r * 5) % 13 < 1 ? 255 : 0),
   'life-erode-5':    makeFrame((c, r) => (c * 23 + r * 41 + c * r * 3) % 17 < 1 ? 255 : 0),
   'life-erode-6':    makeFrame((c, r) => (c * 29 + r * 43 + c * r * 7) % 23 < 1 ? 255 : 0),
   'bounce':          makeFrame((c, r) => r === ROWS - 1 - [0, 4, 10, 16, 20, 16, 10, 4, 0][c]! ? 255 : 0),
