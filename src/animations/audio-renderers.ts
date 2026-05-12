@@ -1,14 +1,14 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'spectrum-mirror' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'eq-sparks';
+export type AudioStyle = 'eq-bars' | 'spectrum-mirror' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'cyber';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'eq-bars',         label: 'eq bars' },
   { id: 'spectrum-mirror', label: 'spectrum mirror' },
   { id: 'vu-meter',        label: 'vu meter' },
   { id: 'vu-sparks',       label: 'vu sparks' },
-  { id: 'eq-sparks',       label: 'eq sparks' },
+  { id: 'cyber',           label: 'cyber' },
   { id: 'bounce',          label: 'bounce' },
   { id: 'waterfall',       label: 'waterfall' },
   { id: 'sparks',          label: 'sparks' },
@@ -239,7 +239,7 @@ const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'spectrum-mirror': spectrumMirror,
   'vu-meter':        vuMeter,
   'vu-sparks':       vuSparks,
-  'eq-sparks':       eqSparks,
+  'cyber':           eqSparks,
   'bounce':          bounce,
   'waterfall':       waterfall,
   'sparks':          sparks,
