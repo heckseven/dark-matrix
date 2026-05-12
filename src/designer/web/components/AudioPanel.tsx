@@ -32,6 +32,7 @@ const PLACEHOLDER: Record<AudioStyle, string> = {
   'cipher':          makeFrame((c, r) => (c * 17 + r * 31) % 7 < 4 ? 255 : 0),
   'wake':            makeFrame((_c, r) => Math.round(255 * Math.pow(0.86, Math.abs(r - 17) * 1.1))),
   'wake-transient':  makeFrame((_c, r) => r >= 8 && r <= 14 ? Math.round(255 * Math.pow(0.86, Math.abs(r - 11) * 1.1)) : 0),
+  'wake-multi':      makeFrame((_c, r) => Math.max(Math.round(255 * Math.pow(0.86, Math.abs(r - 7) * 1.1)), Math.round(255 * Math.pow(0.86, Math.abs(r - 23) * 1.1)))),
   'bounce':          makeFrame((c, r) => r === ROWS - 1 - [0, 4, 10, 16, 20, 16, 10, 4, 0][c]! ? 255 : 0),
   'waterfall':       makeFrame((_c, r) => Math.round((r / (ROWS - 1)) * 255)),
   'sparks':          makeFrame((c, r) => ((c * 7 + r * 11) % 13 < Math.round((1 - r / (ROWS - 1)) * 6)) ? 255 : 0),
