@@ -716,10 +716,15 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
   wss.on('connection', (ws: import('ws').WebSocket) => {
     const previewClient = new PersistentDaemonClient();
     let audioStream: net.Socket | null = null;
+    let audioHardwareActive = false;
     ws.send(JSON.stringify({ type: 'connected' }));
     ws.on('close', () => {
       previewClient.destroy();
       audioStream?.destroy();
+      if (audioHardwareActive) {
+        audioHardwareActive = false;
+        sendToDaemon({ cmd: 'audio-hardware-stop' }).catch(() => {});
+      }
     });
     ws.on('message', (data: Buffer) => {
       let msg: Record<string, unknown>;
@@ -777,9 +782,15 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
             ws.send(JSON.stringify({ type: 'audio-frame', frame }));
           }
         });
+        audioHardwareActive = true;
+        sendToDaemon({ cmd: 'audio-hardware-start', style, source }).catch(() => {});
       } else if (type === 'audio-viz-stop') {
         audioStream?.destroy();
         audioStream = null;
+        if (audioHardwareActive) {
+          audioHardwareActive = false;
+          sendToDaemon({ cmd: 'audio-hardware-stop' }).catch(() => {});
+        }
       }
     });
   });

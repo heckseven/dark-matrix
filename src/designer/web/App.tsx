@@ -187,7 +187,7 @@ export function App() {
     const ro = new ResizeObserver(update);
     [containerRef, headerRef, footerRef].forEach(r => { if (r.current) ro.observe(r.current); });
     return () => ro.disconnect();
-  }, [zoom]);
+  }, [zoom, activeMode]);
 
   const toggleShortcuts = useCallback(() => setShortcutsOpen(v => !v), []);
   useEffect(() => {
@@ -276,96 +276,102 @@ export function App() {
         />
 
         <header ref={headerRef} className="absolute top-0 inset-x-0 z-10 flex items-center gap-4 pl-7 pr-5 py-4" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
-            <Menu>
-              <MenuTrigger asChild>
-                <Button variant="ghost">file <span aria-hidden="true">▾</span></Button>
-              </MenuTrigger>
-              <MenuContent align="start">
-                <MenuItem onSelect={newProject}>new</MenuItem>
-                <MenuItem onSelect={() => fileInputRef.current?.click()}>open</MenuItem>
-                {recentFiles.length > 0 && (
-                  <MenuSub>
-                    <MenuSubTrigger>open recent</MenuSubTrigger>
-                    <MenuSubContent>
-                      {recentFiles.map(name => (
-                        <MenuItem key={name} onSelect={() => {
-                          openFromLibrary(name)
-                            .then(project => {
-                              designerStore.getState().loadProject(project);
-                              designerStore.getState().setProjectTitle(name);
-                              designerStore.getState().setLibraryPath(name);
-                              designerStore.getState().addRecentFile(name);
-                            })
-                            .catch(console.error);
-                        }}>{name}</MenuItem>
-                      ))}
-                    </MenuSubContent>
-                  </MenuSub>
+          {activeMode === 'audio' ? (
+            <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
+          ) : (
+            <>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
+                <Menu>
+                  <MenuTrigger asChild>
+                    <Button variant="ghost">file <span aria-hidden="true">▾</span></Button>
+                  </MenuTrigger>
+                  <MenuContent align="start">
+                    <MenuItem onSelect={newProject}>new</MenuItem>
+                    <MenuItem onSelect={() => fileInputRef.current?.click()}>open</MenuItem>
+                    {recentFiles.length > 0 && (
+                      <MenuSub>
+                        <MenuSubTrigger>open recent</MenuSubTrigger>
+                        <MenuSubContent>
+                          {recentFiles.map(name => (
+                            <MenuItem key={name} onSelect={() => {
+                              openFromLibrary(name)
+                                .then(project => {
+                                  designerStore.getState().loadProject(project);
+                                  designerStore.getState().setProjectTitle(name);
+                                  designerStore.getState().setLibraryPath(name);
+                                  designerStore.getState().addRecentFile(name);
+                                })
+                                .catch(console.error);
+                            }}>{name}</MenuItem>
+                          ))}
+                        </MenuSubContent>
+                      </MenuSub>
+                    )}
+                    <MenuSeparator />
+                    <MenuItem shortcut="^s" onSelect={() => {
+                      saveToLibrary(storeCompat(), projectTitle)
+                        .then(name => {
+                          designerStore.getState().setLibraryPath(name);
+                          designerStore.getState().addRecentFile(name);
+                        })
+                        .catch(console.error);
+                    }}>save</MenuItem>
+                    <MenuItem shortcut="^S" onSelect={() => {
+                      saveLibraryCopy(storeCompat(), projectTitle)
+                        .then(copyName => {
+                          designerStore.getState().setProjectTitle(copyName);
+                          designerStore.getState().setLibraryPath(copyName);
+                          designerStore.getState().addRecentFile(copyName);
+                        })
+                        .catch(console.error);
+                    }}>duplicate</MenuItem>
+                    <MenuSeparator />
+                    <MenuItem onSelect={() => exportProject(storeCompat(), projectTitle)}>export</MenuItem>
+                  </MenuContent>
+                </Menu>
+                {dualModule && (
+                  <Menu>
+                    <MenuTrigger asChild>
+                      <Button variant="ghost">matrix <span aria-hidden="true">▾</span></Button>
+                    </MenuTrigger>
+                    <MenuContent align="start">
+                      <MenuRadioGroup aria-label="Preview target" value={previewTarget} onValueChange={v => {
+                          if (v === 'left' || v === 'right' || v === 'both' || v === 'mirror')
+                            designerStore.getState().setPreviewTarget(v);
+                        }}>
+                        <MenuRadioItem value="left">left</MenuRadioItem>
+                        <MenuRadioItem value="right">right</MenuRadioItem>
+                        <MenuRadioItem value="both">both</MenuRadioItem>
+                        <MenuRadioItem value="mirror">mirror</MenuRadioItem>
+                      </MenuRadioGroup>
+                    </MenuContent>
+                  </Menu>
                 )}
-                <MenuSeparator />
-                <MenuItem shortcut="^s" onSelect={() => {
-                  saveToLibrary(storeCompat(), projectTitle)
-                    .then(name => {
-                      designerStore.getState().setLibraryPath(name);
-                      designerStore.getState().addRecentFile(name);
-                    })
-                    .catch(console.error);
-                }}>save</MenuItem>
-                <MenuItem shortcut="^S" onSelect={() => {
-                  saveLibraryCopy(storeCompat(), projectTitle)
-                    .then(copyName => {
-                      designerStore.getState().setProjectTitle(copyName);
-                      designerStore.getState().setLibraryPath(copyName);
-                      designerStore.getState().addRecentFile(copyName);
-                    })
-                    .catch(console.error);
-                }}>duplicate</MenuItem>
-                <MenuSeparator />
-                <MenuItem onSelect={() => exportProject(storeCompat(), projectTitle)}>export</MenuItem>
-              </MenuContent>
-            </Menu>
-            {dualModule && (
-              <Menu>
-                <MenuTrigger asChild>
-                  <Button variant="ghost">matrix <span aria-hidden="true">▾</span></Button>
-                </MenuTrigger>
-                <MenuContent align="start">
-                  <MenuRadioGroup aria-label="Preview target" value={previewTarget} onValueChange={v => {
-                      if (v === 'left' || v === 'right' || v === 'both' || v === 'mirror')
-                        designerStore.getState().setPreviewTarget(v);
-                    }}>
-                    <MenuRadioItem value="left">left</MenuRadioItem>
-                    <MenuRadioItem value="right">right</MenuRadioItem>
-                    <MenuRadioItem value="both">both</MenuRadioItem>
-                    <MenuRadioItem value="mirror">mirror</MenuRadioItem>
-                  </MenuRadioGroup>
-                </MenuContent>
-              </Menu>
-            )}
-          </div>
-          <div className="absolute inset-x-0 flex justify-center pointer-events-none">
-            <div className="pointer-events-auto">
-              <ProjectTitle value={projectTitle} onChange={v => {
-                const { libraryPath: lp } = designerStore.getState();
-                designerStore.getState().setProjectTitle(v);
-                if (lp !== null) {
-                  const normalized = designerStore.getState().projectTitle;
-                  renameLibraryFile(lp, normalized)
-                    .then(newName => designerStore.getState().setLibraryPath(newName))
-                    .catch(console.error);
-                }
-              }} />
-            </div>
-          </div>
-          <div className="flex-1" />
-          <TransportControls />
+              </div>
+              <div className="absolute inset-x-0 flex justify-center pointer-events-none">
+                <div className="pointer-events-auto">
+                  <ProjectTitle value={projectTitle} onChange={v => {
+                    const { libraryPath: lp } = designerStore.getState();
+                    designerStore.getState().setProjectTitle(v);
+                    if (lp !== null) {
+                      const normalized = designerStore.getState().projectTitle;
+                      renameLibraryFile(lp, normalized)
+                        .then(newName => designerStore.getState().setLibraryPath(newName))
+                        .catch(console.error);
+                    }
+                  }} />
+                </div>
+              </div>
+              <div className="flex-1" />
+              <TransportControls />
+            </>
+          )}
         </header>
 
         {activeMode === 'audio' ? (
           <div className="h-full flex">
-            <AudioPanel />
+            <AudioPanel dualModule={dualModule} />
           </div>
         ) : (
           <div className="h-full grid overflow-hidden" style={{ gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)' }}>
@@ -385,7 +391,7 @@ export function App() {
           </div>
         )}
 
-        <footer ref={footerRef} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+        {activeMode !== 'audio' && <footer ref={footerRef} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
           <div className="flex-1 flex items-center gap-4">
             <span>frame {activeFrameIdx + 1}</span>
             <span>row {cursor.row}</span>
@@ -407,7 +413,7 @@ export function App() {
             </div>
             <Button variant="ghost" tooltip="shortcuts" onClick={() => setShortcutsOpen(true)} aria-label="Keyboard shortcuts"><span aria-hidden="true">???</span></Button>
           </div>
-        </footer>
+        </footer>}
 
       </div>
     </TooltipProvider>
