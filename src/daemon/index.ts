@@ -12,6 +12,7 @@ import { parseClaudeHook } from '../lib/claude-source.js';
 import { parseProject, base64ToFrame } from '../designer/format.js';
 import type { DmxProject } from '../designer/format.js';
 import { watchDesktopNotifications } from '../lib/dbus-notifications.js';
+import { watchMic } from '../lib/mic-source.js';
 import { Dispatcher, ecSwitchIntent, vmIntent, notificationIntent } from '../lib/dispatcher.js';
 import { SerialTransport } from '../lib/transport.js';
 import { runAnimation } from '../lib/animation.js';
@@ -456,6 +457,20 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   disposeWatches.push(watchDesktopNotifications((n) => {
     dispatcher.push(notificationIntent(n));
   }));
+
+  let micAnimActive = false;
+  disposeWatches.push(watchMic((e) => {
+    if (e.active && !micAnimActive) {
+      micAnimActive = true;
+      stopAnim();
+      if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+      stopCurrentAnim = runAudioEqOnModules();
+    } else if (!e.active && micAnimActive) {
+      micAnimActive = false;
+      stopAnim();
+      startIdleTimer();
+    }
+  }, { intervalMs: 2000 }));
 
   // Brightness loop
   let disposeBrightness = startBrightnessLoop(currentConfig, async (pct) => {
