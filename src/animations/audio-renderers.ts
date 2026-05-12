@@ -1,7 +1,7 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'sparks-squeeze' | 'sparks-spread' | 'sparks-tug' | 'flame-bars' | 'flame-sparks' | 'flame-sparks-2' | 'flame-sparks-3' | 'flame-sparks-4' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'drip' | 'life-erode-4';
+export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'sparks-squeeze' | 'sparks-spread' | 'sparks-tug' | 'flame-bars' | 'flame-sparks' | 'flame-sparks-2' | 'flame-sparks-3' | 'flame-sparks-4' | 'flame-sparks-hi' | 'flame-life' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'drip' | 'life-erode-4';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'dark-matter',     label: 'dark matter' },
@@ -13,6 +13,8 @@ export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'flame-sparks-2',  label: 'flame sparks 2' },
   { id: 'flame-sparks-3',  label: 'flame sparks 3' },
   { id: 'flame-sparks-4',  label: 'flame sparks 4' },
+  { id: 'flame-sparks-hi', label: 'flame sparks hi' },
+  { id: 'flame-life',      label: 'flame life' },
   { id: 'drip',            label: 'drip' },
   { id: 'spectrum-fall',   label: 'spectrum fall' },
   { id: 'life-erode-4',    label: 'replicants' },
@@ -216,7 +218,7 @@ function flameBars(): Renderer {
 
 type Spark = { col: number; pos: number; v: number };
 
-function makeFlameSparks(spawnsPerFrame: number): Renderer {
+function makeFlameSparks(spawnsPerFrame: number, sparkDecay = 0.85, riseBase = 0.4): Renderer {
   const envelope = new Float32Array(BAND_COUNT);
   const sparks: Spark[] = [];
   return ({ bands, gain, fftSize }) => {
@@ -242,8 +244,8 @@ function makeFlameSparks(spawnsPerFrame: number): Renderer {
     }
     for (let i = sparks.length - 1; i >= 0; i--) {
       const s = sparks[i]!;
-      s.pos -= 0.4 + Math.random() * 0.4;
-      s.v *= 0.85;
+      s.pos -= riseBase + Math.random() * riseBase;
+      s.v *= sparkDecay;
       if (s.pos < 0 || s.v < 15) { sparks.splice(i, 1); continue; }
       const r = Math.round(s.pos);
       if (r >= 0 && r < ROWS) frame[s.col * ROWS + r] = Math.max(frame[s.col * ROWS + r] ?? 0, Math.round(s.v));
@@ -251,10 +253,72 @@ function makeFlameSparks(spawnsPerFrame: number): Renderer {
     return frame;
   };
 }
-function flameSparks():  Renderer { return makeFlameSparks(1); }
-function flameSparks2(): Renderer { return makeFlameSparks(3); }
-function flameSparks3(): Renderer { return makeFlameSparks(6); }
-function flameSparks4(): Renderer { return makeFlameSparks(12); }
+function flameSparks():   Renderer { return makeFlameSparks(1); }
+function flameSparks2():  Renderer { return makeFlameSparks(3); }
+function flameSparks3():  Renderer { return makeFlameSparks(6); }
+function flameSparks4():  Renderer { return makeFlameSparks(12); }
+function flameSparksHi(): Renderer { return makeFlameSparks(12, 0.93, 0.6); }
+
+// Flame envelope with GoL-erode texture inside the body — alive cells invert to dark, dead cells stay bright
+function flameLife(): Renderer {
+  const envelope = new Float32Array(BAND_COUNT);
+  const cells = new Float32Array(BAND_COUNT * ROWS);
+  for (let i = 0; i < cells.length; i++) if (Math.random() < 0.35) cells[i] = 1.0;
+  let smoothed = 0, cooldown = 0;
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    const heights = new Int32Array(BAND_COUNT);
+    for (let col = 0; col < BAND_COUNT; col++) {
+      const t = dbLevel(bands[BAND_COUNT - 1 - col] ?? 0, gain, ref);
+      envelope[col] = t > (envelope[col] ?? 0) ? t : (envelope[col] ?? 0) * 0.85 + t * 0.15;
+      const flicker = (envelope[col] ?? 0) * (0.7 + Math.random() * 0.5);
+      heights[col] = Math.round(Math.min(1, flicker) * ROWS);
+    }
+    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
+    const tAvg = dbLevel(avg, gain, ref);
+    const delta = tAvg - smoothed;
+    smoothed = smoothed * 0.85 + tAvg * 0.15;
+    if (cooldown > 0) cooldown--;
+    if (delta > 0.10 && cooldown === 0) {
+      for (let col = 0; col < BAND_COUNT; col++) {
+        const e = dbLevel(bands[col] ?? 0, gain, ref);
+        for (let row = 0; row < ROWS; row++)
+          if (Math.random() < e * 0.15) cells[col * ROWS + row] = 1.0;
+      }
+      cooldown = 5;
+    }
+    for (let col = 0; col < BAND_COUNT; col++) {
+      const killProb = dbLevel(bands[col] ?? 0, gain, ref) * 0.70;
+      for (let row = 0; row < ROWS; row++)
+        if (Math.random() < killProb) cells[col * ROWS + row] = 0;
+    }
+    const alive = new Uint8Array(BAND_COUNT * ROWS);
+    for (let i = 0; i < alive.length; i++) alive[i] = (cells[i] ?? 0) > 0.4 ? 1 : 0;
+    const next = new Float32Array(cells.length);
+    for (let col = 0; col < BAND_COUNT; col++) {
+      for (let row = 0; row < ROWS; row++) {
+        let n = 0;
+        for (let dc = -1; dc <= 1; dc++) for (let dr = -1; dr <= 1; dr++) {
+          if (dc === 0 && dr === 0) continue;
+          const nc = col + dc, nr = row + dr;
+          if (nc >= 0 && nc < BAND_COUNT && nr >= 0 && nr < ROWS) n += alive[nc * ROWS + nr] ?? 0;
+        }
+        const idx = col * ROWS + row;
+        next[idx] = ((alive[idx] === 1) ? (n === 2 || n === 3) : n === 3)
+          ? 1.0
+          : (cells[idx] ?? 0) * 0.75;
+      }
+    }
+    for (let i = 0; i < cells.length; i++) cells[i] = next[i] ?? 0;
+    const frame = createFrame();
+    for (let col = 0; col < BAND_COUNT; col++) {
+      for (let row = ROWS - (heights[col] ?? 0); row < ROWS; row++) {
+        frame[col * ROWS + row] = Math.round((1 - (cells[col * ROWS + row] ?? 0)) * 255);
+      }
+    }
+    return frame;
+  };
+}
 
 function vuSparks(): Renderer {
   let peak = 0;
@@ -570,6 +634,8 @@ const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'flame-sparks-2':   flameSparks2,
   'flame-sparks-3':   flameSparks3,
   'flame-sparks-4':   flameSparks4,
+  'flame-sparks-hi':  flameSparksHi,
+  'flame-life':       flameLife,
 };
 
 export function createRenderer(style: AudioStyle): Renderer {

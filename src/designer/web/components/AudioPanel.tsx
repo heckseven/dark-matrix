@@ -44,6 +44,8 @@ const PLACEHOLDER: Record<AudioStyle, string> = {
   'flame-sparks-2':  makeFrame((c, r) => { const h = EQ_H[c]! + (c % 3 === 0 ? 4 : c % 3 === 1 ? -3 : 2); return r >= ROWS - h ? 255 : (r === ROWS-h-2||r === ROWS-h-5) && c%2===0 ? 200 : (r===ROWS-h-3||r===ROWS-h-7) && c%2===1 ? 160 : 0; }),
   'flame-sparks-3':  makeFrame((c, r) => { const h = EQ_H[c]! + (c % 3 === 0 ? 4 : c % 3 === 1 ? -3 : 2); return r >= ROWS - h ? 255 : r < ROWS-h && r > ROWS-h-10 && (c+r)%3===0 ? Math.round(200*Math.pow(0.75,ROWS-h-1-r)) : 0; }),
   'flame-sparks-4':  makeFrame((c, r) => { const h = EQ_H[c]! + (c % 3 === 0 ? 4 : c % 3 === 1 ? -3 : 2); return r >= ROWS - h ? 255 : r < ROWS-h && r > ROWS-h-14 && (c+r)%2===0 ? Math.round(200*Math.pow(0.78,ROWS-h-1-r)) : 0; }),
+  'flame-sparks-hi': makeFrame((c, r) => { const h = EQ_H[c]! + (c % 3 === 0 ? 4 : c % 3 === 1 ? -3 : 2); return r >= ROWS - h ? 255 : r < ROWS-h && r > ROWS-h-22 && (c+r)%2===0 ? Math.round(200*Math.pow(0.87,ROWS-h-1-r)) : 0; }),
+  'flame-life':      makeFrame((c, r) => { const h = EQ_H[c]! + (c % 3 === 0 ? 4 : c % 3 === 1 ? -3 : 2); return r >= ROWS - h ? ((c * 13 + r * 29) % 11 < 4 ? 0 : 255) : 0; }),
 };
 
 const BAYER4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]] as const;
