@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   Dispatcher, PRIORITY,
-  ecSwitchIntent, vmIntent, claudeIntent,
+  ecSwitchIntent, vmIntent, claudeIntent, notificationIntent,
   type DisplayIntent,
 } from './dispatcher.js';
 
@@ -98,6 +98,23 @@ describe('intent factories', () => {
   it('claudeIntent: agent_spawn maps label correctly', () => {
     const i = claudeIntent({ type: 'agent_spawn', subagent_type: 'neo', session_id: 'abc' });
     expect(i?.content).toContain('neo');
+  });
+
+  it('notificationIntent: uses summary as content at NORMAL priority', () => {
+    const i = notificationIntent({ appName: 'notify-send', summary: 'Hello world', body: 'body' });
+    expect(i.source).toBe('desktop-notification');
+    expect(i.priority).toBe(PRIORITY.NORMAL);
+    expect(i.content).toBe('Hello world');
+  });
+
+  it('notificationIntent: falls back to appName when summary is empty', () => {
+    const i = notificationIntent({ appName: 'myapp', summary: '', body: '' });
+    expect(i.content).toBe('myapp');
+  });
+
+  it('notificationIntent: falls back to "notification" when both are empty', () => {
+    const i = notificationIntent({ appName: '', summary: '', body: '' });
+    expect(i.content).toBe('notification');
   });
 
   it('claudeIntent: unknown returns null', () => {
