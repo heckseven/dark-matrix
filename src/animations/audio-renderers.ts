@@ -132,14 +132,12 @@ function fire(): Renderer {
     for (let col = 0; col < BAND_COUNT; col++) {
       heat[col * ROWS + (ROWS - 1)] = dbLevel(bands[col] ?? 0, gain, ref);
     }
-    // More vertical weight (60/20/20) and faster cooling than original to reduce
-    // horizontal banding on the narrow display.
     for (let row = 0; row < ROWS - 1; row++) {
       for (let col = 0; col < BAND_COUNT; col++) {
         const below  = heat[col * ROWS + row + 1] ?? 0;
         const belowL = heat[Math.max(0, col - 1) * ROWS + row + 1] ?? 0;
         const belowR = heat[Math.min(BAND_COUNT - 1, col + 1) * ROWS + row + 1] ?? 0;
-        heat[col * ROWS + row] = ((3 * below + belowL + belowR) / 5) * 0.78;
+        heat[col * ROWS + row] = ((below + belowL + belowR) / 3) * 0.91;
       }
     }
     const frame = createFrame();
