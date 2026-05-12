@@ -320,15 +320,12 @@ function cipher(): Renderer {
 
 function wake(): Renderer {
   let scanPos = 0;
-  let scanDir = 1;
   const glow = new Float32Array(BAND_COUNT * ROWS);
   return ({ bands, gain, fftSize }) => {
     const ref = fftSize / 2;
     const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
     const t = dbLevel(avg, gain, ref);
-    scanPos += scanDir * (0.3 + t * 2.5);
-    if (scanPos >= ROWS - 1) { scanPos = ROWS - 1; scanDir = -1; }
-    if (scanPos <= 0)        { scanPos = 0;         scanDir = 1;  }
+    scanPos = (scanPos + 0.3 + t * 2.5) % ROWS;
     const sr = Math.round(scanPos);
     for (let col = 0; col < BAND_COUNT; col++) {
       glow[col * ROWS + sr] = dbLevel(bands[col] ?? 0, gain, ref);
