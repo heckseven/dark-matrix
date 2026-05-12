@@ -12,18 +12,29 @@ function spawnOutput(cmd: string, args: string[]): Promise<{ stdout: string; cod
   });
 }
 
-export async function isMicActive(pactlPath = 'pactl'): Promise<boolean> {
-  const { stdout, code } = await spawnOutput(pactlPath, ['list', 'source-outputs']);
-  if (code !== 0) return false;
-  return stdout.split('\n').some(l => l.startsWith('Source Output #'));
+type PwNode = {
+  type?: string;
+  info?: { state?: string; props?: Record<string, unknown> };
+};
+
+export async function isMicActive(pwDumpPath = 'pw-dump'): Promise<boolean> {
+  const { stdout, code } = await spawnOutput(pwDumpPath, []);
+  if (code !== 0 || !stdout) return false;
+  let nodes: PwNode[];
+  try { nodes = JSON.parse(stdout) as PwNode[]; } catch { return false; }
+  return nodes.some(n =>
+    n.type === 'PipeWire:Interface:Node' &&
+    n.info?.props?.['media.class'] === 'Stream/Input/Audio' &&
+    n.info?.state === 'running',
+  );
 }
 
 export function watchMic(
   onEvent: (e: MicEvent) => void,
-  opts?: { intervalMs?: number; pactlPath?: string },
+  opts?: { intervalMs?: number; pwDumpPath?: string },
 ): () => void {
   const intervalMs = opts?.intervalMs ?? 2000;
-  const pactlPath = opts?.pactlPath ?? 'pactl';
+  const pwDumpPath = opts?.pwDumpPath ?? 'pw-dump';
   let prev: boolean | null = null;
   let polling = false;
   let disposed = false;
@@ -32,7 +43,7 @@ export function watchMic(
     if (polling || disposed) return;
     polling = true;
     try {
-      const active = await isMicActive(pactlPath);
+      const active = await isMicActive(pwDumpPath);
       if (prev === null) {
         prev = active;
         if (active) onEvent({ active });

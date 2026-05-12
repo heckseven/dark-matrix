@@ -21,6 +21,7 @@ import { createScrollAnimation } from '../animations/scroll.js';
 import { createGolAnimation } from '../animations/gol.js';
 import { createHeatmapState, bumpTool, tickHeatmap, renderHeatmap } from '../animations/heatmap.js';
 import { createAudioEqAnimation } from '../animations/audio-eq.js';
+import type { AudioSource } from '../animations/audio-eq.js';
 import { createGifAnimation } from '../animations/gif.js';
 import type { GifAnimation } from '../animations/gif.js';
 import type { DisplayIntent } from '../lib/dispatcher.js';
@@ -203,14 +204,14 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     });
   }
 
-  function runAudioEqOnModules(): () => void {
+  function runAudioEqOnModules(sourceOverride?: AudioSource): () => void {
     const { left, right } = currentConfig.modules;
     let stopped = false;
     let anim: ReturnType<typeof createAudioEqAnimation> | null = null;
 
     const loop = async () => {
       const { packBW, FRAME_COLS, FRAME_ROWS, createFrame } = await import('../lib/frame.js');
-      const eqSource = currentConfig.daemon.idle_eq_source ?? 'monitor';
+      const eqSource = sourceOverride ?? currentConfig.daemon.idle_eq_source ?? 'monitor';
       const target = eqSource === 'monitor' ? await resolveDefaultSinkId() : undefined;
       if (stopped) return;
       anim = createAudioEqAnimation({ source: eqSource, ...(target ? { target } : {}) });
@@ -464,7 +465,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       micAnimActive = true;
       stopAnim();
       if (idleTimer) clearTimeout(idleTimer);
-      stopCurrentAnim = runAudioEqOnModules();
+      stopCurrentAnim = runAudioEqOnModules('mic');
     } else if (!e.active && micAnimActive) {
       micAnimActive = false;
       stopAnim();
