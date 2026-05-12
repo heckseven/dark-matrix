@@ -14,7 +14,9 @@
 
 ## Major modes
 
-- [ ] HUD mode — daemon-side data sources (CPU, memory, network, time via `/proc`); new daemon WebSocket push or command for HUD data; HUD web UI mode; settings panel for which widgets are visible
+- [ ] Audio visualizer mode — multiple visualization styles (eq bars, waveform, radial, etc.); UI panel to browse and select style; live preview in designer and mirrored to modules; source selectable (monitor/mic)
+- [ ] Clock mode — multiple clock face designs (binary, bar, digit segments, etc.); UI panel to browse faces; live preview in designer and on modules; may be a HUD widget
+- [ ] HUD mode — daemon-side data sources (CPU, memory, network, time via `/proc`); WebSocket push from daemon; HUD web UI mode with widget picker; multiple named configurations saveable and switchable; live preview in designer and on modules
 - [ ] Generative art panel — new tool panel in designer with parameterized generators (noise, reaction-diffusion, CA seeds); writes into frames; save to library
 - [ ] Image import tooling — contrast, brightness, dithering controls in designer when importing PNG/GIF; helps optimize images for the low-res display
 - [ ] Default view settings — user-configurable startup mode and animation stored in config; persists across power cycles
