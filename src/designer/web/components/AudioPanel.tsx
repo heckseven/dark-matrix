@@ -35,6 +35,7 @@ const PLACEHOLDER: Record<AudioStyle, string> = {
   'life':            makeFrame((c, r) => (c * 17 + r * 31 + c * r * 7) % 11 < 3 ? 255 : 0),
   'life-fade':       makeFrame((c, r) => (c * 17 + r * 31 + c * r * 7) % 19 < 2 ? 255 : 0),
   'life-strict':     makeFrame((c, r) => (c * 13 + r * 29 + c * r * 11) % 15 < 3 ? 255 : 0),
+  'life-wave':       makeFrame((c, r) => (c * 7 + r * 19) % 17 < 2 ? 255 : 0),
   'bounce':          makeFrame((c, r) => r === ROWS - 1 - [0, 4, 10, 16, 20, 16, 10, 4, 0][c]! ? 255 : 0),
   'waterfall':       makeFrame((_c, r) => Math.round((r / (ROWS - 1)) * 255)),
   'sparks':          makeFrame((c, r) => ((c * 7 + r * 11) % 13 < Math.round((1 - r / (ROWS - 1)) * 6)) ? 255 : 0),
