@@ -374,10 +374,10 @@ function wakeMulti(): Renderer {
     const delta = t - smoothed;
     smoothed = smoothed * 0.85 + t * 0.15;
     if (cooldown > 0) cooldown--;
-    if (delta > 0.12 && cooldown === 0) { waves.push(0); cooldown = 8; }
+    if (delta > 0.12 && cooldown === 0) { waves.push(ROWS - 1); cooldown = 8; }
     for (let w = waves.length - 1; w >= 0; w--) {
-      waves[w]! += 0.5 + t * 2.0;
-      if (waves[w]! >= ROWS) {
+      waves[w]! -= 0.5 + t * 2.0;
+      if (waves[w]! < 0) {
         waves.splice(w, 1);
       } else {
         const sr = Math.round(waves[w]!);
