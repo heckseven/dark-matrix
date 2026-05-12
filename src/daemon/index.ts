@@ -543,6 +543,27 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             }
+            case 'play': {
+              const m = msg as { cmd: string; path?: string; loop?: boolean };
+              if (typeof m.path !== 'string' || !/\.dmx\.json$/i.test(m.path)) {
+                socket.write(JSON.stringify({ ok: false, error: 'expected a .dmx.json path' }) + '\n');
+                break;
+              }
+              void fs.realpath(m.path).then((resolved) => {
+                if (socket.destroyed) return;
+                const home = os.homedir();
+                if (!resolved.startsWith(home + '/') && resolved !== home) {
+                  socket.write(JSON.stringify({ ok: false, error: 'path outside home directory' }) + '\n');
+                  return;
+                }
+                startDmxAnimation(resolved, !!m.loop);
+                socket.write(JSON.stringify({ ok: true }) + '\n');
+              }).catch(() => {
+                if (socket.destroyed) return;
+                socket.write(JSON.stringify({ ok: false, error: 'path not found' }) + '\n');
+              });
+              break;
+            }
             case 'animate': {
               const m = msg as { cmd: string; type?: string; path?: string; hold?: boolean; dual?: boolean; mode?: string };
               if (m.type !== 'gif' || typeof m.path !== 'string' || !/\.gif$/i.test(m.path)) {

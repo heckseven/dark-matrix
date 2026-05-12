@@ -284,6 +284,27 @@ async function cmdCalibrate() {
   rl.close();
 }
 
+async function cmdPlay(args: string[]) {
+  const loop = args.includes('--loop');
+  const filePath = args.find(a => !a.startsWith('-'));
+  if (!filePath) {
+    process.stderr.write('Usage: dark-matrix play [--loop] <path>\n');
+    process.exit(1);
+  }
+  const absPath = path.resolve(filePath);
+  try {
+    const res = await sendToDaemon({ cmd: 'play', path: absPath, loop });
+    if (!res['ok']) {
+      process.stderr.write(`Error: ${res['error'] ?? JSON.stringify(res)}\n`);
+      process.exit(1);
+    }
+    process.stdout.write(loop ? 'Playing (run "release" to stop).\n' : 'Playing.\n');
+  } catch (err) {
+    process.stderr.write(`${(err as Error).message}\n`);
+    process.exit(1);
+  }
+}
+
 async function cmdDesigner(args: string[]): Promise<void> {
   const portIdx = args.indexOf('--port');
   const port = portIdx !== -1 ? parseInt(args[portIdx + 1] ?? '7340', 10) : 7340;
@@ -317,6 +338,7 @@ switch (cmd) {
         process.exit(1);
     }
     break;
+  case 'play':       await cmdPlay(args); break;
   case 'designer':   await cmdDesigner(args); break;
   case 'show':       await cmdShow(args); break;
   case 'show-split': await cmdShowSplit(args); break;
@@ -414,6 +436,7 @@ switch (cmd) {
       '  show-split <left> <right> [--mode bw|gray]',
       '  display [yeah|runes|0x07|panic]',
       '  image <path> [--preview] [--mode bw|gray]',
+      '  play [--loop] <path>',
       '  designer [--port <n>]',
       '  scroll [--hold] [--size tiny|small|medium|large] [--speed slow|normal|fast] <text>',
       '  animate gif [--hold] [--dual] [--mode bw|gray] <path>',

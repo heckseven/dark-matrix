@@ -26,12 +26,13 @@ describe('Store', () => {
     const s = store.getState();
     expect(s.frames).toHaveLength(1);
     expect(s.width).toBe(9);
-    expect(s.mode).toBe('gray');
+    expect(s.mode).toBe('bw');
     expect(s.activeFrameIdx).toBe(0);
     expect(s.activeColor).toBe(255);
   });
 
   it('2. setPixel sets correct pixel in active frame', () => {
+    store.getState().setMode('gray');
     store.getState().setPixel(0, 3, 10, 128);
     expect(pixelAt(store.getState().frames[0]!.pixels, 3, 10)).toBe(128);
   });
@@ -66,6 +67,7 @@ describe('Store', () => {
   });
 
   it('6. moveFrame reorders correctly', () => {
+    store.getState().setMode('gray');
     store.getState().addFrame(0);
     store.getState().addFrame(1);
     store.getState().setPixel(0, 0, 0, 10);
