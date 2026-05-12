@@ -1,7 +1,7 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'ripple' | 'life' | 'life-strict' | 'life-pulse' | 'life-cull' | 'life-wave';
+export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'ripple' | 'life' | 'life-strict' | 'life-pulse' | 'life-cull' | 'life-erode' | 'life-wave';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'dark-matter',     label: 'dark matter' },
@@ -13,6 +13,7 @@ export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'life-strict',     label: 'life strict' },
   { id: 'life-pulse',      label: 'life pulse' },
   { id: 'life-cull',       label: 'life cull' },
+  { id: 'life-erode',      label: 'life erode' },
   { id: 'life-wave',       label: 'life wave' },
   { id: 'eq-bars',         label: 'eq bars' },
   { id: 'spectrum-fall',   label: 'spectrum fall' },
@@ -383,7 +384,7 @@ function ripple(): Renderer {
   };
 }
 
-type LifeOpts = { seedRate: number; threshold: number; decay: number; survive: (n: number) => boolean; born: (n: number) => boolean; transientWipe?: number; transientCull?: number };
+type LifeOpts = { seedRate: number; threshold: number; decay: number; survive: (n: number) => boolean; born: (n: number) => boolean; transientWipe?: number; transientCull?: number; continuousCull?: number };
 
 function makeLife(opts: LifeOpts): Renderer {
   const cells = new Float32Array(BAND_COUNT * ROWS);
@@ -413,6 +414,14 @@ function makeLife(opts: LifeOpts): Renderer {
         }
       }
       cooldown = 5;
+    }
+    if (opts.continuousCull !== undefined) {
+      for (let col = 0; col < BAND_COUNT; col++) {
+        const killProb = dbLevel(bands[col] ?? 0, gain, ref) * opts.continuousCull;
+        for (let row = 0; row < ROWS; row++) {
+          if (Math.random() < killProb) cells[col * ROWS + row] = 0;
+        }
+      }
     }
     const alive = new Uint8Array(BAND_COUNT * ROWS);
     for (let i = 0; i < alive.length; i++) alive[i] = (cells[i] ?? 0) > opts.threshold ? 1 : 0;
@@ -537,6 +546,11 @@ function lifeCull(): Renderer {
   return makeLife({ seedRate: 0.12, threshold: 0.4, decay: 0.75, survive: n => n === 2 || n === 3, born: n => n === 3, transientCull: 3.0 });
 }
 
+// Per-column continuous kill proportional to band energy — loud bands erode their columns every frame
+function lifeErode(): Renderer {
+  return makeLife({ seedRate: 0.15, threshold: 0.4, decay: 0.75, survive: n => n === 2 || n === 3, born: n => n === 3, continuousCull: 0.10 });
+}
+
 const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'eq-bars':         eqBars,
   'spectrum-fall':   spectrumFall,
@@ -551,6 +565,7 @@ const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'life-strict':     lifeStrict,
   'life-pulse':      lifePulse,
   'life-cull':       lifeCull,
+  'life-erode':      lifeErode,
   'life-wave':       lifeWave,
   'bounce':          bounce,
   'waterfall':       waterfall,
