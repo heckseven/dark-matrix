@@ -685,14 +685,13 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
   });
 
   function openAudioStream(
-    style: string,
     source: string,
-    onFrame: (frame: string) => void,
+    onBands: (ctx: { bands: number[]; fftSize: number; gain: number }) => void,
   ): net.Socket {
     const sock = net.createConnection(daemonSocketPath());
     let buf = '';
     sock.on('connect', () => {
-      sock.write(JSON.stringify({ cmd: 'audio-viz', style, source }) + '\n');
+      sock.write(JSON.stringify({ cmd: 'audio-viz', source }) + '\n');
     });
     sock.on('data', (chunk: Buffer) => {
       buf += chunk.toString();
@@ -701,8 +700,10 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
       for (const line of lines) {
         if (!line.trim()) continue;
         try {
-          const parsed = JSON.parse(line) as { type?: string; frame?: string };
-          if (parsed.type === 'audio-frame' && parsed.frame) onFrame(parsed.frame);
+          const parsed = JSON.parse(line) as { type?: string; bands?: number[]; fftSize?: number; gain?: number };
+          if (parsed.type === 'audio-bands' && parsed.bands) {
+            onBands({ bands: parsed.bands, fftSize: parsed.fftSize ?? 2048, gain: parsed.gain ?? 1.0 });
+          }
         } catch { /* skip */ }
       }
     });
@@ -774,12 +775,12 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
       } else if (type === 'audio-viz') {
         const knownStyles = AUDIO_STYLES.map(s => s.id as string);
         const rawStyle = typeof msg['style'] === 'string' ? msg['style'] : '';
-        const style = knownStyles.includes(rawStyle) ? rawStyle : 'eq-bars';
+        const style = knownStyles.includes(rawStyle) ? rawStyle : 'dark-matter';
         const source = msg['source'] === 'mic' ? 'mic' : 'monitor';
         audioStream?.destroy();
-        audioStream = openAudioStream(style, source, (frame) => {
+        audioStream = openAudioStream(source, (ctx) => {
           if (ws.readyState === 1) {
-            ws.send(JSON.stringify({ type: 'audio-frame', frame }));
+            ws.send(JSON.stringify({ type: 'audio-bands', ...ctx }));
           }
         });
         audioHardwareActive = true;

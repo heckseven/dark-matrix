@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import type { Frame } from '../lib/frame.js';
 import type { Animation } from '../lib/animation.js';
 import { createRenderer } from './audio-renderers.js';
-import type { AudioStyle } from './audio-renderers.js';
+import type { AudioStyle, RenderCtx } from './audio-renderers.js';
 
 export type { AudioStyle };
 
@@ -27,7 +27,6 @@ export interface AudioEqAnimation extends Animation {
 
 const BAND_EDGES = [20, 60, 120, 250, 500, 1000, 2000, 6000, 14000, 20000];
 const BAND_COUNT = 9;
-const ROWS = 34;
 const SAMPLE_RATE = 48000;
 
 function computeBandMagnitudes(
@@ -61,18 +60,19 @@ function computeBandMagnitudes(
   return bands;
 }
 
-export function createAudioEqAnimation(opts?: AudioEqOptions): AudioEqAnimation {
-  const source = opts?.source ?? 'monitor';
+interface BandStream {
+  [Symbol.asyncIterator](): AsyncIterator<RenderCtx>;
+  stop(): void;
+}
+
+export function createAudioBandStream(opts?: Omit<AudioEqOptions, 'style'>): BandStream {
   const fftSize = opts?.fftSize ?? 2048;
   const gain = opts?.gain ?? 1.0;
-  const style = opts?.style ?? 'eq-bars';
-  const renderer = createRenderer(style);
-
   const targetArgs = opts?.target ? ['--target', opts.target] : [];
 
   let stopped = false;
-  let resolveChunk: ((frame: Frame | null) => void) | null = null;
-  const pendingFrames: Frame[] = [];
+  let resolveChunk: ((ctx: RenderCtx | null) => void) | null = null;
+  const pending: RenderCtx[] = [];
   let buffer = Buffer.alloc(0);
   let procClosed = false;
 
@@ -100,15 +100,14 @@ export function createAudioEqAnimation(opts?: AudioEqOptions): AudioEqAnimation 
       fft.realTransform(out, samples);
       fft.completeSpectrum(out);
 
-      const bands = computeBandMagnitudes(out, fftSize);
-      const frame = renderer({ bands, gain, fftSize });
+      const ctx: RenderCtx = { bands: computeBandMagnitudes(out, fftSize), fftSize, gain };
 
       if (resolveChunk) {
         const resolve = resolveChunk;
         resolveChunk = null;
-        resolve(frame);
+        resolve(ctx);
       } else {
-        pendingFrames.push(frame);
+        pending.push(ctx);
       }
     }
   }
@@ -129,33 +128,18 @@ export function createAudioEqAnimation(opts?: AudioEqOptions): AudioEqAnimation 
   });
 
   return {
-    source,
-
-    [Symbol.asyncIterator](): AsyncIterator<Frame> {
+    [Symbol.asyncIterator](): AsyncIterator<RenderCtx> {
       return {
-        async next(): Promise<IteratorResult<Frame>> {
-          if (stopped || procClosed) {
-            return { value: undefined as unknown as Frame, done: true };
-          }
-
-          if (pendingFrames.length > 0) {
-            return { value: pendingFrames.shift()!, done: false };
-          }
-
-          const frame = await new Promise<Frame | null>(resolve => {
-            resolveChunk = resolve;
-          });
-
-          if (frame === null || stopped) {
-            return { value: undefined as unknown as Frame, done: true };
-          }
-
-          return { value: frame, done: false };
+        async next(): Promise<IteratorResult<RenderCtx>> {
+          if (stopped || procClosed) return { value: undefined as unknown as RenderCtx, done: true };
+          if (pending.length > 0) return { value: pending.shift()!, done: false };
+          const ctx = await new Promise<RenderCtx | null>(resolve => { resolveChunk = resolve; });
+          if (ctx === null || stopped) return { value: undefined as unknown as RenderCtx, done: true };
+          return { value: ctx, done: false };
         },
       };
     },
-
-    stop(): void {
+    stop() {
       stopped = true;
       proc.kill();
       if (resolveChunk) {
@@ -164,5 +148,29 @@ export function createAudioEqAnimation(opts?: AudioEqOptions): AudioEqAnimation 
         resolve(null);
       }
     },
+  };
+}
+
+export function createAudioEqAnimation(opts?: AudioEqOptions): AudioEqAnimation {
+  const source = opts?.source ?? 'monitor';
+  const style = opts?.style ?? 'eq-bars';
+  const renderer = createRenderer(style);
+  const bandStream = createAudioBandStream(opts);
+  const iter = bandStream[Symbol.asyncIterator]();
+
+  return {
+    source,
+
+    [Symbol.asyncIterator](): AsyncIterator<Frame> {
+      return {
+        async next(): Promise<IteratorResult<Frame>> {
+          const result = await iter.next();
+          if (result.done) return { value: undefined as unknown as Frame, done: true };
+          return { value: renderer(result.value), done: false };
+        },
+      };
+    },
+
+    stop(): void { bandStream.stop(); },
   };
 }
