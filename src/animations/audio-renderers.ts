@@ -1,7 +1,7 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'spectrum-mirror' | 'vu-meter' | 'bounce' | 'waterfall' | 'fire';
+export type AudioStyle = 'eq-bars' | 'spectrum-mirror' | 'vu-meter' | 'bounce' | 'waterfall' | 'fire' | 'sparks' | 'flame-bars';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'eq-bars',         label: 'eq bars' },
@@ -10,6 +10,8 @@ export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'bounce',          label: 'bounce' },
   { id: 'waterfall',       label: 'waterfall' },
   { id: 'fire',            label: 'fire' },
+  { id: 'sparks',          label: 'sparks' },
+  { id: 'flame-bars',      label: 'flame bars' },
 ];
 
 export type RenderCtx = {
@@ -130,17 +132,64 @@ function fire(): Renderer {
     for (let col = 0; col < BAND_COUNT; col++) {
       heat[col * ROWS + (ROWS - 1)] = dbLevel(bands[col] ?? 0, gain, ref);
     }
+    // More vertical weight (60/20/20) and faster cooling than original to reduce
+    // horizontal banding on the narrow display.
     for (let row = 0; row < ROWS - 1; row++) {
       for (let col = 0; col < BAND_COUNT; col++) {
         const below  = heat[col * ROWS + row + 1] ?? 0;
         const belowL = heat[Math.max(0, col - 1) * ROWS + row + 1] ?? 0;
         const belowR = heat[Math.min(BAND_COUNT - 1, col + 1) * ROWS + row + 1] ?? 0;
-        heat[col * ROWS + row] = ((below + belowL + belowR) / 3) * 0.85;
+        heat[col * ROWS + row] = ((3 * below + belowL + belowR) / 5) * 0.78;
       }
     }
     const frame = createFrame();
     for (let i = 0; i < BAND_COUNT * ROWS; i++) {
       frame[i] = Math.min(255, Math.round((heat[i] ?? 0) * 255));
+    }
+    return frame;
+  };
+}
+
+function sparks(): Renderer {
+  // Sparse pixels spawn at the bottom with probability = band energy,
+  // then scroll upward one row per frame — like embers rising.
+  const grid = new Uint8Array(BAND_COUNT * ROWS);
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    // Shift all rows up by one (row 0 is discarded)
+    for (let row = 0; row < ROWS - 1; row++) {
+      for (let col = 0; col < BAND_COUNT; col++) {
+        grid[col * ROWS + row] = grid[col * ROWS + row + 1] ?? 0;
+      }
+    }
+    // Spawn bottom row: pixel lit with probability = band energy
+    for (let col = 0; col < BAND_COUNT; col++) {
+      const energy = dbLevel(bands[col] ?? 0, gain, ref);
+      grid[col * ROWS + (ROWS - 1)] = Math.random() < energy ? 255 : 0;
+    }
+    const frame = createFrame();
+    for (let i = 0; i < BAND_COUNT * ROWS; i++) frame[i] = grid[i] ?? 0;
+    return frame;
+  };
+}
+
+function flameBars(): Renderer {
+  // Smooth envelope (fast attack, slow release) with per-frame random flicker.
+  const envelope = new Float32Array(BAND_COUNT);
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    const frame = createFrame();
+    for (let col = 0; col < BAND_COUNT; col++) {
+      const t = dbLevel(bands[col] ?? 0, gain, ref);
+      envelope[col] = t > (envelope[col] ?? 0)
+        ? t
+        : (envelope[col] ?? 0) * 0.85 + t * 0.15;
+      // Flicker: random height between 70% and 120% of envelope
+      const flicker = (envelope[col] ?? 0) * (0.7 + Math.random() * 0.5);
+      const height = Math.round(Math.min(1, flicker) * ROWS);
+      for (let row = 0; row < ROWS; row++) {
+        frame[col * ROWS + row] = row >= ROWS - height ? 255 : 0;
+      }
     }
     return frame;
   };
@@ -153,6 +202,8 @@ const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'bounce':          bounce,
   'waterfall':       waterfall,
   'fire':            fire,
+  'sparks':          sparks,
+  'flame-bars':      flameBars,
 };
 
 export function createRenderer(style: AudioStyle): Renderer {
