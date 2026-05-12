@@ -34,6 +34,8 @@ const PLACEHOLDER: Record<AudioStyle, string> = {
   'drip-a':            makeFrame((c, r) => { const cx = 4, cy = 17; const d = Math.sqrt((c - cx) ** 2 + (r - cy) ** 2); const ring = Math.max(0, 1 - Math.abs(d - 8) / 1.5); const trail = d < 8 && d > 3 ? (1 - (8 - d) / 5) * 0.9 : 0; const v = Math.max(ring, trail); return v > 0 && ring > 0 && (c * 7 + r * 13) % 3 === 0 ? Math.round(trail * 255) : Math.round(v * 255); }),
   'life-erode-4':      makeFrame((c, r) => (c * 19 + r * 37 + c * r * 5) % 13 < 1 ? 255 : 0),
   'bounce':            makeFrame((c, r) => r === ROWS - 1 - [0, 4, 10, 16, 20, 16, 10, 4, 0][c]! ? 255 : 0),
+  'bounce-drift':      makeFrame((c, r) => { const bx = [0, 2, 4, 5, 4, 3, 7, 6, 8][c]!; const by = [0, 6, 12, 20, 26, 18, 8, 14, 4][c]!; return c === bx && r === ROWS - 1 - by ? 255 : 0; }),
+  'bounce-gravity':    makeFrame((c, r) => { const by = [2, 10, 0, 18, 6, 14, 0, 8, 4][c]!; return r === ROWS - 1 - by ? 255 : 0; }),
   'waterfall':         makeFrame((_c, r) => Math.round((r / (ROWS - 1)) * 255)),
   'sparks':            makeFrame((c, r) => ((c * 7 + r * 11) % 13 < Math.round((1 - r / (ROWS - 1)) * 6)) ? 255 : 0),
   'sparks-tug':        makeFrame((c, r) => ((c * 7 + r * 11) % 13 < Math.round((1 - c / 8) * 5 * (1 - r / (ROWS - 1)) * 1.5)) ? 255 : 0),
@@ -44,7 +46,9 @@ const PLACEHOLDER: Record<AudioStyle, string> = {
   'flame-life':        makeFrame((c, r) => { const h = EQ_H[c]! + (c % 3 === 0 ? 4 : c % 3 === 1 ? -3 : 2); return r >= ROWS - h ? ((c * 13 + r * 29) % 11 < 4 ? 0 : 255) : 0; }),
   'flame-life-a':      makeFrame((c, r) => { const h = EQ_H[c]! + (c % 3 === 0 ? 4 : c % 3 === 1 ? -3 : 2); const inCenter = c >= 3 && c <= 5 && r >= ROWS - Math.round(h * 0.5); return r >= ROWS - h ? ((inCenter && (c * 11 + r * 23) % 9 < 3) ? 0 : 255) : 0; }),
   'flame-life-b':      makeFrame((c, r) => { const h = EQ_H[c]! + (c % 3 === 0 ? 4 : c % 3 === 1 ? -3 : 2); const inCenter = c >= 3 && c <= 5 && r >= ROWS - Math.round(h * 0.5); return r >= ROWS - h ? ((inCenter && (c * 17 + r * 19) % 7 < 2) ? 0 : 255) : 0; }),
-  'flame-life-sparks': makeFrame((c, r) => { const h = EQ_H[c]! + (c % 3 === 0 ? 4 : c % 3 === 1 ? -3 : 2); return r >= ROWS - h ? ((c * 13 + r * 29) % 11 < 4 ? 0 : 255) : r < ROWS-h && r > ROWS-h-14 && (c*3+r*7)%13===0 ? Math.round(200*Math.pow(0.87,ROWS-h-1-r)) : 0; }),
+  'flame-life-sparks':   makeFrame((c, r) => { const h = EQ_H[c]! + (c % 3 === 0 ? 4 : c % 3 === 1 ? -3 : 2); return r >= ROWS - h ? ((c * 13 + r * 29) % 11 < 4 ? 0 : 255) : r < ROWS-h && r > ROWS-h-14 && (c*3+r*7)%13===0 ? Math.round(200*Math.pow(0.87,ROWS-h-1-r)) : 0; }),
+  'flame-life-sparks-a': makeFrame((c, r) => { const h = Math.round((EQ_H[c]! + (c % 3 === 0 ? 4 : c % 3 === 1 ? -3 : 2)) * 0.5); return r >= ROWS - h ? ((c * 13 + r * 29) % 11 < 4 ? 0 : 255) : r < ROWS-h && r > ROWS-h-14 && (c*3+r*7)%13===0 ? Math.round(200*Math.pow(0.87,ROWS-h-1-r)) : 0; }),
+  'flame-life-sparks-b': makeFrame((c, r) => { const h = Math.round((EQ_H[c]! + (c % 3 === 0 ? 4 : c % 3 === 1 ? -3 : 2)) * 0.25); return r >= ROWS - h ? ((c * 13 + r * 29) % 11 < 4 ? 0 : 255) : r < ROWS-h && r > ROWS-h-14 && (c*3+r*7)%13===0 ? Math.round(200*Math.pow(0.87,ROWS-h-1-r)) : 0; }),
 };
 
 const BAYER4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]] as const;
