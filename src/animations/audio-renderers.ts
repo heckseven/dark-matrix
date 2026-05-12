@@ -1,7 +1,7 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'ripple' | 'life' | 'life-strict' | 'life-pulse' | 'life-wave';
+export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'ripple' | 'life' | 'life-strict' | 'life-pulse' | 'life-cull' | 'life-wave';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'dark-matter',     label: 'dark matter' },
@@ -12,6 +12,7 @@ export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'life',            label: 'life' },
   { id: 'life-strict',     label: 'life strict' },
   { id: 'life-pulse',      label: 'life pulse' },
+  { id: 'life-cull',       label: 'life cull' },
   { id: 'life-wave',       label: 'life wave' },
   { id: 'eq-bars',         label: 'eq bars' },
   { id: 'spectrum-fall',   label: 'spectrum fall' },
@@ -382,7 +383,7 @@ function ripple(): Renderer {
   };
 }
 
-type LifeOpts = { seedRate: number; threshold: number; decay: number; survive: (n: number) => boolean; born: (n: number) => boolean; transientWipe?: number };
+type LifeOpts = { seedRate: number; threshold: number; decay: number; survive: (n: number) => boolean; born: (n: number) => boolean; transientWipe?: number; transientCull?: number };
 
 function makeLife(opts: LifeOpts): Renderer {
   const cells = new Float32Array(BAND_COUNT * ROWS);
@@ -398,6 +399,12 @@ function makeLife(opts: LifeOpts): Renderer {
     if (delta > 0.10 && cooldown === 0) {
       if (opts.transientWipe !== undefined) {
         for (let i = 0; i < cells.length; i++) cells[i] = (cells[i] ?? 0) * opts.transientWipe;
+      }
+      if (opts.transientCull !== undefined) {
+        const killProb = Math.min(1, delta * opts.transientCull);
+        for (let i = 0; i < cells.length; i++) {
+          if (Math.random() < killProb) cells[i] = 0;
+        }
       }
       for (let col = 0; col < BAND_COUNT; col++) {
         const e = dbLevel(bands[col] ?? 0, gain, ref);
@@ -525,6 +532,11 @@ function lifePulse(): Renderer {
   return makeLife({ seedRate: 0.10, threshold: 0.4, decay: 0.65, survive: n => n === 2 || n === 3, born: n => n === 3, transientWipe: 0.15 });
 }
 
+// Standard GoL with probabilistic per-cell kill on transient — kill rate scales with transient peak
+function lifeCull(): Renderer {
+  return makeLife({ seedRate: 0.12, threshold: 0.4, decay: 0.75, survive: n => n === 2 || n === 3, born: n => n === 3, transientCull: 3.0 });
+}
+
 const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'eq-bars':         eqBars,
   'spectrum-fall':   spectrumFall,
@@ -538,6 +550,7 @@ const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'life':            life,
   'life-strict':     lifeStrict,
   'life-pulse':      lifePulse,
+  'life-cull':       lifeCull,
   'life-wave':       lifeWave,
   'bounce':          bounce,
   'waterfall':       waterfall,
