@@ -1,34 +1,31 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'sparks-squeeze' | 'sparks-spread' | 'sparks-tug' | 'flame-bars' | 'flame-sparks-hi' | 'flame-sparks-a' | 'flame-sparks-b' | 'flame-life' | 'flame-life-a' | 'flame-life-b' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'drip' | 'drip-a' | 'drip-b' | 'life-erode-4';
+export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'sparks-tug' | 'sparks-kaleido' | 'sparks-kaleido-b' | 'flame-bars' | 'flame-sparks-a' | 'flame-life' | 'flame-life-a' | 'flame-life-b' | 'flame-life-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'drip' | 'drip-a' | 'life-erode-4';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
-  { id: 'dark-matter',     label: 'dark matter' },
-  { id: 'neo',             label: 'neo' },
-  { id: 'cipher',          label: 'cipher' },
-  { id: 'wake',            label: 'wake' },
-  { id: 'flame-bars',      label: 'flame bars' },
-  { id: 'flame-sparks-hi', label: 'flame sparks hi' },
-  { id: 'flame-sparks-a',  label: 'flame sparks a' },
-  { id: 'flame-sparks-b',  label: 'flame sparks b' },
-  { id: 'flame-life',      label: 'flame life' },
-  { id: 'flame-life-a',    label: 'flame life a' },
-  { id: 'flame-life-b',    label: 'flame life b' },
-  { id: 'drip',            label: 'drip' },
-  { id: 'drip-a',          label: 'drip a' },
-  { id: 'drip-b',          label: 'drip b' },
-  { id: 'spectrum-fall',   label: 'spectrum fall' },
-  { id: 'life-erode-4',    label: 'replicants' },
-  { id: 'eq-bars',         label: 'eq bars' },
-  { id: 'vu-meter',        label: 'vu meter' },
-  { id: 'vu-sparks',       label: 'vu sparks' },
-  { id: 'bounce',          label: 'bounce' },
-  { id: 'waterfall',       label: 'waterfall' },
-  { id: 'sparks',          label: 'sparks' },
-  { id: 'sparks-squeeze',  label: 'sparks squeeze' },
-  { id: 'sparks-spread',   label: 'sparks spread' },
-  { id: 'sparks-tug',      label: 'sparks tug' },
+  { id: 'dark-matter',      label: 'dark matter' },
+  { id: 'neo',              label: 'neo' },
+  { id: 'cipher',           label: 'cipher' },
+  { id: 'wake',             label: 'wake' },
+  { id: 'flame-bars',       label: 'flame bars' },
+  { id: 'flame-sparks-a',   label: 'flame sparks' },
+  { id: 'flame-life',       label: 'flame life' },
+  { id: 'flame-life-a',     label: 'flame life a' },
+  { id: 'flame-life-b',     label: 'flame life b' },
+  { id: 'flame-life-sparks', label: 'flame life sparks' },
+  { id: 'drip',             label: 'drip' },
+  { id: 'drip-a',           label: 'drip a' },
+  { id: 'spectrum-fall',    label: 'spectrum fall' },
+  { id: 'life-erode-4',     label: 'replicants' },
+  { id: 'eq-bars',          label: 'eq bars' },
+  { id: 'vu-meter',         label: 'vu meter' },
+  { id: 'bounce',           label: 'bounce' },
+  { id: 'waterfall',        label: 'waterfall' },
+  { id: 'sparks',           label: 'sparks' },
+  { id: 'sparks-tug',       label: 'sparks tug' },
+  { id: 'sparks-kaleido',   label: 'sparks kaleido' },
+  { id: 'sparks-kaleido-b', label: 'sparks kaleido b' },
 ];
 
 export type RenderCtx = {
@@ -181,20 +178,11 @@ function makeSparksDrift(colPush: (col: number, e: Float32Array) => number): Ren
   };
 }
 
-// Band energy pushes sparks inward toward center — columns compress together at high volume
-function sparksSqueeze(): Renderer {
-  return makeSparksDrift((col, e) => (col < 4 ? 1 : col > 4 ? -1 : 0) * (e[col] ?? 0) * 3);
-}
-
-// Band energy pushes sparks outward toward edges — columns spread apart at high volume
-function sparksSpread(): Renderer {
-  return makeSparksDrift((col, e) => (col < 4 ? -1 : col > 4 ? 1 : 0) * (e[col] ?? 0) * 3);
-}
-
-// Net force = left-side energy pushes right, right-side energy pushes left — spectral balance steers the flow
 function sparksTug(): Renderer {
   return makeSparksDrift((col, e) => ((e[col] ?? 0) - (e[BAND_COUNT - 1 - col] ?? 0)) * 2.5);
 }
+function sparksKaleidoA(): Renderer { return makeSparksDrift((col, _e) => (4 - col) * 0.35); }
+function sparksKaleidoB(): Renderer { return makeSparksDrift((col, _e) => (4 - col) * 0.70); }
 
 function flameBars(): Renderer {
   // Smooth envelope (fast attack, slow release) with per-frame random flicker.
@@ -220,7 +208,7 @@ function flameBars(): Renderer {
 
 type Spark = { col: number; pos: number; v: number };
 
-function makeFlameSparks(spawnsPerFrame: number, sparkDecay = 0.85, riseBase = 0.4): Renderer {
+function makeFlameSparks(spawnsPerFrame: number, sparkDecay = 0.85, riseBase = 0.4, sparksOnly = false): Renderer {
   const envelope = new Float32Array(BAND_COUNT);
   const sparks: Spark[] = [];
   return ({ bands, gain, fftSize }) => {
@@ -233,14 +221,14 @@ function makeFlameSparks(spawnsPerFrame: number, sparkDecay = 0.85, riseBase = 0
         : (envelope[col] ?? 0) * 0.85 + t * 0.15;
       const flicker = (envelope[col] ?? 0) * (0.7 + Math.random() * 0.5);
       const height = Math.round(Math.min(1, flicker) * ROWS);
-      for (let row = 0; row < ROWS; row++) {
-        frame[col * ROWS + row] = row >= ROWS - height ? 255 : 0;
+      if (!sparksOnly) {
+        for (let row = 0; row < ROWS; row++)
+          frame[col * ROWS + row] = row >= ROWS - height ? 255 : 0;
       }
       if (height > 0) {
         for (let s = 0; s < spawnsPerFrame; s++) {
-          if (Math.random() < (envelope[col] ?? 0) * 0.5) {
+          if (Math.random() < (envelope[col] ?? 0) * 0.5)
             sparks.push({ col, pos: ROWS - height - 0.5, v: 200 + Math.random() * 55 });
-          }
         }
       }
     }
@@ -255,9 +243,19 @@ function makeFlameSparks(spawnsPerFrame: number, sparkDecay = 0.85, riseBase = 0
     return frame;
   };
 }
-function flameSparksHi(): Renderer { return makeFlameSparks(12, 0.93, 0.6); }
-function flameSparksA():  Renderer { return makeFlameSparks(4,  0.93, 0.6); }
-function flameSparksB():  Renderer { return makeFlameSparks(8,  0.93, 0.6); }
+function flameSparksA(): Renderer { return makeFlameSparks(4, 0.93, 0.6); }
+
+function flameLifeSparks(): Renderer {
+  const lifeR   = makeFlameLife(0.70);
+  const sparksR = makeFlameSparks(4, 0.93, 0.6, true);
+  return (ctx) => {
+    const lifeFrame   = lifeR(ctx);
+    const sparksFrame = sparksR(ctx);
+    for (let i = 0; i < lifeFrame.length; i++)
+      lifeFrame[i] = Math.max(lifeFrame[i] ?? 0, sparksFrame[i] ?? 0);
+    return lifeFrame;
+  };
+}
 
 function makeFlameLife(cull: number, centerSeed = false): Renderer {
   const envelope = new Float32Array(BAND_COUNT);
@@ -328,37 +326,6 @@ function flameLife():  Renderer { return makeFlameLife(0.70); }
 function flameLifeA(): Renderer { return makeFlameLife(0.78, true); }
 function flameLifeB(): Renderer { return makeFlameLife(0.86, true); }
 
-function vuSparks(): Renderer {
-  let peak = 0;
-  const grid = new Uint8Array(BAND_COUNT * ROWS);
-  return ({ bands, gain, fftSize }) => {
-    const ref = fftSize / 2;
-    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
-    const t = dbLevel(avg, gain, ref);
-    const height = Math.round(t * ROWS);
-    peak = Math.max(t, peak * 0.98);
-    const peakRow = ROWS - 1 - Math.round(peak * (ROWS - 1));
-    for (let row = 0; row < ROWS - 1; row++) {
-      for (let col = 0; col < BAND_COUNT; col++) {
-        grid[col * ROWS + row] = grid[col * ROWS + row + 1] ?? 0;
-      }
-    }
-    for (let col = 0; col < BAND_COUNT; col++) {
-      const energy = dbLevel(bands[col] ?? 0, gain, ref);
-      grid[col * ROWS + (ROWS - 1)] = Math.random() < energy ? 255 : 0;
-    }
-    const frame = createFrame();
-    for (let col = 0; col < BAND_COUNT; col++) {
-      for (let row = 0; row < ROWS; row++) {
-        if (row === peakRow && peak > t) { frame[col * ROWS + row] = 255; continue; }
-        if (row >= ROWS - height) {
-          frame[col * ROWS + row] = (grid[col * ROWS + row] ?? 0) > 0 ? 0 : 255;
-        }
-      }
-    }
-    return frame;
-  };
-}
 
 function eqSparks(): Renderer {
   const peaks = new Float32Array(BAND_COUNT);
@@ -652,31 +619,28 @@ function lifeErode4(): Renderer {
   return makeLife({ seedRate: 0.15, threshold: 0.4, decay: 0.75, survive: n => n === 2 || n === 3, born: n => n === 3, continuousCull: 0.70 });
 }
 const FACTORIES: Record<AudioStyle, () => Renderer> = {
-  'eq-bars':          eqBars,
-  'spectrum-fall':    spectrumFall,
-  'vu-meter':         vuMeter,
-  'vu-sparks':        vuSparks,
-  'dark-matter':      eqSparks,
-  'neo':              neo,
-  'cipher':           cipher,
-  'wake':             wake,
-  'drip':             drip,
-  'life-erode-4':     lifeErode4,
-  'bounce':           bounce,
-  'waterfall':        waterfall,
-  'sparks':           sparks,
-  'sparks-squeeze':   sparksSqueeze,
-  'sparks-spread':    sparksSpread,
-  'sparks-tug':       sparksTug,
-  'flame-bars':       flameBars,
-  'flame-sparks-hi':  flameSparksHi,
-  'flame-sparks-a':   flameSparksA,
-  'flame-sparks-b':   flameSparksB,
-  'flame-life':       flameLife,
-  'flame-life-a':     flameLifeA,
-  'flame-life-b':     flameLifeB,
-  'drip-a':           dripA,
-  'drip-b':           dripB,
+  'eq-bars':            eqBars,
+  'spectrum-fall':      spectrumFall,
+  'vu-meter':           vuMeter,
+  'dark-matter':        eqSparks,
+  'neo':                neo,
+  'cipher':             cipher,
+  'wake':               wake,
+  'drip':               drip,
+  'drip-a':             dripA,
+  'life-erode-4':       lifeErode4,
+  'bounce':             bounce,
+  'waterfall':          waterfall,
+  'sparks':             sparks,
+  'sparks-tug':         sparksTug,
+  'sparks-kaleido':     sparksKaleidoA,
+  'sparks-kaleido-b':   sparksKaleidoB,
+  'flame-bars':         flameBars,
+  'flame-sparks-a':     flameSparksA,
+  'flame-life':         flameLife,
+  'flame-life-a':       flameLifeA,
+  'flame-life-b':       flameLifeB,
+  'flame-life-sparks':  flameLifeSparks,
 };
 
 export function createRenderer(style: AudioStyle): Renderer {
