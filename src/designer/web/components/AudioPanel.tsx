@@ -32,8 +32,6 @@ const PLACEHOLDER: Record<AudioStyle, string> = {
   'cipher':          makeFrame((c, r) => (c * 17 + r * 31) % 7 < 4 ? 255 : 0),
   'wake':            makeFrame((_c, r) => Math.max(Math.round(255 * Math.pow(0.86, Math.abs(r - 7) * 1.1)), Math.round(255 * Math.pow(0.86, Math.abs(r - 23) * 1.1)))),
   'ripple':          makeFrame((c, r) => { const cx = 4, cy = 17; const d = Math.sqrt((c - cx) ** 2 + (r - cy) ** 2); return Math.round(Math.max(0, Math.max(1 - Math.abs(d - 5) / 1.5, 1 - Math.abs(d - 11) / 1.5)) * 255); }),
-  'life':            makeFrame((c, r) => (c * 17 + r * 31 + c * r * 7) % 11 < 3 ? 255 : 0),
-  'life-pulse':      makeFrame((c, r) => (c * 11 + r * 23 + c * r * 13) % 17 < 3 ? 255 : 0),
   'life-erode-4':    makeFrame((c, r) => (c * 19 + r * 37 + c * r * 5) % 13 < 1 ? 255 : 0),
   'bounce':          makeFrame((c, r) => r === ROWS - 1 - [0, 4, 10, 16, 20, 16, 10, 4, 0][c]! ? 255 : 0),
   'waterfall':       makeFrame((_c, r) => Math.round((r / (ROWS - 1)) * 255)),
