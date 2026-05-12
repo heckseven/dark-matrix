@@ -208,6 +208,19 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     });
   }
 
+  // Bayer 4×4 ordered dithering — converts grayscale Frame to binary in-place.
+  // For already-binary frames (0/255 only) this is a no-op because 0 < 8 and 255 > 247.
+  const BAYER4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]] as const;
+  function ditherBW(f: import('../lib/frame.js').Frame, cols: number, rows: number): void {
+    for (let col = 0; col < cols; col++) {
+      for (let row = 0; row < rows; row++) {
+        const v = f[col * rows + row] ?? 0;
+        const threshold = (BAYER4[row % 4]![col % 4]! + 0.5) * (255 / 16);
+        f[col * rows + row] = v > threshold ? 255 : 0;
+      }
+    }
+  }
+
   function runAudioEqOnModules(sourceOverride?: AudioSource, style: AudioStyle = 'eq-bars'): () => void {
     const { left, right } = currentConfig.modules;
     let stopped = false;
@@ -226,6 +239,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         const result = await iter.next();
         if (stopped || result.done) break;
         const leftFrame = result.value;
+        ditherBW(leftFrame, FRAME_COLS, FRAME_ROWS);
         // Mirror: right col 0 = left col 8, right col 1 = left col 7, ...
         const rightFrame = createFrame();
         for (let col = 0; col < FRAME_COLS; col++) {

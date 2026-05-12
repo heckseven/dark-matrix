@@ -277,7 +277,12 @@ export function App() {
 
         <header ref={headerRef} className="absolute top-0 inset-x-0 z-10 flex items-center gap-4 pl-7 pr-5 py-4" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
           {activeMode === 'audio' ? (
-            <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
+            <>
+              <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
+              <div className="absolute inset-x-0 flex justify-center pointer-events-none">
+                <span className="font-mono text-xs text-foreground">audio</span>
+              </div>
+            </>
           ) : (
             <>
               <div className="flex items-center gap-1">
