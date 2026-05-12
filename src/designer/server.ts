@@ -10,6 +10,7 @@ import sharp from 'sharp';
 import { parseProject, frameToBase64 } from './format.js';
 import type { DmxProject } from './format.js';
 import { sendToDaemon, PersistentDaemonClient, daemonSocketPath } from '../lib/daemon-client.js';
+import { AUDIO_STYLES } from '../animations/audio-renderers.js';
 
 const require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -766,11 +767,13 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
       } else if (type === 'preview-stop') {
         sendToDaemon({ cmd: 'frame-stop' }).catch(() => { /* ignore — daemon may not be running */ });
       } else if (type === 'audio-viz') {
-        const style = typeof msg['style'] === 'string' ? msg['style'] : 'eq-bars';
+        const knownStyles = AUDIO_STYLES.map(s => s.id as string);
+        const rawStyle = typeof msg['style'] === 'string' ? msg['style'] : '';
+        const style = knownStyles.includes(rawStyle) ? rawStyle : 'eq-bars';
         const source = msg['source'] === 'mic' ? 'mic' : 'monitor';
         audioStream?.destroy();
         audioStream = openAudioStream(style, source, (frame) => {
-          if (ws.readyState === ws.OPEN) {
+          if (ws.readyState === 1) {
             ws.send(JSON.stringify({ type: 'audio-frame', frame }));
           }
         });
