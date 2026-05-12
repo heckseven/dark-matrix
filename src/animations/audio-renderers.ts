@@ -381,7 +381,7 @@ function ripple(): Renderer {
   };
 }
 
-type LifeOpts = { seedRate: number; threshold: number; decay: number; survive: (n: number) => boolean; born: (n: number) => boolean };
+type LifeOpts = { seedRate: number; threshold: number; decay: number; survive: (n: number) => boolean; born: (n: number) => boolean; wipeOnTransient?: boolean };
 
 function makeLife(opts: LifeOpts): Renderer {
   const cells = new Float32Array(BAND_COUNT * ROWS);
@@ -395,6 +395,7 @@ function makeLife(opts: LifeOpts): Renderer {
     smoothed = smoothed * 0.85 + t * 0.15;
     if (cooldown > 0) cooldown--;
     if (delta > 0.10 && cooldown === 0) {
+      if (opts.wipeOnTransient) cells.fill(0);
       for (let col = 0; col < BAND_COUNT; col++) {
         const e = dbLevel(bands[col] ?? 0, gain, ref);
         for (let row = 0; row < ROWS; row++) {
@@ -436,13 +437,14 @@ function life(): Renderer {
 }
 
 // Very sparse seeding, slow decay — isolated cells leave long phosphor trails
+// No births — cells only injected by transients, GoL only erodes, population strictly shrinks between beats
 function lifeFade(): Renderer {
-  return makeLife({ seedRate: 0.05, threshold: 0.5, decay: 0.88, survive: n => n === 2 || n === 3, born: n => n === 3 });
+  return makeLife({ seedRate: 0.08, threshold: 0.45, decay: 0.60, survive: n => n === 2 || n === 3, born: () => false });
 }
 
-// Stricter survival (exactly 2 neighbors only) — dense clusters collapse immediately, leaving sparse oscillating remnants
+// Grid wiped on each transient — every beat is a fresh sparse GoL run, no accumulation between beats
 function lifeStrict(): Renderer {
-  return makeLife({ seedRate: 0.12, threshold: 0.4, decay: 0.70, survive: n => n === 2, born: n => n === 3 });
+  return makeLife({ seedRate: 0.10, threshold: 0.4, decay: 0.65, survive: n => n === 2 || n === 3, born: n => n === 3, wipeOnTransient: true });
 }
 
 const FACTORIES: Record<AudioStyle, () => Renderer> = {
