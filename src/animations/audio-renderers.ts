@@ -1,7 +1,7 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'ripple' | 'life';
+export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'ripple' | 'life' | 'life-fade' | 'life-strict';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'dark-matter',     label: 'dark matter' },
@@ -10,6 +10,8 @@ export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'wake',            label: 'wake' },
   { id: 'ripple',          label: 'ripple' },
   { id: 'life',            label: 'life' },
+  { id: 'life-fade',       label: 'life fade' },
+  { id: 'life-strict',     label: 'life strict' },
   { id: 'eq-bars',         label: 'eq bars' },
   { id: 'spectrum-fall',   label: 'spectrum fall' },
   { id: 'vu-meter',        label: 'vu meter' },
@@ -379,7 +381,9 @@ function ripple(): Renderer {
   };
 }
 
-function life(): Renderer {
+type LifeOpts = { seedRate: number; threshold: number; decay: number; survive: (n: number) => boolean; born: (n: number) => boolean };
+
+function makeLife(opts: LifeOpts): Renderer {
   const cells = new Float32Array(BAND_COUNT * ROWS);
   let smoothed = 0;
   let cooldown = 0;
@@ -394,14 +398,13 @@ function life(): Renderer {
       for (let col = 0; col < BAND_COUNT; col++) {
         const e = dbLevel(bands[col] ?? 0, gain, ref);
         for (let row = 0; row < ROWS; row++) {
-          if (Math.random() < e * 0.35) cells[col * ROWS + row] = 1.0;
+          if (Math.random() < e * opts.seedRate) cells[col * ROWS + row] = 1.0;
         }
       }
       cooldown = 5;
     }
-    // GoL step on thresholded view
     const alive = new Uint8Array(BAND_COUNT * ROWS);
-    for (let i = 0; i < alive.length; i++) alive[i] = (cells[i] ?? 0) > 0.3 ? 1 : 0;
+    for (let i = 0; i < alive.length; i++) alive[i] = (cells[i] ?? 0) > opts.threshold ? 1 : 0;
     const next = new Float32Array(cells.length);
     for (let col = 0; col < BAND_COUNT; col++) {
       for (let row = 0; row < ROWS; row++) {
@@ -416,8 +419,8 @@ function life(): Renderer {
         }
         const idx = col * ROWS + row;
         const isAlive = (alive[idx] ?? 0) === 1;
-        const survives = isAlive ? (n === 2 || n === 3) : n === 3;
-        next[idx] = survives ? 1.0 : (cells[idx] ?? 0) * 0.75;
+        const survives = isAlive ? opts.survive(n) : opts.born(n);
+        next[idx] = survives ? 1.0 : (cells[idx] ?? 0) * opts.decay;
       }
     }
     for (let i = 0; i < cells.length; i++) cells[i] = next[i] ?? 0;
@@ -425,6 +428,21 @@ function life(): Renderer {
     for (let i = 0; i < cells.length; i++) frame[i] = Math.round((cells[i] ?? 0) * 255);
     return frame;
   };
+}
+
+// Standard GoL rules, seeding toned down from original
+function life(): Renderer {
+  return makeLife({ seedRate: 0.12, threshold: 0.4, decay: 0.75, survive: n => n === 2 || n === 3, born: n => n === 3 });
+}
+
+// Very sparse seeding, slow decay — isolated cells leave long phosphor trails
+function lifeFade(): Renderer {
+  return makeLife({ seedRate: 0.05, threshold: 0.5, decay: 0.88, survive: n => n === 2 || n === 3, born: n => n === 3 });
+}
+
+// Stricter survival (exactly 2 neighbors only) — dense clusters collapse immediately, leaving sparse oscillating remnants
+function lifeStrict(): Renderer {
+  return makeLife({ seedRate: 0.12, threshold: 0.4, decay: 0.70, survive: n => n === 2, born: n => n === 3 });
 }
 
 const FACTORIES: Record<AudioStyle, () => Renderer> = {
@@ -438,6 +456,8 @@ const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'wake':            wake,
   'ripple':          ripple,
   'life':            life,
+  'life-fade':       lifeFade,
+  'life-strict':     lifeStrict,
   'bounce':          bounce,
   'waterfall':       waterfall,
   'sparks':          sparks,
