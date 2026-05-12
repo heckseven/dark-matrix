@@ -387,6 +387,9 @@ type LifeOpts = { seedRate: number; threshold: number; decay: number; survive: (
 
 function makeLife(opts: LifeOpts): Renderer {
   const cells = new Float32Array(BAND_COUNT * ROWS);
+  for (let i = 0; i < cells.length; i++) {
+    if (Math.random() < 0.35) cells[i] = 1.0;
+  }
   let smoothed = 0;
   let cooldown = 0;
   return ({ bands, gain, fftSize }) => {
