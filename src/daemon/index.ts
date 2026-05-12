@@ -20,7 +20,7 @@ import { createStartupAnimation } from '../animations/startup.js';
 import { createScrollAnimation } from '../animations/scroll.js';
 import { createGolAnimation } from '../animations/gol.js';
 import { createHeatmapState, bumpTool, tickHeatmap, renderHeatmap } from '../animations/heatmap.js';
-import { createAudioEqAnimation } from '../animations/audio-eq.js';
+import { createAudioEqAnimation, createAudioBandStream } from '../animations/audio-eq.js';
 import type { AudioSource } from '../animations/audio-eq.js';
 import { AUDIO_STYLES } from '../animations/audio-renderers.js';
 import type { AudioStyle } from '../animations/audio-renderers.js';
@@ -254,30 +254,29 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     return () => { stopped = true; anim?.stop(); };
   }
 
-  function streamAudioViz(
-    style: AudioStyle,
+  function streamAudioBands(
     source: AudioSource,
-    onFrame: (pixels: Buffer) => void,
+    onBands: (ctx: { bands: number[]; fftSize: number; gain: number }) => void,
   ): () => void {
     let stopped = false;
-    let anim: ReturnType<typeof createAudioEqAnimation> | null = null;
+    let stream: ReturnType<typeof createAudioBandStream> | null = null;
 
     const run = async () => {
       const target = await resolveDefaultDeviceId(
         source === 'monitor' ? '@DEFAULT_AUDIO_SINK@' : '@DEFAULT_AUDIO_SOURCE@',
       );
       if (stopped) return;
-      anim = createAudioEqAnimation({ source, style, ...(target ? { target } : {}) });
-      const iter = anim[Symbol.asyncIterator]();
+      stream = createAudioBandStream({ source, ...(target ? { target } : {}) });
+      const iter = stream[Symbol.asyncIterator]();
       while (!stopped) {
         const result = await iter.next();
         if (stopped || result.done) break;
-        onFrame(Buffer.from(result.value));
+        onBands(result.value);
       }
     };
 
     void run();
-    return () => { stopped = true; anim?.stop(); };
+    return () => { stopped = true; stream?.stop(); };
   }
 
   function startGifAnimation(gifPath: string, hold: boolean, dual: boolean, mode: 'bw' | 'gray' = 'gray'): void {
@@ -691,15 +690,12 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             case 'audio-viz': {
-              const m = msg as { cmd: string; style?: string; source?: string };
-              const knownStyles = AUDIO_STYLES.map(s => s.id as string);
-              const isAudioStyle = (s: string): s is AudioStyle => knownStyles.includes(s);
-              const style: AudioStyle = m.style && isAudioStyle(m.style) ? m.style : 'eq-bars';
+              const m = msg as { cmd: string; source?: string };
               const source: AudioSource = m.source === 'mic' ? 'mic' : 'monitor';
               socket.write(JSON.stringify({ ok: true }) + '\n');
-              const stopViz = streamAudioViz(style, source, (pixels) => {
+              const stopViz = streamAudioBands(source, (ctx) => {
                 if (socket.destroyed) return;
-                socket.write(JSON.stringify({ type: 'audio-frame', frame: pixels.toString('base64') }) + '\n');
+                socket.write(JSON.stringify({ type: 'audio-bands', ...ctx }) + '\n');
               });
               socket.once('close', stopViz);
               socket.once('error', stopViz);

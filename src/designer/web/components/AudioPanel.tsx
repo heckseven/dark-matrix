@@ -2,11 +2,11 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { MatrixPreview } from './MatrixPreview.js';
 import { useDesignerStore, designerStore } from '../store.js';
 import type { AudioStyle, AudioSource } from '../store.js';
-import { AUDIO_STYLES } from '../../../animations/audio-renderers.js';
+import { AUDIO_STYLES, createRenderer } from '../../../animations/audio-renderers.js';
+import type { RenderCtx } from '../../../animations/audio-renderers.js';
 
 const COLS = 9;
 const ROWS = 34;
-const BLANK = btoa(String.fromCharCode(...new Uint8Array(COLS * ROWS)));
 
 function makeFrame(fill: (c: number, r: number) => number): string {
   const data = new Uint8Array(COLS * ROWS);
@@ -19,8 +19,8 @@ function makeFrame(fill: (c: number, r: number) => number): string {
 const EQ_H    = [10, 16, 22, 28, 30, 28, 22, 16, 10] as const;
 const SPEC_H  = [ 4,  7, 10, 13, 14, 13, 10,  7,  4] as const;
 const CTR     = Math.floor(ROWS / 2);
-const VU_BAR  = ROWS - 24;           // bar fills bottom 24 rows
-const VU_PEAK = ROWS - 1 - 28;       // peak dot near top
+const VU_BAR  = ROWS - 24;
+const VU_PEAK = ROWS - 1 - 28;
 
 const PLACEHOLDER: Record<AudioStyle, string> = {
   'eq-bars':         makeFrame((c, r) => r >= ROWS - EQ_H[c]! ? 255 : 0),
@@ -34,6 +34,10 @@ const PLACEHOLDER: Record<AudioStyle, string> = {
   'flame-bars':      makeFrame((c, r) => r >= ROWS - (EQ_H[c]! + (c % 3 === 0 ? 4 : c % 3 === 1 ? -3 : 2)) ? 255 : 0),
 };
 
+function frameToB64(frame: Uint8Array): string {
+  return btoa(String.fromCharCode(...frame));
+}
+
 function mirrorFrame(b64: string): string {
   const src = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
   const dst = new Uint8Array(COLS * 2 * ROWS);
@@ -45,11 +49,6 @@ function mirrorFrame(b64: string): string {
     }
   }
   return btoa(String.fromCharCode(...dst));
-}
-
-function resolvePixels(id: AudioStyle, livePixels: string, active: boolean, dualModule: boolean): string {
-  const base = active && livePixels !== BLANK ? livePixels : PLACEHOLDER[id];
-  return dualModule ? mirrorFrame(base) : base;
 }
 
 function AudioStyleCard({
@@ -107,13 +106,19 @@ function SourceToggle({ value, onChange }: { value: AudioSource; onChange: (s: A
 export function AudioPanel({ dualModule = false }: { dualModule?: boolean }) {
   const audioStyle = useDesignerStore(s => s.audioStyle);
   const audioSource = useDesignerStore(s => s.audioSource);
-  const [livePixels, setLivePixels] = useState(BLANK);
+  const [livePixels, setLivePixels] = useState<Partial<Record<AudioStyle, string>>>({});
   const wsRef = useRef<WebSocket | null>(null);
 
-  const sendViz = useCallback((style: AudioStyle, source: AudioSource) => {
+  const renderersRef = useRef<Record<AudioStyle, ReturnType<typeof createRenderer>> | null>(null);
+  if (!renderersRef.current) {
+    renderersRef.current = Object.fromEntries(
+      AUDIO_STYLES.map(({ id }) => [id, createRenderer(id as AudioStyle)])
+    ) as Record<AudioStyle, ReturnType<typeof createRenderer>>;
+  }
+
+  const sendViz = useCallback((source: AudioSource, style: AudioStyle) => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    setLivePixels(BLANK);
     ws.send(JSON.stringify({ type: 'audio-viz', style, source }));
   }, []);
 
@@ -128,8 +133,16 @@ export function AudioPanel({ dualModule = false }: { dualModule?: boolean }) {
 
     ws.onmessage = (e) => {
       try {
-        const msg = JSON.parse(e.data as string) as { type: string; frame?: string };
-        if (msg.type === 'audio-frame' && msg.frame) setLivePixels(msg.frame);
+        const msg = JSON.parse(e.data as string) as { type: string; bands?: number[]; fftSize?: number; gain?: number };
+        if (msg.type === 'audio-bands' && msg.bands) {
+          const ctx: RenderCtx = { bands: msg.bands, fftSize: msg.fftSize ?? 2048, gain: msg.gain ?? 1.0 };
+          const renderers = renderersRef.current!;
+          const next: Partial<Record<AudioStyle, string>> = {};
+          for (const { id } of AUDIO_STYLES) {
+            next[id as AudioStyle] = frameToB64(renderers[id as AudioStyle]!(ctx));
+          }
+          setLivePixels(next);
+        }
       } catch { /* ignore */ }
     };
 
@@ -144,7 +157,7 @@ export function AudioPanel({ dualModule = false }: { dualModule?: boolean }) {
   }, []);
 
   useEffect(() => {
-    sendViz(audioStyle, audioSource);
+    sendViz(audioSource, audioStyle);
   }, [audioStyle, audioSource, sendViz]);
 
   return (
@@ -157,12 +170,14 @@ export function AudioPanel({ dualModule = false }: { dualModule?: boolean }) {
       <div className="grid grid-cols-3 gap-8">
         {AUDIO_STYLES.map(({ id, label }) => {
           const active = audioStyle === id;
+          const base = livePixels[id as AudioStyle] ?? PLACEHOLDER[id as AudioStyle]!;
+          const pixels = dualModule ? mirrorFrame(base) : base;
           return (
             <AudioStyleCard
               key={id}
               label={label}
               active={active}
-              pixels={resolvePixels(id, livePixels, active, dualModule)}
+              pixels={pixels}
               dualModule={dualModule}
               onSelect={() => designerStore.getState().setAudioStyle(id as AudioStyle)}
             />
