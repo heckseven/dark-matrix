@@ -34,8 +34,17 @@ const PLACEHOLDER: Record<AudioStyle, string> = {
   'flame-bars':      makeFrame((c, r) => r >= ROWS - (EQ_H[c]! + (c % 3 === 0 ? 4 : c % 3 === 1 ? -3 : 2)) ? 255 : 0),
 };
 
+const BAYER4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]] as const;
+
 function frameToB64(frame: Uint8Array): string {
-  return btoa(String.fromCharCode(...frame));
+  const out = new Uint8Array(frame.length);
+  for (let col = 0; col < COLS; col++) {
+    for (let row = 0; row < ROWS; row++) {
+      const threshold = (BAYER4[row % 4]![col % 4]! + 0.5) * (255 / 16);
+      out[col * ROWS + row] = (frame[col * ROWS + row] ?? 0) > threshold ? 255 : 0;
+    }
+  }
+  return btoa(String.fromCharCode(...out));
 }
 
 function mirrorFrame(b64: string): string {
