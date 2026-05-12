@@ -92,7 +92,7 @@ export async function saveToLibrary(store: FileStoreCompat, name = 'untitled_ani
   return data.name;
 }
 
-export async function saveLibraryCopy(store: FileStoreCompat, name = 'untitled_animation'): Promise<void> {
+export async function saveLibraryCopy(store: FileStoreCompat, name = 'untitled_animation'): Promise<string> {
   const safe = sanitizeFilename(name);
   const resp = await fetch('/api/library', {
     method: 'POST',
@@ -100,8 +100,16 @@ export async function saveLibraryCopy(store: FileStoreCompat, name = 'untitled_a
     body: JSON.stringify({ name: safe, project: buildProject(store), copy: true }),
   });
   if (!resp.ok) throw new Error(`Save copy failed: ${resp.status}`);
-  const data = await resp.json() as { ok: boolean };
-  if (!data.ok) throw new Error('Save copy failed');
+  const data = await resp.json() as { ok: boolean; name: string };
+  if (!data.ok || typeof data.name !== 'string') throw new Error('Save copy failed');
+  return data.name;
+}
+
+export async function openFromLibrary(name: string): Promise<DmxProject> {
+  const safe = sanitizeFilename(name);
+  const resp = await fetch(`/api/library/${encodeURIComponent(safe)}`);
+  if (!resp.ok) throw new Error(`Open failed: ${resp.status}`);
+  return resp.json() as Promise<DmxProject>;
 }
 
 export async function renameLibraryFile(oldName: string, newName: string): Promise<string> {
