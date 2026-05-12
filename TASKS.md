@@ -7,10 +7,10 @@
 
 ## Platform extensions
 
-- [ ] Recent files — extend `designer-prefs.json` `lastFile` → `recentFiles: string[]` (cap 10); surface in File menu
-- [ ] `dark-matrix play <path>` CLI command — reads a `.dmx.json` file, drives daemon `frame` command in a loop; bash-triggerable animation
-- [ ] System notification → animation — D-Bus notification watcher (`org.freedesktop.Notifications`) as a new Dispatcher source; dispatches scroll or configured animation on notify events
-- [ ] Mic active detection — poll PipeWire/PulseAudio for active recording clients; new `watchMic` Dispatcher source; triggers audio-eq visualizer or HUD overlay when mic is in use
+- [x] Recent files — extend `designer-prefs.json` `lastFile` → `recentFiles: string[]` (cap 10); surface in File menu
+- [x] `dark-matrix play <path>` CLI command — reads a `.dmx.json` file, drives daemon `frame` command in a loop; bash-triggerable animation
+- [x] System notification → animation — D-Bus notification watcher (`org.freedesktop.Notifications`) as a new Dispatcher source; dispatches scroll or configured animation on notify events
+- [x] Mic active detection — poll PipeWire/PulseAudio for active recording clients; new `watchMic` Dispatcher source; triggers audio-eq visualizer or HUD overlay when mic is in use
 
 ## Major modes
 
