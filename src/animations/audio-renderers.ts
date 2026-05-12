@@ -1,7 +1,7 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'ripple' | 'life' | 'life-pulse' | 'life-erode-4';
+export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'ripple' | 'life-erode-4';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'dark-matter',     label: 'dark matter' },
@@ -11,9 +11,7 @@ export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'flame-bars',      label: 'flame bars' },
   { id: 'ripple',          label: 'ripple' },
   { id: 'spectrum-fall',   label: 'spectrum fall' },
-  { id: 'life',            label: 'life' },
-  { id: 'life-pulse',      label: 'life pulse' },
-  { id: 'life-erode-4',    label: 'life erode' },
+  { id: 'life-erode-4',    label: 'replicants' },
   { id: 'eq-bars',         label: 'eq bars' },
   { id: 'vu-meter',        label: 'vu meter' },
   { id: 'vu-sparks',       label: 'vu sparks' },
@@ -450,16 +448,6 @@ function makeLife(opts: LifeOpts): Renderer {
   };
 }
 
-// Standard GoL rules, seeding toned down from original
-function life(): Renderer {
-  return makeLife({ seedRate: 0.12, threshold: 0.4, decay: 0.75, survive: n => n === 2 || n === 3, born: n => n === 3 });
-}
-
-// Like life-strict but transient multiplies cells toward zero instead of hard-clearing — softer flash between beats
-function lifePulse(): Renderer {
-  return makeLife({ seedRate: 0.10, threshold: 0.4, decay: 0.65, survive: n => n === 2 || n === 3, born: n => n === 3, transientWipe: 0.15 });
-}
-
 // Per-column continuous kill proportional to band energy — loud bands erode their columns every frame
 function lifeErode4(): Renderer {
   return makeLife({ seedRate: 0.15, threshold: 0.4, decay: 0.75, survive: n => n === 2 || n === 3, born: n => n === 3, continuousCull: 0.70 });
@@ -474,8 +462,6 @@ const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'cipher':          cipher,
   'wake':            wake,
   'ripple':          ripple,
-  'life':            life,
-  'life-pulse':      lifePulse,
   'life-erode-4':    lifeErode4,
   'bounce':          bounce,
   'waterfall':       waterfall,
