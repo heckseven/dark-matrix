@@ -1,4 +1,5 @@
 import http from 'node:http';
+import net from 'node:net';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
@@ -8,7 +9,7 @@ import { z } from 'zod';
 import sharp from 'sharp';
 import { parseProject, frameToBase64 } from './format.js';
 import type { DmxProject } from './format.js';
-import { sendToDaemon, PersistentDaemonClient } from '../lib/daemon-client.js';
+import { sendToDaemon, PersistentDaemonClient, daemonSocketPath } from '../lib/daemon-client.js';
 
 const require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -682,13 +683,43 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
     res.end();
   });
 
+  function openAudioStream(
+    style: string,
+    source: string,
+    onFrame: (frame: string) => void,
+  ): net.Socket {
+    const sock = net.createConnection(daemonSocketPath());
+    let buf = '';
+    sock.on('connect', () => {
+      sock.write(JSON.stringify({ cmd: 'audio-viz', style, source }) + '\n');
+    });
+    sock.on('data', (chunk: Buffer) => {
+      buf += chunk.toString();
+      const lines = buf.split('\n');
+      buf = lines.pop() ?? '';
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const parsed = JSON.parse(line) as { type?: string; frame?: string };
+          if (parsed.type === 'audio-frame' && parsed.frame) onFrame(parsed.frame);
+        } catch { /* skip */ }
+      }
+    });
+    sock.on('error', () => { /* socket will close */ });
+    return sock;
+  }
+
   const wss = new WebSocketServer({ server, path: '/ws' });
   wss.setMaxListeners(50);
 
   wss.on('connection', (ws: import('ws').WebSocket) => {
     const previewClient = new PersistentDaemonClient();
+    let audioStream: net.Socket | null = null;
     ws.send(JSON.stringify({ type: 'connected' }));
-    ws.on('close', () => previewClient.destroy());
+    ws.on('close', () => {
+      previewClient.destroy();
+      audioStream?.destroy();
+    });
     ws.on('message', (data: Buffer) => {
       let msg: Record<string, unknown>;
       try {
@@ -734,6 +765,18 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
         ws.send(JSON.stringify({ type: 'preview-ack' }));
       } else if (type === 'preview-stop') {
         sendToDaemon({ cmd: 'frame-stop' }).catch(() => { /* ignore — daemon may not be running */ });
+      } else if (type === 'audio-viz') {
+        const style = typeof msg['style'] === 'string' ? msg['style'] : 'eq-bars';
+        const source = msg['source'] === 'mic' ? 'mic' : 'monitor';
+        audioStream?.destroy();
+        audioStream = openAudioStream(style, source, (frame) => {
+          if (ws.readyState === ws.OPEN) {
+            ws.send(JSON.stringify({ type: 'audio-frame', frame }));
+          }
+        });
+      } else if (type === 'audio-viz-stop') {
+        audioStream?.destroy();
+        audioStream = null;
       }
     });
   });

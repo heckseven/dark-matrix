@@ -184,40 +184,31 @@ describe('createAudioEqAnimation', () => {
     expect(result.done).toBe(true);
   });
 
-  it('monitor source uses correct pw-record --target argument', () => {
+  it('passes target to pw-record when provided', () => {
     const mockProc = makeMockProc();
     vi.mocked(spawn).mockReturnValue(mockProc as unknown as ChildProcess);
 
-    const anim = createAudioEqAnimation({ source: 'monitor' });
+    const anim = createAudioEqAnimation({ source: 'monitor', target: 'my-node-42' });
     expect(anim.source).toBe('monitor');
 
     expect(vi.mocked(spawn)).toHaveBeenCalledWith(
       'pw-record',
-      expect.arrayContaining([
-        '--target',
-        'alsa_output.pci-0000_c5_00.6.analog-stereo.monitor',
-      ]),
+      expect.arrayContaining(['--target', 'my-node-42']),
       expect.anything(),
     );
 
     anim.stop();
   });
 
-  it('mic source uses correct pw-record --target argument', () => {
+  it('omits --target from pw-record when no target is provided', () => {
     const mockProc = makeMockProc();
     vi.mocked(spawn).mockReturnValue(mockProc as unknown as ChildProcess);
 
     const anim = createAudioEqAnimation({ source: 'mic' });
     expect(anim.source).toBe('mic');
 
-    expect(vi.mocked(spawn)).toHaveBeenCalledWith(
-      'pw-record',
-      expect.arrayContaining([
-        '--target',
-        'alsa_input.pci-0000_c5_00.6.analog-stereo',
-      ]),
-      expect.anything(),
-    );
+    const args = vi.mocked(spawn).mock.calls[0]?.[1] ?? [];
+    expect(args).not.toContain('--target');
 
     anim.stop();
   });

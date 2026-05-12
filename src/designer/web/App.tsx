@@ -13,6 +13,7 @@ import { saveToLibrary, saveLibraryCopy, renameLibraryFile, exportProject, impor
 import { useDesignerStore, designerStore, stepZoom, ZOOM_STEPS, ROWS, DEFAULT_WIDTH } from './store.js';
 import { ShortcutDialog } from './components/ui/shortcut-dialog.js';
 import { ModePicker } from './components/ModePicker.js';
+import { AudioPanel } from './components/AudioPanel.js';
 
 function storeCompat() {
   return { state: designerStore.getState(), loadProject: (p: unknown) => designerStore.getState().loadProject(p) };
@@ -362,21 +363,27 @@ export function App() {
           <TransportControls />
         </header>
 
-        <div className="h-full grid overflow-hidden" style={{ gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)' }}>
-          <aside aria-label="Color palette" className="overflow-hidden flex items-start justify-end pl-4" style={{ paddingTop: topPad }}>
-            <ColorPalette value={activeColor} onChange={pickColor} />
-          </aside>
+        {activeMode === 'audio' ? (
+          <div className="h-full flex">
+            <AudioPanel />
+          </div>
+        ) : (
+          <div className="h-full grid overflow-hidden" style={{ gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)' }}>
+            <aside aria-label="Color palette" className="overflow-hidden flex items-start justify-end pl-4" style={{ paddingTop: topPad }}>
+              <ColorPalette value={activeColor} onChange={pickColor} />
+            </aside>
 
-          <main className="px-10 overflow-y-auto">
-            <div style={{ paddingTop: topPad }}>
-              <PixelCanvas onCursorMove={(col, row) => setCursor({ col, row })} />
-            </div>
-          </main>
+            <main className="px-10 overflow-y-auto">
+              <div style={{ paddingTop: topPad }}>
+                <PixelCanvas onCursorMove={(col, row) => setCursor({ col, row })} />
+              </div>
+            </main>
 
-          <aside aria-label="Animation frames" className="overflow-hidden flex flex-col">
-            <FrameStrip topPadding={topPad} />
-          </aside>
-        </div>
+            <aside aria-label="Animation frames" className="overflow-hidden flex flex-col">
+              <FrameStrip topPadding={topPad} />
+            </aside>
+          </div>
+        )}
 
         <footer ref={footerRef} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
           <div className="flex-1 flex items-center gap-4">
