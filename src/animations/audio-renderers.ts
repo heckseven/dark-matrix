@@ -181,8 +181,42 @@ function makeSparksDrift(colPush: (col: number, e: Float32Array) => number): Ren
 function sparksTug(): Renderer {
   return makeSparksDrift((col, e) => ((e[col] ?? 0) - (e[BAND_COUNT - 1 - col] ?? 0)) * 2.5);
 }
-function sparksKaleidoA(): Renderer { return makeSparksDrift((col, _e) => (4 - col) * 0.35); }
-function sparksKaleidoB(): Renderer { return makeSparksDrift((col, _e) => (4 - col) * 0.70); }
+type KSpark = { col: number; row: number; v: number };
+
+function makeSparksKaleido(inward: number): Renderer {
+  const energies = new Float32Array(BAND_COUNT);
+  const ks: KSpark[] = [];
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    for (let c = 0; c < BAND_COUNT; c++) energies[c] = dbLevel(bands[c] ?? 0, gain, ref);
+    // Spawn on left half (0-4), mirror to right half
+    for (let col = 0; col <= 4; col++) {
+      if (Math.random() < (energies[col] ?? 0)) {
+        ks.push({ col, row: ROWS - 1, v: 1.0 });
+        if (col !== 4) ks.push({ col: BAND_COUNT - 1 - col, row: ROWS - 1, v: 1.0 });
+      }
+    }
+    // Advance particles: rise up, drift toward center col 4
+    for (let i = ks.length - 1; i >= 0; i--) {
+      const s = ks[i]!;
+      s.row--;
+      s.col += (4 - s.col) * inward;
+      s.v *= 0.92;
+      if (s.row < 0 || s.v < 0.08) { ks.splice(i, 1); continue; }
+    }
+    const frame = createFrame();
+    for (const s of ks) {
+      const c = Math.min(BAND_COUNT - 1, Math.max(0, Math.round(s.col)));
+      if (s.row >= 0 && s.row < ROWS) {
+        const idx = c * ROWS + s.row;
+        frame[idx] = Math.max(frame[idx] ?? 0, Math.round(s.v * 255));
+      }
+    }
+    return frame;
+  };
+}
+function sparksKaleidoA(): Renderer { return makeSparksKaleido(0.08); }
+function sparksKaleidoB(): Renderer { return makeSparksKaleido(0.20); }
 
 function flameBars(): Renderer {
   // Smooth envelope (fast attack, slow release) with per-frame random flicker.
@@ -261,7 +295,7 @@ function makeFlameLife(cull: number, centerSeed = false): Renderer {
   const envelope = new Float32Array(BAND_COUNT);
   const cells = new Float32Array(BAND_COUNT * ROWS);
   for (let i = 0; i < cells.length; i++) if (Math.random() < 0.35) cells[i] = 1.0;
-  let smoothed = 0, cooldown = 0;
+  let fast = 0, slow = 0, cooldown = 0;
   return ({ bands, gain, fftSize }) => {
     const ref = fftSize / 2;
     const heights = new Int32Array(BAND_COUNT);
@@ -273,10 +307,11 @@ function makeFlameLife(cull: number, centerSeed = false): Renderer {
     }
     const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
     const tAvg = dbLevel(avg, gain, ref);
-    const delta = tAvg - smoothed;
-    smoothed = smoothed * 0.85 + tAvg * 0.15;
+    fast = fast * 0.5 + tAvg * 0.5;
+    slow = slow * 0.95 + tAvg * 0.05;
+    const delta = fast - slow;
     if (cooldown > 0) cooldown--;
-    if (delta > 0.10 && cooldown === 0) {
+    if (delta > 0.06 && cooldown === 0) {
       if (centerSeed) {
         for (let col = 3; col <= 5; col++) {
           const h = heights[col] ?? 0;
@@ -440,17 +475,18 @@ function cipher(): Renderer {
 
 function wake(): Renderer {
   const waves: number[] = [];
-  let smoothed = 0;
+  let fast = 0, slow = 0;
   let cooldown = 0;
   const glow = new Float32Array(BAND_COUNT * ROWS);
   return ({ bands, gain, fftSize }) => {
     const ref = fftSize / 2;
     const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
     const t = dbLevel(avg, gain, ref);
-    const delta = t - smoothed;
-    smoothed = smoothed * 0.85 + t * 0.15;
+    fast = fast * 0.5 + t * 0.5;
+    slow = slow * 0.95 + t * 0.05;
+    const delta = fast - slow;
     if (cooldown > 0) cooldown--;
-    if (delta > 0.12 && cooldown === 0) { waves.push(ROWS - 1); cooldown = 8; }
+    if (delta > 0.07 && cooldown === 0) { waves.push(ROWS - 1); cooldown = 8; }
     for (let w = waves.length - 1; w >= 0; w--) {
       waves[w]! -= 0.5 + t * 2.0;
       if (waves[w]! < 0) {
@@ -473,12 +509,13 @@ function wake(): Renderer {
 
 type Ripple = { cx: number; cy: number; r: number };
 
-function tickRipples(ripples: Ripple[], bands: number[], gain: number, ref: number, smoothed: { v: number }, cooldown: { v: number }) {
+function tickRipples(ripples: Ripple[], bands: number[], gain: number, ref: number, smoothed: { fast: number; slow: number }, cooldown: { v: number }) {
   const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
   const t = dbLevel(avg, gain, ref);
-  const delta = t - smoothed.v;
-  smoothed.v = smoothed.v * 0.85 + t * 0.15;
-  if (cooldown.v > 0) { cooldown.v--; } else if (delta > 0.10) {
+  smoothed.fast = smoothed.fast * 0.5 + t * 0.5;
+  smoothed.slow = smoothed.slow * 0.95 + t * 0.05;
+  const delta = smoothed.fast - smoothed.slow;
+  if (cooldown.v > 0) { cooldown.v--; } else if (delta > 0.06) {
     const totalE = bands.reduce((s, e) => s + e, 0);
     const cx = totalE > 0 ? bands.reduce((s, e, i) => s + e * i, 0) / totalE : BAND_COUNT / 2;
     ripples.push({ cx, cy: ROWS / 2 + (Math.random() - 0.5) * ROWS * 0.5, r: 0 });
@@ -493,7 +530,7 @@ function tickRipples(ripples: Ripple[], bands: number[], gain: number, ref: numb
 
 function drip(): Renderer {
   const ripples: Ripple[] = [];
-  const smoothed = { v: 0 }, cooldown = { v: 0 };
+  const smoothed = { fast: 0, slow: 0 }, cooldown = { v: 0 };
   return ({ bands, gain, fftSize }) => {
     const ref = fftSize / 2;
     tickRipples(ripples, bands, gain, ref, smoothed, cooldown);
@@ -516,7 +553,7 @@ function drip(): Renderer {
 
 function makeDrip(innerTrailWidth: number, trailDecay: number): Renderer {
   const ripples: Ripple[] = [];
-  const smoothed = { v: 0 }, cooldown = { v: 0 };
+  const smoothed = { fast: 0, slow: 0 }, cooldown = { v: 0 };
   const trail = new Float32Array(BAND_COUNT * ROWS);
   return ({ bands, gain, fftSize }) => {
     const ref = fftSize / 2;
