@@ -463,7 +463,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     if (e.active && !micAnimActive) {
       micAnimActive = true;
       stopAnim();
-      if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+      if (idleTimer) clearTimeout(idleTimer);
       stopCurrentAnim = runAudioEqOnModules();
     } else if (!e.active && micAnimActive) {
       micAnimActive = false;
