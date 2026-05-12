@@ -28,9 +28,9 @@ const CANVAS: Row[] = [
 ];
 
 const PROJECT: Row[] = [
-  { label: 'add frame', keys: 'N' },
-  { label: 'open',      keys: '^O' },
-  { label: 'save',      keys: '^S' },
+  { label: 'add frame',  keys: 'N' },
+  { label: 'save',       keys: '^S' },
+  { label: 'duplicate',  keys: '^⇧S' },
 ];
 
 const MATRIX: Row[] = [
