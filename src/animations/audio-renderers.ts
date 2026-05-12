@@ -1,15 +1,15 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'spectrum-mirror' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'cascade' | 'cipher' | 'wake';
+export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'cascade' | 'cipher' | 'wake' | 'wake-transient';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'dark-matter',     label: 'dark matter' },
   { id: 'cascade',         label: 'cascade' },
   { id: 'cipher',          label: 'cipher' },
   { id: 'wake',            label: 'wake' },
+  { id: 'wake-transient',  label: 'wake transient' },
   { id: 'eq-bars',         label: 'eq bars' },
-  { id: 'spectrum-mirror', label: 'spectrum mirror' },
   { id: 'spectrum-fall',   label: 'spectrum fall' },
   { id: 'vu-meter',        label: 'vu meter' },
   { id: 'vu-sparks',       label: 'vu sparks' },
@@ -52,21 +52,6 @@ function eqBars(): Renderer {
   };
 }
 
-function spectrumMirror(): Renderer {
-  return ({ bands, gain, fftSize }) => {
-    const ref = fftSize / 2;
-    const center = Math.floor(ROWS / 2);
-    const frame = createFrame();
-    for (let col = 0; col < BAND_COUNT; col++) {
-      const t = dbLevel(bands[col] ?? 0, gain, ref);
-      const halfH = Math.round(t * center);
-      for (let row = 0; row < ROWS; row++) {
-        frame[col * ROWS + row] = Math.abs(row - center) <= halfH ? 255 : 0;
-      }
-    }
-    return frame;
-  };
-}
 
 function vuMeter(): Renderer {
   let peak = 0;
@@ -320,15 +305,52 @@ function cipher(): Renderer {
 
 function wake(): Renderer {
   let scanPos = 0;
+  let holdFrames = 0;
   const glow = new Float32Array(BAND_COUNT * ROWS);
   return ({ bands, gain, fftSize }) => {
     const ref = fftSize / 2;
     const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
     const t = dbLevel(avg, gain, ref);
-    scanPos = (scanPos + 0.3 + t * 2.5) % ROWS;
-    const sr = Math.round(scanPos);
-    for (let col = 0; col < BAND_COUNT; col++) {
-      glow[col * ROWS + sr] = dbLevel(bands[col] ?? 0, gain, ref);
+    if (holdFrames > 0) {
+      holdFrames--;
+    } else {
+      scanPos += 0.3 + t * 2.5;
+      if (scanPos >= ROWS) { scanPos = 0; holdFrames = 15; }
+      const sr = Math.min(ROWS - 1, Math.round(scanPos));
+      for (let col = 0; col < BAND_COUNT; col++) {
+        glow[col * ROWS + sr] = dbLevel(bands[col] ?? 0, gain, ref);
+      }
+    }
+    for (let i = 0; i < BAND_COUNT * ROWS; i++) glow[i] = (glow[i] ?? 0) * 0.88;
+    const frame = createFrame();
+    for (let i = 0; i < BAND_COUNT * ROWS; i++) {
+      frame[i] = Math.min(255, Math.round((glow[i] ?? 0) * 255));
+    }
+    return frame;
+  };
+}
+
+function wakeTransient(): Renderer {
+  let scanPos: number | null = null;
+  let smoothed = 0;
+  const glow = new Float32Array(BAND_COUNT * ROWS);
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
+    const t = dbLevel(avg, gain, ref);
+    const delta = t - smoothed;
+    smoothed = smoothed * 0.85 + t * 0.15;
+    if (scanPos === null && delta > 0.12) scanPos = 0;
+    if (scanPos !== null) {
+      scanPos += 0.5 + t * 2.0;
+      if (scanPos >= ROWS) {
+        scanPos = null;
+      } else {
+        const sr = Math.round(scanPos);
+        for (let col = 0; col < BAND_COUNT; col++) {
+          glow[col * ROWS + sr] = dbLevel(bands[col] ?? 0, gain, ref);
+        }
+      }
     }
     for (let i = 0; i < BAND_COUNT * ROWS; i++) glow[i] = (glow[i] ?? 0) * 0.88;
     const frame = createFrame();
@@ -341,7 +363,6 @@ function wake(): Renderer {
 
 const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'eq-bars':         eqBars,
-  'spectrum-mirror': spectrumMirror,
   'spectrum-fall':   spectrumFall,
   'vu-meter':        vuMeter,
   'vu-sparks':       vuSparks,
@@ -349,6 +370,7 @@ const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'cascade':         cascade,
   'cipher':          cipher,
   'wake':            wake,
+  'wake-transient':  wakeTransient,
   'bounce':          bounce,
   'waterfall':       waterfall,
   'sparks':          sparks,

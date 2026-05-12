@@ -24,7 +24,6 @@ const VU_PEAK = ROWS - 1 - 28;
 
 const PLACEHOLDER: Record<AudioStyle, string> = {
   'eq-bars':         makeFrame((c, r) => r >= ROWS - EQ_H[c]! ? 255 : 0),
-  'spectrum-mirror': makeFrame((c, r) => Math.abs(r - CTR) <= SPEC_H[c]! ? 255 : 0),
   'spectrum-fall':   makeFrame((c, r) => Math.abs(r - CTR) <= SPEC_H[c]! ? 255 - Math.round((r / (ROWS - 1)) * 255) : 0),
   'vu-meter':        makeFrame((_c, r) => r >= VU_BAR || r === VU_PEAK ? 255 : 0),
   'vu-sparks':       makeFrame((c, r) => r >= VU_BAR ? ((c * 7 + r * 11) % 9 < 7 ? 255 : 0) : r === VU_PEAK ? 255 : 0),
@@ -32,6 +31,7 @@ const PLACEHOLDER: Record<AudioStyle, string> = {
   'cascade':         makeFrame((c, r) => { const head = [6, 20, 11, 3, 16, 26, 8, 14, 22][c]!; const d = r - head; return d >= 0 && d < 9 ? Math.round(255 * Math.pow(0.65, d)) : 0; }),
   'cipher':          makeFrame((c, r) => (c * 17 + r * 31) % 7 < 4 ? 255 : 0),
   'wake':            makeFrame((_c, r) => Math.round(255 * Math.pow(0.86, Math.abs(r - 17) * 1.1))),
+  'wake-transient':  makeFrame((_c, r) => r >= 8 && r <= 14 ? Math.round(255 * Math.pow(0.86, Math.abs(r - 11) * 1.1)) : 0),
   'bounce':          makeFrame((c, r) => r === ROWS - 1 - [0, 4, 10, 16, 20, 16, 10, 4, 0][c]! ? 255 : 0),
   'waterfall':       makeFrame((_c, r) => Math.round((r / (ROWS - 1)) * 255)),
   'sparks':          makeFrame((c, r) => ((c * 7 + r * 11) % 13 < Math.round((1 - r / (ROWS - 1)) * 6)) ? 255 : 0),
@@ -180,7 +180,7 @@ export function AudioPanel({ dualModule = false }: { dualModule?: boolean }) {
         onChange={(src) => designerStore.getState().setAudioSource(src)}
       />
 
-      <div className="grid grid-cols-3 gap-8">
+      <div className="grid grid-cols-7 gap-6">
         {AUDIO_STYLES.map(({ id, label }) => {
           const active = audioStyle === id;
           const base = livePixels[id as AudioStyle] ?? PLACEHOLDER[id as AudioStyle]!;
