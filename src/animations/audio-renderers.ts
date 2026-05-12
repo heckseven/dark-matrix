@@ -8,6 +8,7 @@ export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'neo',             label: 'neo' },
   { id: 'cipher',          label: 'cipher' },
   { id: 'wake',            label: 'wake' },
+  { id: 'flame-bars',      label: 'flame bars' },
   { id: 'ripple',          label: 'ripple' },
   { id: 'spectrum-fall',   label: 'spectrum fall' },
   { id: 'life',            label: 'life' },
@@ -19,7 +20,6 @@ export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'bounce',          label: 'bounce' },
   { id: 'waterfall',       label: 'waterfall' },
   { id: 'sparks',          label: 'sparks' },
-  { id: 'flame-bars',      label: 'flame bars' },
 ];
 
 export type RenderCtx = {
