@@ -208,13 +208,24 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     });
   }
 
+  // Bayer 4×4 ordered dithering — maps 0-255 grayscale to binary in-place.
+  // Operates at serial-frame speed, so uses simple array indexing.
+  const BAYER4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]] as const;
+  function ditherBW(f: import('../lib/frame.js').Frame, cols: number, rows: number): void {
+    for (let col = 0; col < cols; col++)
+      for (let row = 0; row < rows; row++) {
+        const t = (BAYER4[row % 4]![col % 4]! + 0.5) * (255 / 16);
+        f[col * rows + row] = (f[col * rows + row] ?? 0) > t ? 255 : 0;
+      }
+  }
+
   function runAudioEqOnModules(sourceOverride?: AudioSource, style: AudioStyle = 'eq-bars'): () => void {
     const { left, right } = currentConfig.modules;
     let stopped = false;
     let anim: ReturnType<typeof createAudioEqAnimation> | null = null;
 
     const loop = async () => {
-      const { FRAME_COLS, FRAME_ROWS, createFrame } = await import('../lib/frame.js');
+      const { packBW, FRAME_COLS, FRAME_ROWS, createFrame } = await import('../lib/frame.js');
       const eqSource = sourceOverride ?? currentConfig.daemon.idle_eq_source ?? 'monitor';
       const target = await resolveDefaultDeviceId(
         eqSource === 'monitor' ? '@DEFAULT_AUDIO_SINK@' : '@DEFAULT_AUDIO_SOURCE@',
@@ -226,6 +237,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         const result = await iter.next();
         if (stopped || result.done) break;
         const leftFrame = result.value;
+        ditherBW(leftFrame, FRAME_COLS, FRAME_ROWS);
         // Mirror: right col 0 = left col 8, right col 1 = left col 7, ...
         const rightFrame = createFrame();
         for (let col = 0; col < FRAME_COLS; col++) {
@@ -233,8 +245,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
             rightFrame[col * FRAME_ROWS + row] = leftFrame[(FRAME_COLS - 1 - col) * FRAME_ROWS + row] ?? 0;
           }
         }
-        try { if (left) await transport.frameGray(leftFrame, left); } catch { /* non-fatal */ }
-        try { if (right) await transport.frameGray(rightFrame, right); } catch { /* non-fatal */ }
+        try { if (left) await transport.frameBw(packBW(leftFrame), left); } catch { /* non-fatal */ }
+        try { if (right) await transport.frameBw(packBW(rightFrame), right); } catch { /* non-fatal */ }
       }
     };
 
