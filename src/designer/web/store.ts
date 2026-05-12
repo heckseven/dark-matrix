@@ -25,6 +25,7 @@ export interface DesignerState {
   projectTitle: string;
   activeMode: AppMode;
   libraryPath: string | null;
+  recentFiles: string[];
 }
 
 export interface DesignerActions {
@@ -53,6 +54,7 @@ export interface DesignerActions {
   setProjectTitle(title: string): void;
   setActiveMode(mode: AppMode): void;
   setLibraryPath(path: string | null): void;
+  addRecentFile(name: string): void;
 }
 
 export type DesignerStore = DesignerState & DesignerActions;
@@ -144,6 +146,7 @@ export function createDesignerStore() {
     projectTitle: 'untitled_animation',
     activeMode: 'design',
     libraryPath: null,
+    recentFiles: [],
 
     setPixel(frameIdx, col, row, value) {
       const { frames, mode, undoStack, strokeSnapshot, previewTarget, width } = get();
@@ -318,6 +321,10 @@ export function createDesignerStore() {
     setProjectTitle(title) { set({ projectTitle: title.trim() || 'untitled_animation' }); },
     setActiveMode(mode) { set({ activeMode: mode }); },
     setLibraryPath(p) { set({ libraryPath: p }); },
+    addRecentFile(name) {
+      const { recentFiles } = get();
+      set({ recentFiles: [name, ...recentFiles.filter(f => f !== name)].slice(0, 7) });
+    },
   }));
 }
 
@@ -336,7 +343,7 @@ const SESSION_KEY = 'dark-matrix-designer';
 type SessionSnapshot = Pick<DesignerState,
   'frames' | 'width' | 'mode' | 'loop' | 'activeFrameIdx' |
   'zoom' | 'activeColor' | 'previewTarget' | 'projectTitle' |
-  'activeMode' | 'libraryPath'
+  'activeMode' | 'libraryPath' | 'recentFiles'
 >;
 
 if (typeof localStorage !== 'undefined') {
@@ -358,6 +365,7 @@ if (typeof localStorage !== 'undefined') {
           ...(s.previewTarget !== undefined ? { previewTarget: s.previewTarget } : {}),
           ...(s.activeMode !== undefined ? { activeMode: s.activeMode } : {}),
           ...(s.libraryPath !== undefined ? { libraryPath: s.libraryPath } : {}),
+          ...(Array.isArray(s.recentFiles) ? { recentFiles: (s.recentFiles as unknown[]).filter((f): f is string => typeof f === 'string').slice(0, 7) } : {}),
         });
       }
     }
@@ -369,9 +377,9 @@ if (typeof localStorage !== 'undefined') {
     if (_saveTimer) clearTimeout(_saveTimer);
     _saveTimer = setTimeout(() => {
       try {
-        const { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, libraryPath } = state;
+        const { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, libraryPath, recentFiles } = state;
         localStorage.setItem(SESSION_KEY, JSON.stringify(
-          { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, libraryPath } satisfies SessionSnapshot
+          { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, libraryPath, recentFiles } satisfies SessionSnapshot
         ));
       } catch { /* storage full or unavailable */ }
     }, 500);

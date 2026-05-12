@@ -91,3 +91,48 @@ export const MenuSeparator = React.forwardRef<
   />
 ));
 MenuSeparator.displayName = DropdownMenuPrimitive.Separator.displayName;
+
+export const MenuSub = DropdownMenuPrimitive.Sub;
+
+export const MenuSubTrigger = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.SubTrigger>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubTrigger>
+>(({ className, children, ...props }, ref) => (
+  <DropdownMenuPrimitive.SubTrigger
+    ref={ref}
+    className={cn(
+      'flex items-center w-full cursor-pointer rounded-sm px-2 py-1 select-none outline-none',
+      'text-foreground',
+      'data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground',
+      'data-[state=open]:bg-accent data-[state=open]:text-accent-foreground',
+      className,
+    )}
+    {...props}
+  >
+    <span className="flex-1">{children}</span>
+    <span aria-hidden="true" className="ml-4 text-muted-foreground">▶</span>
+  </DropdownMenuPrimitive.SubTrigger>
+));
+MenuSubTrigger.displayName = DropdownMenuPrimitive.SubTrigger.displayName;
+
+export const MenuSubContent = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.SubContent>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubContent>
+>(({ className, ...props }, ref) => (
+  <DropdownMenuPrimitive.Portal>
+    <DropdownMenuPrimitive.SubContent
+      ref={ref}
+      className={cn(
+        'z-50 min-w-[180px] font-mono text-xs text-foreground bg-background',
+        'rounded border border-foreground p-3 outline-none',
+        'data-[state=open]:animate-in data-[state=closed]:animate-out',
+        'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+        'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+        'data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2',
+        className,
+      )}
+      {...props}
+    />
+  </DropdownMenuPrimitive.Portal>
+));
+MenuSubContent.displayName = DropdownMenuPrimitive.SubContent.displayName;

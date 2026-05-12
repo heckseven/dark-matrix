@@ -8,8 +8,8 @@ import { Button } from './components/ui/button.js';
 import { Input } from './components/ui/input.js';
 import { Text } from './components/ui/text.js';
 import { Tooltip, TooltipProvider } from './components/ui/tooltip.js';
-import { Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger } from './components/ui/menu.js';
-import { saveToLibrary, saveLibraryCopy, renameLibraryFile, exportProject, importFile } from './files.js';
+import { Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger } from './components/ui/menu.js';
+import { saveToLibrary, saveLibraryCopy, renameLibraryFile, exportProject, importFile, openFromLibrary } from './files.js';
 import { useDesignerStore, designerStore, stepZoom, ZOOM_STEPS, ROWS, DEFAULT_WIDTH } from './store.js';
 import { ShortcutDialog } from './components/ui/shortcut-dialog.js';
 import { ModePicker } from './components/ModePicker.js';
@@ -144,6 +144,7 @@ export function App() {
   const projectTitle = useDesignerStore(s => s.projectTitle);
   const activeMode = useDesignerStore(s => s.activeMode);
   const libraryPath = useDesignerStore(s => s.libraryPath);
+  const recentFiles = useDesignerStore(s => s.recentFiles);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [livePreviewOn, setLivePreviewOn] = useState(false);
@@ -238,7 +239,10 @@ export function App() {
             if (file) {
               importFile(file, storeCompat()).then(() => {
                 const title = file.name.replace(/\.dmx\.json$/i, '').replace(/\.json$/i, '');
-                if (title) designerStore.getState().setProjectTitle(title);
+                if (title) {
+                  designerStore.getState().setProjectTitle(title);
+                  designerStore.getState().addRecentFile(title);
+                }
                 designerStore.getState().setLibraryPath(null);
               }).catch(console.error);
             }
@@ -256,13 +260,43 @@ export function App() {
               <MenuContent align="start">
                 <MenuItem shortcut="^n" onSelect={newProject}>new</MenuItem>
                 <MenuItem shortcut="^o" onSelect={() => fileInputRef.current?.click()}>open</MenuItem>
+                {recentFiles.length > 0 && (
+                  <MenuSub>
+                    <MenuSubTrigger>open recent</MenuSubTrigger>
+                    <MenuSubContent>
+                      {recentFiles.map(name => (
+                        <MenuItem key={name} onSelect={() => {
+                          openFromLibrary(name)
+                            .then(project => {
+                              designerStore.getState().loadProject(project);
+                              designerStore.getState().setProjectTitle(name);
+                              designerStore.getState().setLibraryPath(name);
+                              designerStore.getState().addRecentFile(name);
+                            })
+                            .catch(console.error);
+                        }}>{name}</MenuItem>
+                      ))}
+                    </MenuSubContent>
+                  </MenuSub>
+                )}
                 <MenuSeparator />
                 <MenuItem shortcut="^s" onSelect={() => {
                   saveToLibrary(storeCompat(), projectTitle)
-                    .then(name => designerStore.getState().setLibraryPath(name))
+                    .then(name => {
+                      designerStore.getState().setLibraryPath(name);
+                      designerStore.getState().addRecentFile(name);
+                    })
                     .catch(console.error);
                 }}>save</MenuItem>
-                <MenuItem shortcut="^S" onSelect={() => saveLibraryCopy(storeCompat(), projectTitle).catch(console.error)}>save as</MenuItem>
+                <MenuItem shortcut="^S" onSelect={() => {
+                  saveLibraryCopy(storeCompat(), projectTitle)
+                    .then(copyName => {
+                      designerStore.getState().setProjectTitle(copyName);
+                      designerStore.getState().setLibraryPath(copyName);
+                      designerStore.getState().addRecentFile(copyName);
+                    })
+                    .catch(console.error);
+                }}>duplicate</MenuItem>
                 <MenuSeparator />
                 <MenuItem onSelect={() => exportProject(storeCompat(), projectTitle)}>export</MenuItem>
               </MenuContent>
