@@ -152,7 +152,7 @@ export function createDesignerStore() {
     strokeSnapshot: null,
     projectTitle: 'untitled_animation',
     activeMode: 'design',
-    audioStyle: 'eq-bars',
+    audioStyle: 'dark-matter',
     audioSource: 'monitor',
     libraryPath: null,
     recentFiles: [],

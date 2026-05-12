@@ -4,11 +4,11 @@ import type { Frame } from '../lib/frame.js';
 export type AudioStyle = 'eq-bars' | 'spectrum-mirror' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
+  { id: 'dark-matter',     label: 'dark matter' },
   { id: 'eq-bars',         label: 'eq bars' },
   { id: 'spectrum-mirror', label: 'spectrum mirror' },
   { id: 'vu-meter',        label: 'vu meter' },
   { id: 'vu-sparks',       label: 'vu sparks' },
-  { id: 'dark-matter',     label: 'dark matter' },
   { id: 'bounce',          label: 'bounce' },
   { id: 'waterfall',       label: 'waterfall' },
   { id: 'sparks',          label: 'sparks' },

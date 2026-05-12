@@ -27,7 +27,7 @@ const PLACEHOLDER: Record<AudioStyle, string> = {
   'spectrum-mirror': makeFrame((c, r) => Math.abs(r - CTR) <= SPEC_H[c]! ? 255 : 0),
   'vu-meter':        makeFrame((_c, r) => r >= VU_BAR || r === VU_PEAK ? 255 : 0),
   'vu-sparks':       makeFrame((c, r) => r >= VU_BAR ? ((c * 7 + r * 11) % 9 < 7 ? 255 : 0) : r === VU_PEAK ? 255 : 0),
-  'dark-matter':     makeFrame((c, r) => r >= ROWS - EQ_H[c]! ? ((c * 7 + r * 11) % 9 < 7 ? 255 : 0) : r === ROWS - 1 - Math.round(EQ_H[c]! / (ROWS - 1) * (ROWS - 1)) - 4 ? 255 : 0),
+  'dark-matter':     makeFrame((c, r) => { const t = ROWS - EQ_H[c]!; return r === t - 2 ? 255 : r >= t ? ((c * 13 + r * 7) % 11 < 9 ? 255 : 0) : 0; }),
   'bounce':          makeFrame((c, r) => r === ROWS - 1 - [0, 4, 10, 16, 20, 16, 10, 4, 0][c]! ? 255 : 0),
   'waterfall':       makeFrame((_c, r) => Math.round((r / (ROWS - 1)) * 255)),
   'sparks':          makeFrame((c, r) => ((c * 7 + r * 11) % 13 < Math.round((1 - r / (ROWS - 1)) * 6)) ? 255 : 0),
