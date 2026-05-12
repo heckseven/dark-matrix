@@ -1,13 +1,15 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'cascade' | 'cipher' | 'wake';
+export type AudioStyle = 'eq-bars' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars' | 'vu-sparks' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'ripple' | 'life';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'dark-matter',     label: 'dark matter' },
-  { id: 'cascade',         label: 'cascade' },
+  { id: 'neo',             label: 'neo' },
   { id: 'cipher',          label: 'cipher' },
   { id: 'wake',            label: 'wake' },
+  { id: 'ripple',          label: 'ripple' },
+  { id: 'life',            label: 'life' },
   { id: 'eq-bars',         label: 'eq bars' },
   { id: 'spectrum-fall',   label: 'spectrum fall' },
   { id: 'vu-meter',        label: 'vu meter' },
@@ -249,7 +251,7 @@ function spectrumFall(): Renderer {
 
 type Drop = { pos: number; speed: number };
 
-function cascade(): Renderer {
+function neo(): Renderer {
   const drops: Drop[][] = Array.from({ length: BAND_COUNT }, () => []);
   const TRAIL = 9;
   return ({ bands, gain, fftSize }) => {
@@ -335,15 +337,107 @@ function wake(): Renderer {
   };
 }
 
+type Ripple = { cx: number; cy: number; r: number };
+
+function ripple(): Renderer {
+  const ripples: Ripple[] = [];
+  let smoothed = 0;
+  let cooldown = 0;
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
+    const t = dbLevel(avg, gain, ref);
+    const delta = t - smoothed;
+    smoothed = smoothed * 0.85 + t * 0.15;
+    if (cooldown > 0) cooldown--;
+    if (delta > 0.10 && cooldown === 0) {
+      const totalE = bands.reduce((s, e) => s + e, 0);
+      const cx = totalE > 0
+        ? bands.reduce((s, e, i) => s + e * i, 0) / totalE
+        : BAND_COUNT / 2;
+      const cy = ROWS / 2 + (Math.random() - 0.5) * ROWS * 0.5;
+      ripples.push({ cx, cy, r: 0 });
+      cooldown = 6;
+    }
+    const maxR = Math.sqrt(BAND_COUNT ** 2 + ROWS ** 2);
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      ripples[i]!.r += 0.6;
+      if (ripples[i]!.r > maxR) ripples.splice(i, 1);
+    }
+    const frame = createFrame();
+    for (let col = 0; col < BAND_COUNT; col++) {
+      for (let row = 0; row < ROWS; row++) {
+        let v = 0;
+        for (const rp of ripples) {
+          const dist = Math.sqrt((col - rp.cx) ** 2 + (row - rp.cy) ** 2);
+          v = Math.max(v, Math.max(0, 1 - Math.abs(dist - rp.r) / 1.5));
+        }
+        frame[col * ROWS + row] = Math.round(v * 255);
+      }
+    }
+    return frame;
+  };
+}
+
+function life(): Renderer {
+  const cells = new Float32Array(BAND_COUNT * ROWS);
+  let smoothed = 0;
+  let cooldown = 0;
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
+    const t = dbLevel(avg, gain, ref);
+    const delta = t - smoothed;
+    smoothed = smoothed * 0.85 + t * 0.15;
+    if (cooldown > 0) cooldown--;
+    if (delta > 0.10 && cooldown === 0) {
+      for (let col = 0; col < BAND_COUNT; col++) {
+        const e = dbLevel(bands[col] ?? 0, gain, ref);
+        for (let row = 0; row < ROWS; row++) {
+          if (Math.random() < e * 0.35) cells[col * ROWS + row] = 1.0;
+        }
+      }
+      cooldown = 5;
+    }
+    // GoL step on thresholded view
+    const alive = new Uint8Array(BAND_COUNT * ROWS);
+    for (let i = 0; i < alive.length; i++) alive[i] = (cells[i] ?? 0) > 0.3 ? 1 : 0;
+    const next = new Float32Array(cells.length);
+    for (let col = 0; col < BAND_COUNT; col++) {
+      for (let row = 0; row < ROWS; row++) {
+        let n = 0;
+        for (let dc = -1; dc <= 1; dc++) {
+          for (let dr = -1; dr <= 1; dr++) {
+            if (dc === 0 && dr === 0) continue;
+            const nc = col + dc, nr = row + dr;
+            if (nc >= 0 && nc < BAND_COUNT && nr >= 0 && nr < ROWS)
+              n += alive[nc * ROWS + nr] ?? 0;
+          }
+        }
+        const idx = col * ROWS + row;
+        const isAlive = (alive[idx] ?? 0) === 1;
+        const survives = isAlive ? (n === 2 || n === 3) : n === 3;
+        next[idx] = survives ? 1.0 : (cells[idx] ?? 0) * 0.75;
+      }
+    }
+    for (let i = 0; i < cells.length; i++) cells[i] = next[i] ?? 0;
+    const frame = createFrame();
+    for (let i = 0; i < cells.length; i++) frame[i] = Math.round((cells[i] ?? 0) * 255);
+    return frame;
+  };
+}
+
 const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'eq-bars':         eqBars,
   'spectrum-fall':   spectrumFall,
   'vu-meter':        vuMeter,
   'vu-sparks':       vuSparks,
   'dark-matter':     eqSparks,
-  'cascade':         cascade,
+  'neo':             neo,
   'cipher':          cipher,
   'wake':            wake,
+  'ripple':          ripple,
+  'life':            life,
   'bounce':          bounce,
   'waterfall':       waterfall,
   'sparks':          sparks,
