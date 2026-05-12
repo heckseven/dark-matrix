@@ -1,7 +1,7 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'spectrum-mirror' | 'vu-meter' | 'bounce' | 'waterfall' | 'fire' | 'sparks' | 'flame-bars';
+export type AudioStyle = 'eq-bars' | 'spectrum-mirror' | 'vu-meter' | 'bounce' | 'waterfall' | 'sparks' | 'flame-bars';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'eq-bars',         label: 'eq bars' },
@@ -9,7 +9,6 @@ export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'vu-meter',        label: 'vu meter' },
   { id: 'bounce',          label: 'bounce' },
   { id: 'waterfall',       label: 'waterfall' },
-  { id: 'fire',            label: 'fire' },
   { id: 'sparks',          label: 'sparks' },
   { id: 'flame-bars',      label: 'flame bars' },
 ];
@@ -125,29 +124,6 @@ function waterfall(): Renderer {
   };
 }
 
-function fire(): Renderer {
-  const heat = new Float32Array(BAND_COUNT * ROWS);
-  return ({ bands, gain, fftSize }) => {
-    const ref = fftSize / 2;
-    for (let col = 0; col < BAND_COUNT; col++) {
-      heat[col * ROWS + (ROWS - 1)] = dbLevel(bands[col] ?? 0, gain, ref);
-    }
-    for (let row = 0; row < ROWS - 1; row++) {
-      for (let col = 0; col < BAND_COUNT; col++) {
-        const below  = heat[col * ROWS + row + 1] ?? 0;
-        const belowL = heat[Math.max(0, col - 1) * ROWS + row + 1] ?? 0;
-        const belowR = heat[Math.min(BAND_COUNT - 1, col + 1) * ROWS + row + 1] ?? 0;
-        heat[col * ROWS + row] = ((below + belowL + belowR) / 3) * 0.91;
-      }
-    }
-    const frame = createFrame();
-    for (let i = 0; i < BAND_COUNT * ROWS; i++) {
-      frame[i] = Math.min(255, Math.round((heat[i] ?? 0) * 255));
-    }
-    return frame;
-  };
-}
-
 function sparks(): Renderer {
   // Sparse pixels spawn at the bottom with probability = band energy,
   // then scroll upward one row per frame — like embers rising.
@@ -178,7 +154,7 @@ function flameBars(): Renderer {
     const ref = fftSize / 2;
     const frame = createFrame();
     for (let col = 0; col < BAND_COUNT; col++) {
-      const t = dbLevel(bands[col] ?? 0, gain, ref);
+      const t = dbLevel(bands[BAND_COUNT - 1 - col] ?? 0, gain, ref);
       envelope[col] = t > (envelope[col] ?? 0)
         ? t
         : (envelope[col] ?? 0) * 0.85 + t * 0.15;
@@ -199,7 +175,6 @@ const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'vu-meter':        vuMeter,
   'bounce':          bounce,
   'waterfall':       waterfall,
-  'fire':            fire,
   'sparks':          sparks,
   'flame-bars':      flameBars,
 };
