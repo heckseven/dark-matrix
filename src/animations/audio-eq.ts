@@ -153,7 +153,7 @@ export function createAudioBandStream(opts?: Omit<AudioEqOptions, 'style'>): Ban
 
 export function createAudioEqAnimation(opts?: AudioEqOptions): AudioEqAnimation {
   const source = opts?.source ?? 'monitor';
-  const style = opts?.style ?? 'eq-bars';
+  const style = opts?.style ?? 'dark-matter';
   const renderer = createRenderer(style);
   const bandStream = createAudioBandStream(opts);
   const iter = bandStream[Symbol.asyncIterator]();
