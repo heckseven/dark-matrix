@@ -1,13 +1,14 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type ClockFace = 'tiny-stacked' | 'binary' | 'bars' | 'elegant';
+export type ClockFace = 'tiny-stacked' | 'binary' | 'bars' | 'elegant' | 'stretch';
 
 export const CLOCK_FACES: { id: ClockFace; label: string }[] = [
   { id: 'tiny-stacked', label: 'stacked' },
   { id: 'binary',       label: 'binary' },
   { id: 'bars',         label: 'bars' },
   { id: 'elegant',      label: 'elegant' },
+  { id: 'stretch',      label: 'stretch' },
 ];
 
 export type ClockCtx = { now: Date };
@@ -147,11 +148,96 @@ function elegant(): ClockRenderer {
   };
 }
 
+type StretchGlyph = {
+  readonly topRows: readonly number[];
+  readonly middleRow: number;
+  readonly bottomRow: number | null;
+  readonly shortMid: number;
+  readonly stretchedMid: number;
+};
+
+const STRETCH_GLYPHS: readonly StretchGlyph[] = [
+  { topRows: [48],             middleRow: 40, bottomRow: 24, shortMid: 5, stretchedMid: 10 }, // 0
+  { topRows: [24],             middleRow: 16, bottomRow: 56, shortMid: 5, stretchedMid: 10 }, // 1
+  { topRows: [56, 0, 48],      middleRow:  8, bottomRow: 56, shortMid: 3, stretchedMid:  8 }, // 2
+  { topRows: [56, 32, 16, 0],  middleRow: 32, bottomRow: 24, shortMid: 2, stretchedMid:  7 }, // 3
+  { topRows: [8, 40, 56],      middleRow: 32, bottomRow: null, shortMid: 4, stretchedMid: 9 }, // 4
+  { topRows: [56, 8, 56],      middleRow: 32, bottomRow: 24, shortMid: 3, stretchedMid:  8 }, // 5
+  { topRows: [56, 8, 56],      middleRow: 40, bottomRow: 56, shortMid: 3, stretchedMid:  8 }, // 6
+  { topRows: [56, 32, 16],     middleRow:  8, bottomRow: null, shortMid: 4, stretchedMid: 9 }, // 7
+  { topRows: [48, 40, 16],     middleRow: 40, bottomRow: 24, shortMid: 3, stretchedMid:  8 }, // 8
+  { topRows: [56, 40, 56],     middleRow: 32, bottomRow: null, shortMid: 4, stretchedMid: 9 }, // 9
+] as const;
+
+function stretch(): ClockRenderer {
+  const ANIM_MS = 800;
+  const OVERSHOOT = 2;
+  const PEAK_T = 0.6;
+
+  function animMid(t: number, g: StretchGlyph): number {
+    if (t >= 1) return g.stretchedMid;
+    if (t <= 0) return g.shortMid;
+    let mid: number;
+    if (t <= PEAK_T) {
+      const s = t / PEAK_T;
+      const ease = 1 - (1 - s) * (1 - s);
+      mid = g.shortMid + (g.stretchedMid + OVERSHOOT - g.shortMid) * ease;
+    } else {
+      const s = (t - PEAK_T) / (1 - PEAK_T);
+      const ease = s < 0.5 ? 2 * s * s : 1 - 2 * (1 - s) * (1 - s);
+      mid = (g.stretchedMid + OVERSHOOT) - OVERSHOOT * ease;
+    }
+    return Math.round(mid);
+  }
+
+  function drawGlyph(frame: Frame, digit: number, colOff: number, rowStart: number, midCount: number): void {
+    const g = STRETCH_GLYPHS[digit];
+    if (!g) return;
+    let r = rowStart;
+    const paint = (mask: number) => {
+      for (let c = 0; c < COLS; c++) {
+        if ((mask >> c) & 1) {
+          const fc = c + colOff;
+          if (fc >= 0 && fc < COLS && r >= 0 && r < ROWS) frame[fc * ROWS + r] = 255;
+        }
+      }
+      r++;
+    };
+    for (const mask of g.topRows) paint(mask);
+    for (let m = 0; m < midCount; m++) paint(g.middleRow);
+    if (g.bottomRow !== null) paint(g.bottomRow);
+  }
+
+  return ({ now }) => {
+    const frame = createFrame();
+    const ms = now.getTime();
+    const h = now.getHours();
+    const m = now.getMinutes();
+    const tOf = (period: number) => Math.min((ms % period) / ANIM_MS, 1);
+
+    frame[3 * ROWS + 16] = 255;
+    frame[5 * ROWS + 16] = 255;
+
+    const draw = (digit: number, t: number, colOff: number, rowStart: number) => {
+      const g = STRETCH_GLYPHS[digit];
+      if (g) drawGlyph(frame, digit, colOff, rowStart, animMid(t, g));
+    };
+
+    draw(Math.floor(h / 10), tOf(36_000_000), -2, 2);
+    draw(h % 10,             tOf( 3_600_000),  2, 2);
+    draw(Math.floor(m / 10), tOf(   600_000), -2, 20);
+    draw(m % 10,             tOf(    60_000),  2, 20);
+
+    return frame;
+  };
+}
+
 const FACTORIES: Record<ClockFace, () => ClockRenderer> = {
   'tiny-stacked': tinyStacked,
   'binary':       binary,
   'bars':         bars,
   'elegant':      elegant,
+  'stretch':      stretch,
 };
 
 export function createClockRenderer(face: ClockFace): ClockRenderer {
