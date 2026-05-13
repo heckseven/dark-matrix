@@ -170,7 +170,7 @@ const SCROLL_ZONE = 60;
 const SCROLL_SPEED = 8;
 const SCROLL_TICK = 40;
 
-export function FrameStrip({ topPadding = 0 }: { topPadding?: number }) {
+export function FrameStrip({ topPadding = 0, bottomPadding = 0 }: { topPadding?: number; bottomPadding?: number }) {
   const frames = useDesignerStore(s => s.frames);
   const width = useDesignerStore(s => s.width);
   const [dropTarget, setDropTarget] = useState<number | null>(null);
@@ -222,7 +222,7 @@ export function FrameStrip({ topPadding = 0 }: { topPadding?: number }) {
     <div
       ref={scrollRef}
       className="flex flex-col overflow-y-auto pr-6 flex-1 min-h-0"
-      style={{ paddingTop: topPadding }}
+      style={{ paddingTop: topPadding, paddingBottom: bottomPadding }}
     >
       <Stack
         aria-label="Animation frames"

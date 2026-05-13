@@ -160,6 +160,7 @@ export function App() {
   const footerRef = useRef<HTMLElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [topPad, setTopPad] = useState(0);
+  const [bottomPad, setBottomPad] = useState(0);
   const [modules, setModules] = useState({ left: true, right: true });
   const dualModule = modules.left && modules.right;
   const dualModuleRef = useRef(true);
@@ -186,6 +187,7 @@ export function App() {
       const fh = footerRef.current?.offsetHeight ?? 0;
       const usable = h - hh - fh;
       setTopPad(hh + Math.max(0, Math.round((usable - canvasComponentH(zoom)) / 2)));
+      setBottomPad(fh);
     };
     update();
     const ro = new ResizeObserver(update);
@@ -427,7 +429,7 @@ export function App() {
             </main>
 
             <aside aria-label="Animation frames" className="overflow-hidden flex flex-col">
-              <FrameStrip topPadding={topPad} />
+              <FrameStrip topPadding={topPad} bottomPadding={bottomPad} />
             </aside>
           </div>
         )}

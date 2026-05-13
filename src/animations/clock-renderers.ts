@@ -1,7 +1,7 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type ClockFace = 'tiny-stacked' | 'binary' | 'bars' | 'elegant' | 'stretch' | 'binary-audio';
+export type ClockFace = 'tiny-stacked' | 'binary' | 'bars' | 'elegant' | 'stretch' | 'binary-audio' | 'analogue';
 
 export const CLOCK_FACES: { id: ClockFace; label: string }[] = [
   { id: 'tiny-stacked',  label: 'stacked' },
@@ -10,6 +10,7 @@ export const CLOCK_FACES: { id: ClockFace; label: string }[] = [
   { id: 'bars',          label: 'bars' },
   { id: 'elegant',       label: 'elegant' },
   { id: 'stretch',       label: 'stretch' },
+  { id: 'analogue',      label: 'watch' },
 ];
 
 export type ClockCtx = { now: Date; bands?: number[]; fftSize?: number; gain?: number; side?: 'left' | 'right' };
@@ -323,6 +324,48 @@ function binaryAudio(): ClockRenderer {
   };
 }
 
+function analogue(): ClockRenderer {
+  const CX = 4;
+  const CY = 16;
+  const MIN_LEN = 4;
+  const HR_LEN = 2;
+  const TWO_PI = 2 * Math.PI;
+
+  function drawLine(frame: Frame, x0: number, y0: number, x1: number, y1: number): void {
+    const dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    const dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+    let err = dx + dy;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      if (x0 >= 0 && x0 < COLS && y0 >= 0 && y0 < ROWS)
+        frame[x0 * ROWS + y0] = 255;
+      if (x0 === x1 && y0 === y1) break;
+      const e2 = 2 * err;
+      if (e2 >= dy) { err += dy; x0 += sx; }
+      if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+  }
+
+  return ({ now }) => {
+    const h = now.getHours() % 12;
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+    const frame = createFrame();
+
+    const minAngle = ((m + s / 60) / 60) * TWO_PI - Math.PI / 2;
+    const hrAngle  = ((h + m / 60) / 12)  * TWO_PI - Math.PI / 2;
+
+    drawLine(frame, CX, CY,
+      Math.round(CX + MIN_LEN * Math.cos(minAngle)),
+      Math.round(CY + MIN_LEN * Math.sin(minAngle)));
+    drawLine(frame, CX, CY,
+      Math.round(CX + HR_LEN * Math.cos(hrAngle)),
+      Math.round(CY + HR_LEN * Math.sin(hrAngle)));
+
+    return frame;
+  };
+}
+
 const FACTORIES: Record<ClockFace, () => ClockRenderer> = {
   'tiny-stacked':  tinyStacked,
   'binary':        binary,
@@ -330,6 +373,7 @@ const FACTORIES: Record<ClockFace, () => ClockRenderer> = {
   'bars':          bars,
   'elegant':       elegant,
   'stretch':       stretch,
+  'analogue':      analogue,
 };
 
 export function createClockRenderer(face: ClockFace): ClockRenderer {
