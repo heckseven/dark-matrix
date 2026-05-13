@@ -66,6 +66,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   let stopCurrentAnim: (() => void) | null = null;
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
   let hudHardwareActive = false;
+  let hudAudioStreaming = false;
   let frameHeld = false;
   const heatmapState = createHeatmapState();
 
@@ -275,6 +276,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     let audioCtx: { bands: number[]; fftSize: number; gain: number } | null = null;
     const needsAudio = leftFaceName === 'binary-audio' || rightFaceName === 'binary-audio';
+    if (needsAudio) hudAudioStreaming = true;
     const stopAudio = needsAudio
       ? streamAudioBands('monitor', (ctx) => { audioCtx = ctx; }, () => { audioCtx = null; })
       : null;
@@ -294,7 +296,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     };
 
     void loop();
-    return () => { stopped = true; stopAudio?.(); };
+    return () => { stopped = true; stopAudio?.(); hudAudioStreaming = false; };
   }
 
   function streamAudioBands(
@@ -560,7 +562,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
   let micAnimActive = false;
   disposeWatches.push(watchMic((e) => {
-    if (e.active && !micAnimActive) {
+    if (e.active && !micAnimActive && !hudAudioStreaming) {
       micAnimActive = true;
       stopAnim();
       if (idleTimer) clearTimeout(idleTimer);

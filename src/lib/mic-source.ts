@@ -25,9 +25,7 @@ export async function isMicActive(pwDumpPath = 'pw-dump'): Promise<boolean> {
   return nodes.some(n =>
     n.type === 'PipeWire:Interface:Node' &&
     n.info?.props?.['media.class'] === 'Stream/Input/Audio' &&
-    n.info?.state === 'running' &&
-    n.info?.props?.['node.name'] !== 'dark-matrix' &&
-    n.info?.props?.['application.name'] !== 'dark-matrix',
+    n.info?.state === 'running',
   );
 }
 
