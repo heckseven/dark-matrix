@@ -219,7 +219,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       }
   }
 
-  function runAudioEqOnModules(sourceOverride?: AudioSource, style: AudioStyle = 'eq-bars'): () => void {
+  function runAudioEqOnModules(sourceOverride?: AudioSource, style: AudioStyle = 'dark-matter'): () => void {
     const { left, right } = currentConfig.modules;
     let stopped = false;
     let anim: ReturnType<typeof createAudioEqAnimation> | null = null;
@@ -266,7 +266,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         source === 'monitor' ? '@DEFAULT_AUDIO_SINK@' : '@DEFAULT_AUDIO_SOURCE@',
       );
       if (stopped) return;
-      stream = createAudioBandStream({ source, ...(target ? { target } : {}) });
+      stream = createAudioBandStream({ source, gain: source === 'monitor' ? 1.5 : 1.0, ...(target ? { target } : {}) });
       const iter = stream[Symbol.asyncIterator]();
       while (!stopped) {
         const result = await iter.next();
@@ -705,7 +705,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               const m = msg as { cmd: string; style?: string; source?: string };
               const knownStyles = AUDIO_STYLES.map(s => s.id as string);
               const isAudioStyle = (s: string): s is AudioStyle => knownStyles.includes(s);
-              const style: AudioStyle = m.style && isAudioStyle(m.style) ? m.style : 'eq-bars';
+              const style: AudioStyle = m.style && isAudioStyle(m.style) ? m.style : 'dark-matter';
               const source: AudioSource = m.source === 'mic' ? 'mic' : 'monitor';
               stopAnim();
               if (idleTimer) clearTimeout(idleTimer);

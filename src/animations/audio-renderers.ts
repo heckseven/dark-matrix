@@ -1,23 +1,30 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'eq-bars' | 'vu-meter' | 'kick' | 'waterfall' | 'sparks' | 'hex' | 'specter' | 'heat' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'rhythm' | 'drop' | 'life-erode-4';
+export type AudioStyle = 'vu-glitch' | 'circuit' | 'spirits' | 'scope-dual' | 'kick-d' | 'waterfall' | 'sparks' | 'hex' | 'specter' | 'heat' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'rhythm' | 'drop' | 'life-erode-4' | 'glitch-sort-b' | 'spiral-d' | 'strobe' | 'glitch-corrupt';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'dark-matter',         label: 'dark matter' },
-  { id: 'neo',                 label: 'neo' },
-  { id: 'cipher',              label: 'cipher' },
-  { id: 'wake',                label: 'wake' },
-  { id: 'heat',                label: 'heat' },
-  { id: 'rhythm',              label: 'rhythm' },
-  { id: 'drop',                label: 'drop' },
-  { id: 'spectrum-fall',       label: 'spectrum fall' },
-  { id: 'life-erode-4',        label: 'replicants' },
-  { id: 'kick',                label: 'kick' },
-  { id: 'waterfall',           label: 'waterfall' },
-  { id: 'sparks',              label: 'sparks' },
-  { id: 'hex',                 label: 'hex' },
+  { id: 'glitch-corrupt',      label: 'summon' },
+  { id: 'vu-glitch',           label: 'vu glitch' },
   { id: 'specter',             label: 'specter' },
+  { id: 'circuit',             label: 'circuit' },
+  { id: 'scope-dual',          label: 'ward' },
+  { id: 'heat',                label: 'heat' },
+  { id: 'kick-d',              label: 'kick' },
+  { id: 'waterfall',           label: 'waterfall' },
+  { id: 'hex',                 label: 'hex' },
+  { id: 'life-erode-4',        label: 'replicants' },
+  { id: 'wake',                label: 'wake' },
+  { id: 'drop',                label: 'drop' },
+  { id: 'spirits',             label: 'spirits' },
+  { id: 'spectrum-fall',       label: 'timeline' },
+  { id: 'cipher',              label: 'cipher' },
+  { id: 'neo',                 label: 'neo' },
+  { id: 'rhythm',              label: 'rhythm' },
+  { id: 'spiral-d',            label: 'spiral d' },
+  { id: 'glitch-sort-b',       label: 'rift' },
+  { id: 'strobe',              label: 'beam' },
 ];
 
 export type RenderCtx = {
@@ -38,70 +45,306 @@ function dbLevel(mag: number, gain: number, ref: number): number {
   return Math.max(0, Math.min(1, (db - MIN_DB) / -MIN_DB));
 }
 
-function eqBars(): Renderer {
-  return ({ bands, gain, fftSize }) => {
-    const ref = fftSize / 2;
-    const frame = createFrame();
-    for (let col = 0; col < BAND_COUNT; col++) {
-      const t = dbLevel(bands[col] ?? 0, gain, ref);
-      const height = Math.round(t * ROWS);
-      for (let row = 0; row < ROWS; row++) {
-        frame[col * ROWS + row] = row >= ROWS - height ? 255 : 0;
-      }
-    }
-    return frame;
-  };
-}
 
 
-function vuMeter(): Renderer {
-  let peak = 0;
+function vuGlitch(): Renderer {
+  const rowCorrupt = new Float32Array(ROWS);
+  let smoothed = 0;
   return ({ bands, gain, fftSize }) => {
     const ref = fftSize / 2;
     const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
     const t = dbLevel(avg, gain, ref);
-    const height = Math.round(t * ROWS);
-    peak = Math.max(t, peak * 0.98);
-    const peakRow = ROWS - 1 - Math.round(peak * (ROWS - 1));
+    const spike = Math.max(0, t - smoothed);
+    smoothed = smoothed * 0.85 + t * 0.15;
+    for (let r = 0; r < ROWS; r++) {
+      if (Math.random() < spike * 5) rowCorrupt[r] = Math.min(1, (rowCorrupt[r] ?? 0) + 0.5 + Math.random() * 0.5);
+      rowCorrupt[r] = (rowCorrupt[r] ?? 0) * 0.87;
+    }
     const frame = createFrame();
-    for (let col = 0; col < BAND_COUNT; col++) {
-      for (let row = 0; row < ROWS; row++) {
-        frame[col * ROWS + row] = (row >= ROWS - height || (row === peakRow && peak > t)) ? 255 : 0;
+    for (let c = 0; c < BAND_COUNT; c++) {
+      const energy = dbLevel(bands[c] ?? 0, gain, ref);
+      for (let r = 0; r < ROWS; r++) {
+        const corr = rowCorrupt[r] ?? 0;
+        if (corr > 0.05) frame[c * ROWS + r] = Math.random() < corr * (0.3 + energy * 0.7) ? 255 : 0;
       }
     }
     return frame;
   };
 }
 
-function kick(): Renderer {
-  const y  = new Float32Array(BAND_COUNT).fill(0);
-  const vy = new Float32Array(BAND_COUNT).fill(0);
+
+function vuBlock(): Renderer {
+  const BW = 3, BH = 4;
+  const NH = Math.ceil(BAND_COUNT / BW);
+  const NV = Math.ceil(ROWS / BH);
+  const blockCorrupt = new Float32Array(NH * NV);
+  const blockAge     = new Uint8Array(NH * NV);
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    for (let bh = 0; bh < NH; bh++) {
+      let energy = 0;
+      for (let c = bh * BW; c < Math.min((bh + 1) * BW, BAND_COUNT); c++)
+        energy += dbLevel(bands[c] ?? 0, gain, ref);
+      energy /= BW;
+      for (let bv = 0; bv < NV; bv++) {
+        const idx = bh * NV + bv;
+        blockAge[idx] = ((blockAge[idx] ?? 0) + 1) % (2 + bv % 5);
+        if (blockAge[idx] === 0)
+          blockCorrupt[idx] = energy > 0.20 && Math.random() < energy * 0.7
+            ? Math.random()
+            : (blockCorrupt[idx] ?? 0) * 0.45;
+      }
+    }
+    const frame = createFrame();
+    for (let bh = 0; bh < NH; bh++) {
+      for (let bv = 0; bv < NV; bv++) {
+        const corr = blockCorrupt[bh * NV + bv] ?? 0;
+        for (let c = bh * BW; c < Math.min((bh + 1) * BW, BAND_COUNT); c++)
+          for (let r = bv * BH; r < Math.min((bv + 1) * BH, ROWS); r++)
+            frame[c * ROWS + r] = corr > 0.08 ? (Math.random() < corr ? 255 : 0) : 0;
+      }
+    }
+    return frame;
+  };
+}
+
+
+
+function scopeDual(): Renderer {
+  const bufA = new Float32Array(BAND_COUNT * ROWS);
+  const bufB = new Float32Array(BAND_COUNT * ROWS);
+  const DELAY = 7;
+  const hist  = Array.from({ length: DELAY }, () => new Float32Array(BAND_COUNT));
+  let head = 0;
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    for (let i = 0; i < bufA.length; i++) bufA[i] = (bufA[i] ?? 0) * 0.83;
+    for (let i = 0; i < bufB.length; i++) bufB[i] = (bufB[i] ?? 0) * 0.73;
+    const cur = new Float32Array(BAND_COUNT);
+    for (let c = 0; c < BAND_COUNT; c++) cur[c] = dbLevel(bands[c] ?? 0, gain, ref);
+    hist[head]!.set(cur);
+    head = (head + 1) % DELAY;
+    const delayed = hist[head]!;
+    for (let c = 0; c < BAND_COUNT; c++) {
+      const rA = Math.max(0, Math.min(ROWS - 1, ROWS - 1 - Math.round((cur[c] ?? 0) * (ROWS - 1))));
+      bufA[c * ROWS + rA] = 255;
+      if (rA > 0)        bufA[c * ROWS + rA - 1] = Math.max(bufA[c * ROWS + rA - 1] ?? 0, 170);
+      if (rA < ROWS - 1) bufA[c * ROWS + rA + 1] = Math.max(bufA[c * ROWS + rA + 1] ?? 0, 170);
+      const dc = BAND_COUNT - 1 - c;
+      const rB = Math.max(0, Math.min(ROWS - 1, ROWS - 1 - Math.round((delayed[dc] ?? 0) * (ROWS - 1))));
+      bufB[c * ROWS + rB] = 255;
+      if (rB > 0)        bufB[c * ROWS + rB - 1] = Math.max(bufB[c * ROWS + rB - 1] ?? 0, 150);
+      if (rB < ROWS - 1) bufB[c * ROWS + rB + 1] = Math.max(bufB[c * ROWS + rB + 1] ?? 0, 150);
+    }
+    const frame = createFrame();
+    for (let i = 0; i < frame.length; i++)
+      frame[i] = Math.min(255, Math.round(Math.max(bufA[i] ?? 0, bufB[i] ?? 0)));
+    return frame;
+  };
+}
+
+function glitchSortB(): Renderer {
+  const cols = Array.from({ length: BAND_COUNT }, () => new Float32Array(ROWS));
+  const shifted = new Float32Array(BAND_COUNT * ROWS);
+  const offsets = new Int8Array(BAND_COUNT);
+  let smoothed = 0, cooldown = 0;
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
+    const t = dbLevel(avg, gain, ref);
+    const delta = Math.max(0, t - smoothed);
+    smoothed = smoothed * 0.88 + t * 0.12;
+    if (cooldown > 0) cooldown--;
+    if (t > 0.08 && delta > 0.08 && cooldown === 0) {
+      for (let c = 0; c < BAND_COUNT; c++) offsets[c] = Math.round((Math.random() - 0.5) * 4);
+      cooldown = 10;
+    } else {
+      for (let c = 0; c < BAND_COUNT; c++) offsets[c] = Math.round((offsets[c] ?? 0) * 0.7);
+    }
+    for (let c = 0; c < BAND_COUNT; c++) {
+      const tc = dbLevel(bands[c] ?? 0, gain, ref);
+      for (let r = 0; r < ROWS; r++) {
+        cols[c]![r] = (cols[c]![r] ?? 0) * 0.86;
+        if (Math.random() < tc * tc) cols[c]![r] = Math.max(cols[c]![r] ?? 0, 0.5 + Math.random() * 0.5);
+      }
+      for (let r = 1; r < ROWS; r++) {
+        if ((cols[c]![r] ?? 0) > (cols[c]![r - 1] ?? 0)) {
+          const tmp = cols[c]![r]!; cols[c]![r] = cols[c]![r - 1]!; cols[c]![r - 1] = tmp;
+        }
+      }
+    }
+    for (let c = 0; c < BAND_COUNT; c++) {
+      const src = ((c - (offsets[c] ?? 0)) % BAND_COUNT + BAND_COUNT) % BAND_COUNT;
+      for (let r = 0; r < ROWS; r++)
+        shifted[c * ROWS + r] = cols[src]![r] ?? 0;
+    }
+    const frame = createFrame();
+    for (let i = 0; i < shifted.length; i++) frame[i] = Math.round(shifted[i]! * 255);
+    return frame;
+  };
+}
+
+function spiralD(): Renderer {
+  const buf = new Float32Array(BAND_COUNT * ROWS);
+  let phase = 0;
+  const CC = (BAND_COUNT - 1) / 2;
+  const CR = (ROWS - 1) / 2;
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
+    const t = dbLevel(avg, gain, ref);
+    for (let i = 0; i < buf.length; i++) buf[i] = (buf[i] ?? 0) * 0.68;
+    phase += 0.03 + t * 0.09;
+    const arms = 1 + Math.floor(t * 1.99);
+    for (let arm = 0; arm < arms; arm++) {
+      const offset = (arm / arms) * 2 * Math.PI;
+      for (let s = 0; s < 45; s++) {
+        const frac = s / 44;
+        const theta = phase + offset + frac * 5 * Math.PI;
+        const c = Math.round(CC + Math.cos(theta) * CC * frac);
+        const r = Math.round(CR + Math.sin(theta) * CR * frac);
+        if (c >= 0 && c < BAND_COUNT && r >= 0 && r < ROWS)
+          buf[c * ROWS + r] = Math.max(buf[c * ROWS + r] ?? 0, Math.round(80 + 175 * frac));
+      }
+    }
+    const frame = createFrame();
+    for (let i = 0; i < buf.length; i++) frame[i] = Math.round(buf[i] ?? 0);
+    return frame;
+  };
+}
+
+
+function strobe(): Renderer {
+  type Bar = { c: number; w: number };
+  let bars: Bar[] = [];
+  let splitBars: Bar[] = [];
   let smoothed = 0, cooldown = 0;
   return ({ bands, gain, fftSize }) => {
     const ref = fftSize / 2;
     const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
     const t = dbLevel(avg, gain, ref);
     const delta = t - smoothed;
-    smoothed = smoothed * 0.88 + t * 0.12;
+    smoothed = t > smoothed ? smoothed * 0.95 + t * 0.05 : smoothed * 0.82 + t * 0.18;
     if (cooldown > 0) cooldown--;
-    if (delta > 0.06 && cooldown === 0) {
-      for (let col = 0; col < BAND_COUNT; col++) {
-        const e = dbLevel(bands[col] ?? 0, gain, ref);
-        vy[col]! += e * (ROWS - 1) * 0.85;
+    if (t > 0.08 && delta > 0.04 && cooldown === 0) {
+      bars = [];
+      splitBars = [];
+      const n = 1 + Math.floor(t * 3.5);
+      const occupied = new Uint8Array(BAND_COUNT);
+      for (let i = 0; i < n; i++) {
+        const avail: number[] = [];
+        for (let c = 0; c < BAND_COUNT; c++) if (!occupied[c]) avail.push(c);
+        if (avail.length === 0) {
+          const wide = bars.filter(b => b.w >= 2);
+          if (wide.length > 0) {
+            const wb = wide[Math.floor(Math.random() * wide.length)]!;
+            splitBars.push({ c: wb.c + Math.floor(Math.random() * wb.w), w: 1 });
+          }
+          break;
+        }
+        const c = avail[Math.floor(Math.random() * avail.length)]!;
+        const w = c + 2 <= BAND_COUNT && !occupied[c + 1] && Math.random() > 0.55 ? 2 : 1;
+        bars.push({ c, w });
+        for (let dc = Math.max(0, c - 1); dc <= Math.min(BAND_COUNT - 1, c + w); dc++) occupied[dc] = 1;
       }
-      cooldown = 8;
+      cooldown = 1;
+    }
+    const frame = createFrame();
+    for (const { c, w } of bars)
+      for (let dc = 0; dc < w; dc++)
+        for (let r = 0; r < ROWS; r++)
+          frame[(c + dc) * ROWS + r] = 255;
+    for (const { c, w } of splitBars)
+      for (let dc = 0; dc < w; dc++)
+        for (let r = 0; r < ROWS; r++) {
+          const idx = (c + dc) * ROWS + r;
+          frame[idx] = (frame[idx] ?? 0) ^ 255;
+        }
+    return frame;
+  };
+}
+
+
+
+function blip(): Renderer {
+  type Mark = { col: number; row: number; v: number };
+  const prev = new Float32Array(BAND_COUNT);
+  const marks: Mark[] = [];
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    for (let c = 0; c < BAND_COUNT; c++) {
+      const t = dbLevel(bands[c] ?? 0, gain, ref);
+      if (t - (prev[c] ?? 0) > 0.05) marks.push({ col: c, row: ROWS - 1 - Math.round(t * (ROWS - 1)), v: 1.0 });
+      prev[c] = t;
+    }
+    const frame = createFrame();
+    for (let i = marks.length - 1; i >= 0; i--) {
+      const m = marks[i]!;
+      m.v *= 0.78;
+      if (m.v < 0.03) { marks.splice(i, 1); continue; }
+      for (let dr = -1; dr <= 1; dr++) {
+        const r = m.row + dr;
+        if (r >= 0 && r < ROWS)
+          frame[m.col * ROWS + r] = Math.max(frame[m.col * ROWS + r] ?? 0, Math.round(m.v * (dr === 0 ? 255 : 140)));
+      }
+    }
+    return frame;
+  };
+}
+
+
+
+function kickD(): Renderer {
+  const y         = new Float32Array(BAND_COUNT).fill(0);
+  const vy        = new Float32Array(BAND_COUNT).fill(0);
+  const smoothedB = new Float32Array(BAND_COUNT).fill(0);
+  let cooldown = 0, energyRun = 0;
+  const center = (BAND_COUNT - 1) / 2;
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
+    const t = dbLevel(avg, gain, ref);
+    let maxDelta = 0;
+    for (let i = 0; i < BAND_COUNT; i++) {
+      const bLevel = dbLevel(bands[i] ?? 0, gain, ref);
+      const bDelta = bLevel - (smoothedB[i] ?? 0);
+      smoothedB[i] = bLevel > (smoothedB[i] ?? 0)
+        ? (smoothedB[i] ?? 0) * 0.95 + bLevel * 0.05
+        : (smoothedB[i] ?? 0) * 0.82 + bLevel * 0.18;
+      if (bDelta > maxDelta) maxDelta = bDelta;
+    }
+    if (cooldown > 0) cooldown--;
+    if (t > 0.12 && maxDelta > 0.08 && cooldown === 0) {
+      energyRun = t > 0.5 ? energyRun + 1 : 0;
+      let boostCol = -1;
+      if (energyRun >= 2 && Math.random() < 0.4) {
+        const candidates: number[] = [];
+        for (let c = 0; c < BAND_COUNT; c++)
+          if (c !== Math.round(center) && (y[c] ?? 0) <= 3) candidates.push(c);
+        if (candidates.length > 0)
+          boostCol = candidates[Math.floor(Math.random() * candidates.length)]!;
+      }
+      for (let col = 0; col < BAND_COUNT; col++) {
+        if ((y[col] ?? 0) <= 3) {
+          const normDist = Math.abs(col - center) / center;
+          const factor = 0.4 + 0.6 * Math.pow(1 - normDist, 2);
+          const boost = col === boostCol ? 1.3 + Math.random() * 0.4 : 1;
+          vy[col]! = t * 20 * factor * boost;
+        }
+      }
+      cooldown = 1;
     }
     const frame = createFrame();
     for (let col = 0; col < BAND_COUNT; col++) {
-      vy[col]! -= 0.7;
+      vy[col]! -= 1.2;
       y[col]!  += vy[col]!;
       if (y[col]! <= 0) {
-        y[col]!  = 0;
-        const b  = -vy[col]! * 0.65;
-        vy[col]! = b < 0.5 ? 0 : b;
+        y[col]! = 0;
+        const b = -(vy[col] ?? 0) * 0.5;
+        vy[col]! = b < 0.4 ? 0 : b;
       }
-      if (y[col]! >= ROWS - 1) { y[col]! = ROWS - 1; vy[col]! = -Math.abs(vy[col]!) * 0.4; }
-      const r = ROWS - 1 - Math.round(Math.min(ROWS - 1, Math.max(0, y[col]!)));
+      if (y[col]! > ROWS - 1) { y[col]! = ROWS - 1; vy[col]! = -1; }
+      const r = ROWS - 1 - Math.round(y[col]!);
       frame[col * ROWS + r] = 255;
     }
     return frame;
@@ -343,7 +586,7 @@ function makeFlameLife(cull: number, centerSeed = false, heightScale = 1.0): Ren
             if (Math.random() < e * 0.15) cells[col * ROWS + row] = 1.0;
         }
       }
-      cooldown = 5;
+      cooldown = 2;
     }
     for (let col = 0; col < BAND_COUNT; col++) {
       const killProb = dbLevel(bands[col] ?? 0, gain, ref) * cull;
@@ -495,9 +738,9 @@ function wake(): Renderer {
     const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
     const t = dbLevel(avg, gain, ref);
     const delta = t - smoothed;
-    smoothed = smoothed * 0.88 + t * 0.12;
+    smoothed = t > smoothed ? smoothed * 0.95 + t * 0.05 : smoothed * 0.82 + t * 0.18;
     if (cooldown > 0) cooldown--;
-    if (delta > 0.06 && cooldown === 0) { waves.push(ROWS - 1); cooldown = 8; }
+    if (t > 0.08 && delta > 0.06 && cooldown === 0) { waves.push(ROWS - 1); cooldown = 2; }
     for (let w = waves.length - 1; w >= 0; w--) {
       waves[w]! -= 0.5 + t * 2.0;
       if (waves[w]! < 0) {
@@ -524,12 +767,12 @@ function tickRipples(ripples: Ripple[], bands: number[], gain: number, ref: numb
   const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
   const t = dbLevel(avg, gain, ref);
   const delta = t - smoothed.v;
-  smoothed.v = smoothed.v * 0.88 + t * 0.12;
-  if (cooldown.v > 0) { cooldown.v--; } else if (delta > 0.05) {
+  smoothed.v = t > smoothed.v ? smoothed.v * 0.95 + t * 0.05 : smoothed.v * 0.82 + t * 0.18;
+  if (cooldown.v > 0) { cooldown.v--; } else if (t > 0.08 && delta > 0.05) {
     const totalE = bands.reduce((s, e) => s + e, 0);
     const cx = totalE > 0 ? bands.reduce((s, e, i) => s + e * i, 0) / totalE : BAND_COUNT / 2;
     ripples.push({ cx, cy: ROWS / 2 + (Math.random() - 0.5) * ROWS * 0.5, r: 0 });
-    cooldown.v = 6;
+    cooldown.v = 3;
   }
   const maxR = Math.sqrt(BAND_COUNT ** 2 + ROWS ** 2);
   for (let i = ripples.length - 1; i >= 0; i--) {
@@ -580,16 +823,17 @@ function makeDripLine(innerTrailWidth: number, trailDecay: number, ringWidth = 1
     const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
     const t = dbLevel(avg, gain, ref);
     const delta = t - smoothed.v;
-    smoothed.v = smoothed.v * 0.88 + t * 0.12;
-    if (cooldown.v > 0) { cooldown.v--; } else if (delta > 0.05) {
+    smoothed.v = t > smoothed.v ? smoothed.v * 0.95 + t * 0.05 : smoothed.v * 0.82 + t * 0.18;
+    if (cooldown.v > 0) { cooldown.v--; } else if (t > 0.08 && delta > 0.05) {
       ripples.push({ y: 0 });
-      cooldown.v = 6;
+      cooldown.v = 2;
     }
     for (let i = ripples.length - 1; i >= 0; i--) {
       ripples[i]!.y += 0.6;
       if (ripples[i]!.y > ROWS / 2 + ringWidth) ripples.splice(i, 1);
     }
-    for (let i = 0; i < trail.length; i++) trail[i] = (trail[i] ?? 0) * trailDecay;
+    const decay = trailDecay - t * 0.45;
+    for (let i = 0; i < trail.length; i++) trail[i] = (trail[i] ?? 0) * decay;
     const frame = createFrame();
     for (let col = 0; col < BAND_COUNT; col++) {
       const energy = dbLevel(bands[col] ?? 0, gain, ref);
@@ -649,7 +893,7 @@ function makeLife(opts: LifeOpts): Renderer {
           if (Math.random() < e * opts.seedRate) cells[col * ROWS + row] = 1.0;
         }
       }
-      cooldown = 5;
+      cooldown = 2;
     }
     if (opts.continuousCull !== undefined) {
       for (let col = 0; col < BAND_COUNT; col++) {
@@ -690,10 +934,50 @@ function makeLife(opts: LifeOpts): Renderer {
 function lifeErode4(): Renderer {
   return makeLife({ seedRate: 0.15, threshold: 0.4, decay: 0.75, survive: n => n === 2 || n === 3, born: n => n === 3, continuousCull: 0.70 });
 }
+
+function glitchCorrupt(): Renderer {
+  const buf = new Float32Array(BAND_COUNT * ROWS);
+  let smoothed = 0, cooldown = 0;
+  return ({ bands, gain, fftSize }) => {
+    const ref = fftSize / 2;
+    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
+    const t = dbLevel(avg, gain, ref);
+    const delta = t - smoothed;
+    smoothed = t > smoothed ? smoothed * 0.95 + t * 0.05 : smoothed * 0.82 + t * 0.18;
+    if (cooldown > 0) cooldown--;
+    for (let i = 0; i < buf.length; i++) buf[i] = (buf[i] ?? 0) * 0.9;
+    if (t > 0.08 && delta > 0.04 && cooldown === 0) {
+      const blocks = 1 + Math.floor(t * 4);
+      for (let b = 0; b < blocks; b++) {
+        const bw = 1 + Math.floor(Math.random() * 3);
+        const bh = 2 + Math.floor(Math.random() * 10);
+        const bc = Math.floor(Math.random() * BAND_COUNT);
+        const br = Math.floor(Math.random() * ROWS);
+        for (let dc = 0; dc < bw; dc++)
+          for (let dr = 0; dr < bh; dr++) {
+            const c = (bc + dc) % BAND_COUNT;
+            const r = br + dr;
+            if (r < ROWS) buf[c * ROWS + r] = Math.max(buf[c * ROWS + r] ?? 0, 0.6 + Math.random() * 0.4);
+          }
+      }
+      cooldown = 2;
+    }
+    const frame = createFrame();
+    for (let i = 0; i < buf.length; i++)
+      frame[i] = Math.random() < (buf[i] ?? 0) ? 255 : 0;
+    return frame;
+  };
+}
+
 const FACTORIES: Record<AudioStyle, () => Renderer> = {
-  'eq-bars':             eqBars,
   'spectrum-fall':       spectrumFall,
-  'vu-meter':            vuMeter,
+  'vu-glitch':           vuGlitch,
+  'circuit':             vuBlock,
+  'spirits':             blip,
+  'scope-dual':          scopeDual,
+  'glitch-sort-b':       glitchSortB,
+  'spiral-d':            spiralD,
+  'strobe':              strobe,
   'dark-matter':         eqSparks,
   'neo':                 neo,
   'cipher':              cipher,
@@ -701,12 +985,13 @@ const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'rhythm':              dripB,
   'drop':                dripE,
   'life-erode-4':        lifeErode4,
-  'kick':                kick,
+  'kick-d':              kickD,
   'waterfall':           waterfall,
   'sparks':              sparks,
   'hex':                 sparksNeoB,
   'specter':             specter,
   'heat':                flameLifeSparksB,
+  'glitch-corrupt':      glitchCorrupt,
 };
 
 export function createRenderer(style: AudioStyle): Renderer {
