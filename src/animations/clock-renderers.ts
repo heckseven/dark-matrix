@@ -327,7 +327,7 @@ function binaryAudio(): ClockRenderer {
 function analogue(): ClockRenderer {
   const CX = 4;
   const CY = 16;
-  const MIN_LEN = 4;
+  const MIN_LEN = 6;
   const HR_LEN = 2;
   const TWO_PI = 2 * Math.PI;
 
