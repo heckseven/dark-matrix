@@ -105,6 +105,8 @@ export function HudPanel({ dualModule = false }: { dualModule?: boolean }) {
     const ws = new WebSocket(`ws://${location.host}/ws`);
     wsRef.current = ws;
     ws.addEventListener('open', () => {
+      const { hudLeftFace, hudRightFace } = designerStore.getState();
+      ws.send(JSON.stringify({ type: 'hud-mode-start', leftFace: hudLeftFace, rightFace: hudRightFace }));
       const pending = pendingRef.current;
       if (pending) {
         ws.send(JSON.stringify(pending));
