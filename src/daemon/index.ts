@@ -274,8 +274,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         ditherBW(rf, FRAME_COLS, FRAME_ROWS);
         try { if (left)  await transport.frameBw(packBW(lf), left);  } catch { /* non-fatal */ }
         try { if (right) await transport.frameBw(packBW(rf), right); } catch { /* non-fatal */ }
-        const msUntilNext = 1000 - (Date.now() % 1000);
-        await new Promise<void>(r => setTimeout(r, msUntilNext > 50 ? msUntilNext : msUntilNext + 1000));
+        await new Promise<void>(r => setTimeout(r, 100));
       }
     };
 
