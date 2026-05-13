@@ -48,13 +48,18 @@ function tinyStacked(): ClockRenderer {
   return ({ now }) => {
     const h = now.getHours();
     const m = now.getMinutes();
+    const s = now.getSeconds();
     const frame = createFrame();
-    drawDigit(frame, Math.floor(h / 10), 1, 5);
-    drawDigit(frame, h % 10, 5, 5);
-    frame[4 * ROWS + 15] = 255;
-    frame[4 * ROWS + 17] = 255;
-    drawDigit(frame, Math.floor(m / 10), 1, 21);
-    drawDigit(frame, m % 10, 5, 21);
+    drawDigit(frame, Math.floor(h / 10), 1, 3);
+    drawDigit(frame, h % 10, 5, 3);
+    frame[4 * ROWS + 9]  = 255;
+    frame[4 * ROWS + 11] = 255;
+    drawDigit(frame, Math.floor(m / 10), 1, 13);
+    drawDigit(frame, m % 10, 5, 13);
+    frame[4 * ROWS + 19] = 255;
+    frame[4 * ROWS + 21] = 255;
+    drawDigit(frame, Math.floor(s / 10), 1, 23);
+    drawDigit(frame, s % 10, 5, 23);
     return frame;
   };
 }
@@ -63,12 +68,16 @@ function binary(): ClockRenderer {
   return ({ now }) => {
     const h = now.getHours();
     const m = now.getMinutes();
+    const s = now.getSeconds();
     const frame = createFrame();
     for (let b = 0; b < 5; b++) {
-      if (h & (1 << (4 - b))) frame[(b + 2) * ROWS + 12] = 255;
+      if (h & (1 << (4 - b))) frame[(b + 2) * ROWS + 8]  = 255;
     }
     for (let b = 0; b < 6; b++) {
-      if (m & (1 << (5 - b))) frame[(b + 2) * ROWS + 22] = 255;
+      if (m & (1 << (5 - b))) frame[(b + 2) * ROWS + 17] = 255;
+    }
+    for (let b = 0; b < 6; b++) {
+      if (s & (1 << (5 - b))) frame[(b + 2) * ROWS + 26] = 255;
     }
     return frame;
   };
@@ -78,14 +87,19 @@ function bars(): ClockRenderer {
   return ({ now }) => {
     const h = now.getHours();
     const m = now.getMinutes();
+    const s = now.getSeconds();
     const frame = createFrame();
     const hHeight = Math.round((h / 24) * ROWS);
     const mHeight = Math.round((m / 60) * ROWS);
-    for (let c = 1; c <= 3; c++)
+    const sHeight = Math.round((s / 60) * ROWS);
+    for (let c = 0; c <= 1; c++)
       for (let r = ROWS - hHeight; r < ROWS; r++)
         frame[c * ROWS + r] = 255;
-    for (let c = 5; c <= 7; c++)
+    for (let c = 3; c <= 5; c++)
       for (let r = ROWS - mHeight; r < ROWS; r++)
+        frame[c * ROWS + r] = 255;
+    for (let c = 7; c <= 8; c++)
+      for (let r = ROWS - sHeight; r < ROWS; r++)
         frame[c * ROWS + r] = 255;
     return frame;
   };
