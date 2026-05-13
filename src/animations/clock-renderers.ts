@@ -1,17 +1,18 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type ClockFace = 'tiny-stacked' | 'binary' | 'bars' | 'elegant' | 'stretch';
+export type ClockFace = 'tiny-stacked' | 'binary' | 'bars' | 'elegant' | 'stretch' | 'binary-audio';
 
 export const CLOCK_FACES: { id: ClockFace; label: string }[] = [
-  { id: 'tiny-stacked', label: 'stacked' },
-  { id: 'binary',       label: 'binary' },
-  { id: 'bars',         label: 'bars' },
-  { id: 'elegant',      label: 'elegant' },
-  { id: 'stretch',      label: 'stretch' },
+  { id: 'tiny-stacked',  label: 'stacked' },
+  { id: 'binary',        label: 'binary' },
+  { id: 'binary-audio',  label: 'stack' },
+  { id: 'bars',          label: 'bars' },
+  { id: 'elegant',       label: 'elegant' },
+  { id: 'stretch',       label: 'stretch' },
 ];
 
-export type ClockCtx = { now: Date };
+export type ClockCtx = { now: Date; bands?: number[]; fftSize?: number; gain?: number; side?: 'left' | 'right' };
 export type ClockRenderer = (ctx: ClockCtx) => Frame;
 
 const COLS = 9;
@@ -249,12 +250,77 @@ function stretch(): ClockRenderer {
   };
 }
 
+function binaryAudio(): ClockRenderer {
+  const BW = 3, BH = 4;
+  const N_BH = 3;             // 9 / BW
+  const N_BV = 8;             // (ROWS - 2) / BH — 1 row padding top + bottom
+  const BANDS_PER_COL = 3;
+  const brightness = new Float32Array(N_BH * N_BV);
+
+  function bandLevel(mag: number, gain: number, ref: number): number {
+    const MIN_DB = -60;
+    const m = mag * gain;
+    const db = m > 0 ? 20 * Math.log10(m / ref) : MIN_DB;
+    return Math.max(0, Math.min(1, (db - MIN_DB) / -MIN_DB));
+  }
+
+  return ({ now, bands, fftSize = 2048, gain = 1.0, side = 'left' }) => {
+    const ts = Math.floor(now.getTime() / 1000);
+    const frame = createFrame();
+
+    const colEnergy = new Float32Array(N_BH);
+    if (bands && bands.length > 0) {
+      const ref = fftSize / 2;
+      for (let bh = 0; bh < N_BH; bh++) {
+        let e = 0;
+        for (let b = bh * BANDS_PER_COL; b < (bh + 1) * BANDS_PER_COL; b++) {
+          e += bandLevel(bands[b] ?? 0, gain, ref);
+        }
+        colEnergy[bh] = e / BANDS_PER_COL;
+      }
+    } else {
+      const t = Date.now() / 1000;
+      for (let bh = 0; bh < N_BH; bh++) {
+        colEnergy[bh] = 0.45 + 0.4 * Math.sin(t * (0.9 + bh * 0.5) + bh * 1.2);
+      }
+    }
+
+    for (let bh = 0; bh < N_BH; bh++) {
+      const e = colEnergy[bh] ?? 0;
+      for (let bv = 0; bv < N_BV; bv++) {
+        const bitIdx = bh * N_BV + (N_BV - 1 - bv);
+        const bit = (ts >>> bitIdx) & 1;
+        const idx = bh * N_BV + bv;
+        if (bit) {
+          const target = 0.35 + e * 0.65;
+          brightness[idx] = (brightness[idx] ?? 0) * 0.35 + target * 0.65;
+        } else {
+          brightness[idx] = (brightness[idx] ?? 0) * 0.55;
+        }
+        const level = brightness[idx] ?? 0;
+        if (level > 0.015) {
+          // mirror column order on right module so LSBs stay on the outside
+          const pixelBh = side === 'right' ? (N_BH - 1 - bh) : bh;
+          for (let c = pixelBh * BW; c < (pixelBh + 1) * BW; c++) {
+            for (let r = 1 + bv * BH; r < 1 + (bv + 1) * BH; r++) {
+              frame[c * ROWS + r] = Math.min(255, Math.round(level * 255));
+            }
+          }
+        }
+      }
+    }
+
+    return frame;
+  };
+}
+
 const FACTORIES: Record<ClockFace, () => ClockRenderer> = {
-  'tiny-stacked': tinyStacked,
-  'binary':       binary,
-  'bars':         bars,
-  'elegant':      elegant,
-  'stretch':      stretch,
+  'tiny-stacked':  tinyStacked,
+  'binary':        binary,
+  'binary-audio':  binaryAudio,
+  'bars':          bars,
+  'elegant':       elegant,
+  'stretch':       stretch,
 };
 
 export function createClockRenderer(face: ClockFace): ClockRenderer {

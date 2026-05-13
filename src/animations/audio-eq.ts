@@ -78,7 +78,7 @@ export function createAudioBandStream(opts?: Omit<AudioEqOptions, 'style'>): Ban
 
   const proc = spawn(
     'pw-record',
-    [...targetArgs, '--format=s16', '--rate=48000', '--channels=1', '-'],
+    ['--name', 'dark-matrix', ...targetArgs, '--format=s16', '--rate=48000', '--channels=1', '-'],
     { stdio: ['ignore', 'pipe', 'ignore'] },
   );
 
