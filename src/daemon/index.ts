@@ -67,6 +67,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
   let hudHardwareActive = false;
   let hudAudioStreaming = false;
+  let hudAudioSource: 'monitor' | 'mic' = 'monitor';
   let frameHeld = false;
   const heatmapState = createHeatmapState();
 
@@ -278,7 +279,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     const needsAudio = leftFaceName === 'binary-audio' || rightFaceName === 'binary-audio';
     if (needsAudio) hudAudioStreaming = true;
     const stopAudio = needsAudio
-      ? streamAudioBands('monitor', (ctx) => { audioCtx = ctx; }, () => { audioCtx = null; })
+      ? streamAudioBands(hudAudioSource, (ctx) => { audioCtx = ctx; }, () => { audioCtx = null; })
       : null;
 
     const loop = async () => {
@@ -562,18 +563,29 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
   let micAnimActive = false;
   disposeWatches.push(watchMic((e) => {
-    if (e.active && !micAnimActive && !hudAudioStreaming) {
-      micAnimActive = true;
-      stopAnim();
-      if (idleTimer) clearTimeout(idleTimer);
-      stopCurrentAnim = runAudioEqOnModules('mic');
-    } else if (!e.active && micAnimActive) {
-      micAnimActive = false;
-      stopAnim();
-      if (hudHardwareActive) {
+    if (e.active && !micAnimActive) {
+      if (hudAudioStreaming) {
+        // HUD binary-audio face is active — switch its source to mic
+        hudAudioSource = 'mic';
+        stopAnim();
         stopCurrentAnim = runHudOnModules();
       } else {
-        startIdleTimer();
+        micAnimActive = true;
+        stopAnim();
+        if (idleTimer) clearTimeout(idleTimer);
+        stopCurrentAnim = runAudioEqOnModules('mic');
+      }
+    } else if (!e.active) {
+      if (hudAudioSource === 'mic') {
+        hudAudioSource = 'monitor';
+        if (hudAudioStreaming) {
+          stopAnim();
+          stopCurrentAnim = runHudOnModules();
+        }
+      } else if (micAnimActive) {
+        micAnimActive = false;
+        stopAnim();
+        resumeAfterInterrupt();
       }
     }
   }, { intervalMs: 2000 }));
@@ -791,6 +803,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
             }
             case 'hud-hardware-stop': {
               hudHardwareActive = false;
+              hudAudioSource = 'monitor';
               stopAnim();
               startIdleTimer();
               socket.write(JSON.stringify({ ok: true }) + '\n');
