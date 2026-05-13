@@ -310,11 +310,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     const run = async () => {
       while (!stopped) {
-        const target = await resolveDefaultDeviceId(
-          source === 'monitor' ? '@DEFAULT_AUDIO_SINK@' : '@DEFAULT_AUDIO_SOURCE@',
-        );
-        if (stopped) break;
-        stream = createAudioBandStream({ source, gain: source === 'monitor' ? 1.5 : 1.0, ...(target ? { target } : {}) });
+        const target = source === 'monitor' ? '@DEFAULT_AUDIO_SINK@' : '@DEFAULT_AUDIO_SOURCE@';
+        stream = createAudioBandStream({ source, gain: source === 'monitor' ? 1.5 : 1.0, target });
         const iter = stream[Symbol.asyncIterator]();
         while (!stopped) {
           const result = await iter.next();
