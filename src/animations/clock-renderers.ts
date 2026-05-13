@@ -1,12 +1,13 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type ClockFace = 'tiny-stacked' | 'binary' | 'bars';
+export type ClockFace = 'tiny-stacked' | 'binary' | 'bars' | 'elegant';
 
 export const CLOCK_FACES: { id: ClockFace; label: string }[] = [
   { id: 'tiny-stacked', label: 'stacked' },
   { id: 'binary',       label: 'binary' },
   { id: 'bars',         label: 'bars' },
+  { id: 'elegant',      label: 'elegant' },
 ];
 
 export type ClockCtx = { now: Date };
@@ -105,10 +106,52 @@ function bars(): ClockRenderer {
   };
 }
 
+// Pixel bitmasks for the elegant font (9 cols wide, cols 0-8, 5 rows tall).
+// Each number is a column bitmask: bit c = 1 → pixel at column c is set.
+const ELEGANT_DIGITS: readonly number[][] = [
+  [56, 68, 68, 68, 56], // 0
+  [16, 24, 16, 16, 16], // 1
+  [60, 64, 120,  4, 116], // 2
+  [60, 64,  48, 64,  92], // 3
+  [32, 56, 108, 32,  32], // 4
+  [124, 0, 124, 64,  60], // 5
+  [56,  4,  60, 68,  56], // 6
+  [92, 64, 112,  8,   8], // 7
+  [56, 68,  56, 68,  56], // 8
+  [56, 68, 120, 64,  64], // 9
+];
+
+function drawElegantDigit(frame: Frame, digit: number, startRow: number): void {
+  const glyphRows = ELEGANT_DIGITS[digit];
+  if (!glyphRows) return;
+  for (let r = 0; r < 5; r++) {
+    const bits = glyphRows[r] ?? 0;
+    for (let c = 0; c < COLS; c++) {
+      if ((bits >> c) & 1) frame[c * ROWS + startRow + r] = 255;
+    }
+  }
+}
+
+function elegant(): ClockRenderer {
+  return ({ now }) => {
+    const h = now.getHours();
+    const m = now.getMinutes();
+    const frame = createFrame();
+    drawElegantDigit(frame, Math.floor(h / 10), 2);
+    drawElegantDigit(frame, h % 10, 9);
+    frame[3 * ROWS + 16] = 255;
+    frame[5 * ROWS + 16] = 255;
+    drawElegantDigit(frame, Math.floor(m / 10), 19);
+    drawElegantDigit(frame, m % 10, 26);
+    return frame;
+  };
+}
+
 const FACTORIES: Record<ClockFace, () => ClockRenderer> = {
   'tiny-stacked': tinyStacked,
   'binary':       binary,
   'bars':         bars,
+  'elegant':      elegant,
 };
 
 export function createClockRenderer(face: ClockFace): ClockRenderer {
