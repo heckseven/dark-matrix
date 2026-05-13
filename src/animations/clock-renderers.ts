@@ -297,10 +297,10 @@ function binaryAudio(): ClockRenderer {
         if (blockAge[idx] === 0) {
           if (bit === 1) {
             if (energy > 0.20 && Math.random() < energy * 0.7) {
-              blockCorrupt[idx] = Math.random();
+              blockCorrupt[idx] = 0.8 + Math.random() * 0.2;
             } else {
-              // Converge toward ambient (~0.20) so on-bits stay visible at low energy
-              blockCorrupt[idx] = (blockCorrupt[idx] ?? 0) * 0.65 + 0.07;
+              // Converge toward ambient (~0.15) so on-bits stay dim but visible at silence
+              blockCorrupt[idx] = (blockCorrupt[idx] ?? 0) * 0.65 + 0.0525;
             }
           } else {
             blockCorrupt[idx] = (blockCorrupt[idx] ?? 0) * 0.2;
