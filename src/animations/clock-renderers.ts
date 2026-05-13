@@ -170,22 +170,28 @@ const STRETCH_GLYPHS: readonly StretchGlyph[] = [
 ] as const;
 
 function stretch(): ClockRenderer {
-  const ANIM_MS = 800;
+  const ANIM_MS = 2000;
   const OVERSHOOT = 2;
   const PEAK_T = 0.6;
 
-  function animMid(t: number, g: StretchGlyph): number {
-    if (t >= 1) return g.stretchedMid;
-    if (t <= 0) return g.shortMid;
+  // Stateful: track real wall-clock time when each digit last changed.
+  // Using Date.now() (not simulated `now`) so animation runs at real speed
+  // regardless of fast-clock mode in the designer.
+  let prevDigits: [number, number, number, number] | null = null;
+  const changeWall: [number, number, number, number] = [0, 0, 0, 0];
+
+  function animMid(t: number, shortMid: number, stretchedMid: number): number {
+    if (t >= 1) return stretchedMid;
+    if (t <= 0) return shortMid;
     let mid: number;
     if (t <= PEAK_T) {
       const s = t / PEAK_T;
       const ease = 1 - (1 - s) * (1 - s);
-      mid = g.shortMid + (g.stretchedMid + OVERSHOOT - g.shortMid) * ease;
+      mid = shortMid + (stretchedMid + OVERSHOOT - shortMid) * ease;
     } else {
       const s = (t - PEAK_T) / (1 - PEAK_T);
       const ease = s < 0.5 ? 2 * s * s : 1 - 2 * (1 - s) * (1 - s);
-      mid = (g.stretchedMid + OVERSHOOT) - OVERSHOOT * ease;
+      mid = (stretchedMid + OVERSHOOT) - OVERSHOOT * ease;
     }
     return Math.round(mid);
   }
@@ -210,23 +216,46 @@ function stretch(): ClockRenderer {
 
   return ({ now }) => {
     const frame = createFrame();
-    const ms = now.getTime();
+    const wallMs = Date.now();
     const h = now.getHours();
     const m = now.getMinutes();
-    const tOf = (period: number) => Math.min((ms % period) / ANIM_MS, 1);
+    const digits: [number, number, number, number] = [
+      Math.floor(h / 10), h % 10, Math.floor(m / 10), m % 10,
+    ];
 
+    if (prevDigits === null) {
+      // First render: treat all digits as already settled so nothing plays on load
+      const settled = wallMs - ANIM_MS;
+      for (let i = 0; i < 4; i++) changeWall[i] = settled;
+    } else {
+      for (let i = 0; i < 4; i++) {
+        if (digits[i] !== prevDigits[i]) changeWall[i] = wallMs;
+      }
+    }
+    prevDigits = digits;
+
+    const ts = changeWall.map(ct => Math.min((wallMs - ct) / ANIM_MS, 1)) as [number, number, number, number];
+
+    // Layout (34 rows total):
+    //   row 0:     padding
+    //   rows 1–13: HH (13 rows stretched, extraMid=1)
+    //   rows 14–15: gap
+    //   row 16:    divider
+    //   rows 17–18: gap
+    //   rows 19–32: MM (14 rows stretched, extraMid=2)
+    //   row 33:    padding
     frame[3 * ROWS + 16] = 255;
     frame[5 * ROWS + 16] = 255;
 
-    const draw = (digit: number, t: number, colOff: number, rowStart: number) => {
+    const draw = (digit: number, t: number, colOff: number, rowStart: number, extraMid: number) => {
       const g = STRETCH_GLYPHS[digit];
-      if (g) drawGlyph(frame, digit, colOff, rowStart, animMid(t, g));
+      if (g) drawGlyph(frame, digit, colOff, rowStart, animMid(t, g.shortMid, g.stretchedMid + extraMid));
     };
 
-    draw(Math.floor(h / 10), tOf(36_000_000), -2, 2);
-    draw(h % 10,             tOf( 3_600_000),  2, 2);
-    draw(Math.floor(m / 10), tOf(   600_000), -2, 20);
-    draw(m % 10,             tOf(    60_000),  2, 20);
+    draw(digits[0], ts[0], -2, 1, 1);
+    draw(digits[1], ts[1],  2, 1, 1);
+    draw(digits[2], ts[2], -2, 19, 2);
+    draw(digits[3], ts[3],  2, 19, 2);
 
     return frame;
   };
