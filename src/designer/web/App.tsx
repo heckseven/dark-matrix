@@ -152,6 +152,7 @@ export function App() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [livePreviewOn, setLivePreviewOn] = useState(false);
+  const [hudFastClock, setHudFastClock] = useState(false);
   const bridge = usePreviewBridge();
   const [cursor, setCursor] = useState({ col: 0, row: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
@@ -285,6 +286,15 @@ export function App() {
               <div className="absolute inset-x-0 flex justify-center pointer-events-none">
                 <span className="font-mono text-xs text-foreground">hud</span>
               </div>
+              <div className="ml-auto">
+                <button
+                  type="button"
+                  aria-label="Fast clock simulation"
+                  aria-pressed={hudFastClock}
+                  className={`font-mono text-xs px-3 py-1 border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-1 ${hudFastClock ? 'border-white text-white' : 'border-foreground/30 text-foreground/50 hover:text-foreground hover:border-foreground/60'}`}
+                  onClick={() => setHudFastClock(v => !v)}
+                >fast</button>
+              </div>
             </>
           ) : activeMode === 'audio' ? (
             <>
@@ -398,7 +408,7 @@ export function App() {
 
         {activeMode === 'hud' ? (
           <div className="h-full flex">
-            <HudPanel dualModule={dualModule} />
+            <HudPanel dualModule={dualModule} fastClock={hudFastClock} />
           </div>
         ) : activeMode === 'audio' ? (
           <div className="h-full flex">

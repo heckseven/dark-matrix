@@ -7,17 +7,17 @@ import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-rend
 const COLS = 9;
 const ROWS = 34;
 
-function renderFaceToB64(face: ClockFace): string {
+function renderFaceToB64(face: ClockFace, now = new Date()): string {
   const renderer = createClockRenderer(face);
-  const frame = renderer({ now: new Date() });
+  const frame = renderer({ now });
   const out = new Uint8Array(COLS * ROWS);
   for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
   return btoa(String.fromCharCode(...out));
 }
 
-function initPixels(): Record<ClockFace, string> {
+function initPixels(now = new Date()): Record<ClockFace, string> {
   const m = {} as Record<ClockFace, string>;
-  for (const { id } of CLOCK_FACES) m[id] = renderFaceToB64(id);
+  for (const { id } of CLOCK_FACES) m[id] = renderFaceToB64(id, now);
   return m;
 }
 
@@ -85,21 +85,30 @@ function ClockFaceCard({
   );
 }
 
-export function HudPanel({ dualModule = false }: { dualModule?: boolean }) {
+export function HudPanel({ dualModule = false, fastClock = false }: { dualModule?: boolean; fastClock?: boolean }) {
   const hudLeftFace  = useDesignerStore(s => s.hudLeftFace);
   const hudRightFace = useDesignerStore(s => s.hudRightFace);
   const wsRef = useRef<WebSocket | null>(null);
   const pendingRef = useRef<{ type: 'hud-config'; leftFace: ClockFace; rightFace: ClockFace } | null>(null);
+  const simTimeRef = useRef<number>(Date.now());
+  const fastClockRef = useRef(fastClock);
   const [livePixels, setLivePixels] = useState<Record<ClockFace, string>>(initPixels);
 
   const renderAll = useCallback(() => {
-    setLivePixels(initPixels());
+    if (fastClockRef.current) {
+      simTimeRef.current += 60_000;
+    } else {
+      simTimeRef.current = Date.now();
+    }
+    setLivePixels(initPixels(new Date(simTimeRef.current)));
   }, []);
 
   useEffect(() => {
-    const id = setInterval(renderAll, 1000);
+    simTimeRef.current = fastClock ? simTimeRef.current : Date.now();
+    fastClockRef.current = fastClock;
+    const id = setInterval(renderAll, fastClock ? 150 : 1000);
     return () => clearInterval(id);
-  }, [renderAll]);
+  }, [fastClock, renderAll]);
 
   useEffect(() => {
     const ws = new WebSocket(`ws://${location.host}/ws`);
