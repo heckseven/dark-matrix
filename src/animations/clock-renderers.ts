@@ -170,9 +170,7 @@ const STRETCH_GLYPHS: readonly StretchGlyph[] = [
 ] as const;
 
 function stretch(): ClockRenderer {
-  const ANIM_MS = 2000;
-  const OVERSHOOT = 2;
-  const PEAK_T = 0.6;
+  const ANIM_MS = 600;
 
   // Stateful: track real wall-clock time when each digit last changed.
   // Using Date.now() (not simulated `now`) so animation runs at real speed
@@ -183,17 +181,7 @@ function stretch(): ClockRenderer {
   function animMid(t: number, shortMid: number, stretchedMid: number): number {
     if (t >= 1) return stretchedMid;
     if (t <= 0) return shortMid;
-    let mid: number;
-    if (t <= PEAK_T) {
-      const s = t / PEAK_T;
-      const ease = 1 - (1 - s) * (1 - s);
-      mid = shortMid + (stretchedMid + OVERSHOOT - shortMid) * ease;
-    } else {
-      const s = (t - PEAK_T) / (1 - PEAK_T);
-      const ease = s < 0.5 ? 2 * s * s : 1 - 2 * (1 - s) * (1 - s);
-      mid = (stretchedMid + OVERSHOOT) - OVERSHOOT * ease;
-    }
-    return Math.round(mid);
+    return Math.round(shortMid + (stretchedMid - shortMid) * t);
   }
 
   function drawGlyph(frame: Frame, digit: number, colOff: number, rowStart: number, midCount: number): void {
@@ -237,13 +225,13 @@ function stretch(): ClockRenderer {
     const ts = changeWall.map(ct => Math.min((wallMs - ct) / ANIM_MS, 1)) as [number, number, number, number];
 
     // Layout (34 rows total):
-    //   row 0:     padding
-    //   rows 1–13: HH (13 rows stretched, extraMid=1)
-    //   rows 14–15: gap
-    //   row 16:    divider
-    //   rows 17–18: gap
-    //   rows 19–32: MM (14 rows stretched, extraMid=2)
-    //   row 33:    padding
+    //   row 0:      padding
+    //   rows 1–14:  HH (14 rows stretched, extraMid=2)
+    //   row 15:     gap
+    //   row 16:     divider
+    //   row 17:     gap
+    //   rows 18–32: MM (15 rows stretched, extraMid=3)
+    //   row 33:     padding
     frame[3 * ROWS + 16] = 255;
     frame[5 * ROWS + 16] = 255;
 
@@ -252,10 +240,10 @@ function stretch(): ClockRenderer {
       if (g) drawGlyph(frame, digit, colOff, rowStart, animMid(t, g.shortMid, g.stretchedMid + extraMid));
     };
 
-    draw(digits[0], ts[0], -2, 1, 1);
-    draw(digits[1], ts[1],  2, 1, 1);
-    draw(digits[2], ts[2], -2, 19, 2);
-    draw(digits[3], ts[3],  2, 19, 2);
+    draw(digits[0], ts[0], -2, 1, 2);
+    draw(digits[1], ts[1],  2, 1, 2);
+    draw(digits[2], ts[2], -2, 18, 3);
+    draw(digits[3], ts[3],  2, 18, 3);
 
     return frame;
   };

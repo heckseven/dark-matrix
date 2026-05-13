@@ -3,12 +3,16 @@ import { MatrixPreview } from './MatrixPreview.js';
 import { useDesignerStore, designerStore } from '../store.js';
 import type { ClockFace } from '../store.js';
 import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-renderers.js';
+import type { ClockRenderer } from '../../../animations/clock-renderers.js';
 
 const COLS = 9;
 const ROWS = 34;
 
+const _rendererCache: Partial<Record<ClockFace, ClockRenderer>> = {};
+
 function renderFaceToB64(face: ClockFace, now = new Date()): string {
-  const renderer = createClockRenderer(face);
+  if (!_rendererCache[face]) _rendererCache[face] = createClockRenderer(face);
+  const renderer = _rendererCache[face]!;
   const frame = renderer({ now });
   const out = new Uint8Array(COLS * ROWS);
   for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
@@ -106,7 +110,7 @@ export function HudPanel({ dualModule = false, fastClock = false }: { dualModule
   useEffect(() => {
     simTimeRef.current = fastClock ? simTimeRef.current : Date.now();
     fastClockRef.current = fastClock;
-    const id = setInterval(renderAll, fastClock ? 150 : 1000);
+    const id = setInterval(renderAll, fastClock ? 150 : 100);
     return () => clearInterval(id);
   }, [fastClock, renderAll]);
 
