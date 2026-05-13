@@ -265,11 +265,18 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     const leftRenderer  = createClockRenderer(leftFaceName);
     const rightRenderer = createClockRenderer(rightFaceName);
 
+    let audioCtx: { bands: number[]; fftSize: number; gain: number } | null = null;
+    const needsAudio = leftFaceName === 'binary-audio' || rightFaceName === 'binary-audio';
+    const stopAudio = needsAudio
+      ? streamAudioBands('monitor', (ctx) => { audioCtx = ctx; }, () => { audioCtx = null; })
+      : null;
+
     const loop = async () => {
       while (!stopped) {
         const now = new Date();
-        const lf = leftRenderer({ now });
-        const rf = rightRenderer({ now });
+        const base = audioCtx ? { now, ...audioCtx } : { now };
+        const lf = leftRenderer({ ...base, side: 'left' });
+        const rf = rightRenderer({ ...base, side: 'right' });
         ditherBW(lf, FRAME_COLS, FRAME_ROWS);
         ditherBW(rf, FRAME_COLS, FRAME_ROWS);
         try { if (left)  await transport.frameBw(packBW(lf), left);  } catch { /* non-fatal */ }
@@ -279,27 +286,34 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     };
 
     void loop();
-    return () => { stopped = true; };
+    return () => { stopped = true; stopAudio?.(); };
   }
 
   function streamAudioBands(
     source: AudioSource,
     onBands: (ctx: { bands: number[]; fftSize: number; gain: number }) => void,
+    onEnd?: () => void,
   ): () => void {
     let stopped = false;
     let stream: ReturnType<typeof createAudioBandStream> | null = null;
 
     const run = async () => {
-      const target = await resolveDefaultDeviceId(
-        source === 'monitor' ? '@DEFAULT_AUDIO_SINK@' : '@DEFAULT_AUDIO_SOURCE@',
-      );
-      if (stopped) return;
-      stream = createAudioBandStream({ source, gain: source === 'monitor' ? 1.5 : 1.0, ...(target ? { target } : {}) });
-      const iter = stream[Symbol.asyncIterator]();
       while (!stopped) {
-        const result = await iter.next();
-        if (stopped || result.done) break;
-        onBands(result.value);
+        const target = await resolveDefaultDeviceId(
+          source === 'monitor' ? '@DEFAULT_AUDIO_SINK@' : '@DEFAULT_AUDIO_SOURCE@',
+        );
+        if (stopped) break;
+        stream = createAudioBandStream({ source, gain: source === 'monitor' ? 1.5 : 1.0, ...(target ? { target } : {}) });
+        const iter = stream[Symbol.asyncIterator]();
+        while (!stopped) {
+          const result = await iter.next();
+          if (stopped || result.done) break;
+          onBands(result.value);
+        }
+        if (!stopped) {
+          onEnd?.();
+          await new Promise<void>(r => setTimeout(r, 2000));
+        }
       }
     };
 
@@ -546,7 +560,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     } else if (!e.active && micAnimActive) {
       micAnimActive = false;
       stopAnim();
-      startIdleTimer();
+      if (hudHardwareActive) {
+        stopCurrentAnim = runHudOnModules();
+      } else {
+        startIdleTimer();
+      }
     }
   }, { intervalMs: 2000 }));
 

@@ -8,20 +8,28 @@ import type { ClockRenderer } from '../../../animations/clock-renderers.js';
 const COLS = 9;
 const ROWS = 34;
 
-const _rendererCache: Partial<Record<ClockFace, ClockRenderer>> = {};
+const _rendererCache: Record<'left' | 'right', Partial<Record<ClockFace, ClockRenderer>>> = { left: {}, right: {} };
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => { _rendererCache.left = {}; _rendererCache.right = {}; });
+}
 
-function renderFaceToB64(face: ClockFace, now = new Date()): string {
-  if (!_rendererCache[face]) _rendererCache[face] = createClockRenderer(face);
-  const renderer = _rendererCache[face]!;
-  const frame = renderer({ now });
+function renderFaceToB64(face: ClockFace, now = new Date(), side: 'left' | 'right' = 'left'): string {
+  const cache = _rendererCache[side];
+  if (!cache[face]) cache[face] = createClockRenderer(face);
+  const renderer = cache[face]!;
+  const frame = renderer({ now, side });
   const out = new Uint8Array(COLS * ROWS);
   for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
   return btoa(String.fromCharCode(...out));
 }
 
-function initPixels(now = new Date()): Record<ClockFace, string> {
-  const m = {} as Record<ClockFace, string>;
-  for (const { id } of CLOCK_FACES) m[id] = renderFaceToB64(id, now);
+type PixelPair = { left: string; right: string };
+
+function initPixels(now = new Date()): Record<ClockFace, PixelPair> {
+  const m = {} as Record<ClockFace, PixelPair>;
+  for (const { id } of CLOCK_FACES) {
+    m[id] = { left: renderFaceToB64(id, now, 'left'), right: renderFaceToB64(id, now, 'right') };
+  }
   return m;
 }
 
@@ -96,7 +104,7 @@ export function HudPanel({ dualModule = false, fastClock = false }: { dualModule
   const pendingRef = useRef<{ type: 'hud-config'; leftFace: ClockFace; rightFace: ClockFace } | null>(null);
   const simTimeRef = useRef<number>(Date.now());
   const fastClockRef = useRef(fastClock);
-  const [livePixels, setLivePixels] = useState<Record<ClockFace, string>>(initPixels);
+  const [livePixels, setLivePixels] = useState<Record<ClockFace, PixelPair>>(initPixels);
 
   const renderAll = useCallback(() => {
     if (fastClockRef.current) {
@@ -159,9 +167,8 @@ export function HudPanel({ dualModule = false, fastClock = false }: { dualModule
     <div className="flex-1 flex flex-col items-center justify-center gap-10 px-8 py-8 overflow-y-auto">
       <div role="group" aria-label="Clock face" className="grid grid-cols-4 gap-6">
         {CLOCK_FACES.map(({ id, label }) => {
-          const pixels = dualModule
-            ? btoa(atob(livePixels[id]) + atob(livePixels[id]))
-            : livePixels[id];
+          const { left: leftPx, right: rightPx } = livePixels[id];
+          const pixels = dualModule ? btoa(atob(leftPx) + atob(rightPx)) : leftPx;
           return (
             <ClockFaceCard
               key={id}
