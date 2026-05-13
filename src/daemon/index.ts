@@ -131,9 +131,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     }
   }
 
-  function runOnModules(anim: ReturnType<typeof createScrollAnimation> | null, singleAnim?: () => ReturnType<typeof createGolAnimation>) {
+  function runOnModules(anim: ReturnType<typeof createScrollAnimation> | null, singleAnim?: () => ReturnType<typeof createGolAnimation>, onComplete?: () => void) {
     if (anim) {
-      stopCurrentAnim = runScrollOnModules(anim);
+      stopCurrentAnim = runScrollOnModules(anim, 20, onComplete);
       return;
     }
     if (singleAnim) {
@@ -145,7 +145,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     }
   }
 
-  function runScrollOnModules(anim: ReturnType<typeof createScrollAnimation>, fps = 20): () => void {
+  function runScrollOnModules(anim: ReturnType<typeof createScrollAnimation>, fps = 20, onComplete?: () => void): () => void {
     const { left, right } = currentConfig.modules;
     const frameMs = 1000 / fps;
     let stopped = false;
@@ -171,6 +171,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       if (natural) {
         if (left) await transport.release(left).catch(() => {});
         if (right) await transport.release(right).catch(() => {});
+        onComplete?.();
       }
     };
 
@@ -219,6 +220,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       proc.on('error', () => resolve(undefined));
     });
   }
+
 
   // Bayer 4×4 ordered dithering — maps 0-255 grayscale to binary in-place.
   // Operates at serial-frame speed, so uses simple array indexing.
@@ -310,8 +312,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     const run = async () => {
       while (!stopped) {
-        const target = source === 'monitor' ? '@DEFAULT_AUDIO_SINK@' : '@DEFAULT_AUDIO_SOURCE@';
-        stream = createAudioBandStream({ source, gain: source === 'monitor' ? 1.5 : 1.0, target });
+        const target = await resolveDefaultDeviceId(
+          source === 'monitor' ? '@DEFAULT_AUDIO_SINK@' : '@DEFAULT_AUDIO_SOURCE@',
+        );
+        if (stopped) break;
+        stream = createAudioBandStream({ source, gain: source === 'monitor' ? 1.5 : 1.0, ...(target ? { target } : {}) });
         const iter = stream[Symbol.asyncIterator]();
         while (!stopped) {
           const result = await iter.next();
@@ -521,12 +526,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       .slice(0, SCROLL_MAX_LEN);
     const text = safe.length > 0 ? safe : '???';
 
-    runOnModules(createScrollAnimation({ text, loop: false }));
-
-    // After notification expires, resume previous state
-    setTimeout(() => {
-      if (!dispatcher.current()) resumeAfterInterrupt();
-    }, Math.max(0, intent.expiresAt - Date.now()));
+    runOnModules(createScrollAnimation({ text, loop: false }), undefined, () => {
+      const curr = dispatcher.current();
+      if (!curr || curr.id === intent.id) resumeAfterInterrupt();
+    });
   }
 
   let currentIntentId: string | null = null;
@@ -575,10 +578,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     } else if (!e.active) {
       if (hudAudioSource === 'mic') {
         hudAudioSource = 'monitor';
-        if (hudAudioStreaming) {
-          stopAnim();
-          stopCurrentAnim = runHudOnModules();
-        }
+        stopAnim();
+        resumeAfterInterrupt();
       } else if (micAnimActive) {
         micAnimActive = false;
         stopAnim();
