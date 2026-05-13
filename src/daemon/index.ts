@@ -65,6 +65,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   const dispatcher = new Dispatcher();
   let stopCurrentAnim: (() => void) | null = null;
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
+  let hudHardwareActive = false;
   let frameHeld = false;
   const heatmapState = createHeatmapState();
 
@@ -438,6 +439,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   }
 
   function startIdleAnimation() {
+    hudHardwareActive = false;
     stopAnim();
     const idleName = currentConfig.daemon.idle_animation;
     if (idleName === 'none') return;
@@ -752,6 +754,21 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             }
+            case 'hud-hardware-start': {
+              stopAnim();
+              if (idleTimer) clearTimeout(idleTimer);
+              hudHardwareActive = true;
+              stopCurrentAnim = runHudOnModules();
+              socket.write(JSON.stringify({ ok: true }) + '\n');
+              break;
+            }
+            case 'hud-hardware-stop': {
+              hudHardwareActive = false;
+              stopAnim();
+              startIdleTimer();
+              socket.write(JSON.stringify({ ok: true }) + '\n');
+              break;
+            }
             case 'hud-config': {
               const m = msg as { cmd: string; leftFace?: string; rightFace?: string };
               const newHud = { ...currentConfig.hud };
@@ -764,7 +781,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 newHud.right = { widget: 'clock', face };
               }
               currentConfig = { ...currentConfig, hud: newHud };
-              if (currentConfig.daemon.idle_animation === 'hud' && !dispatcher.current()) {
+              if ((hudHardwareActive || currentConfig.daemon.idle_animation === 'hud') && !dispatcher.current()) {
                 stopAnim();
                 stopCurrentAnim = runHudOnModules();
               }

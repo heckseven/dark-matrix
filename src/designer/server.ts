@@ -720,9 +720,8 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
     if (gen === retryGen) console.error('[designer] daemon unreachable after retries:', cmd['cmd']);
   }
 
-  // Tracks which WS connection currently owns the hardware audio animation.
-  // Only that connection's close event should send audio-hardware-stop.
   let audioOwnerWs: import('ws').WebSocket | null = null;
+  let hudOwnerWs:   import('ws').WebSocket | null = null;
 
   wss.on('connection', (ws: import('ws').WebSocket) => {
     const previewClient = new PersistentDaemonClient();
@@ -734,6 +733,10 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
       if (audioOwnerWs === ws) {
         audioOwnerWs = null;
         sendToDaemon({ cmd: 'audio-hardware-stop' }).catch(() => {});
+      }
+      if (hudOwnerWs === ws) {
+        hudOwnerWs = null;
+        sendToDaemon({ cmd: 'hud-hardware-stop' }).catch(() => {});
       }
     });
     ws.on('message', (data: Buffer) => {
@@ -801,6 +804,12 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
           audioOwnerWs = null;
           sendToDaemon({ cmd: 'audio-hardware-stop' }).catch(() => {});
         }
+      } else if (type === 'hud-mode-start') {
+        hudOwnerWs = ws;
+        const leftFace  = typeof msg['leftFace']  === 'string' ? msg['leftFace']  : undefined;
+        const rightFace = typeof msg['rightFace'] === 'string' ? msg['rightFace'] : undefined;
+        if (leftFace || rightFace) sendToDaemon({ cmd: 'hud-config', leftFace, rightFace }).catch(() => {});
+        sendToDaemon({ cmd: 'hud-hardware-start' }).catch(() => {});
       } else if (type === 'hud-config') {
         const leftFace  = typeof msg['leftFace']  === 'string' ? msg['leftFace']  : undefined;
         const rightFace = typeof msg['rightFace'] === 'string' ? msg['rightFace'] : undefined;
