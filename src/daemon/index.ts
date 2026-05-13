@@ -121,6 +121,14 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     idleTimer = setTimeout(() => startIdleAnimation(), idleMs);
   }
 
+  function resumeAfterInterrupt() {
+    if (hudHardwareActive) {
+      stopCurrentAnim = runHudOnModules();
+    } else {
+      startIdleTimer();
+    }
+  }
+
   function runOnModules(anim: ReturnType<typeof createScrollAnimation> | null, singleAnim?: () => ReturnType<typeof createGolAnimation>) {
     if (anim) {
       stopCurrentAnim = runScrollOnModules(anim);
@@ -338,7 +346,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         anim = await createGifAnimation({ path: gifPath, loop: hold, dual, mode });
       } catch (err) {
         process.stderr.write(`dark-matrix: gif load failed: ${String(err)}\n`);
-        if (!stopped && !hold) startIdleTimer();
+        if (!stopped && !hold) resumeAfterInterrupt();
         return;
       }
       if (stopped) return;
@@ -375,7 +383,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         if (delay > 0) await new Promise<void>(r => setTimeout(r, delay));
       }
 
-      if (!stopped && !hold) startIdleTimer();
+      if (!stopped && !hold) resumeAfterInterrupt();
     })();
   }
 
@@ -515,9 +523,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     runOnModules(createScrollAnimation({ text, loop: false }));
 
-    // After notification expires, resume idle
+    // After notification expires, resume previous state
     setTimeout(() => {
-      if (!dispatcher.current()) startIdleTimer();
+      if (!dispatcher.current()) resumeAfterInterrupt();
     }, Math.max(0, intent.expiresAt - Date.now()));
   }
 
@@ -530,7 +538,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     } else {
       currentIntentId = null;
       stopAnim();
-      startIdleTimer();
+      resumeAfterInterrupt();
     }
   });
 
@@ -654,7 +662,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               stopCurrentAnim = runScrollOnModules(scrollAnim, scrollFps);
               if (!m.hold) {
                 const dur = safe.length * 100 + 2000;
-                setTimeout(() => { if (!dispatcher.current()) startIdleTimer(); }, dur);
+                setTimeout(() => { if (!dispatcher.current()) resumeAfterInterrupt(); }, dur);
               }
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
