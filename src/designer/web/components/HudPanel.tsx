@@ -19,7 +19,7 @@ function renderFaceToB64(face: ClockFace, now = new Date(), side: 'left' | 'righ
   const renderer = cache[face]!;
   const frame = renderer({ now, side });
   const out = new Uint8Array(COLS * ROWS);
-  for (let i = 0; i < frame.length; i++) out[i] = frame[i] ?? 0;
+  for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
   return btoa(String.fromCharCode(...out));
 }
 
