@@ -801,6 +801,10 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
           audioOwnerWs = null;
           sendToDaemon({ cmd: 'audio-hardware-stop' }).catch(() => {});
         }
+      } else if (type === 'hud-config') {
+        const leftFace  = typeof msg['leftFace']  === 'string' ? msg['leftFace']  : undefined;
+        const rightFace = typeof msg['rightFace'] === 'string' ? msg['rightFace'] : undefined;
+        sendToDaemon({ cmd: 'hud-config', leftFace, rightFace }).catch(() => {});
       }
     });
   });

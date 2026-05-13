@@ -3,6 +3,7 @@ import { useStore } from 'zustand/react';
 import type { DmxFrame } from '../format.js';
 import type { AppMode } from './components/ModePicker.js';
 import type { AudioStyle } from '../../animations/audio-renderers.js';
+import type { ClockFace } from '../../animations/clock-renderers.js';
 
 export type Frame = DmxFrame;
 export type PreviewTarget = 'left' | 'right' | 'both' | 'mirror';
@@ -10,6 +11,7 @@ export type AudioSource = 'monitor' | 'mic';
 
 export type { AppMode };
 export type { AudioStyle };
+export type { ClockFace };
 
 export interface DesignerState {
   frames: Frame[];
@@ -29,6 +31,8 @@ export interface DesignerState {
   activeMode: AppMode;
   audioStyle: AudioStyle;
   audioSource: AudioSource;
+  hudLeftFace: ClockFace;
+  hudRightFace: ClockFace;
   libraryPath: string | null;
   recentFiles: string[];
 }
@@ -60,6 +64,8 @@ export interface DesignerActions {
   setActiveMode(mode: AppMode): void;
   setAudioStyle(style: AudioStyle): void;
   setAudioSource(source: AudioSource): void;
+  setHudLeftFace(face: ClockFace): void;
+  setHudRightFace(face: ClockFace): void;
   setLibraryPath(path: string | null): void;
   addRecentFile(name: string): void;
 }
@@ -154,6 +160,8 @@ export function createDesignerStore() {
     activeMode: 'design',
     audioStyle: 'dark-matter',
     audioSource: 'monitor',
+    hudLeftFace: 'tiny-stacked',
+    hudRightFace: 'tiny-stacked',
     libraryPath: null,
     recentFiles: [],
 
@@ -331,6 +339,8 @@ export function createDesignerStore() {
     setActiveMode(mode) { set({ activeMode: mode }); },
     setAudioStyle(style) { set({ audioStyle: style }); },
     setAudioSource(source) { set({ audioSource: source }); },
+    setHudLeftFace(face)   { set({ hudLeftFace: face }); },
+    setHudRightFace(face)  { set({ hudRightFace: face }); },
     setLibraryPath(p) { set({ libraryPath: p }); },
     addRecentFile(name) {
       const { recentFiles } = get();
@@ -354,7 +364,8 @@ const SESSION_KEY = 'dark-matrix-designer';
 type SessionSnapshot = Pick<DesignerState,
   'frames' | 'width' | 'mode' | 'loop' | 'activeFrameIdx' |
   'zoom' | 'activeColor' | 'previewTarget' | 'projectTitle' |
-  'activeMode' | 'audioStyle' | 'audioSource' | 'libraryPath' | 'recentFiles'
+  'activeMode' | 'audioStyle' | 'audioSource' | 'hudLeftFace' | 'hudRightFace' |
+  'libraryPath' | 'recentFiles'
 >;
 
 if (typeof localStorage !== 'undefined') {
@@ -377,6 +388,8 @@ if (typeof localStorage !== 'undefined') {
           ...(s.activeMode !== undefined ? { activeMode: s.activeMode } : {}),
           ...(s.audioStyle !== undefined ? { audioStyle: s.audioStyle } : {}),
           ...(s.audioSource !== undefined ? { audioSource: s.audioSource } : {}),
+          ...(s.hudLeftFace !== undefined ? { hudLeftFace: s.hudLeftFace } : {}),
+          ...(s.hudRightFace !== undefined ? { hudRightFace: s.hudRightFace } : {}),
           ...(s.libraryPath !== undefined ? { libraryPath: s.libraryPath } : {}),
           ...(Array.isArray(s.recentFiles) ? { recentFiles: (s.recentFiles as unknown[]).filter((f): f is string => typeof f === 'string').slice(0, 7) } : {}),
         });
@@ -390,9 +403,9 @@ if (typeof localStorage !== 'undefined') {
     if (_saveTimer) clearTimeout(_saveTimer);
     _saveTimer = setTimeout(() => {
       try {
-        const { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, libraryPath, recentFiles } = state;
+        const { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, hudLeftFace, hudRightFace, libraryPath, recentFiles } = state;
         localStorage.setItem(SESSION_KEY, JSON.stringify(
-          { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, libraryPath, recentFiles } satisfies SessionSnapshot
+          { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, hudLeftFace, hudRightFace, libraryPath, recentFiles } satisfies SessionSnapshot
         ));
       } catch { /* storage full or unavailable */ }
     }, 500);

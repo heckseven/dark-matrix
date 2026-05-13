@@ -15,6 +15,7 @@ import type { AudioSource } from './store.js';
 import { ShortcutDialog } from './components/ui/shortcut-dialog.js';
 import { ModePicker } from './components/ModePicker.js';
 import { AudioPanel } from './components/AudioPanel.js';
+import { HudPanel } from './components/HudPanel.js';
 
 function storeCompat() {
   return { state: designerStore.getState(), loadProject: (p: unknown) => designerStore.getState().loadProject(p) };
@@ -278,7 +279,14 @@ export function App() {
         />
 
         <header ref={headerRef} className="absolute top-0 inset-x-0 z-10 flex items-center gap-4 pl-7 pr-5 py-4" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-          {activeMode === 'audio' ? (
+          {activeMode === 'hud' ? (
+            <>
+              <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
+              <div className="absolute inset-x-0 flex justify-center pointer-events-none">
+                <span className="font-mono text-xs text-foreground">hud</span>
+              </div>
+            </>
+          ) : activeMode === 'audio' ? (
             <>
               <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
               <div className="absolute inset-x-0 flex justify-center pointer-events-none">
@@ -388,7 +396,11 @@ export function App() {
           )}
         </header>
 
-        {activeMode === 'audio' ? (
+        {activeMode === 'hud' ? (
+          <div className="h-full flex">
+            <HudPanel dualModule={dualModule} />
+          </div>
+        ) : activeMode === 'audio' ? (
           <div className="h-full flex">
             <AudioPanel dualModule={dualModule} />
           </div>
@@ -410,7 +422,7 @@ export function App() {
           </div>
         )}
 
-        {activeMode !== 'audio' && <footer ref={footerRef} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+        {activeMode !== 'audio' && activeMode !== 'hud' && <footer ref={footerRef} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
           <div className="flex-1 flex items-center gap-4">
             <span>frame {activeFrameIdx + 1}</span>
             <span>row {cursor.row}</span>
