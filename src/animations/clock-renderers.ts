@@ -279,11 +279,6 @@ function binaryAudio(): ClockRenderer {
         }
         colEnergy[bh] = e / BANDS_PER_COL;
       }
-    } else {
-      const t = Date.now() / 1000;
-      for (let bh = 0; bh < N_BH; bh++) {
-        colEnergy[bh] = 0.45 + 0.4 * Math.sin(t * (0.9 + bh * 0.5) + bh * 1.2);
-      }
     }
 
     for (let bh = 0; bh < N_BH; bh++) {
