@@ -252,12 +252,13 @@ function stretch(): ClockRenderer {
 
 function binaryAudio(): ClockRenderer {
   const BW = 3, BH = 4;
-  const N_BH = 3;             // 9 / BW
-  const N_BV = 8;             // (ROWS - 2) / BH — 1 row padding top + bottom
+  const N_BH = 3;
+  const N_BV = 8;
   const BANDS_PER_COL = 3;
-  const brightness = new Float32Array(N_BH * N_BV);
+  const blockCorrupt = new Float32Array(N_BH * N_BV);
+  const blockAge = new Uint8Array(N_BH * N_BV);
 
-  function bandLevel(mag: number, gain: number, ref: number): number {
+  function bandLvl(mag: number, gain: number, ref: number): number {
     const MIN_DB = -60;
     const m = mag * gain;
     const db = m > 0 ? 20 * Math.log10(m / ref) : MIN_DB;
@@ -267,14 +268,14 @@ function binaryAudio(): ClockRenderer {
   return ({ now, bands, fftSize = 2048, gain = 1.0, side = 'left' }) => {
     const ts = Math.floor(now.getTime() / 1000);
     const frame = createFrame();
+    const ref = fftSize / 2;
 
     const colEnergy = new Float32Array(N_BH);
     if (bands && bands.length > 0) {
-      const ref = fftSize / 2;
       for (let bh = 0; bh < N_BH; bh++) {
         let e = 0;
         for (let b = bh * BANDS_PER_COL; b < (bh + 1) * BANDS_PER_COL; b++) {
-          e += bandLevel(bands[b] ?? 0, gain, ref);
+          e += bandLvl(bands[b] ?? 0, gain, ref);
         }
         colEnergy[bh] = e / BANDS_PER_COL;
       }
@@ -286,24 +287,27 @@ function binaryAudio(): ClockRenderer {
     }
 
     for (let bh = 0; bh < N_BH; bh++) {
-      const e = colEnergy[bh] ?? 0;
+      const energy = colEnergy[bh] ?? 0;
       for (let bv = 0; bv < N_BV; bv++) {
         const bitIdx = bh * N_BV + (N_BV - 1 - bv);
         const bit = (ts >>> bitIdx) & 1;
         const idx = bh * N_BV + bv;
-        if (bit) {
-          const target = 0.35 + e * 0.65;
-          brightness[idx] = (brightness[idx] ?? 0) * 0.35 + target * 0.65;
-        } else {
-          brightness[idx] = (brightness[idx] ?? 0) * 0.55;
+
+        blockAge[idx] = ((blockAge[idx] ?? 0) + 1) % (2 + bv % 5);
+        if (blockAge[idx] === 0) {
+          if (bit === 1 && energy > 0.20 && Math.random() < energy * 0.7) {
+            blockCorrupt[idx] = Math.random();
+          } else {
+            blockCorrupt[idx] = (blockCorrupt[idx] ?? 0) * (bit === 1 ? 0.45 : 0.2);
+          }
         }
-        const level = brightness[idx] ?? 0;
-        if (level > 0.015) {
-          // mirror column order on right module so LSBs stay on the outside
+
+        const corr = blockCorrupt[idx] ?? 0;
+        if (corr > 0.08) {
           const pixelBh = side === 'right' ? (N_BH - 1 - bh) : bh;
           for (let c = pixelBh * BW; c < (pixelBh + 1) * BW; c++) {
             for (let r = 1 + bv * BH; r < 1 + (bv + 1) * BH; r++) {
-              frame[c * ROWS + r] = Math.min(255, Math.round(level * 255));
+              frame[c * ROWS + r] = Math.random() < corr ? 255 : 0;
             }
           }
         }
