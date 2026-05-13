@@ -14,7 +14,7 @@
 
 ## Major modes
 
-- [ ] Audio visualizer mode — multiple visualization styles (eq bars, waveform, radial, etc.); UI panel to browse and select style; live preview in designer and mirrored to modules; source selectable (monitor/mic)
+- [x] Audio visualizer mode — multiple visualization styles (eq bars, waveform, radial, etc.); UI panel to browse and select style; live preview in designer and mirrored to modules; source selectable (monitor/mic)
 - [ ] Clock mode — multiple clock face designs (binary, bar, digit segments, etc.); UI panel to browse faces; live preview in designer and on modules; may be a HUD widget
 - [ ] HUD mode — daemon-side data sources (CPU, memory, network, time via `/proc`); WebSocket push from daemon; HUD web UI mode with widget picker; multiple named configurations saveable and switchable; live preview in designer and on modules
 - [ ] Generative art panel — new tool panel in designer with parameterized generators (noise, reaction-diffusion, CA seeds); writes into frames; save to library

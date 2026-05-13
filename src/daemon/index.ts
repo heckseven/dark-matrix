@@ -24,6 +24,7 @@ import { createAudioEqAnimation, createAudioBandStream } from '../animations/aud
 import type { AudioSource } from '../animations/audio-eq.js';
 import { AUDIO_STYLES } from '../animations/audio-renderers.js';
 import type { AudioStyle } from '../animations/audio-renderers.js';
+import { createClockRenderer, isClockFace } from '../animations/clock-renderers.js';
 import { createGifAnimation } from '../animations/gif.js';
 import type { GifAnimation } from '../animations/gif.js';
 import type { DisplayIntent } from '../lib/dispatcher.js';
@@ -254,6 +255,33 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     return () => { stopped = true; anim?.stop(); };
   }
 
+  function runHudOnModules(): () => void {
+    const { left, right } = currentConfig.modules;
+    let stopped = false;
+
+    const leftFaceName  = currentConfig.hud?.left?.face  ?? 'tiny-stacked';
+    const rightFaceName = currentConfig.hud?.right?.face ?? 'tiny-stacked';
+    const leftRenderer  = createClockRenderer(leftFaceName);
+    const rightRenderer = createClockRenderer(rightFaceName);
+
+    const loop = async () => {
+      while (!stopped) {
+        const now = new Date();
+        const lf = leftRenderer({ now });
+        const rf = rightRenderer({ now });
+        ditherBW(lf, FRAME_COLS, FRAME_ROWS);
+        ditherBW(rf, FRAME_COLS, FRAME_ROWS);
+        try { if (left)  await transport.frameBw(packBW(lf), left);  } catch { /* non-fatal */ }
+        try { if (right) await transport.frameBw(packBW(rf), right); } catch { /* non-fatal */ }
+        const msUntilNext = 1000 - (Date.now() % 1000);
+        await new Promise<void>(r => setTimeout(r, msUntilNext > 50 ? msUntilNext : msUntilNext + 1000));
+      }
+    };
+
+    void loop();
+    return () => { stopped = true; };
+  }
+
   function streamAudioBands(
     source: AudioSource,
     onBands: (ctx: { bands: number[]; fftSize: number; gain: number }) => void,
@@ -421,6 +449,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     if (idleName === 'audio-eq') {
       stopCurrentAnim = runAudioEqOnModules();
+      return;
+    }
+
+    if (idleName === 'hud') {
+      stopCurrentAnim = runHudOnModules();
       return;
     }
 
@@ -716,6 +749,25 @@ export async function startDaemon(): Promise<() => Promise<void>> {
             case 'audio-hardware-stop': {
               stopAnim();
               startIdleTimer();
+              socket.write(JSON.stringify({ ok: true }) + '\n');
+              break;
+            }
+            case 'hud-config': {
+              const m = msg as { cmd: string; leftFace?: string; rightFace?: string };
+              const newHud = { ...currentConfig.hud };
+              if (typeof m.leftFace === 'string') {
+                const face = isClockFace(m.leftFace) ? m.leftFace : 'tiny-stacked';
+                newHud.left = { widget: 'clock', face };
+              }
+              if (typeof m.rightFace === 'string') {
+                const face = isClockFace(m.rightFace) ? m.rightFace : 'tiny-stacked';
+                newHud.right = { widget: 'clock', face };
+              }
+              currentConfig = { ...currentConfig, hud: newHud };
+              if (currentConfig.daemon.idle_animation === 'hud' && !dispatcher.current()) {
+                stopAnim();
+                stopCurrentAnim = runHudOnModules();
+              }
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             }
