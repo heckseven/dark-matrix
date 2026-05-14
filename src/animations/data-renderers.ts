@@ -58,25 +58,24 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
   let netRxCeil = 1 * 1024 * 1024;
   let netTxCeil = 1 * 1024 * 1024;
 
+  function updateCeilings(stats: DataStats): void {
+    if (stats.netRxBps > netRxCeil) netRxCeil = stats.netRxBps * 1.1;
+    else netRxCeil = Math.max(1024 * 1024, netRxCeil * 0.998);
+    if (stats.netTxBps > netTxCeil) netTxCeil = stats.netTxBps * 1.1;
+    else netTxCeil = Math.max(1024 * 1024, netTxCeil * 0.998);
+  }
+
   function metricValue(stats: DataStats, m: DataMetric): number {
     switch (m) {
       case 'cpu':    return stats.cpuPct / 100;
       case 'ram':    return stats.ramPct / 100;
-      case 'net_rx': {
-        if (stats.netRxBps > netRxCeil) netRxCeil = stats.netRxBps * 1.1;
-        else netRxCeil = Math.max(1024 * 1024, netRxCeil * 0.998);
-        return Math.min(1, stats.netRxBps / netRxCeil);
-      }
-      case 'net_tx': {
-        if (stats.netTxBps > netTxCeil) netTxCeil = stats.netTxBps * 1.1;
-        else netTxCeil = Math.max(1024 * 1024, netTxCeil * 0.998);
-        return Math.min(1, stats.netTxBps / netTxCeil);
-      }
+      case 'net_rx': return Math.min(1, stats.netRxBps / netRxCeil);
+      case 'net_tx': return Math.min(1, stats.netTxBps / netTxCeil);
     }
   }
 
   function shiftPush(buf: Float32Array, v: number): void {
-    for (let i = HIST_LEN - 1; i > 0; i--) buf[i] = buf[i - 1]!;
+    for (let i = HIST_LEN - 1; i > 0; i--) buf[i] = buf[i - 1] ?? 0;
     buf[0] = v;
   }
 
@@ -123,6 +122,7 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
         histBL[0] = g2;
         histBR[0] = g3;
       } else {
+        updateCeilings(stats);
         shiftPush(histTL, metricValue(stats, topLeftM));
         shiftPush(histTR, metricValue(stats, topRightM));
         shiftPush(histBL, metricValue(stats, botLeftM));

@@ -39,6 +39,9 @@ function initClockPixels(now: Date): Record<ClockFace, ClockPair> {
 // ── data widget preview ───────────────────────────────────────────────────
 
 const _dataRenderers: Partial<Record<DataStyle, DataRenderer>> = {};
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => { for (const k in _dataRenderers) delete _dataRenderers[k as DataStyle]; });
+}
 
 function getDataRenderer(style: DataStyle): DataRenderer {
   if (!_dataRenderers[style]) _dataRenderers[style] = createDataRenderer({ style });
@@ -92,14 +95,14 @@ function HudCard({
         <div role="group" aria-labelledby={labelId} className="flex gap-1 font-mono text-xs">
           <button
             type="button"
-            aria-label={`L — ${label} left`}
+            aria-label={`${label} — left panel`}
             aria-pressed={activeLeft}
             className={`px-2 py-0.5 border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-1 ${activeLeft ? 'border-white text-white' : 'border-foreground/30 text-foreground/50 hover:text-foreground hover:border-foreground/60'}`}
             onClick={onSelectLeft}
           >L</button>
           <button
             type="button"
-            aria-label={`R — ${label} right`}
+            aria-label={`${label} — right panel`}
             aria-pressed={activeRight}
             className={`px-2 py-0.5 border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-1 ${activeRight ? 'border-white text-white' : 'border-foreground/30 text-foreground/50 hover:text-foreground hover:border-foreground/60'}`}
             onClick={onSelectRight}
