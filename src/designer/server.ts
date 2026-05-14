@@ -732,7 +732,7 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
     dataStatsClients.add(ws);
     if (!stopProcStats) {
       stopProcStats = watchProcStats((stats) => {
-        const msg = JSON.stringify({ type: 'data-stats', ...stats });
+        const msg = JSON.stringify({ type: 'data-stats', cpuPct: stats.cpuPct, ramPct: stats.ramPct, netRxBps: stats.netRxBps, netTxBps: stats.netTxBps });
         for (const client of dataStatsClients) {
           if (client.readyState === 1) client.send(msg);
         }
