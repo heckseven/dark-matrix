@@ -27,17 +27,18 @@ export const DATA_STYLES: { id: DataStyle; label: string }[] = [
 
 // Layout constants
 const ROWS       = 34;
-const HIST_LEN   = 12;
-// Top sections: row 16 = newest (nearest center), row 5 = oldest
+const HIST_LEN   = 17;
+// Top sections: row 16 = newest (nearest center), row 0 = oldest
 const TOP_BASE   = 16;
-// Bottom sections: row 18 = newest, row 29 = oldest
-const BOT_BASE   = 18;
+// Bottom sections: row 17 = newest, row 33 = oldest
+const BOT_BASE   = 17;
 // Column groups (section-relative offset 0–3)
 const LEFT_BASE  = 0;
 const RIGHT_BASE = 5;
 
-// Column offsets for center-fill: 1 pixel expands outward from center pair (1,2)
-const FILL_COLS: readonly number[] = [1, 2, 0, 3];
+// Column offsets for center-fill expanding outward from center pair (1,2)
+const FILL_COLS:          readonly number[] = [1, 2, 0, 3]; // right quadrants
+const FILL_COLS_REFLECTED: readonly number[] = [2, 1, 3, 0]; // left quadrants (horizontal mirror)
 
 export type DataRenderer = {
   update(stats: DataStats): void;
@@ -89,21 +90,21 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
     buf: Float32Array,
     colBase: number,
     top: boolean,
+    reflect: boolean,
   ): void {
+    const fillOrder = reflect ? FILL_COLS_REFLECTED : FILL_COLS;
     for (let i = 0; i < HIST_LEN; i++) {
       const row = top ? TOP_BASE - i : BOT_BASE + i;
       if (row < 0 || row >= ROWS) continue;
       const v = buf[i] ?? 0;
 
       if (style === 'line') {
-        const col = colBase + Math.round(v * 3);
-        f[col * ROWS + row] = 255;
+        const offset = reflect ? 3 - Math.round(v * 3) : Math.round(v * 3);
+        f[(colBase + offset) * ROWS + row] = 255;
       } else {
-        // center-fill: fill 0–4 pixels outward from center pair
         const count = Math.round(v * 4);
         for (let k = 0; k < count; k++) {
-          const col = colBase + (FILL_COLS[k] ?? 0);
-          f[col * ROWS + row] = 255;
+          f[(colBase + (fillOrder[k] ?? 0)) * ROWS + row] = 255;
         }
       }
     }
@@ -118,10 +119,10 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
     },
     render(): Frame {
       const f = createFrame();
-      drawQuadrant(f, histTL, LEFT_BASE,  true);
-      drawQuadrant(f, histTR, RIGHT_BASE, true);
-      drawQuadrant(f, histBL, LEFT_BASE,  false);
-      drawQuadrant(f, histBR, RIGHT_BASE, false);
+      drawQuadrant(f, histTL, LEFT_BASE,  true,  true);
+      drawQuadrant(f, histTR, RIGHT_BASE, true,  false);
+      drawQuadrant(f, histBL, LEFT_BASE,  false, true);
+      drawQuadrant(f, histBR, RIGHT_BASE, false, false);
       return f;
     },
   };
