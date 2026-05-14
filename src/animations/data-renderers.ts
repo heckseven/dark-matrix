@@ -10,7 +10,7 @@ export type DataStats = {
 };
 
 export type DataMetric = 'cpu' | 'ram' | 'net_rx' | 'net_tx';
-export type DataStyle  = 'line' | 'center-fill';
+export type DataStyle  = 'line';
 
 export type DataWidgetConfig = {
   style?:       DataStyle;
@@ -21,8 +21,7 @@ export type DataWidgetConfig = {
 };
 
 export const DATA_STYLES: { id: DataStyle; label: string }[] = [
-  { id: 'line',        label: 'line'   },
-  { id: 'center-fill', label: 'fill'   },
+  { id: 'line', label: 'line' },
 ];
 
 // Layout constants
@@ -36,9 +35,6 @@ const BOT_BASE   = 17;
 const LEFT_BASE  = 0;
 const RIGHT_BASE = 5;
 
-// Column offsets for center-fill expanding outward from center pair (1,2)
-const FILL_COLS:          readonly number[] = [1, 2, 0, 3]; // right quadrants
-const FILL_COLS_REFLECTED: readonly number[] = [2, 1, 3, 0]; // left quadrants (horizontal mirror)
 
 export type DataRenderer = {
   update(stats: DataStats): void;
@@ -46,7 +42,6 @@ export type DataRenderer = {
 };
 
 export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
-  const style:       DataStyle  = cfg.style       ?? 'line';
   const topLeftM:    DataMetric = cfg.topLeft     ?? 'cpu';
   const topRightM:   DataMetric = cfg.topRight    ?? 'ram';
   const botLeftM:    DataMetric = cfg.bottomLeft  ?? 'net_rx';
@@ -92,21 +87,12 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
     top: boolean,
     reflect: boolean,
   ): void {
-    const fillOrder = reflect ? FILL_COLS_REFLECTED : FILL_COLS;
     for (let i = 0; i < HIST_LEN; i++) {
       const row = top ? TOP_BASE - i : BOT_BASE + i;
       if (row < 0 || row >= ROWS) continue;
       const v = buf[i] ?? 0;
-
-      if (style === 'line') {
-        const offset = reflect ? 3 - Math.round(v * 3) : Math.round(v * 3);
-        f[(colBase + offset) * ROWS + row] = 255;
-      } else {
-        const count = Math.round(v * 4);
-        for (let k = 0; k < count; k++) {
-          f[(colBase + (fillOrder[k] ?? 0)) * ROWS + row] = 255;
-        }
-      }
+      const offset = reflect ? 3 - Math.round(v * 3) : Math.round(v * 3);
+      f[(colBase + offset) * ROWS + row] = 255;
     }
   }
 
