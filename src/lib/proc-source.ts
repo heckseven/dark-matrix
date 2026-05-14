@@ -1,23 +1,37 @@
 import fs from 'node:fs/promises';
 
 export type ProcStats = {
-  cpuPct: number;    // 0–100
-  ramPct: number;    // 0–100
-  netRxBps: number;  // bytes/sec
-  netTxBps: number;  // bytes/sec
+  cpuPct: number;      // 0–100
+  ramPct: number;      // 0–100
+  netRxBps: number;    // bytes/sec
+  netTxBps: number;    // bytes/sec
+  cpuCores: number[];  // per-core % usage (0–100), length = logical core count
 };
 
 type CpuRaw = { total: number; idle: number };
 type NetRaw = { rx: bigint; tx: bigint };
 
-async function readCpuRaw(): Promise<CpuRaw> {
+type CpuAllRaw = { agg: CpuRaw; cores: CpuRaw[] };
+
+async function readCpuAllRaw(): Promise<CpuAllRaw> {
   const text = await fs.readFile('/proc/stat', 'utf-8');
-  const parts = (text.split('\n')[0] ?? '').trim().split(/\s+/).slice(1).map(Number);
-  const [user = 0, nice = 0, system = 0, idle = 0, iowait = 0, irq = 0, softirq = 0, steal = 0] = parts;
-  return {
-    total: user + nice + system + idle + iowait + irq + softirq + steal,
-    idle: idle + iowait,
-  };
+  let agg: CpuRaw = { total: 0, idle: 0 };
+  const cores: CpuRaw[] = [];
+  for (const line of text.split('\n')) {
+    const spaceIdx = line.indexOf(' ');
+    if (spaceIdx === -1) continue;
+    const label = line.slice(0, spaceIdx);
+    if (label !== 'cpu' && !/^cpu\d+$/.test(label)) continue;
+    const parts = line.slice(spaceIdx + 1).trim().split(/\s+/).map(Number);
+    const [user=0, nice=0, system=0, idle=0, iowait=0, irq=0, softirq=0, steal=0] = parts;
+    const raw: CpuRaw = {
+      total: user + nice + system + idle + iowait + irq + softirq + steal,
+      idle: idle + iowait,
+    };
+    if (label === 'cpu') agg = raw;
+    else cores.push(raw);
+  }
+  return { agg, cores };
 }
 
 async function readRamPct(): Promise<number> {
@@ -56,8 +70,9 @@ export function watchProcStats(
   opts?: { intervalMs?: number },
 ): () => void {
   const intervalMs = opts?.intervalMs ?? 1000;
-  let prevCpu: CpuRaw | null = null;
-  let prevNet: NetRaw | null = null;
+  let prevAgg:   CpuRaw | null = null;
+  let prevCores: CpuRaw[]      = [];
+  let prevNet:   NetRaw | null = null;
   let prevTime = 0;
   let polling = false;
   let disposed = false;
@@ -67,32 +82,43 @@ export function watchProcStats(
     polling = true;
     try {
       const now = Date.now();
-      const [cpu, ramPct, net] = await Promise.all([readCpuRaw(), readRamPct(), readNetRaw()]);
+      const [{ agg, cores }, ramPct, net] = await Promise.all([readCpuAllRaw(), readRamPct(), readNetRaw()]);
 
-      if (prevCpu === null || prevNet === null) {
-        prevCpu = cpu;
-        prevNet = net;
-        prevTime = now;
+      if (prevAgg === null || prevNet === null) {
+        prevAgg   = agg;
+        prevCores = cores;
+        prevNet   = net;
+        prevTime  = now;
         return;
       }
 
-      const dTotal = cpu.total - prevCpu.total;
-      const dIdle  = cpu.idle  - prevCpu.idle;
+      const dTotal = agg.total - prevAgg.total;
+      const dIdle  = agg.idle  - prevAgg.idle;
       const cpuPct = dTotal > 0 ? ((dTotal - dIdle) / dTotal) * 100 : 0;
+
+      const cpuCores = cores.map((core, i) => {
+        const prev = prevCores[i];
+        if (!prev) return 0;
+        const dt2 = core.total - prev.total;
+        const di  = core.idle  - prev.idle;
+        return dt2 > 0 ? ((dt2 - di) / dt2) * 100 : 0;
+      });
 
       const dt = (now - prevTime) / 1000;
       const netRxBps = dt > 0 ? Number(net.rx - prevNet.rx) / dt : 0;
       const netTxBps = dt > 0 ? Number(net.tx - prevNet.tx) / dt : 0;
 
-      prevCpu = cpu;
-      prevNet = net;
-      prevTime = now;
+      prevAgg   = agg;
+      prevCores = cores;
+      prevNet   = net;
+      prevTime  = now;
 
       onStats({
         cpuPct:   Math.max(0, Math.min(100, cpuPct)),
         ramPct:   Math.max(0, Math.min(100, ramPct)),
         netRxBps: Math.max(0, netRxBps),
         netTxBps: Math.max(0, netTxBps),
+        cpuCores: cpuCores.map(v => Math.max(0, Math.min(100, v))),
       });
     } catch (err) {
       process.stderr.write(`dark-matrix: proc-source: poll failed: ${String(err)}\n`);
