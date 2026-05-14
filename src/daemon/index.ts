@@ -272,8 +272,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     const { left, right } = currentConfig.modules;
     let stopped = false;
 
-    const leftFaceName  = currentConfig.hud?.left?.face  ?? 'tiny-stacked';
-    const rightFaceName = currentConfig.hud?.right?.face ?? 'tiny-stacked';
+    const leftFaceName  = currentConfig.hud?.left?.face  ?? 'elegant';
+    const rightFaceName = currentConfig.hud?.right?.face ?? 'elegant';
     const leftRenderer  = createClockRenderer(leftFaceName);
     const rightRenderer = createClockRenderer(rightFaceName);
 
@@ -811,11 +811,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               const m = msg as { cmd: string; leftFace?: string; rightFace?: string };
               const newHud = { ...currentConfig.hud };
               if (typeof m.leftFace === 'string') {
-                const face = isClockFace(m.leftFace) ? m.leftFace : 'tiny-stacked';
+                const face = isClockFace(m.leftFace) ? m.leftFace : 'elegant';
                 newHud.left = { widget: 'clock', face };
               }
               if (typeof m.rightFace === 'string') {
-                const face = isClockFace(m.rightFace) ? m.rightFace : 'tiny-stacked';
+                const face = isClockFace(m.rightFace) ? m.rightFace : 'elegant';
                 newHud.right = { widget: 'clock', face };
               }
               currentConfig = { ...currentConfig, hud: newHud };

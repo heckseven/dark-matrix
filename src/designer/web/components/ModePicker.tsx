@@ -10,8 +10,8 @@ export type AppMode = 'hud' | 'data' | 'audio' | 'video' | 'ai' | 'runes' | 'gam
 
 export const MODES: { id: AppMode; label: string }[] = [
   { id: 'hud',    label: 'hud' },
-  { id: 'data',   label: 'data' },
   { id: 'audio',  label: 'audio' },
+  { id: 'data',   label: 'data' },
   { id: 'video',  label: 'video' },
   { id: 'ai',     label: 'ai' },
   { id: 'runes',  label: 'runes' },
