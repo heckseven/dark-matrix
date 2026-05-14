@@ -4,6 +4,7 @@ import type { DmxFrame } from '../format.js';
 import type { AppMode } from './components/ModePicker.js';
 import type { AudioStyle } from '../../animations/audio-renderers.js';
 import type { ClockFace } from '../../animations/clock-renderers.js';
+import type { DataStyle } from '../../animations/data-renderers.js';
 
 export type Frame = DmxFrame;
 export type PreviewTarget = 'left' | 'right' | 'both' | 'mirror';
@@ -12,6 +13,7 @@ export type AudioSource = 'monitor' | 'mic';
 export type { AppMode };
 export type { AudioStyle };
 export type { ClockFace };
+export type { DataStyle };
 
 export interface DesignerState {
   frames: Frame[];
@@ -33,6 +35,10 @@ export interface DesignerState {
   audioSource: AudioSource;
   hudLeftFace: ClockFace;
   hudRightFace: ClockFace;
+  hudLeftWidget: 'clock' | 'data';
+  hudRightWidget: 'clock' | 'data';
+  hudLeftDataStyle: DataStyle;
+  hudRightDataStyle: DataStyle;
   libraryPath: string | null;
   recentFiles: string[];
 }
@@ -66,6 +72,8 @@ export interface DesignerActions {
   setAudioSource(source: AudioSource): void;
   setHudLeftFace(face: ClockFace): void;
   setHudRightFace(face: ClockFace): void;
+  setHudLeftWidget(widget: 'clock' | 'data', dataStyle?: DataStyle): void;
+  setHudRightWidget(widget: 'clock' | 'data', dataStyle?: DataStyle): void;
   setLibraryPath(path: string | null): void;
   addRecentFile(name: string): void;
 }
@@ -160,8 +168,12 @@ export function createDesignerStore() {
     activeMode: 'design',
     audioStyle: 'dark-matter',
     audioSource: 'monitor',
-    hudLeftFace: 'tiny-stacked',
-    hudRightFace: 'tiny-stacked',
+    hudLeftFace: 'elegant',
+    hudRightFace: 'elegant',
+    hudLeftWidget: 'clock',
+    hudRightWidget: 'clock',
+    hudLeftDataStyle: 'line',
+    hudRightDataStyle: 'line',
     libraryPath: null,
     recentFiles: [],
 
@@ -341,6 +353,8 @@ export function createDesignerStore() {
     setAudioSource(source) { set({ audioSource: source }); },
     setHudLeftFace(face)   { set({ hudLeftFace: face }); },
     setHudRightFace(face)  { set({ hudRightFace: face }); },
+    setHudLeftWidget(widget, dataStyle)  { set({ hudLeftWidget: widget,  ...(dataStyle ? { hudLeftDataStyle: dataStyle }  : {}) }); },
+    setHudRightWidget(widget, dataStyle) { set({ hudRightWidget: widget, ...(dataStyle ? { hudRightDataStyle: dataStyle } : {}) }); },
     setLibraryPath(p) { set({ libraryPath: p }); },
     addRecentFile(name) {
       const { recentFiles } = get();
@@ -364,7 +378,9 @@ const SESSION_KEY = 'dark-matrix-designer';
 type SessionSnapshot = Pick<DesignerState,
   'frames' | 'width' | 'mode' | 'loop' | 'activeFrameIdx' |
   'zoom' | 'activeColor' | 'previewTarget' | 'projectTitle' |
-  'activeMode' | 'audioStyle' | 'audioSource' | 'hudLeftFace' | 'hudRightFace' |
+  'activeMode' | 'audioStyle' | 'audioSource' |
+  'hudLeftFace' | 'hudRightFace' |
+  'hudLeftWidget' | 'hudRightWidget' | 'hudLeftDataStyle' | 'hudRightDataStyle' |
   'libraryPath' | 'recentFiles'
 >;
 
@@ -390,6 +406,10 @@ if (typeof localStorage !== 'undefined') {
           ...(s.audioSource !== undefined ? { audioSource: s.audioSource } : {}),
           ...(s.hudLeftFace !== undefined ? { hudLeftFace: s.hudLeftFace } : {}),
           ...(s.hudRightFace !== undefined ? { hudRightFace: s.hudRightFace } : {}),
+          ...(s.hudLeftWidget !== undefined ? { hudLeftWidget: s.hudLeftWidget } : {}),
+          ...(s.hudRightWidget !== undefined ? { hudRightWidget: s.hudRightWidget } : {}),
+          ...(s.hudLeftDataStyle !== undefined ? { hudLeftDataStyle: s.hudLeftDataStyle } : {}),
+          ...(s.hudRightDataStyle !== undefined ? { hudRightDataStyle: s.hudRightDataStyle } : {}),
           ...(s.libraryPath !== undefined ? { libraryPath: s.libraryPath } : {}),
           ...(Array.isArray(s.recentFiles) ? { recentFiles: (s.recentFiles as unknown[]).filter((f): f is string => typeof f === 'string').slice(0, 7) } : {}),
         });
@@ -403,9 +423,9 @@ if (typeof localStorage !== 'undefined') {
     if (_saveTimer) clearTimeout(_saveTimer);
     _saveTimer = setTimeout(() => {
       try {
-        const { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, hudLeftFace, hudRightFace, libraryPath, recentFiles } = state;
+        const { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, hudLeftFace, hudRightFace, hudLeftWidget, hudRightWidget, hudLeftDataStyle, hudRightDataStyle, libraryPath, recentFiles } = state;
         localStorage.setItem(SESSION_KEY, JSON.stringify(
-          { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, hudLeftFace, hudRightFace, libraryPath, recentFiles } satisfies SessionSnapshot
+          { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, hudLeftFace, hudRightFace, hudLeftWidget, hudRightWidget, hudLeftDataStyle, hudRightDataStyle, libraryPath, recentFiles } satisfies SessionSnapshot
         ));
       } catch { /* storage full or unavailable */ }
     }, 500);
