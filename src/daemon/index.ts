@@ -25,6 +25,9 @@ import type { AudioSource } from '../animations/audio-eq.js';
 import { AUDIO_STYLES } from '../animations/audio-renderers.js';
 import type { AudioStyle } from '../animations/audio-renderers.js';
 import { createClockRenderer, isClockFace } from '../animations/clock-renderers.js';
+import { createDataRenderer } from '../animations/data-renderers.js';
+import type { DataStyle, DataWidgetConfig } from '../animations/data-renderers.js';
+import { watchProcStats } from '../lib/proc-source.js';
 import { createGifAnimation } from '../animations/gif.js';
 import type { GifAnimation } from '../animations/gif.js';
 import type { DisplayIntent } from '../lib/dispatcher.js';
@@ -268,17 +271,44 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     return () => { stopped = true; anim?.stop(); };
   }
 
+  function hudDataConfig(side: 'left' | 'right'): DataWidgetConfig {
+    const w = side === 'left' ? currentConfig.hud?.left : currentConfig.hud?.right;
+    if (w?.widget !== 'data') return {};
+    const cfg: DataWidgetConfig = {};
+    if (w.style)        cfg.style       = w.style;
+    if (w.top_left)     cfg.topLeft     = w.top_left;
+    if (w.top_right)    cfg.topRight    = w.top_right;
+    if (w.bottom_left)  cfg.bottomLeft  = w.bottom_left;
+    if (w.bottom_right) cfg.bottomRight = w.bottom_right;
+    return cfg;
+  }
+
   function runHudOnModules(): () => void {
     const { left, right } = currentConfig.modules;
     let stopped = false;
 
-    const leftFaceName  = currentConfig.hud?.left?.face  ?? 'elegant';
-    const rightFaceName = currentConfig.hud?.right?.face ?? 'elegant';
-    const leftRenderer  = createClockRenderer(leftFaceName);
-    const rightRenderer = createClockRenderer(rightFaceName);
+    const leftWidgetType  = currentConfig.hud?.left?.widget  ?? 'clock';
+    const rightWidgetType = currentConfig.hud?.right?.widget ?? 'clock';
+
+    // Clock renderers (used when widget = 'clock')
+    const leftClockFace  = currentConfig.hud?.left?.widget  === 'clock' ? (currentConfig.hud.left.face  ?? 'elegant') : 'elegant';
+    const rightClockFace = currentConfig.hud?.right?.widget === 'clock' ? (currentConfig.hud.right.face ?? 'elegant') : 'elegant';
+    const leftClockRenderer  = createClockRenderer(leftClockFace);
+    const rightClockRenderer = createClockRenderer(rightClockFace);
+
+    // Data renderers (used when widget = 'data')
+    const leftDataRenderer  = leftWidgetType  === 'data' ? createDataRenderer(hudDataConfig('left'))  : null;
+    const rightDataRenderer = rightWidgetType === 'data' ? createDataRenderer(hudDataConfig('right')) : null;
+    const needsProc = leftWidgetType === 'data' || rightWidgetType === 'data';
+    const stopProc = needsProc
+      ? watchProcStats((stats) => {
+          leftDataRenderer?.update(stats);
+          rightDataRenderer?.update(stats);
+        })
+      : null;
 
     let audioCtx: { bands: number[]; fftSize: number; gain: number } | null = null;
-    const needsAudio = leftFaceName === 'binary-audio' || rightFaceName === 'binary-audio';
+    const needsAudio = leftClockFace === 'binary-audio' || rightClockFace === 'binary-audio';
     if (needsAudio) hudAudioStreaming = true;
     const stopAudio = needsAudio
       ? streamAudioBands(hudAudioSource, (ctx) => { audioCtx = ctx; }, () => { audioCtx = null; })
@@ -287,11 +317,27 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     const loop = async () => {
       while (!stopped) {
         const now = new Date();
-        const base = audioCtx ? { now, ...audioCtx } : { now };
-        const lf = leftRenderer({ ...base, side: 'left' });
-        const rf = rightRenderer({ ...base, side: 'right' });
-        ditherBW(lf, FRAME_COLS, FRAME_ROWS);
-        ditherBW(rf, FRAME_COLS, FRAME_ROWS);
+        let lf: Frame;
+        let rf: Frame;
+
+        if (leftWidgetType === 'data' && leftDataRenderer) {
+          lf = leftDataRenderer.render();
+          ditherBW(lf, FRAME_COLS, FRAME_ROWS);
+        } else {
+          const base = audioCtx ? { now, ...audioCtx } : { now };
+          lf = leftClockRenderer({ ...base, side: 'left' });
+          ditherBW(lf, FRAME_COLS, FRAME_ROWS);
+        }
+
+        if (rightWidgetType === 'data' && rightDataRenderer) {
+          rf = rightDataRenderer.render();
+          ditherBW(rf, FRAME_COLS, FRAME_ROWS);
+        } else {
+          const base = audioCtx ? { now, ...audioCtx } : { now };
+          rf = rightClockRenderer({ ...base, side: 'right' });
+          ditherBW(rf, FRAME_COLS, FRAME_ROWS);
+        }
+
         try { if (left)  await transport.frameBw(packBW(lf), left);  } catch { /* non-fatal */ }
         try { if (right) await transport.frameBw(packBW(rf), right); } catch { /* non-fatal */ }
         await new Promise<void>(r => setTimeout(r, 100));
@@ -299,7 +345,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     };
 
     void loop();
-    return () => { stopped = true; stopAudio?.(); hudAudioStreaming = false; };
+    return () => { stopped = true; stopAudio?.(); stopProc?.(); hudAudioStreaming = false; };
   }
 
   function streamAudioBands(
@@ -808,13 +854,19 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               break;
             }
             case 'hud-config': {
-              const m = msg as { cmd: string; leftFace?: string; rightFace?: string };
+              const m = msg as { cmd: string; leftFace?: string; leftWidget?: string; leftDataStyle?: string; rightFace?: string; rightWidget?: string; rightDataStyle?: string };
               const newHud = { ...currentConfig.hud };
-              if (typeof m.leftFace === 'string') {
+              if (m.leftWidget === 'data') {
+                const style = (m.leftDataStyle === 'line' || m.leftDataStyle === 'center-fill') ? m.leftDataStyle : undefined;
+                newHud.left = { widget: 'data', ...(style ? { style } : {}) };
+              } else if (typeof m.leftFace === 'string') {
                 const face = isClockFace(m.leftFace) ? m.leftFace : 'elegant';
                 newHud.left = { widget: 'clock', face };
               }
-              if (typeof m.rightFace === 'string') {
+              if (m.rightWidget === 'data') {
+                const style = (m.rightDataStyle === 'line' || m.rightDataStyle === 'center-fill') ? m.rightDataStyle : undefined;
+                newHud.right = { widget: 'data', ...(style ? { style } : {}) };
+              } else if (typeof m.rightFace === 'string') {
                 const face = isClockFace(m.rightFace) ? m.rightFace : 'elegant';
                 newHud.right = { widget: 'clock', face };
               }

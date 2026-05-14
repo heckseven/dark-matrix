@@ -36,8 +36,14 @@ const ConfigSchema = z.object({
     idle_eq_source: z.enum(['monitor', 'mic']).optional(),
   }),
   hud: z.object({
-    left:  z.object({ widget: z.enum(['clock']), face: z.enum(['binary-audio', 'elegant', 'stretch', 'analogue', 'binary-blocks', 'binary-tall', 'binary-diamond']) }).optional(),
-    right: z.object({ widget: z.enum(['clock']), face: z.enum(['binary-audio', 'elegant', 'stretch', 'analogue', 'binary-blocks', 'binary-tall', 'binary-diamond']) }).optional(),
+    left:  z.discriminatedUnion('widget', [
+      z.object({ widget: z.literal('clock'), face: z.enum(['binary-audio', 'elegant', 'stretch', 'analogue', 'binary-blocks', 'binary-tall', 'binary-diamond']) }),
+      z.object({ widget: z.literal('data'), style: z.enum(['line', 'center-fill']).optional(), top_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), top_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional() }),
+    ]).optional(),
+    right: z.discriminatedUnion('widget', [
+      z.object({ widget: z.literal('clock'), face: z.enum(['binary-audio', 'elegant', 'stretch', 'analogue', 'binary-blocks', 'binary-tall', 'binary-diamond']) }),
+      z.object({ widget: z.literal('data'), style: z.enum(['line', 'center-fill']).optional(), top_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), top_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional() }),
+    ]).optional(),
   }).optional(),
 });
 

@@ -11,6 +11,7 @@ import { parseProject, frameToBase64 } from './format.js';
 import type { DmxProject } from './format.js';
 import { sendToDaemon, PersistentDaemonClient, daemonSocketPath } from '../lib/daemon-client.js';
 import { AUDIO_STYLES } from '../animations/audio-renderers.js';
+import { watchProcStats } from '../lib/proc-source.js';
 
 const require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -723,13 +724,39 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
   let audioOwnerWs: import('ws').WebSocket | null = null;
   let hudOwnerWs:   import('ws').WebSocket | null = null;
 
+  // Shared proc-stats broadcaster — starts on first subscriber, stops on last
+  const dataStatsClients = new Set<import('ws').WebSocket>();
+  let stopProcStats: (() => void) | null = null;
+
+  function startDataStats(ws: import('ws').WebSocket): void {
+    dataStatsClients.add(ws);
+    if (!stopProcStats) {
+      stopProcStats = watchProcStats((stats) => {
+        const msg = JSON.stringify({ type: 'data-stats', ...stats });
+        for (const client of dataStatsClients) {
+          if (client.readyState === 1) client.send(msg);
+        }
+      });
+    }
+  }
+
+  function stopDataStats(ws: import('ws').WebSocket): void {
+    dataStatsClients.delete(ws);
+    if (dataStatsClients.size === 0 && stopProcStats) {
+      stopProcStats();
+      stopProcStats = null;
+    }
+  }
+
   wss.on('connection', (ws: import('ws').WebSocket) => {
     const previewClient = new PersistentDaemonClient();
     let audioStream: net.Socket | null = null;
+    let dataStatsActive = false;
     ws.send(JSON.stringify({ type: 'connected' }));
     ws.on('close', () => {
       previewClient.destroy();
       audioStream?.destroy();
+      if (dataStatsActive) stopDataStats(ws);
       if (audioOwnerWs === ws) {
         audioOwnerWs = null;
         sendToDaemon({ cmd: 'audio-hardware-stop' }).catch(() => {});
@@ -804,16 +831,30 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
           audioOwnerWs = null;
           sendToDaemon({ cmd: 'audio-hardware-stop' }).catch(() => {});
         }
+      } else if (type === 'data-stats-start') {
+        if (!dataStatsActive) { dataStatsActive = true; startDataStats(ws); }
+      } else if (type === 'data-stats-stop') {
+        if (dataStatsActive) { dataStatsActive = false; stopDataStats(ws); }
       } else if (type === 'hud-mode-start') {
         hudOwnerWs = ws;
-        const leftFace  = typeof msg['leftFace']  === 'string' ? msg['leftFace']  : undefined;
-        const rightFace = typeof msg['rightFace'] === 'string' ? msg['rightFace'] : undefined;
-        if (leftFace || rightFace) sendToDaemon({ cmd: 'hud-config', leftFace, rightFace }).catch(() => {});
+        const leftFace       = typeof msg['leftFace']       === 'string' ? msg['leftFace']       : undefined;
+        const leftWidget     = typeof msg['leftWidget']     === 'string' ? msg['leftWidget']     : undefined;
+        const leftDataStyle  = typeof msg['leftDataStyle']  === 'string' ? msg['leftDataStyle']  : undefined;
+        const rightFace      = typeof msg['rightFace']      === 'string' ? msg['rightFace']      : undefined;
+        const rightWidget    = typeof msg['rightWidget']    === 'string' ? msg['rightWidget']    : undefined;
+        const rightDataStyle = typeof msg['rightDataStyle'] === 'string' ? msg['rightDataStyle'] : undefined;
+        if (leftFace || leftWidget || rightFace || rightWidget) {
+          sendToDaemon({ cmd: 'hud-config', leftFace, leftWidget, leftDataStyle, rightFace, rightWidget, rightDataStyle }).catch(() => {});
+        }
         sendToDaemon({ cmd: 'hud-hardware-start' }).catch(() => {});
       } else if (type === 'hud-config') {
-        const leftFace  = typeof msg['leftFace']  === 'string' ? msg['leftFace']  : undefined;
-        const rightFace = typeof msg['rightFace'] === 'string' ? msg['rightFace'] : undefined;
-        sendToDaemon({ cmd: 'hud-config', leftFace, rightFace }).catch(() => {});
+        const leftFace       = typeof msg['leftFace']       === 'string' ? msg['leftFace']       : undefined;
+        const leftWidget     = typeof msg['leftWidget']     === 'string' ? msg['leftWidget']     : undefined;
+        const leftDataStyle  = typeof msg['leftDataStyle']  === 'string' ? msg['leftDataStyle']  : undefined;
+        const rightFace      = typeof msg['rightFace']      === 'string' ? msg['rightFace']      : undefined;
+        const rightWidget    = typeof msg['rightWidget']    === 'string' ? msg['rightWidget']    : undefined;
+        const rightDataStyle = typeof msg['rightDataStyle'] === 'string' ? msg['rightDataStyle'] : undefined;
+        sendToDaemon({ cmd: 'hud-config', leftFace, leftWidget, leftDataStyle, rightFace, rightWidget, rightDataStyle }).catch(() => {});
       }
     });
   });
