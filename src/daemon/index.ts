@@ -857,14 +857,14 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               const m = msg as { cmd: string; leftFace?: string; leftWidget?: string; leftDataStyle?: string; rightFace?: string; rightWidget?: string; rightDataStyle?: string };
               const newHud = { ...currentConfig.hud };
               if (m.leftWidget === 'data') {
-                const style = (m.leftDataStyle === 'line' || m.leftDataStyle === 'center-fill') ? m.leftDataStyle : undefined;
+                const style = m.leftDataStyle === 'line' ? m.leftDataStyle : undefined;
                 newHud.left = { widget: 'data', ...(style ? { style } : {}) };
               } else if (typeof m.leftFace === 'string') {
                 const face = isClockFace(m.leftFace) ? m.leftFace : 'elegant';
                 newHud.left = { widget: 'clock', face };
               }
               if (m.rightWidget === 'data') {
-                const style = (m.rightDataStyle === 'line' || m.rightDataStyle === 'center-fill') ? m.rightDataStyle : undefined;
+                const style = m.rightDataStyle === 'line' ? m.rightDataStyle : undefined;
                 newHud.right = { widget: 'data', ...(style ? { style } : {}) };
               } else if (typeof m.rightFace === 'string') {
                 const face = isClockFace(m.rightFace) ? m.rightFace : 'elegant';
