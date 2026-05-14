@@ -1,16 +1,16 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type ClockFace = 'tiny-stacked' | 'binary' | 'bars' | 'elegant' | 'stretch' | 'binary-audio' | 'analogue';
+export type ClockFace = 'elegant' | 'stretch' | 'binary-audio' | 'analogue' | 'binary-blocks' | 'binary-tall' | 'binary-diamond';
 
 export const CLOCK_FACES: { id: ClockFace; label: string }[] = [
-  { id: 'tiny-stacked',  label: 'stacked' },
-  { id: 'binary',        label: 'binary' },
-  { id: 'binary-audio',  label: 'stack' },
-  { id: 'bars',          label: 'bars' },
-  { id: 'elegant',       label: 'elegant' },
-  { id: 'stretch',       label: 'stretch' },
-  { id: 'analogue',      label: 'watch' },
+  { id: 'binary-audio',   label: 'stack'    },
+  { id: 'elegant',        label: 'elegant'  },
+  { id: 'stretch',        label: 'stretch'  },
+  { id: 'analogue',       label: 'analogue' },
+  { id: 'binary-blocks',  label: 'blocks'   },
+  { id: 'binary-tall',    label: 'signal'   },
+  { id: 'binary-diamond', label: 'struct'   },
 ];
 
 export type ClockCtx = { now: Date; bands?: number[]; fftSize?: number; gain?: number; side?: 'left' | 'right' };
@@ -19,95 +19,6 @@ export type ClockRenderer = (ctx: ClockCtx) => Frame;
 const COLS = 9;
 const ROWS = 34;
 
-const DIGITS: readonly number[][] = [
-  [3,5,5,5,6], // 0
-  [2,6,2,2,7], // 1
-  [6,1,2,4,7], // 2
-  [6,1,3,1,6], // 3
-  [5,5,7,1,1], // 4
-  [7,4,6,1,6], // 5
-  [3,4,6,5,2], // 6
-  [7,1,2,2,2], // 7
-  [2,5,2,5,2], // 8
-  [2,5,3,1,6], // 9
-];
-
-function drawDigit(frame: Frame, digit: number, startCol: number, startRow: number): void {
-  const glyphRows = DIGITS[digit];
-  if (!glyphRows) return;
-  for (let r = 0; r < 5; r++) {
-    const bits = glyphRows[r] ?? 0;
-    for (let c = 0; c < 3; c++) {
-      if (bits & (1 << (2 - c))) {
-        const fc = startCol + c;
-        const fr = startRow + r;
-        if (fc >= 0 && fc < COLS && fr >= 0 && fr < ROWS)
-          frame[fc * ROWS + fr] = 255;
-      }
-    }
-  }
-}
-
-function tinyStacked(): ClockRenderer {
-  return ({ now }) => {
-    const h = now.getHours();
-    const m = now.getMinutes();
-    const s = now.getSeconds();
-    const frame = createFrame();
-    drawDigit(frame, Math.floor(h / 10), 1, 3);
-    drawDigit(frame, h % 10, 5, 3);
-    frame[4 * ROWS + 9]  = 255;
-    frame[4 * ROWS + 11] = 255;
-    drawDigit(frame, Math.floor(m / 10), 1, 13);
-    drawDigit(frame, m % 10, 5, 13);
-    frame[4 * ROWS + 19] = 255;
-    frame[4 * ROWS + 21] = 255;
-    drawDigit(frame, Math.floor(s / 10), 1, 23);
-    drawDigit(frame, s % 10, 5, 23);
-    return frame;
-  };
-}
-
-function binary(): ClockRenderer {
-  return ({ now }) => {
-    const h = now.getHours();
-    const m = now.getMinutes();
-    const s = now.getSeconds();
-    const frame = createFrame();
-    for (let b = 0; b < 5; b++) {
-      if (h & (1 << (4 - b))) frame[(b + 2) * ROWS + 8]  = 255;
-    }
-    for (let b = 0; b < 6; b++) {
-      if (m & (1 << (5 - b))) frame[(b + 2) * ROWS + 17] = 255;
-    }
-    for (let b = 0; b < 6; b++) {
-      if (s & (1 << (5 - b))) frame[(b + 2) * ROWS + 26] = 255;
-    }
-    return frame;
-  };
-}
-
-function bars(): ClockRenderer {
-  return ({ now }) => {
-    const h = now.getHours();
-    const m = now.getMinutes();
-    const s = now.getSeconds();
-    const frame = createFrame();
-    const hHeight = Math.round((h / 24) * ROWS);
-    const mHeight = Math.round((m / 60) * ROWS);
-    const sHeight = Math.round((s / 60) * ROWS);
-    for (let c = 0; c <= 1; c++)
-      for (let r = ROWS - hHeight; r < ROWS; r++)
-        frame[c * ROWS + r] = 255;
-    for (let c = 3; c <= 5; c++)
-      for (let r = ROWS - mHeight; r < ROWS; r++)
-        frame[c * ROWS + r] = 255;
-    for (let c = 7; c <= 8; c++)
-      for (let r = ROWS - sHeight; r < ROWS; r++)
-        frame[c * ROWS + r] = 255;
-    return frame;
-  };
-}
 
 // Pixel bitmasks for the elegant font (9 cols wide, cols 0-8, 5 rows tall).
 // Each number is a column bitmask: bit c = 1 → pixel at column c is set.
@@ -366,14 +277,138 @@ function analogue(): ClockRenderer {
   };
 }
 
+function flipH(frame: Frame): Frame {
+  const out = createFrame();
+  for (let c = 0; c < COLS; c++) {
+    const src = (COLS - 1 - c) * ROWS;
+    const dst = c * ROWS;
+    for (let r = 0; r < ROWS; r++) out[dst + r] = frame[src + r] ?? 0;
+  }
+  return out;
+}
+
+// Frame 1: two 2-wide column groups, 2×2 pixel blocks — H left, M right
+function binaryBlocks(): ClockRenderer {
+  // 17 bits (H:5 + M:6 + S:6) in two column groups, reading L→R T→B
+  // 9 row positions × (2 tall + 1 gap) = 26 rows; offset 4 centers in 34 rows
+  const LEFT_COLS  = [2, 3] as const;
+  const RIGHT_COLS = [5, 6] as const;
+  const TOP_OFFSET = 4;
+
+  function paintBlock(frame: Frame, cols: readonly number[], topRow: number): void {
+    for (const c of cols) {
+      for (let r = topRow; r < topRow + 2 && r < ROWS; r++) frame[c * ROWS + r] = 255;
+    }
+  }
+
+  return ({ now, side }) => {
+    const h = now.getHours();
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+    const frame = createFrame();
+
+    const bits: number[] = [];
+    for (let b = 4; b >= 0; b--) bits.push((h >> b) & 1);
+    for (let b = 5; b >= 0; b--) bits.push((m >> b) & 1);
+    for (let b = 5; b >= 0; b--) bits.push((s >> b) & 1);
+
+    for (let i = 0; i < bits.length; i++) {
+      if (!bits[i]) continue;
+      paintBlock(
+        frame,
+        (i & 1) === 0 ? LEFT_COLS : RIGHT_COLS,
+        TOP_OFFSET + Math.floor(i / 2) * 3,
+      );
+    }
+    return side === 'right' ? flipH(frame) : frame;
+  };
+}
+
+// Frame 4: H/M/S/deciseconds in cols 1,3,5,7; 3-row-tall bits, 6 positions, empty bottom
+function binaryTall(): ClockRenderer {
+  const BIT_COLS = [1, 3, 5, 7] as const;
+
+  function paintBit(frame: Frame, col: number, pos: number): void {
+    const top = 3 + pos * 5; // 3 rows on, 2 gap; offset 3 centers 28-row content in 34 rows
+    for (let r = top; r < top + 3 && r < ROWS; r++) frame[col * ROWS + r] = 255;
+  }
+
+  return ({ now, side }) => {
+    const h  = now.getHours();
+    const m  = now.getMinutes();
+    const s  = now.getSeconds();
+    const ds = Math.floor(now.getMilliseconds() / 100);
+    const frame = createFrame();
+    // Hours: 5 bits at positions 1–5 (position 0 always unused)
+    for (let b = 0; b < 5; b++) {
+      if (h & (1 << (4 - b))) paintBit(frame, BIT_COLS[0]!, b + 1);
+    }
+    // Minutes: 6 bits at positions 0–5
+    for (let b = 0; b < 6; b++) {
+      if (m & (1 << (5 - b))) paintBit(frame, BIT_COLS[1]!, b);
+    }
+    // Seconds: 6 bits at positions 0–5
+    for (let b = 0; b < 6; b++) {
+      if (s & (1 << (5 - b))) paintBit(frame, BIT_COLS[2]!, b);
+    }
+    // Deciseconds 0–9: 4 bits at positions 2–5
+    for (let b = 0; b < 4; b++) {
+      if (ds & (1 << (3 - b))) paintBit(frame, BIT_COLS[3]!, b + 2);
+    }
+    return side === 'right' ? flipH(frame) : frame;
+  };
+}
+
+// Frame 2: X/diamond shapes — shared base + three seconds/movement variants
+// Left side = hours (12h, 4 bits), right side = minutes/4 (4 bits, ~4-min resolution)
+function drawDiamondShape(frame: Frame, startRow: number, filled: boolean, leftSide: boolean): void {
+  const edgeCols = leftSide ? [1, 2, 3] as const : [7, 6, 5] as const;
+  const fillFrom  = leftSide ? 1 : 7;
+
+  function paintRow(r: number, edgeCol: number): void {
+    if (r >= ROWS) return;
+    if (filled) {
+      const c0 = Math.min(fillFrom, edgeCol), c1 = Math.max(fillFrom, edgeCol);
+      for (let c = c0; c <= c1; c++) frame[c * ROWS + r] = 255;
+    } else {
+      frame[edgeCol * ROWS + r] = 255;
+    }
+  }
+
+  for (let i = 0; i < 3; i++) {
+    paintRow(startRow + i + 1, edgeCols[i]!);
+    paintRow(startRow + i + 5, edgeCols[2 - i]!);
+  }
+}
+
+function drawDiamondBase(frame: Frame, h: number, m: number): void {
+  const mBits = m >> 2;
+  for (let i = 0; i < 4; i++) {
+    drawDiamondShape(frame, i * 8, ((h     >> (3 - i)) & 1) === 1, true);
+    drawDiamondShape(frame, i * 8, ((mBits >> (3 - i)) & 1) === 1, false);
+  }
+}
+
+// Pixel bounces col 4 between row 1 (1 from top) and row 31 (2 from bottom), 1 row/s
+// Period = 60 s: t=0→row 1, t=30→row 31, t=59→row 2
+function binaryDiamond(): ClockRenderer {
+  return ({ now, side }) => {
+    const frame = createFrame();
+    drawDiamondBase(frame, now.getHours() % 12, now.getMinutes());
+    const t = Math.floor(now.getTime() / 1000) % 60;
+    frame[4 * ROWS + (t <= 30 ? 1 + t : 61 - t)] = 255;
+    return side === 'right' ? flipH(frame) : frame;
+  };
+}
+
 const FACTORIES: Record<ClockFace, () => ClockRenderer> = {
-  'tiny-stacked':  tinyStacked,
-  'binary':        binary,
-  'binary-audio':  binaryAudio,
-  'bars':          bars,
-  'elegant':       elegant,
-  'stretch':       stretch,
-  'analogue':      analogue,
+  'binary-audio':   binaryAudio,
+  'elegant':        elegant,
+  'stretch':        stretch,
+  'analogue':       analogue,
+  'binary-blocks':  binaryBlocks,
+  'binary-tall':    binaryTall,
+  'binary-diamond': binaryDiamond,
 };
 
 export function createClockRenderer(face: ClockFace): ClockRenderer {

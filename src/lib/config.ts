@@ -36,8 +36,8 @@ const ConfigSchema = z.object({
     idle_eq_source: z.enum(['monitor', 'mic']).optional(),
   }),
   hud: z.object({
-    left:  z.object({ widget: z.enum(['clock']), face: z.enum(['tiny-stacked', 'binary', 'binary-audio', 'bars', 'elegant', 'stretch', 'analogue']) }).optional(),
-    right: z.object({ widget: z.enum(['clock']), face: z.enum(['tiny-stacked', 'binary', 'binary-audio', 'bars', 'elegant', 'stretch', 'analogue']) }).optional(),
+    left:  z.object({ widget: z.enum(['clock']), face: z.enum(['binary-audio', 'elegant', 'stretch', 'analogue', 'binary-blocks', 'binary-tall', 'binary-diamond']) }).optional(),
+    right: z.object({ widget: z.enum(['clock']), face: z.enum(['binary-audio', 'elegant', 'stretch', 'analogue', 'binary-blocks', 'binary-tall', 'binary-diamond']) }).optional(),
   }).optional(),
 });
 
