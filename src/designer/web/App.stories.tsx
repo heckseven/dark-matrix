@@ -60,7 +60,7 @@ function AppStory({ mode, frameCount, isPlaying, zoom, previewTarget }: AppStory
 AppStory.displayName = 'App';
 
 const meta = {
-  title: 'App',
+  title: 'App/Design',
   component: AppStory,
   parameters: { layout: 'fullscreen' },
   argTypes: {
@@ -93,14 +93,6 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
-
-/** Initial launch state — mode picker full-screen, no mode selected yet. */
-export const Launcher: Story = {
-  render: () => {
-    useEffect(() => { designerStore.getState().setActiveMode(null); }, []);
-    return <AppStory mode="bw" frameCount={1} isPlaying={false} zoom={1} previewTarget="left" />;
-  },
-};
 
 /** Default state: single blank frame, BW mode. */
 export const Playground: Story = {};
