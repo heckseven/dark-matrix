@@ -18,4 +18,5 @@ export type HudPresetClient = {
   left: HudWidget;
   right: HudWidget;
   triggers?: HudTrigger[];
+  match?: 'all' | 'any';
 };

@@ -4,6 +4,8 @@ import type { HudTrigger } from '../types/hud-preset.js';
 export type TriggerEditorProps = {
   triggers: HudTrigger[];
   onChange: (triggers: HudTrigger[]) => void;
+  match?: 'all' | 'any';
+  onMatchChange?: (match: 'all' | 'any') => void;
 };
 
 const TIME_RE = /^\d{2}:\d{2}$/;
@@ -221,7 +223,7 @@ function TriggerRow({ trigger, onUpdate, onDelete }: TriggerRowProps) {
 
 // ── main component ─────────────────────────────────────────────────────────
 
-export function TriggerEditor({ triggers, onChange }: TriggerEditorProps) {
+export function TriggerEditor({ triggers, onChange, match = 'all', onMatchChange }: TriggerEditorProps) {
   const [expanded, setExpanded] = useState(true);
   const [picking, setPicking] = useState(false);
 
@@ -255,6 +257,22 @@ export function TriggerEditor({ triggers, onChange }: TriggerEditorProps) {
 
       {expanded && (
         <div className="flex flex-col gap-0 mt-1">
+          {/* match mode toggle — only shown with 2+ triggers */}
+          {triggers.length >= 2 && onMatchChange && (
+            <div className="flex items-center gap-1 mb-1">
+              <span className="font-mono text-xs text-foreground/40">match</span>
+              {(['all', 'any'] as const).map(m => (
+                <button
+                  key={m}
+                  type="button"
+                  className={`font-mono text-xs px-1.5 py-0.5 border transition-colors ${match === m ? 'border-foreground text-foreground' : 'border-foreground/20 text-foreground/40 hover:text-foreground hover:border-foreground/50'}`}
+                  onClick={() => onMatchChange(m)}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          )}
           {/* Trigger list */}
           {triggers.map((t, i) => (
             <TriggerRow
