@@ -551,6 +551,21 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
       return;
     }
 
+    // Test notification
+    if (url === '/api/test-notification' && method === 'POST') {
+      try {
+        const body = await readBody(req);
+        const { appName, summary, bodyText } = JSON.parse(body) as { appName?: string; summary?: string; bodyText?: string };
+        const reply = await sendToDaemon({ cmd: 'notify-test', appName, summary, body: bodyText }) as { ok: boolean; action?: string };
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, action: reply.action }));
+      } catch {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'daemon unavailable' }));
+      }
+      return;
+    }
+
     // Library list
     if (url === '/api/library' && method === 'GET') {
       try {
