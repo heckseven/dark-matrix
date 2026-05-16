@@ -231,7 +231,8 @@ function PresetCard({
           <div className="flex">
             <Button
               variant="ghost"
-              aria-label="Duplicate preset"
+              aria-label="Clone preset"
+              tooltip="Clone preset"
               onClick={e => { e.stopPropagation(); onDuplicate(); }}
             >
               ⧉

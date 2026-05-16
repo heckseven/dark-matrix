@@ -176,10 +176,12 @@ export function HudPanel({ dualModule = false, topPad = 0 }: { dualModule?: bool
             debouncedSave();
           }}
           onDuplicate={(name) => {
-            const preset = hudPresets.find(p => p.name === name);
-            if (!preset) return;
-            const copy: HudPresetClient = { ...preset, name: `${preset.name} copy` };
-            designerStore.getState().createPreset(copy);
+            const state = designerStore.getState();
+            const idx = state.hudPresets.findIndex(p => p.name === name);
+            if (idx === -1) return;
+            const src = state.hudPresets[idx]!;
+            const copy: HudPresetClient = { ...src, name: `${src.name} copy` };
+            state.insertPreset(copy, idx);
             debouncedSave();
           }}
           onRename={(old, next) => {
