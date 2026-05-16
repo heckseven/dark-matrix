@@ -41,6 +41,7 @@ const meta = {
     onDelete: fn(),
     onDuplicate: fn(),
     onRename: fn(),
+    onMove: fn(),
   },
 } satisfies Meta<typeof PresetList>;
 
