@@ -183,13 +183,14 @@ export function FrameStrip({ topPadding = 0, bottomPadding = 0 }: { topPadding?:
     let dir: 'up' | 'down' | null = null;
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
+    const node = el;
     function setDir(next: 'up' | 'down' | null) {
       if (next === dir) return;
       dir = next;
       if (intervalId !== null) { clearInterval(intervalId); intervalId = null; }
       if (next !== null) {
         intervalId = setInterval(
-          () => el.scrollBy({ top: next === 'up' ? -SCROLL_SPEED : SCROLL_SPEED }),
+          () => node.scrollBy({ top: next === 'up' ? -SCROLL_SPEED : SCROLL_SPEED }),
           SCROLL_TICK,
         );
       }
@@ -197,7 +198,7 @@ export function FrameStrip({ topPadding = 0, bottomPadding = 0 }: { topPadding?:
 
     function onDragOver(e: DragEvent) {
       e.preventDefault();
-      const rect = el.getBoundingClientRect();
+      const rect = node.getBoundingClientRect();
       const y = e.clientY - rect.top;
       if (y < SCROLL_ZONE) setDir('up');
       else if (y > rect.height - SCROLL_ZONE) setDir('down');
@@ -206,13 +207,13 @@ export function FrameStrip({ topPadding = 0, bottomPadding = 0 }: { topPadding?:
 
     function stop() { setDir(null); }
 
-    el.addEventListener('dragover', onDragOver);
+    node.addEventListener('dragover', onDragOver);
     document.addEventListener('dragend', stop);
     document.addEventListener('drop', stop);
 
     return () => {
       stop();
-      el.removeEventListener('dragover', onDragOver);
+      node.removeEventListener('dragover', onDragOver);
       document.removeEventListener('dragend', stop);
       document.removeEventListener('drop', stop);
     };

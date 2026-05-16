@@ -89,7 +89,7 @@ export function ScrubInput({
             onChange(clamp(value + (e.key === 'ArrowUp' ? step : -step)));
           }
         }}
-        suffix={suffix}
+        {...(suffix !== undefined ? { suffix } : {})}
         className={className}
         expandedClassName={expandedClassName ?? className}
         style={{ pointerEvents: editing ? 'auto' : 'none', cursor: editing ? 'text' : 'ew-resize' }}

@@ -452,7 +452,7 @@ export function App() {
             <div className="flex items-center gap-2">
               <Button variant="ghost" aria-label="Zoom out" disabled={zoom <= ZOOM_STEPS[0]} onClick={() => designerStore.getState().setZoom(stepZoom(designerStore.getState().zoom, -1))}>-</Button>
               <Text as="span" size="xs">{zoom * 100}%</Text>
-              <Button variant="ghost" aria-label="Zoom in" disabled={zoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]} onClick={() => designerStore.getState().setZoom(stepZoom(designerStore.getState().zoom, 1))}>+</Button>
+              <Button variant="ghost" aria-label="Zoom in" disabled={zoom >= (ZOOM_STEPS.at(-1) ?? Infinity)} onClick={() => designerStore.getState().setZoom(stepZoom(designerStore.getState().zoom, 1))}>+</Button>
             </div>
             <Button variant="ghost" tooltip="shortcuts" onClick={() => setShortcutsOpen(true)} aria-label="Keyboard shortcuts"><span aria-hidden="true">???</span></Button>
           </div>
