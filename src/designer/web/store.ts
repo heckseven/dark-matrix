@@ -41,8 +41,8 @@ export interface DesignerState {
   micSensitivity: number;
   hudLeftFace: ClockFace;
   hudRightFace: ClockFace;
-  hudLeftWidget: 'clock' | 'data';
-  hudRightWidget: 'clock' | 'data';
+  hudLeftWidget: 'clock' | 'data' | 'heatmap';
+  hudRightWidget: 'clock' | 'data' | 'heatmap';
   hudLeftDataStyle: DataStyle;
   hudRightDataStyle: DataStyle;
   libraryPath: string | null;
@@ -85,8 +85,8 @@ export interface DesignerActions {
   setMicSensitivity(value: number): void;
   setHudLeftFace(face: ClockFace): void;
   setHudRightFace(face: ClockFace): void;
-  setHudLeftWidget(widget: 'clock' | 'data', dataStyle?: DataStyle): void;
-  setHudRightWidget(widget: 'clock' | 'data', dataStyle?: DataStyle): void;
+  setHudLeftWidget(widget: 'clock' | 'data' | 'heatmap', dataStyle?: DataStyle): void;
+  setHudRightWidget(widget: 'clock' | 'data' | 'heatmap', dataStyle?: DataStyle): void;
   setLibraryPath(path: string | null): void;
   addRecentFile(name: string): void;
   loadPresets(presets: HudPresetClient[], activeName: string | null): void;

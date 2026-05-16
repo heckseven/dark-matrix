@@ -3,7 +3,8 @@ import type { DataStyle, DataMetric } from '../../../animations/data-renderers.j
 
 export type HudWidget =
   | { widget: 'clock'; face?: ClockFace }
-  | { widget: 'data'; style?: DataStyle; top_left?: DataMetric; top_right?: DataMetric; bottom_left?: DataMetric; bottom_right?: DataMetric };
+  | { widget: 'data'; style?: DataStyle; top_left?: DataMetric; top_right?: DataMetric; bottom_left?: DataMetric; bottom_right?: DataMetric }
+  | { widget: 'heatmap' };
 
 export type HudTrigger =
   | { type: 'time'; from: string; to: string }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
 import { getDataRenderer } from '../data-renderer-pool.js';
+import { createHeatmapState, bumpTool, renderHeatmap } from '../../../animations/heatmap.js';
 import type { HudWidget } from '../types/hud-preset.js';
 
 // ── layout constants — match PixelCanvas at zoom=1 ────────────────────────
@@ -29,6 +30,15 @@ const SPLIT_X  = HALF_W + Math.floor((RIGHT_X - HALF_W) / 2); // 192
 const _clockL: Partial<Record<ClockFace, ClockRenderer>> = {};
 const _clockR: Partial<Record<ClockFace, ClockRenderer>> = {};
 
+// Seeded heatmap preview state — static demo for the dual-preview canvas
+const _heatmapPreview = (() => {
+  const s = createHeatmapState();
+  for (const t of ['Bash', 'Read', 'Edit', 'Write', 'Grep', 'Agent', 'Skill', 'ToolSearch', 'TodoWrite', 'Task', 'WebSearch', 'WebFetch']) {
+    bumpTool(s, t);
+  }
+  return s;
+})();
+
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     for (const k in _clockL) delete _clockL[k as ClockFace];
@@ -45,6 +55,12 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date):
       const cache = side === 'left' ? _clockL : _clockR;
       if (!cache[face]) cache[face] = createClockRenderer(face);
       const frame = cache[face]!({ now, side });
+      const out = new Uint8Array(COLS * ROWS);
+      for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
+      return out;
+    } else if (widget.widget === 'heatmap') {
+      const [lf, rf] = renderHeatmap(_heatmapPreview);
+      const frame = side === 'left' ? lf : rf;
       const out = new Uint8Array(COLS * ROWS);
       for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
       return out;

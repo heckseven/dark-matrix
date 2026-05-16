@@ -9,6 +9,7 @@ const SENSOR_PATH_RE = /^\/sys\/bus\/iio\/devices\/iio:device\d+\/in_illuminance
 const HudWidgetSchema = z.discriminatedUnion('widget', [
   z.object({ widget: z.literal('clock'), face: z.enum(['binary-audio', 'elegant', 'stretch', 'analogue', 'binary-blocks', 'binary-tall', 'binary-diamond']) }),
   z.object({ widget: z.literal('data'), style: z.enum(['line', 'fill', 'scroll', 'cores']).optional(), top_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), top_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional() }),
+  z.object({ widget: z.literal('heatmap') }),
 ]);
 
 const HudTriggerSchema = z.discriminatedUnion('type', [

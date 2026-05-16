@@ -321,6 +321,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         })
       : null;
 
+    const needsHeatmap = leftWidgetType === 'heatmap' || rightWidgetType === 'heatmap';
+
     let audioCtx: { bands: number[]; fftSize: number; gain: number } | null = null;
     const needsAudio = leftClockFace === 'binary-audio' || rightClockFace === 'binary-audio';
     if (needsAudio) hudAudioStreaming = true;
@@ -334,7 +336,13 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         let lf: Frame;
         let rf: Frame;
 
-        if (leftWidgetType === 'data' && leftDataRenderer) {
+        if (needsHeatmap) tickHeatmap(heatmapState);
+        const [hmLeft, hmRight] = needsHeatmap ? renderHeatmap(heatmapState) : [null, null];
+
+        if (leftWidgetType === 'heatmap' && hmLeft) {
+          lf = hmLeft;
+          ditherBW(lf, FRAME_COLS, FRAME_ROWS);
+        } else if (leftWidgetType === 'data' && leftDataRenderer) {
           lf = leftDataRenderer.render();
           ditherBW(lf, FRAME_COLS, FRAME_ROWS);
         } else {
@@ -343,7 +351,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
           ditherBW(lf, FRAME_COLS, FRAME_ROWS);
         }
 
-        if (rightWidgetType === 'data' && rightDataRenderer) {
+        if (rightWidgetType === 'heatmap' && hmRight) {
+          rf = hmRight;
+          ditherBW(rf, FRAME_COLS, FRAME_ROWS);
+        } else if (rightWidgetType === 'data' && rightDataRenderer) {
           rf = rightDataRenderer.render();
           ditherBW(rf, FRAME_COLS, FRAME_ROWS);
         } else {
@@ -892,17 +903,21 @@ export async function startDaemon(): Promise<() => Promise<void>> {
             case 'hud-config': {
               const m = msg as { cmd: string; leftFace?: string; leftWidget?: string; leftDataStyle?: string; rightFace?: string; rightWidget?: string; rightDataStyle?: string };
               const newHud = { ...currentConfig.hud };
-              if (m.leftWidget === 'data') {
+              if (m.leftWidget === 'heatmap') {
+                newHud.left = { widget: 'heatmap' };
+              } else if (m.leftWidget === 'data') {
                 const style = DATA_STYLES.find(s => s.id === m.leftDataStyle)?.id;
                 newHud.left = { widget: 'data', ...(style ? { style } : {}) };
-              } else if (m.leftWidget !== 'data' && typeof m.leftFace === 'string') {
+              } else if (typeof m.leftFace === 'string') {
                 const face = isClockFace(m.leftFace) ? m.leftFace : 'elegant';
                 newHud.left = { widget: 'clock', face };
               }
-              if (m.rightWidget === 'data') {
+              if (m.rightWidget === 'heatmap') {
+                newHud.right = { widget: 'heatmap' };
+              } else if (m.rightWidget === 'data') {
                 const style = DATA_STYLES.find(s => s.id === m.rightDataStyle)?.id;
                 newHud.right = { widget: 'data', ...(style ? { style } : {}) };
-              } else if (m.rightWidget !== 'data' && typeof m.rightFace === 'string') {
+              } else if (typeof m.rightFace === 'string') {
                 const face = isClockFace(m.rightFace) ? m.rightFace : 'elegant';
                 newHud.right = { widget: 'clock', face };
               }
