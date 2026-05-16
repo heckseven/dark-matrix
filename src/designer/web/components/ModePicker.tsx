@@ -6,9 +6,7 @@ function leftHalf(pixels: string): string {
   try { return btoa(atob(pixels).slice(0, 9 * 34)); } catch { return pixels; }
 }
 
-export type AppMode = 'hud' | 'data' | 'audio' | 'video' | 'ai' | 'runes' | 'games' | 'design';
-
-export const MODES: { id: AppMode; label: string }[] = [
+export const MODES = [
   { id: 'hud',    label: 'hud' },
   { id: 'audio',  label: 'audio' },
   { id: 'data',   label: 'data' },
@@ -17,7 +15,9 @@ export const MODES: { id: AppMode; label: string }[] = [
   { id: 'runes',  label: 'runes' },
   { id: 'games',  label: 'life' },
   { id: 'design', label: 'design' },
-];
+] as const;
+
+export type AppMode = (typeof MODES)[number]['id'];
 
 function ModeCard({ label, active, pixels, dualModule, onSelect }: {
   label: string;
