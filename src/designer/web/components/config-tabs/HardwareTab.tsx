@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Button } from '../ui/button.js';
 import { Input } from '../ui/input.js';
 import { Select } from '../ui/select.js';
 
@@ -100,14 +101,9 @@ export function HardwareTab({ value, onChange }: HardwareTabProps) {
       </div>
 
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => void detect()}
-          disabled={detecting}
-          className="font-mono text-xs border border-foreground/30 px-3 py-1 hover:border-foreground/70 disabled:opacity-40 transition-colors"
-        >
+        <Button variant="ghost" onClick={() => void detect()} disabled={detecting}>
           {detecting ? 'detecting…' : 'autodetect ports'}
-        </button>
+        </Button>
         {detectError && <span className="font-mono text-xs text-red-400">{detectError}</span>}
         {detected.length > 0 && !detectError && (
           <span className="font-mono text-xs text-foreground/50">{detected.length} port{detected.length !== 1 ? 's' : ''} found</span>
