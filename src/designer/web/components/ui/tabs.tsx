@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { cn } from '@/lib/utils.js';
 
 export type TabOption = { value: string; label?: string };
@@ -13,11 +13,12 @@ export type TabsVariant =
   | 'plasma'    // cyberpunk fuchsia border glow
   | 'crash'     // Hackers: crash override bold green blocks
   | 'acid'      // Hackers: acid burn hot pink blocks
-  | 'matrix';   // Hackers/matrix: >_ prefix, deep green glow
+  | 'matrix'    // Hackers/matrix: >_ prefix, deep green glow
+  | 'shelf';    // box-drawing bracket underline indicator
 
 export const TABS_VARIANTS: TabsVariant[] = [
   'segment', 'terminal', 'amber', 'dos', 'c64',
-  'neon', 'plasma', 'crash', 'acid', 'matrix',
+  'neon', 'plasma', 'crash', 'acid', 'matrix', 'shelf',
 ];
 
 export type TabsProps = {
@@ -34,7 +35,7 @@ type Def = {
   groupStyle?: CSSProperties;
   btnClass: (active: boolean) => string;
   btnStyle?: (active: boolean) => CSSProperties;
-  wrapLabel?: (text: string, active: boolean) => string;
+  wrapLabel?: (text: string, active: boolean) => ReactNode;
 };
 
 const DEFS: Record<TabsVariant, Def> = {
@@ -144,6 +145,20 @@ const DEFS: Record<TabsVariant, Def> = {
     ),
     btnStyle: a => a ? { textShadow: '0 0 8px rgba(74,222,128,0.9)' } : {},
     wrapLabel: (t, a) => a ? `>_ ${t}` : t,
+  },
+
+  shelf: {
+    groupClass: 'flex gap-0',
+    btnClass: a => cn(
+      'font-mono text-xs transition-colors text-left',
+      a ? 'text-white' : 'text-white/35 hover:text-white/60',
+    ),
+    wrapLabel: (t, a) => (
+      <span className="flex flex-col leading-none">
+        <span className="py-1">{`  ${t}  `}</span>
+        <span>{a ? `┕${'━'.repeat(t.length + 2)}┙` : '​'}</span>
+      </span>
+    ),
   },
 };
 

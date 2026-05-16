@@ -79,6 +79,7 @@ function Demo({ variant }: { variant: TabsVariant }) {
     crash:    'Hackers — Crash Override bold blocks',
     acid:     'Hackers — Acid Burn hot pink',
     matrix:   'Hackers — >_ matrix prompt',
+    shelf:    'Terminal — box-drawing bracket underline',
   };
   return (
     <div className="flex flex-col gap-2 min-w-fit">
