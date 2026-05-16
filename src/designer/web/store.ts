@@ -32,7 +32,7 @@ export interface DesignerState {
   redoStack: Frame[][];
   strokeSnapshot: Frame[] | null;
   projectTitle: string;
-  activeMode: AppMode;
+  activeMode: AppMode | null;
   audioStyle: AudioStyle;
   audioSource: AudioSource;
   micSensitivity: number;
@@ -74,7 +74,7 @@ export interface DesignerActions {
   clearFrame(idx: number): void;
   loadProject(project: unknown): void;
   setProjectTitle(title: string): void;
-  setActiveMode(mode: AppMode): void;
+  setActiveMode(mode: AppMode | null): void;
   setAudioStyle(style: AudioStyle): void;
   setAudioSource(source: AudioSource): void;
   setMicSensitivity(value: number): void;
@@ -185,7 +185,7 @@ export function createDesignerStore() {
     redoStack: [],
     strokeSnapshot: null,
     projectTitle: 'untitled_animation',
-    activeMode: 'design',
+    activeMode: null,
     audioStyle: 'dark-matter',
     audioSource: 'monitor',
     micSensitivity: 50,
@@ -468,12 +468,12 @@ const SESSION_KEY = 'dark-matrix';
 type SessionSnapshot = Pick<DesignerState,
   'frames' | 'width' | 'mode' | 'loop' | 'activeFrameIdx' |
   'zoom' | 'activeColor' | 'previewTarget' | 'projectTitle' |
-  'activeMode' | 'audioStyle' | 'audioSource' | 'micSensitivity' |
+  'audioStyle' | 'audioSource' | 'micSensitivity' |
   'hudLeftFace' | 'hudRightFace' |
   'hudLeftWidget' | 'hudRightWidget' | 'hudLeftDataStyle' | 'hudRightDataStyle' |
   'libraryPath' | 'recentFiles' |
   'selectedPresetName' | 'hudSelectedSide'
->;
+> & { activeMode?: AppMode };
 
 if (typeof localStorage !== 'undefined') {
   // Restore on load
@@ -518,9 +518,9 @@ if (typeof localStorage !== 'undefined') {
     _saveTimer = setTimeout(() => {
       try {
         const { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, micSensitivity, hudLeftFace, hudRightFace, hudLeftWidget, hudRightWidget, hudLeftDataStyle, hudRightDataStyle, libraryPath, recentFiles, selectedPresetName, hudSelectedSide } = state;
-        localStorage.setItem(SESSION_KEY, JSON.stringify(
-          { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, micSensitivity, hudLeftFace, hudRightFace, hudLeftWidget, hudRightWidget, hudLeftDataStyle, hudRightDataStyle, libraryPath, recentFiles, selectedPresetName, hudSelectedSide } satisfies SessionSnapshot
-        ));
+        const snapshot: SessionSnapshot = { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, audioStyle, audioSource, micSensitivity, hudLeftFace, hudRightFace, hudLeftWidget, hudRightWidget, hudLeftDataStyle, hudRightDataStyle, libraryPath, recentFiles, selectedPresetName, hudSelectedSide };
+        if (activeMode !== null) snapshot.activeMode = activeMode;
+        localStorage.setItem(SESSION_KEY, JSON.stringify(snapshot));
       } catch { /* storage full or unavailable */ }
     }, 500);
   });

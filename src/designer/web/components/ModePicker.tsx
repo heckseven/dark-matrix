@@ -51,10 +51,10 @@ function ModeCard({ label, active, pixels, dualModule, onSelect }: {
 }
 
 export function ModePicker({ activeMode, dualModule, onSelect, onClose }: {
-  activeMode: AppMode;
+  activeMode: AppMode | null;
   dualModule: boolean;
   onSelect: (mode: AppMode) => void;
-  onClose: () => void;
+  onClose?: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -65,8 +65,9 @@ export function ModePicker({ activeMode, dualModule, onSelect, onClose }: {
   }, []);
 
   useEffect(() => {
+    if (!onClose) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+      if (e.key === 'Escape') { e.preventDefault(); onClose!(); }
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -79,7 +80,7 @@ export function ModePicker({ activeMode, dualModule, onSelect, onClose }: {
       aria-label="Mode picker"
       aria-modal="true"
       className="fixed inset-0 z-50 bg-background flex flex-col font-mono"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose?.(); }}
     >
       <header className="flex items-center justify-center pl-7 pr-5 py-4 min-h-[58px]">
         <p className="font-mono text-xs text-foreground"><span aria-hidden="true">◫</span> dark matrix</p>

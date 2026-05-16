@@ -158,7 +158,7 @@ export function App() {
   const selectedPreset     = hudPresets.find(p => p.name === selectedPresetName) ?? null;
 
   useEffect(() => {
-    document.title = `dark-matrix - ${MODE_LABEL[activeMode]}`;
+    document.title = activeMode ? `dark-matrix - ${MODE_LABEL[activeMode]}` : 'dark-matrix';
   }, [activeMode]);
 
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -289,6 +289,18 @@ export function App() {
     hudDebouncedSave();
   }
 
+  if (activeMode === null) {
+    return (
+      <TooltipProvider>
+        <ModePicker
+          activeMode={null}
+          dualModule={dualModule}
+          onSelect={m => designerStore.getState().setActiveMode(m)}
+        />
+      </TooltipProvider>
+    );
+  }
+
   return (
     <TooltipProvider>
       <ShortcutDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} dualModule={dualModule} />
@@ -296,7 +308,7 @@ export function App() {
         <ModePicker
           activeMode={activeMode}
           dualModule={dualModule}
-          onSelect={m => designerStore.getState().setActiveMode(m)}
+          onSelect={m => { designerStore.getState().setActiveMode(m); setModePickerOpen(false); }}
           onClose={() => setModePickerOpen(false)}
         />
       )}
