@@ -18,7 +18,7 @@ const PRESET_MIXED: HudPresetClient = {
 const PRESET_DATA: HudPresetClient = {
   name: 'system watch',
   left:  { widget: 'data', style: 'line' },
-  right: { widget: 'data', style: 'bars' },
+  right: { widget: 'data', style: 'cores' },
 };
 
 const meta = {
@@ -76,9 +76,9 @@ export const ManyPresets: Story = {
     presets: [
       { name: 'default',      left: { widget: 'clock', face: 'elegant' },  right: { widget: 'clock', face: 'elegant' } },
       { name: 'night watch',  left: { widget: 'clock', face: 'binary-tall' }, right: { widget: 'data', style: 'line' } },
-      { name: 'system',       left: { widget: 'data', style: 'line' },  right: { widget: 'data', style: 'bars' } },
+      { name: 'system',       left: { widget: 'data', style: 'line' },  right: { widget: 'data', style: 'cores' } },
       { name: 'minimal',      left: { widget: 'clock', face: 'stretch' }, right: { widget: 'clock', face: 'stretch' } },
-      { name: 'cores',        left: { widget: 'data', style: 'bars' },  right: { widget: 'clock', face: 'analogue' } },
+      { name: 'cores',        left: { widget: 'data', style: 'cores' },  right: { widget: 'clock', face: 'analogue' } },
     ],
     activeName: 'default',
     selectedName: 'system',

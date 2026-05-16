@@ -15,7 +15,7 @@ const PRESETS: HudPresetClient[] = [
   {
     name: 'system watch',
     left:  { widget: 'data', style: 'line', top_left: 'cpu', top_right: 'ram', bottom_left: 'net_rx', bottom_right: 'net_tx' },
-    right: { widget: 'data', style: 'bars', top_left: 'cpu', top_right: 'ram' },
+    right: { widget: 'data', style: 'cores', top_left: 'cpu', top_right: 'ram' },
   },
   {
     name: 'night mode',
@@ -182,7 +182,7 @@ export const DataPresetLive: Story = {
         {
           name: 'system watch',
           left:  { widget: 'data', style: 'line', top_left: 'cpu', top_right: 'ram', bottom_left: 'net_rx', bottom_right: 'net_tx' },
-          right: { widget: 'data', style: 'bars', top_left: 'cpu', top_right: 'ram' },
+          right: { widget: 'data', style: 'cores', top_left: 'cpu', top_right: 'ram' },
         },
       ];
       installMockWs({ presets, activeName: 'system watch', dataStats: true });
