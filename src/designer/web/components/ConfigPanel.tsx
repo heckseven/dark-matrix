@@ -12,9 +12,8 @@ import { AppearanceTab } from './config-tabs/AppearanceTab.js';
 const CONFIG_TABS = ['hardware', 'brightness', 'startup', 'daemon', 'notifications', 'appearance'] as const;
 type ConfigTab = typeof CONFIG_TABS[number];
 
-export function ConfigPanel({ dualModule: _dualModule }: { dualModule: boolean }) {
+export function ConfigPanel({ dualModule: _dualModule, topPad }: { dualModule: boolean; topPad: number }) {
   const configData = useDesignerStore(s => s.configData);
-  const configDirty = useDesignerStore(s => s.configDirty);
   const patchConfig = useDesignerStore(s => s.patchConfig);
   const [activeTab, setActiveTab] = useState<ConfigTab>('hardware');
 
@@ -25,42 +24,19 @@ export function ConfigPanel({ dualModule: _dualModule }: { dualModule: boolean }
       .catch(console.error);
   }, []);
 
-  async function handleSave() {
-    if (!configData) return;
-    const res = await fetch('/api/config', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(configData),
-    });
-    if (res.ok) designerStore.getState().markClean();
-  }
-
   return (
-    <div className="flex flex-col h-full font-mono">
-      <header className="relative flex items-center justify-center px-7 py-4 min-h-[58px]">
-        <span className="flex items-center gap-2 text-xs text-foreground">
-          config
-          {configDirty && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" aria-label="unsaved changes" />}
-        </span>
-        <button
-          onClick={() => void handleSave()}
-          disabled={!configDirty}
-          className="absolute right-7 text-xs px-3 py-1 border border-white/20 rounded-sm disabled:opacity-30 hover:border-white/50 transition-colors"
-        >
-          save
-        </button>
-      </header>
+    <div className="flex flex-col h-full w-full font-mono overflow-auto" style={{ paddingTop: topPad }}>
+      <div className="mx-auto w-full max-w-[800px] px-4 sm:px-7">
+        <div className="pt-4">
+          <Tabs
+            options={CONFIG_TABS}
+            value={activeTab}
+            onChange={v => setActiveTab(v as ConfigTab)}
+            aria-label="Config sections"
+          />
+        </div>
 
-      <div className="px-7">
-        <Tabs
-          options={CONFIG_TABS}
-          value={activeTab}
-          onChange={v => setActiveTab(v as ConfigTab)}
-          aria-label="Config sections"
-        />
-      </div>
-
-      <div className="flex-1 overflow-auto px-7 py-4">
+        <div className="py-4">
         {configData ? (
           <>
             {activeTab === 'hardware' && (
@@ -101,6 +77,7 @@ export function ConfigPanel({ dualModule: _dualModule }: { dualModule: boolean }
         ) : (
           <p className="text-xs text-white/40">loading…</p>
         )}
+        </div>
       </div>
     </div>
   );

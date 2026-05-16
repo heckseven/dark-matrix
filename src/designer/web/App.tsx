@@ -142,6 +142,40 @@ function LivePreviewToggle({ on, onToggle }: { on: boolean; onToggle: () => void
   );
 }
 
+function ConfigHeading() {
+  const configDirty = useDesignerStore(s => s.configDirty);
+  const configData = useDesignerStore(s => s.configData);
+
+  async function handleSave() {
+    if (!configData) return;
+    const res = await fetch('/api/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(configData),
+    });
+    if (res.ok) designerStore.getState().markClean();
+  }
+
+  return (
+    <>
+      <div className="absolute inset-x-0 flex justify-center pointer-events-none">
+        <span className="flex items-center gap-2 font-mono text-xs text-foreground">
+          config
+          {configDirty && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" aria-label="unsaved changes" />}
+        </span>
+      </div>
+      <Button
+        variant="ghost"
+        disabled={!configDirty}
+        onClick={() => void handleSave()}
+        className="ml-auto"
+      >
+        save
+      </Button>
+    </>
+  );
+}
+
 export function App() {
   const activeColor = useDesignerStore(s => s.activeColor);
   const activeFrameIdx = useDesignerStore(s => s.activeFrameIdx);
@@ -357,6 +391,7 @@ export function App() {
           ) : activeMode === 'config' ? (
             <>
               <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
+              <ConfigHeading />
             </>
           ) : activeMode === 'audio' ? (
             <>
@@ -487,7 +522,7 @@ export function App() {
           </div>
         ) : activeMode === 'config' ? (
           <div className="h-full flex">
-            <ConfigPanel dualModule={dualModule} />
+            <ConfigPanel dualModule={dualModule} topPad={headerHeight} />
           </div>
         ) : (
           <div className="h-full grid overflow-hidden" style={{ gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)' }}>
