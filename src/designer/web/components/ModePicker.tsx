@@ -11,10 +11,10 @@ export const MODES = [
   { id: 'audio',  label: 'audio' },
   { id: 'data',   label: 'data' },
   { id: 'video',  label: 'video' },
-  { id: 'ai',     label: 'ai' },
   { id: 'runes',  label: 'runes' },
   { id: 'games',  label: 'life' },
   { id: 'design', label: 'design' },
+  { id: 'config', label: 'config' },
 ] as const;
 
 export type AppMode = (typeof MODES)[number]['id'];
