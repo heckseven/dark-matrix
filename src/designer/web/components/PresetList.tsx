@@ -68,15 +68,16 @@ function CornerBrackets({ active }: { active: boolean }) {
 
 // ── gap zone (drag drop target between cards) ─────────────────────────────
 
-function GapZone({ afterIdx, showDrop, setDropTarget, presetCount }: {
+function GapZone({ afterIdx, showDrop, setDropTarget, presetCount, onInsert }: {
   afterIdx: number;
   showDrop: boolean;
   setDropTarget: (v: number | null) => void;
   presetCount: number;
+  onInsert: () => void;
 }) {
   return (
     <div
-      className={`-my-10 h-10 flex items-center px-1 transition-opacity ${showDrop ? '' : 'opacity-0 hover:opacity-100 focus-within:opacity-100'}`}
+      className={`-my-10 h-10 flex items-center gap-1 px-1 transition-opacity ${showDrop ? '' : 'opacity-0 hover:opacity-100 focus-within:opacity-100'}`}
       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropTarget(afterIdx + 1); }}
       onDrop={e => {
         e.preventDefault();
@@ -87,10 +88,25 @@ function GapZone({ afterIdx, showDrop, setDropTarget, presetCount }: {
         if (!Number.isInteger(from) || from < 0 || from >= presetCount) return;
         const target = afterIdx + 1;
         const to = from < target ? target - 1 : target;
-        if (to !== from) setDropTarget(-from - 1); // signal move via negative sentinel — handled in parent
+        if (to !== from) setDropTarget(null);
       }}
     >
-      <div className={`flex-1 h-0.5 rounded-full ${showDrop ? 'bg-green-500' : 'bg-border'}`} />
+      {showDrop ? (
+        <div className="flex-1 h-0.5 bg-green-500 rounded-full pointer-events-none" />
+      ) : (
+        <>
+          <div className="flex-1 h-px bg-border" />
+          <Button
+            variant="ghost"
+            aria-label={`Insert preset after position ${afterIdx + 1}`}
+            tooltip={`Insert preset after position ${afterIdx + 1}`}
+            onClick={onInsert}
+          >
+            +
+          </Button>
+          <div className="flex-1 h-px bg-border" />
+        </>
+      )}
     </div>
   );
 }
@@ -190,7 +206,7 @@ function PresetCard({
       </div>
 
       {/* Right: mirroring FrameCell's Stack justify="between" */}
-      <Stack justify="between" align="start">
+      <Stack justify="between" align="start" className="flex-1 min-w-0">
         <Stack gap="xs" align="start">
           <Button
             variant="ghost"
@@ -248,7 +264,7 @@ function PresetCard({
             />
           ) : (
             <span
-              className="font-mono text-xs text-foreground/70 truncate max-w-[6rem]"
+              className="font-mono text-xs text-foreground pl-2 block truncate"
               onDoubleClick={e => { e.stopPropagation(); setDraft(preset.name); setEditing(true); }}
             >
               {isActive && <span aria-label="active" className="inline-block w-1.5 h-1.5 rounded-full bg-white align-middle mr-1" />}
@@ -269,6 +285,7 @@ export type PresetListProps = {
   selectedName: string | null;
   onSelect: (name: string) => void;
   onCreate: () => void;
+  onInsert: (afterIdx: number) => void;
   onDelete: (name: string) => void;
   onDuplicate: (name: string) => void;
   onRename: (oldName: string, newName: string) => void;
@@ -281,6 +298,7 @@ export function PresetList({
   selectedName,
   onSelect,
   onCreate,
+  onInsert,
   onDelete,
   onDuplicate,
   onRename,
@@ -341,6 +359,7 @@ export function PresetList({
                   showDrop={dropTarget === idx + 1}
                   setDropTarget={setDropTarget}
                   presetCount={presets.length}
+                  onInsert={() => onInsert(idx)}
                 />
               )}
             </Fragment>

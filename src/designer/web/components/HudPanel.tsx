@@ -166,6 +166,11 @@ export function HudPanel({ dualModule = false, topPad = 0 }: { dualModule?: bool
             designerStore.getState().createPreset(p);
             debouncedSave();
           }}
+          onInsert={(afterIdx) => {
+            const p = makeDefaultPreset();
+            designerStore.getState().insertPreset(p, afterIdx);
+            debouncedSave();
+          }}
           onDelete={(name) => {
             designerStore.getState().deletePreset(name);
             debouncedSave();
