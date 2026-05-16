@@ -13,7 +13,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /** Initial launch state — mode picker full-screen, no mode selected yet. */
-export const Launcher: Story = {
+export const AppPlayground: Story = {
   render: () => {
     useEffect(() => { designerStore.getState().setActiveMode(null); }, []);
     return <App />;
