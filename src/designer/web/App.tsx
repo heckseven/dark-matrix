@@ -5,6 +5,7 @@ import { ColorPalette } from './components/ColorPalette.js';
 import { usePreviewBridge } from './components/LivePreview.js';
 import { Toggle } from './components/ui/toggle.js';
 import { Button } from './components/ui/button.js';
+import { Slider } from './components/ui/slider.js';
 import { Input } from './components/ui/input.js';
 import { Text } from './components/ui/text.js';
 import { Tooltip, TooltipProvider } from './components/ui/tooltip.js';
@@ -145,7 +146,8 @@ export function App() {
   const previewTarget = useDesignerStore(s => s.previewTarget);
   const projectTitle = useDesignerStore(s => s.projectTitle);
   const activeMode = useDesignerStore(s => s.activeMode);
-  const audioSource = useDesignerStore(s => s.audioSource);
+  const audioSource       = useDesignerStore(s => s.audioSource);
+  const micSensitivity    = useDesignerStore(s => s.micSensitivity);
   const libraryPath = useDesignerStore(s => s.libraryPath);
   const recentFiles = useDesignerStore(s => s.recentFiles);
   const hudPresets         = useDesignerStore(s => s.hudPresets);
@@ -338,15 +340,25 @@ export function App() {
                 <span className="font-mono text-xs text-foreground">audio</span>
               </div>
               {hasMic && (
-                <Toggle
-                  className="ml-auto"
-                  pressed={audioSource === 'mic'}
-                  onPressedChange={(on) => designerStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
-                  title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
-                  aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
-                >
-                  mic
-                </Toggle>
+                <div className="ml-auto flex items-center gap-2">
+                  {audioSource === 'mic' && (
+                    <Slider
+                      aria-label="Mic sensitivity"
+                      value={micSensitivity}
+                      min={0}
+                      max={100}
+                      onChange={e => designerStore.getState().setMicSensitivity(Number(e.target.value))}
+                    />
+                  )}
+                  <Toggle
+                    pressed={audioSource === 'mic'}
+                    onPressedChange={(on) => designerStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
+                    title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                    aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                  >
+                    <span aria-hidden="true">mic</span>
+                  </Toggle>
+                </div>
               )}
             </>
           ) : (
