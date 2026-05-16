@@ -270,19 +270,6 @@ export function App() {
     hudDebouncedSave();
   }
 
-  function hudDuplicate() {
-    if (!selectedPreset) return;
-    const copy: HudPresetClient = { ...selectedPreset, name: `${selectedPreset.name} copy` };
-    designerStore.getState().createPreset(copy);
-    hudDebouncedSave();
-  }
-
-  function hudDelete() {
-    if (!selectedPreset) return;
-    designerStore.getState().deletePreset(selectedPreset.name);
-    hudDebouncedSave();
-  }
-
   function hudSetActive() {
     if (!selectedPreset) return;
     hudSendWsGlobal({ type: 'hud-preset-activate', name: selectedPreset.name });
@@ -348,8 +335,6 @@ export function App() {
               </div>
               <div className="ml-auto flex items-center gap-2">
                 <Button variant="ghost" onClick={hudCreatePreset}>+ new</Button>
-                <Button variant="ghost" disabled={!selectedPreset} onClick={hudDuplicate}>duplicate</Button>
-                <Button variant="ghost" disabled={!selectedPreset} onClick={hudDelete}>delete</Button>
                 <Button variant="ghost" disabled={!selectedPreset} onClick={hudSetActive}>set active</Button>
               </div>
             </>
@@ -465,7 +450,7 @@ export function App() {
 
         {activeMode === 'hud' ? (
           <div className="h-full flex">
-            <HudPanel dualModule={dualModule} />
+            <HudPanel dualModule={dualModule} topPad={topPad} />
           </div>
         ) : activeMode === 'audio' ? (
           <div className="h-full flex">
