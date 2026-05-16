@@ -2,6 +2,7 @@
 
 ## Foundation
 
+- [ ] Onboarding / setup flow — guided first-run experience; serial port assignment, brightness calibration, and startup animation selection; detects unconfigured state on designer launch
 - [x] File library — `~/.config/dark-matrix/library/` convention for `.dmx.json` files; extend config with `startup.animation: 'dmx'` + `startup.dmx_path`; designer API endpoint to save directly to library
 - [x] Persist active mode — add `activeMode` to designer `SessionSnapshot` so it survives page reload
 
@@ -24,6 +25,9 @@
 - [ ] Interactive games — keyboard input from browser routed via WebSocket to game loop (Tetris, Snake); game state lives in browser, renders frames and pushes via existing live preview `frame` mechanism
 - [x] Notifications panel — per-app and per-urgency animation rules for D-Bus notification events (watcher already exists); designer panel to configure trigger → animation mappings; preview mode to fire a test notification without waiting for a real one
 - [x] Config panel — settings panel in designer covering: startup animation picker (type + dmx path), daemon tunables (poll interval, idle timeout, idle animation), hardware assignment (serial port, module calibration), notification rules, accent color and UI theme
+- [ ] Refine config panel designs — revisit layout, spacing, and interaction patterns across all config tabs; improve visual hierarchy and consistency with the rest of the designer
+- [ ] Audio full screen visualizer — full-viewport audio visualization mode; larger canvas with richer styles beyond the current 9×34 hardware mirror; source selectable (monitor/mic)
+- [ ] Video integration — local file, URL, and webcam sources; `ffmpeg` pipeline to scale, dither, and push frames at ~20fps; extends the existing `play` command with video source support
 
 ## HUD enhancements
 
