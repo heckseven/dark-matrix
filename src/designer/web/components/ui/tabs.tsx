@@ -155,7 +155,7 @@ const DEFS: Record<TabsVariant, Def> = {
     ),
     wrapLabel: (t, a) => (
       <span className="flex flex-col leading-none">
-        <span className="py-1">{`  ${t}  `}</span>
+        <span className="py-1">{`  ${t}  `}</span>
         <span>{a ? `┕${'━'.repeat(t.length + 2)}┙` : '​'}</span>
       </span>
     ),
