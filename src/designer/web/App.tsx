@@ -15,7 +15,8 @@ import type { AudioSource } from './store.js';
 import { ShortcutDialog } from './components/ui/shortcut-dialog.js';
 import { ModePicker } from './components/ModePicker.js';
 import { AudioPanel } from './components/AudioPanel.js';
-import { HudPanel } from './components/HudPanel.js';
+import { HudPanel, hudSendWsGlobal } from './components/HudPanel.js';
+import type { HudPresetClient } from './types/hud-preset.js';
 
 function storeCompat() {
   return { state: designerStore.getState(), loadProject: (p: unknown) => designerStore.getState().loadProject(p) };
@@ -149,11 +150,14 @@ export function App() {
   const audioSource = useDesignerStore(s => s.audioSource);
   const libraryPath = useDesignerStore(s => s.libraryPath);
   const recentFiles = useDesignerStore(s => s.recentFiles);
+  const hudPresets         = useDesignerStore(s => s.hudPresets);
+  const selectedPresetName = useDesignerStore(s => s.selectedPresetName);
+  const selectedPreset     = hudPresets.find(p => p.name === selectedPresetName) ?? null;
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [livePreviewOn, setLivePreviewOn] = useState(false);
-  const [hudFastClock, setHudFastClock] = useState(false);
   const bridge = usePreviewBridge();
+  const hudSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [cursor, setCursor] = useState({ col: 0, row: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
@@ -246,6 +250,51 @@ export function App() {
     designerStore.getState().setMode(v === 0 || v === 255 ? 'bw' : 'gray');
   }
 
+  // ── HUD header helpers ────────────────────────────────────────────────
+
+  function hudDebouncedSave() {
+    if (hudSaveTimerRef.current) clearTimeout(hudSaveTimerRef.current);
+    hudSaveTimerRef.current = setTimeout(() => {
+      hudSendWsGlobal({ type: 'hud-preset-save', presets: designerStore.getState().hudPresets });
+    }, 800);
+  }
+
+  function hudCreatePreset() {
+    const ts = Date.now().toString(36);
+    const preset: HudPresetClient = {
+      name: `preset-${ts}`,
+      left:  { widget: 'clock', face: 'elegant' },
+      right: { widget: 'clock', face: 'elegant' },
+    };
+    designerStore.getState().createPreset(preset);
+    hudDebouncedSave();
+  }
+
+  function hudDuplicate() {
+    if (!selectedPreset) return;
+    const copy: HudPresetClient = { ...selectedPreset, name: `${selectedPreset.name} copy` };
+    designerStore.getState().createPreset(copy);
+    hudDebouncedSave();
+  }
+
+  function hudDelete() {
+    if (!selectedPreset) return;
+    designerStore.getState().deletePreset(selectedPreset.name);
+    hudDebouncedSave();
+  }
+
+  function hudSetActive() {
+    if (!selectedPreset) return;
+    hudSendWsGlobal({ type: 'hud-preset-activate', name: selectedPreset.name });
+  }
+
+  function hudRenameSelected(newName: string) {
+    if (!selectedPreset) return;
+    const old = selectedPreset.name;
+    designerStore.getState().renamePreset(old, newName);
+    hudDebouncedSave();
+  }
+
   return (
     <TooltipProvider>
       <ShortcutDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} dualModule={dualModule} />
@@ -286,16 +335,22 @@ export function App() {
             <>
               <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
               <div className="absolute inset-x-0 flex justify-center pointer-events-none">
-                <span className="font-mono text-xs text-foreground">hud</span>
+                <div className="pointer-events-auto">
+                  {selectedPreset ? (
+                    <ProjectTitle
+                      value={selectedPreset.name}
+                      onChange={hudRenameSelected}
+                    />
+                  ) : (
+                    <span className="font-mono text-xs text-foreground/40">no preset selected</span>
+                  )}
+                </div>
               </div>
-              <div className="ml-auto">
-                <button
-                  type="button"
-                  aria-label="Fast clock simulation"
-                  aria-pressed={hudFastClock}
-                  className={`font-mono text-xs px-3 py-1 border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-1 ${hudFastClock ? 'border-white text-white' : 'border-foreground/30 text-foreground/50 hover:text-foreground hover:border-foreground/60'}`}
-                  onClick={() => setHudFastClock(v => !v)}
-                >fast</button>
+              <div className="ml-auto flex items-center gap-2">
+                <Button variant="ghost" onClick={hudCreatePreset}>+ new</Button>
+                <Button variant="ghost" disabled={!selectedPreset} onClick={hudDuplicate}>duplicate</Button>
+                <Button variant="ghost" disabled={!selectedPreset} onClick={hudDelete}>delete</Button>
+                <Button variant="ghost" disabled={!selectedPreset} onClick={hudSetActive}>set active</Button>
               </div>
             </>
           ) : activeMode === 'audio' ? (
@@ -410,7 +465,7 @@ export function App() {
 
         {activeMode === 'hud' ? (
           <div className="h-full flex">
-            <HudPanel dualModule={dualModule} fastClock={hudFastClock} />
+            <HudPanel dualModule={dualModule} />
           </div>
         ) : activeMode === 'audio' ? (
           <div className="h-full flex">
