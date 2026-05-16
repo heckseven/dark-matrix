@@ -28,7 +28,7 @@ const HudPresetSchema = z.object({
   match: z.enum(['all', 'any']).optional(),
 });
 
-const ConfigSchema = z.object({
+export const ConfigSchema = z.object({
   modules: z.object({
     left: z.string().regex(BY_PATH_RE),
     right: z.string().regex(BY_PATH_RE),
