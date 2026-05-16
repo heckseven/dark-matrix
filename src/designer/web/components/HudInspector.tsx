@@ -252,7 +252,7 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
   const uid = useId();
   // Snapshot on mount — remount via `key` in HudPanel to reset when side/preset changes.
   const [view, setView] = useState<View>(() =>
-    widget && !(widget.widget === 'data' && widget.style === 'cores') ? 'settings' : 'picker'
+    widget && !(widget.widget === 'data' && (widget.style === 'cores' || widget.style === 'scroll')) ? 'settings' : 'picker'
   );
   const [scrollTarget, setScrollTarget] = useState<string | null>(null);
   const [clockPixels, setClockPixels] = useState<Partial<Record<ClockFace, string>>>({});
@@ -289,7 +289,8 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
 
   function handlePick(picked: HudWidget) {
     onChange(picked);
-    if (picked.widget !== 'data' || picked.style !== 'cores') setView('settings');
+    const noSettings = picked.widget === 'data' && (picked.style === 'cores' || picked.style === 'scroll');
+    if (!noSettings) setView('settings');
   }
 
   // Picker — null widget (no preset selected) or user switching panels
@@ -346,12 +347,12 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
             </div>
           )}
 
-          {widget.widget === 'data' && widget.style !== 'cores' && (
+          {widget.widget === 'data' && widget.style !== 'cores' && widget.style !== 'scroll' && (
             <div role="group" aria-label="Data widget settings" className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
                 <span className="font-mono text-xs text-foreground/50">style</span>
                 <Tabs
-                  options={DATA_STYLES.filter(s => s.id !== 'cores').map(s => ({ value: s.id, label: s.label }))}
+                  options={DATA_STYLES.filter(s => s.id !== 'cores' && s.id !== 'scroll').map(s => ({ value: s.id, label: s.label }))}
                   value={widget.style ?? 'line'}
                   onChange={(v) => {
                     const s = DATA_STYLES.find(d => d.id === v);
