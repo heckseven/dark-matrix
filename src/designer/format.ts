@@ -6,7 +6,7 @@ export interface DmxFrame {
 }
 
 export interface DmxProject {
-  format: 'dark-matrix-designer';
+  format: 'dark-matrix';
   version: 1;
   width: 9 | 18;
   height: 34;
@@ -19,7 +19,7 @@ const HEIGHT = 34;
 
 const DmxProjectSchema = z
   .object({
-    format: z.literal('dark-matrix-designer'),
+    format: z.literal('dark-matrix'),
     version: z.literal(1),
     width: z.union([z.literal(9), z.literal(18)]),
     height: z.literal(34),

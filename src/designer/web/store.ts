@@ -463,7 +463,7 @@ export const useDesignerStore = <T>(selector: (s: DesignerStore) => T): T =>
 export const designerStore = _store;
 
 // Session persistence — survives page refresh, not a substitute for saving a file.
-const SESSION_KEY = 'dark-matrix-designer';
+const SESSION_KEY = 'dark-matrix';
 
 type SessionSnapshot = Pick<DesignerState,
   'frames' | 'width' | 'mode' | 'loop' | 'activeFrameIdx' |

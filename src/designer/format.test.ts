@@ -25,7 +25,7 @@ function makeFrames(width: number, count: number): DmxFrame[] {
 describe('designer format', () => {
   it('round-trips a 10-frame gray 9×34 project', () => {
     const project: DmxProject = {
-      format: 'dark-matrix-designer',
+      format: 'dark-matrix',
       version: 1,
       width: 9,
       height: 34,
@@ -43,7 +43,7 @@ describe('designer format', () => {
 
   it('round-trips a dual 18×34 project', () => {
     const project: DmxProject = {
-      format: 'dark-matrix-designer',
+      format: 'dark-matrix',
       version: 1,
       width: 18,
       height: 34,
@@ -66,7 +66,7 @@ describe('designer format', () => {
 
   it('throws on wrong version', () => {
     const bad = {
-      format: 'dark-matrix-designer',
+      format: 'dark-matrix',
       version: 2,
       width: 9,
       height: 34,
@@ -80,7 +80,7 @@ describe('designer format', () => {
   it('throws on truncated base64 (wrong byte count)', () => {
     const truncated = Buffer.from(new Uint8Array(100)).toString('base64'); // 100 bytes, not 306
     const bad = {
-      format: 'dark-matrix-designer',
+      format: 'dark-matrix',
       version: 1,
       width: 9,
       height: 34,
@@ -93,7 +93,7 @@ describe('designer format', () => {
 
   it('throws on empty frames array', () => {
     const bad = {
-      format: 'dark-matrix-designer',
+      format: 'dark-matrix',
       version: 1,
       width: 9,
       height: 34,
