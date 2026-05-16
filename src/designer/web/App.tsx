@@ -186,12 +186,13 @@ export function App() {
   useEffect(() => {
     const md = navigator.mediaDevices;
     if (!md) return;
+    let alive = true;
     const check = () => {
-      md.enumerateDevices().then(devs => setHasMic(devs.some(d => d.kind === 'audioinput'))).catch(() => {});
+      md.enumerateDevices().then(devs => { if (alive) setHasMic(devs.some(d => d.kind === 'audioinput')); }).catch(() => {});
     };
     check();
     md.addEventListener('devicechange', check);
-    return () => md.removeEventListener('devicechange', check);
+    return () => { alive = false; md.removeEventListener('devicechange', check); };
   }, []);
 
   useLayoutEffect(() => {

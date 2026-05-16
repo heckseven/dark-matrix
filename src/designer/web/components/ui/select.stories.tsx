@@ -34,6 +34,7 @@ const meta = {
   argTypes: {
     disabled: { control: 'boolean', description: 'Prevents interaction.' },
     value: { control: 'text', description: 'Controlled value.' },
+    onChange: { description: 'Change handler — receives the native ChangeEvent.' },
   },
   args: {
     value: 'cpu',
@@ -59,7 +60,7 @@ export const Playground: Story = {
 export const LongValue: Story = {
   args: { value: 'temperature', 'aria-label': 'Metric' },
   render: (args) => (
-    <Select {...args} onChange={fn()}>
+    <Select {...args}>
       {OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
     </Select>
   ),
