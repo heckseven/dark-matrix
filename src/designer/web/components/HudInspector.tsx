@@ -350,12 +350,12 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
             </div>
           )}
 
-          {widget.widget === 'data' && (
+          {widget.widget === 'data' && widget.style !== 'cores' && (
             <div role="group" aria-label="Data widget settings" className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
                 <span className="font-mono text-xs text-foreground/50">style</span>
                 <Tabs
-                  options={DATA_STYLES.map(s => ({ value: s.id, label: s.label }))}
+                  options={DATA_STYLES.filter(s => s.id !== 'cores').map(s => ({ value: s.id, label: s.label }))}
                   value={widget.style ?? 'line'}
                   onChange={(v) => {
                     const s = DATA_STYLES.find(d => d.id === v);
