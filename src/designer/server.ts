@@ -676,6 +676,25 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
     }
 
     // Module availability — proxies daemon status command
+    if (url === '/api/serial-ports' && method === 'GET') {
+      const ports: string[] = [];
+      try {
+        const entries = await fs.readdir('/dev/serial/by-path');
+        for (const e of entries.sort()) ports.push(`/dev/serial/by-path/${e}`);
+      } catch { /* directory absent — no by-path ports */ }
+      for (const prefix of ['ttyACM', 'ttyUSB']) {
+        try {
+          const entries = await fs.readdir('/dev');
+          for (const e of entries.filter(f => f.startsWith(prefix)).sort()) {
+            ports.push(`/dev/${e}`);
+          }
+        } catch { /* ignore */ }
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, ports }));
+      return;
+    }
+
     if (url === '/api/modules' && method === 'GET') {
       try {
         const s = await sendToDaemon({ cmd: 'status' }) as { ok: boolean; modules: { left: boolean; right: boolean } };
