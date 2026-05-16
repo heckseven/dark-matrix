@@ -24,8 +24,43 @@ export type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
 
 const base = 'font-mono text-xs bg-transparent outline-none appearance-none cursor-pointer disabled:cursor-not-allowed disabled:opacity-40';
 
+// Inline paddingRight is used instead of Tailwind pr-* because Chrome doesn't
+// reliably honour padding-right on <select appearance:none> via stylesheet rules.
+const SELECT_PR = '1.5rem';
+
+type IndicatorProps = { char?: string; className?: string };
+
+function Indicator({ char = '▾', className }: IndicatorProps) {
+  return (
+    <span
+      aria-hidden
+      className={cn('absolute inset-y-0 right-1.5 flex items-center pointer-events-none select-none', className)}
+    >
+      {char}
+    </span>
+  );
+}
+
+function Wrap({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <span className={cn('relative inline-flex items-center', className)}>
+      {children}
+    </span>
+  );
+}
+
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
   ({ className, variant = 'segment', children, ...props }, ref) => {
+    const sel = (extra?: string, style?: React.CSSProperties) => (
+      <select
+        ref={ref}
+        className={cn(base, extra, className)}
+        style={{ paddingRight: SELECT_PR, ...style }}
+        {...props}
+      >
+        {children}
+      </select>
+    );
 
     switch (variant) {
 
@@ -33,112 +68,93 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
         return (
           <span className="font-mono text-xs inline-flex items-center focus-within:ring-1 focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background">
             <span aria-hidden className="text-foreground select-none">{'[ '}</span>
-            <span className="relative inline-flex items-center">
-              <select ref={ref} className={cn(base, 'text-foreground pr-4', className)} {...props}>{children}</select>
-              <span aria-hidden className="absolute right-0 pointer-events-none text-foreground/55 select-none">▾</span>
-            </span>
+            <Wrap>
+              {sel('text-foreground px-0 py-0.5')}
+              <Indicator className="text-foreground/55" />
+            </Wrap>
             <span aria-hidden className="text-foreground select-none">{' ]'}</span>
           </span>
         );
 
       case 'segment':
         return (
-          <span className="relative inline-flex items-center border border-foreground/30 focus-within:border-foreground transition-colors">
-            <select ref={ref} className={cn(base, 'text-foreground px-2 py-1 pr-6', className)} {...props}>{children}</select>
-            <span aria-hidden className="absolute right-2 pointer-events-none text-foreground/55 select-none">▾</span>
-          </span>
+          <Wrap className="border border-foreground/30 focus-within:border-foreground transition-colors">
+            {sel('text-foreground px-2 py-1')}
+            <Indicator className="text-foreground/55" />
+          </Wrap>
         );
 
       case 'underline':
         return (
-          <span className="relative inline-flex items-center border-b border-foreground/30 focus-within:border-foreground transition-colors">
-            <select ref={ref} className={cn(base, 'text-foreground px-1 py-1 pr-5', className)} {...props}>{children}</select>
-            <span aria-hidden className="absolute right-0 pointer-events-none text-foreground/55 select-none">▾</span>
-          </span>
+          <Wrap className="border-b border-foreground/30 focus-within:border-foreground transition-colors">
+            {sel('text-foreground px-1 py-1')}
+            <Indicator className="text-foreground/55" />
+          </Wrap>
         );
 
       case 'ghost':
         return (
-          <span className="relative inline-flex items-center focus-within:ring-1 focus-within:ring-ring/40">
-            <select ref={ref} className={cn(base, 'text-foreground/50 hover:text-foreground pr-5 py-1 transition-colors', className)} {...props}>{children}</select>
-            <span aria-hidden className="absolute right-0 pointer-events-none text-foreground/25 select-none">▾</span>
-          </span>
+          <Wrap className="focus-within:ring-1 focus-within:ring-ring/40">
+            {sel('text-foreground/50 hover:text-foreground px-1 py-1 transition-colors')}
+            <Indicator className="text-foreground/25" />
+          </Wrap>
         );
 
       case 'terminal':
         return (
-          <span className="relative inline-flex items-center focus-within:ring-1 focus-within:ring-green-400/30">
-            <span aria-hidden className="text-green-400/55 select-none mr-0.5">{'['}</span>
-            <span className="relative inline-flex items-center">
-              <select
-                ref={ref}
-                className={cn(base, 'text-green-400 pr-4', className)}
-                style={{ textShadow: '0 0 8px rgba(74,222,128,0.6)' }}
-                {...props}
-              >{children}</select>
-              <span aria-hidden className="absolute right-0 pointer-events-none text-green-400/55 select-none">▾</span>
-            </span>
-            <span aria-hidden className="text-green-400/55 select-none ml-0.5">{']'}</span>
+          <span className="font-mono text-xs inline-flex items-center focus-within:ring-1 focus-within:ring-green-400/30">
+            <span aria-hidden className="text-green-400/55 select-none">{'['}</span>
+            <Wrap>
+              {sel('text-green-400 px-0.5 py-0.5', { textShadow: '0 0 8px rgba(74,222,128,0.6)' })}
+              <Indicator className="text-green-400/55" />
+            </Wrap>
+            <span aria-hidden className="text-green-400/55 select-none">{']'}</span>
           </span>
         );
 
       case 'amber':
         return (
-          <span className="relative inline-flex items-center border-b-2 border-amber-600/40 focus-within:border-amber-400 transition-colors">
-            <select
-              ref={ref}
-              className={cn(base, 'text-amber-400 px-1 py-1 pr-5', className)}
-              style={{ textShadow: '0 0 8px rgba(251,191,36,0.45)' }}
-              {...props}
-            >{children}</select>
-            <span aria-hidden className="absolute right-0 pointer-events-none text-amber-500/55 select-none">▾</span>
-          </span>
+          <Wrap className="border-b-2 border-amber-600/40 focus-within:border-amber-400 transition-colors">
+            {sel('text-amber-400 px-1 py-1', { textShadow: '0 0 8px rgba(251,191,36,0.45)' })}
+            <Indicator className="text-amber-500/55" />
+          </Wrap>
         );
 
       case 'dos':
         return (
-          <span className="relative inline-flex items-center bg-[#000080] border border-[#aaaaaa]">
-            <select
-              ref={ref}
-              className={cn(base, 'text-[#aaaaaa] bg-[#000080] px-3 py-0.5 pr-6 uppercase tracking-wide', className)}
-              {...props}
-            >{children}</select>
-            <span aria-hidden className="absolute right-2 pointer-events-none text-[#aaaaaa] select-none">▼</span>
-          </span>
+          <Wrap className="bg-[#000080] border border-[#aaaaaa]">
+            {sel('text-[#aaaaaa] bg-[#000080] px-3 py-0.5 uppercase tracking-wide')}
+            <Indicator char="▼" className="text-[#aaaaaa] right-2" />
+          </Wrap>
         );
 
       case 'matrix':
         return (
-          <span className="relative inline-flex items-center focus-within:ring-1 focus-within:ring-green-900/60">
+          <span className="font-mono text-xs inline-flex items-center focus-within:ring-1 focus-within:ring-green-900/60">
             <span aria-hidden className="text-green-700 select-none mr-1 shrink-0">{'>_'}</span>
-            <span className="relative inline-flex items-center">
-              <select
-                ref={ref}
-                className={cn(base, 'text-green-400 pr-4', className)}
-                style={{ textShadow: '0 0 8px rgba(74,222,128,0.8)' }}
-                {...props}
-              >{children}</select>
-              <span aria-hidden className="absolute right-0 pointer-events-none text-green-700 select-none">▾</span>
-            </span>
+            <Wrap>
+              {sel('text-green-400 px-0 py-0.5', { textShadow: '0 0 8px rgba(74,222,128,0.8)' })}
+              <Indicator className="text-green-700" />
+            </Wrap>
           </span>
         );
 
       case 'pipe':
         return (
-          <span className="relative inline-flex items-center border-l-2 border-foreground/20 focus-within:border-foreground/60 transition-colors pl-2">
-            <select ref={ref} className={cn(base, 'text-foreground pr-5 py-1', className)} {...props}>{children}</select>
-            <span aria-hidden className="absolute right-0 pointer-events-none text-foreground/40 select-none">▾</span>
-          </span>
+          <Wrap className="border-l-2 border-foreground/20 focus-within:border-foreground/60 transition-colors pl-2">
+            {sel('text-foreground py-1 px-1')}
+            <Indicator className="text-foreground/40" />
+          </Wrap>
         );
 
       case 'slash':
         return (
-          <span className="relative inline-flex items-center focus-within:ring-1 focus-within:ring-ring/40">
+          <span className="font-mono text-xs inline-flex items-center focus-within:ring-1 focus-within:ring-ring/40">
             <span aria-hidden className="text-foreground/25 select-none mr-1 shrink-0">{'//'}</span>
-            <span className="relative inline-flex items-center">
-              <select ref={ref} className={cn(base, 'text-foreground/65 hover:text-foreground pr-4 transition-colors', className)} {...props}>{children}</select>
-              <span aria-hidden className="absolute right-0 pointer-events-none text-foreground/25 select-none">▾</span>
-            </span>
+            <Wrap>
+              {sel('text-foreground/65 hover:text-foreground transition-colors px-0 py-0.5')}
+              <Indicator className="text-foreground/25" />
+            </Wrap>
           </span>
         );
     }

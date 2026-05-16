@@ -6,11 +6,12 @@ import { Select, SELECT_VARIANTS } from './select.js';
 import type { SelectVariant } from './select.js';
 
 const OPTIONS = [
-  { value: 'cpu',    label: 'cpu' },
-  { value: 'ram',    label: 'ram' },
-  { value: 'net_rx', label: 'net rx' },
-  { value: 'net_tx', label: 'net tx' },
-  { value: 'none',   label: 'none' },
+  { value: 'cpu',         label: 'cpu' },
+  { value: 'ram',         label: 'ram' },
+  { value: 'net_rx',      label: 'net rx' },
+  { value: 'net_tx',      label: 'net tx' },
+  { value: 'temperature', label: 'temperature' },
+  { value: 'none',        label: 'none' },
 ];
 
 const meta = {
@@ -76,7 +77,7 @@ const DESCRIPTIONS: Record<SelectVariant, string> = {
 };
 
 function Demo({ variant }: { variant: SelectVariant }) {
-  const [value, setValue] = useState('cpu');
+  const [value, setValue] = useState('temperature');
   return (
     <div className="flex flex-col gap-2 min-w-fit">
       <Select variant={variant} value={value} onChange={e => setValue(e.target.value)} aria-label={`${variant} demo`}>
