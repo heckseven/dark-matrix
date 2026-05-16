@@ -58,7 +58,7 @@ function AppStory({ mode, frameCount, isPlaying, zoom, previewTarget }: AppStory
 AppStory.displayName = 'App';
 
 const meta = {
-  title: 'Designer/App',
+  title: 'App',
   component: AppStory,
   parameters: { layout: 'fullscreen' },
   argTypes: {

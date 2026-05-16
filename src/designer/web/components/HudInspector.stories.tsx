@@ -4,7 +4,7 @@ import { HudInspector } from './HudInspector.js';
 import type { HudWidget } from '../types/hud-preset.js';
 
 const meta = {
-  title: 'HUD/HudInspector',
+  title: 'App/HUD/HudInspector',
   component: HudInspector,
   parameters: {
     layout: 'padded',

@@ -17,7 +17,7 @@ function Controlled({ value, onChange }: { value: number; onChange: (v: number) 
 }
 
 const meta = {
-  title: 'Components/ColorPalette',
+  title: 'App/Design/ColorPalette',
   component: ColorPalette,
   tags: ['autodocs'],
   parameters: {

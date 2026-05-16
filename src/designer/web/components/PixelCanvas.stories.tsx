@@ -46,7 +46,7 @@ function PixelCanvasStory({ width, pattern, zoom = 1 }: { width: 9 | 18; pattern
 PixelCanvasStory.displayName = 'PixelCanvas';
 
 const meta = {
-  title: 'Components/PixelCanvas',
+  title: 'App/Design/PixelCanvas',
   component: PixelCanvasStory,
   tags: [],
   parameters: {

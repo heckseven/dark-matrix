@@ -4,7 +4,7 @@ import { TriggerEditor } from './TriggerEditor.js';
 import type { HudTrigger } from '../types/hud-preset.js';
 
 const meta = {
-  title: 'HUD/TriggerEditor',
+  title: 'App/HUD/TriggerEditor',
   component: TriggerEditor,
   parameters: {
     layout: 'padded',

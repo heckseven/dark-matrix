@@ -25,7 +25,7 @@ function PlaybackStory({ frameCount }: { frameCount: number }) {
 PlaybackStory.displayName = 'Playback';
 
 const meta = {
-  title: 'Components/Playback',
+  title: 'App/Design/Playback',
   component: PlaybackStory,
   tags: ['autodocs'],
   parameters: {
