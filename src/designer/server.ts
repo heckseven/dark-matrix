@@ -10,6 +10,7 @@ import sharp from 'sharp';
 import { parseProject, frameToBase64 } from './format.js';
 import type { DmxProject } from './format.js';
 import { sendToDaemon, PersistentDaemonClient, daemonSocketPath } from '../lib/daemon-client.js';
+import { loadConfig } from '../lib/config.js';
 import { AUDIO_STYLES } from '../animations/audio-renderers.js';
 import { watchProcStats } from '../lib/proc-source.js';
 
@@ -53,6 +54,11 @@ export interface DesignerServer {
 function prefsPath(configDir?: string): string {
   const dir = configDir ?? path.join(os.homedir(), '.config', 'dark-matrix');
   return path.join(dir, 'designer-prefs.json');
+}
+
+function configFilePath(configDir?: string): string {
+  const dir = configDir ?? path.join(os.homedir(), '.config', 'dark-matrix');
+  return path.join(dir, 'config.json');
 }
 
 function libraryDir(configDir?: string): string {
@@ -855,6 +861,59 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
         const rightWidget    = typeof msg['rightWidget']    === 'string' ? msg['rightWidget']    : undefined;
         const rightDataStyle = typeof msg['rightDataStyle'] === 'string' ? msg['rightDataStyle'] : undefined;
         sendToDaemon({ cmd: 'hud-config', leftFace, leftWidget, leftDataStyle, rightFace, rightWidget, rightDataStyle }).catch(() => {});
+      } else if (type === 'hud-presets-get') {
+        void (async () => {
+          try {
+            const config = await loadConfig(configFilePath(configDir));
+            ws.send(JSON.stringify({ type: 'hud-presets', presets: config.hud_presets ?? [], activeName: null }));
+          } catch {
+            ws.send(JSON.stringify({ type: 'hud-presets', presets: [], activeName: null }));
+          }
+        })();
+      } else if (type === 'hud-preset-save') {
+        void (async () => {
+          const presets = msg['presets'];
+          if (!Array.isArray(presets)) {
+            ws.send(JSON.stringify({ type: 'error', error: 'invalid payload' }));
+            return;
+          }
+          const names = (presets as { name?: unknown }[]).map(p => p.name);
+          const hasDupe = names.some((n, i) => names.indexOf(n) !== i);
+          if (hasDupe) {
+            ws.send(JSON.stringify({ type: 'error', error: 'duplicate preset name' }));
+            return;
+          }
+          try {
+            const cfgPath = configFilePath(configDir);
+            const config = await loadConfig(cfgPath);
+            const updated = { ...config, hud_presets: presets };
+            const tmp = cfgPath + '.tmp';
+            await fs.writeFile(tmp, JSON.stringify(updated, null, 2) + '\n', { mode: 0o600 });
+            await fs.rename(tmp, cfgPath);
+            sendToDaemon({ cmd: 'reload' }).catch(() => {});
+            ws.send(JSON.stringify({ type: 'hud-presets-saved' }));
+          } catch (err) {
+            ws.send(JSON.stringify({ type: 'error', error: String(err) }));
+          }
+        })();
+      } else if (type === 'hud-preset-activate') {
+        const name = msg['name'];
+        if (typeof name !== 'string' || !name) {
+          ws.send(JSON.stringify({ type: 'error', error: 'invalid payload' }));
+        } else {
+          void (async () => {
+            try {
+              const reply = await sendToDaemon({ cmd: 'hud-preset', name }) as { ok?: boolean; name?: string; error?: string };
+              if (reply.ok) {
+                ws.send(JSON.stringify({ type: 'hud-preset-activated', name: reply.name ?? name }));
+              } else {
+                ws.send(JSON.stringify({ type: 'error', error: reply.error ?? 'activation failed' }));
+              }
+            } catch (err) {
+              ws.send(JSON.stringify({ type: 'error', error: String(err) }));
+            }
+          })();
+        }
       }
     });
   });
