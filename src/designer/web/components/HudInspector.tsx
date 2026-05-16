@@ -257,7 +257,9 @@ type View = 'picker' | 'settings';
 export function HudInspector({ widget, onChange }: HudInspectorProps) {
   const uid = useId();
   // Snapshot on mount — remount via `key` in HudPanel to reset when side/preset changes.
-  const [view, setView] = useState<View>(() => widget ? 'settings' : 'picker');
+  const [view, setView] = useState<View>(() =>
+    widget && !(widget.widget === 'data' && widget.style === 'cores') ? 'settings' : 'picker'
+  );
   const [scrollTarget, setScrollTarget] = useState<string | null>(null);
   const [clockPixels, setClockPixels] = useState<Partial<Record<ClockFace, string>>>({});
   const [dataThumbnails, setDataThumbnails] = useState<Partial<Record<DataStyle, string>>>({});
@@ -293,7 +295,7 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
 
   function handlePick(picked: HudWidget) {
     onChange(picked);
-    setView('settings');
+    if (picked.widget !== 'data' || picked.style !== 'cores') setView('settings');
   }
 
   // Picker — null widget (no preset selected) or user switching panels
