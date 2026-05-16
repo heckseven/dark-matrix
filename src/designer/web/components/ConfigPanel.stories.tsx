@@ -88,3 +88,44 @@ export const DirtyState: Story = {
     },
   ],
 };
+
+/** Dirty state with richer config — notification rules and all optional daemon fields populated. */
+export const DirtyWithAllTabs: Story = {
+  args: { dualModule: true },
+  decorators: [
+    (Story) => {
+      useEffect(() => {
+        const config: Config = {
+          ...MOCK_CONFIG,
+          daemon: {
+            poll_interval_ms: 1000,
+            idle_animation: 'gif',
+            idle_after_ms: 60000,
+            idle_gif_path: '/home/user/anim.gif',
+            idle_gif_mode: 'gray',
+            idle_gif_dual: true,
+          },
+          startup: {
+            animation: 'dmx',
+            scroll_text: '',
+            dmx_path: '/home/user/startup.dmx.json',
+          },
+          notification_rules: [
+            { app_name_glob: 'slack', urgency: 'normal', animation: 'scroll' },
+            { app_name_glob: '*', animation: 'dmx', dmx_path: '/home/user/notif.dmx.json' },
+          ],
+          hud_presets: [
+            { name: 'day', left: { widget: 'clock', face: 'elegant' }, right: { widget: 'data' } },
+          ],
+        };
+        designerStore.getState().loadConfigData(config);
+        designerStore.setState({ configDirty: true });
+      }, []);
+      return (
+        <div style={{ height: '100vh', boxSizing: 'border-box' }}>
+          <Story />
+        </div>
+      );
+    },
+  ],
+};
