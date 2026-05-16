@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/tanstack-react';
-import { fn, userEvent, within } from 'storybook/test';
+import { fn, userEvent, within, expect } from 'storybook/test';
 import { HudInspector } from './HudInspector.js';
 import type { HudWidget } from '../types/hud-preset.js';
 
@@ -42,6 +42,7 @@ export const PickerWithClock: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole('button', { name: 'Select different panel' }));
+    expect(canvas.getByRole('button', { name: 'elegant', pressed: true })).toBeVisible();
   },
 };
 
@@ -59,24 +60,6 @@ export const ClockAnalogue: Story = {
   },
 };
 
-/** Picker with data assigned — system preset tile marked active. */
-export const PickerWithData: Story = {
-  args: {
-    widget: {
-      widget: 'data',
-      style: 'line',
-      top_left: 'cpu',
-      top_right: 'ram',
-      bottom_left: 'net_rx',
-      bottom_right: 'net_tx',
-    } satisfies HudWidget,
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole('button', { name: 'Select different panel' }));
-  },
-};
-
 /** Data settings — system preset (line, all 4 metrics). */
 export const DataSystem: Story = {
   args: {
@@ -88,6 +71,16 @@ export const DataSystem: Story = {
       bottom_left: 'net_rx',
       bottom_right: 'net_tx',
     } satisfies HudWidget,
+  },
+};
+
+/** Picker with data assigned — system preset tile marked active. */
+export const PickerWithData: Story = {
+  ...DataSystem,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', { name: 'Select different panel' }));
+    expect(canvas.getByRole('button', { name: 'system', pressed: true })).toBeVisible();
   },
 };
 

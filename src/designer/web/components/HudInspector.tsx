@@ -35,7 +35,7 @@ if (import.meta.hot) {
 }
 
 function getDataThumb(style: DataStyle): DataRenderer {
-  if (!_dataThumbCache[style]) {
+  if (_dataThumbCache[style] === undefined) {
     const r = createDataRenderer({ style });
     if (style === 'bars') {
       // 8 simulated CPU cores at varied utilisation
@@ -254,7 +254,8 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
   }
 
   function handleSelectDifferent() {
-    setScrollTarget(categoryOfWidget(widget!));
+    if (!widget) return;
+    setScrollTarget(categoryOfWidget(widget));
     setView('picker');
   }
 
@@ -285,10 +286,10 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
       {/* Header */}
       <div className="flex items-center shrink-0 px-2 py-1 border-b border-foreground/10">
         <Button variant="ghost" className="text-foreground/60 text-xs" aria-label="Select different panel" onClick={handleSelectDifferent}>
-          ← select different
+          <span aria-hidden="true">← select different</span>
         </Button>
         <Button variant="ghost" className="ml-auto text-foreground/60" aria-label="Close inspector" onClick={handleClose}>
-          ✕
+          <span aria-hidden="true">✕</span>
         </Button>
       </div>
 
