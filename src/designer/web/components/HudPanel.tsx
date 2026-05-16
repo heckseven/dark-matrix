@@ -211,6 +211,12 @@ export function HudPanel({ dualModule = false, topPad = 0 }: { dualModule?: bool
               designerStore.getState().updatePresetTriggers(selectedPreset.name, triggers);
               debouncedSave();
             }}
+            {...(selectedPreset?.match !== undefined ? { match: selectedPreset.match } : {})}
+            onMatchChange={(match) => {
+              if (!selectedPreset) return;
+              designerStore.getState().updatePresetMatch(selectedPreset.name, match);
+              debouncedSave();
+            }}
           />
         </div>
       </main>

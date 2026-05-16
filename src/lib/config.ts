@@ -25,6 +25,7 @@ const HudPresetSchema = z.object({
   left: HudWidgetSchema,
   right: HudWidgetSchema,
   triggers: z.array(HudTriggerSchema).optional(),
+  match: z.enum(['all', 'any']).optional(),
 });
 
 const ConfigSchema = z.object({

@@ -90,6 +90,7 @@ export interface DesignerActions {
   renamePreset(oldName: string, newName: string): void;
   updatePresetWidget(presetName: string, side: 'left' | 'right', widget: HudWidget): void;
   updatePresetTriggers(presetName: string, triggers: HudTrigger[]): void;
+  updatePresetMatch(presetName: string, match: 'all' | 'any'): void;
   setActivePreset(name: string | null): void;
   movePreset(fromIdx: number, toIdx: number): void;
   insertPreset(preset: HudPresetClient, afterIdx: number): void;
@@ -419,6 +420,14 @@ export function createDesignerStore() {
       set({
         hudPresets: hudPresets.map(p =>
           p.name === presetName ? { ...p, triggers } : p
+        ),
+      });
+    },
+    updatePresetMatch(presetName, match) {
+      const { hudPresets } = get();
+      set({
+        hudPresets: hudPresets.map(p =>
+          p.name === presetName ? { ...p, match } : p
         ),
       });
     },

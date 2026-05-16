@@ -73,50 +73,49 @@ export function createPresetTriggerEngine(opts: TriggerEngineOpts): TriggerEngin
       // No triggers = never auto-activates
       if (!triggers || triggers.length === 0) continue;
 
-      let allMatch = true;
+      const isAny = preset.match === 'any';
+      let matchCount = 0;
+
       for (let ti = 0; ti < triggers.length; ti++) {
         const trigger = triggers[ti]!;
+        let triggerMatch = false;
 
         if (trigger.type === 'time') {
-          const hhmm = currentHhmm();
-          if (!timeInRange(trigger.from, trigger.to, hhmm)) {
-            allMatch = false;
-            break;
-          }
+          triggerMatch = timeInRange(trigger.from, trigger.to, currentHhmm());
         } else if (trigger.type === 'idle') {
-          if (!isIdle) { allMatch = false; break; }
+          triggerMatch = isIdle;
         } else if (trigger.type === 'active') {
-          if (isIdle) { allMatch = false; break; }
+          triggerMatch = !isIdle;
         } else if (trigger.type === 'threshold') {
-          if (!latestStats) { allMatch = false; break; }
-          const statsKey = METRIC_MAP[trigger.metric];
-          if (!statsKey) { allMatch = false; break; }
-          const key = `${pi}:${ti}`;
-          const value = latestStats[statsKey];
-          let conditionMet = true;
-          if (trigger.above !== undefined && value <= trigger.above) conditionMet = false;
-          if (trigger.below !== undefined && value >= trigger.below) conditionMet = false;
-
-          if (conditionMet) {
-            const count = (thresholdCounters.get(key) ?? 0) + 1;
-            thresholdCounters.set(key, count);
-            if (count < 5) { allMatch = false; break; }
-          } else {
-            thresholdCounters.set(key, 0);
-            allMatch = false;
-            break;
+          if (latestStats) {
+            const statsKey = METRIC_MAP[trigger.metric];
+            if (statsKey) {
+              const key = `${pi}:${ti}`;
+              const value = latestStats[statsKey];
+              let conditionMet = true;
+              if (trigger.above !== undefined && value <= trigger.above) conditionMet = false;
+              if (trigger.below !== undefined && value >= trigger.below) conditionMet = false;
+              if (conditionMet) {
+                const count = (thresholdCounters.get(key) ?? 0) + 1;
+                thresholdCounters.set(key, count);
+                triggerMatch = count >= 5;
+              } else {
+                thresholdCounters.set(key, 0);
+              }
+            }
           }
         } else if (trigger.type === 'interface') {
-          const state = ifaceState.get(trigger.name) ?? 'down';
-          if (state !== trigger.state) { allMatch = false; break; }
+          triggerMatch = (ifaceState.get(trigger.name) ?? 'down') === trigger.state;
         } else if (trigger.type === 'vm') {
           const state = vmState.get(trigger.name) ?? 'stopped';
-          const wantedState = trigger.state ?? 'running';
-          if (state !== wantedState) { allMatch = false; break; }
+          triggerMatch = state === (trigger.state ?? 'running');
         }
+
+        if (triggerMatch) matchCount++;
       }
 
-      if (allMatch) {
+      const presetMatches = isAny ? matchCount > 0 : matchCount === triggers.length;
+      if (presetMatches) {
         if (lastActivated !== preset.name) {
           lastActivated = preset.name;
           opts.onActivate(preset.name);
