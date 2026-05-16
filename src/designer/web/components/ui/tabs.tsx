@@ -53,7 +53,8 @@ const DEFS: Record<TabsVariant, Def> = {
       a ? 'text-green-400' : 'text-green-400/35 hover:text-green-400/55',
     ),
     btnStyle: a => a ? { textShadow: '0 0 8px rgba(74,222,128,0.7)' } : {},
-    wrapLabel: (t, a) => a ? `[${t}]` : ` ${t} `,
+    // brackets always present — HTML collapses whitespace so space-padding doesn't work
+    wrapLabel: (t) => `[${t}]`,
   },
 
   amber: {
@@ -99,7 +100,7 @@ const DEFS: Record<TabsVariant, Def> = {
     groupClass: 'flex gap-0 border border-fuchsia-500/35',
     btnClass: a => cn(
       'px-4 py-1 font-mono text-xs transition-colors',
-      a ? 'bg-fuchsia-500/15 text-fuchsia-300' : 'text-fuchsia-500/35 hover:text-fuchsia-400/60',
+      a ? 'bg-fuchsia-500/15 text-fuchsia-300' : 'text-fuchsia-400/55 hover:text-fuchsia-300',
     ),
     btnStyle: a => a ? {
       boxShadow: 'inset 0 0 8px rgba(217,70,239,0.1)',
@@ -127,7 +128,7 @@ const DEFS: Record<TabsVariant, Def> = {
       'px-4 py-1 font-mono text-xs uppercase tracking-wide border transition-colors',
       a
         ? 'bg-pink-500 text-white border-pink-500'
-        : 'text-pink-500/40 border-pink-500/20 hover:border-pink-500/45 hover:text-pink-400/70',
+        : 'text-pink-400/55 border-pink-500/20 hover:border-pink-500/45 hover:text-pink-300',
     ),
     btnStyle: a => a ? {
       boxShadow: '0 0 14px rgba(236,72,153,0.5)',
@@ -139,10 +140,10 @@ const DEFS: Record<TabsVariant, Def> = {
     groupClass: 'flex gap-4',
     btnClass: a => cn(
       'font-mono text-xs transition-colors',
-      a ? 'text-green-400' : 'text-green-950 hover:text-green-800',
+      a ? 'text-green-400' : 'text-green-700 hover:text-green-600',
     ),
     btnStyle: a => a ? { textShadow: '0 0 8px rgba(74,222,128,0.9)' } : {},
-    wrapLabel: (t, a) => a ? `>_ ${t}` : `   ${t}`,
+    wrapLabel: (t, a) => a ? `>_ ${t}` : t,
   },
 };
 
