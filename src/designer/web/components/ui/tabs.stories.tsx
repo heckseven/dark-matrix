@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/tanstack-react';
 import { fn } from 'storybook/test';
 import { useArgs } from 'storybook/preview-api';
@@ -23,6 +22,10 @@ const meta = {
     },
   },
   argTypes: {
+    options: {
+      control: 'object',
+      description: 'Tab items — strings or `{ value, label }` objects.',
+    },
     value: {
       control: 'text',
       description: 'Currently selected value.',
@@ -30,6 +33,10 @@ const meta = {
     'aria-label': {
       control: 'text',
       description: 'Accessible group label. Required.',
+    },
+    className: {
+      control: 'text',
+      description: 'Extra classes on the group wrapper.',
     },
   },
   args: {

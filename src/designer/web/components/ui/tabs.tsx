@@ -18,11 +18,11 @@ function normalize(o: string | TabOption): { value: string; label: string } {
 
 function ShelfLabel({ text, active }: { text: string; active: boolean }): ReactNode {
   const inner = '  ' + text + '  ';
-  const bar = active ? `┕${'━'.repeat(text.length + 2)}┙` : '​';
+  const bar = `┕${'━'.repeat(text.length + 2)}┙`;
   return (
     <span className="flex flex-col leading-none">
       <span className="py-1">{inner}</span>
-      <span>{bar}</span>
+      <span aria-hidden="true" style={active ? undefined : { visibility: 'hidden' }}>{bar}</span>
     </span>
   );
 }

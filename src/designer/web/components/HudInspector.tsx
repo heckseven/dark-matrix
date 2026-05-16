@@ -121,7 +121,7 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
       <Tabs
         options={['clock', 'data']}
         value={widgetType}
-        onChange={(v) => switchType(v as 'clock' | 'data')}
+        onChange={(v) => { if (v === 'clock' || v === 'data') switchType(v); }}
         aria-label="Widget type"
       />
 
