@@ -19,11 +19,11 @@
 - [x] HUD mode — daemon data sources (CPU, memory, network, time via `/proc`); WebSocket push from daemon; three-column preset designer (PresetList, HudDualPreview, HudInspector); named presets saveable and switchable via `dark-matrix hud preset <name>`; event-driven trigger engine (time, idle, active, threshold, interface, vm); live preview in designer and on modules
 - [ ] Generative art panel — new tool panel in designer with parameterized generators (noise, reaction-diffusion, CA seeds); writes into frames; save to library
 - [ ] Image import tooling — contrast, brightness, dithering controls in designer when importing PNG/GIF; helps optimize images for the low-res display
-- [ ] Default view settings — designer UI to configure startup mode and animation (`config.json` schema already exists); persists across power cycles
+- [x] Default view settings — designer UI to configure startup mode and animation (`config.json` schema already exists); persists across power cycles
 - [ ] YouTube / video pipeline — `yt-dlp` + `ffmpeg` capture, scale to 9×34 or 18×34, dither, push via frame command at ~20fps; audio plays through system independently
 - [ ] Interactive games — keyboard input from browser routed via WebSocket to game loop (Tetris, Snake); game state lives in browser, renders frames and pushes via existing live preview `frame` mechanism
-- [ ] Notifications panel — per-app and per-urgency animation rules for D-Bus notification events (watcher already exists); designer panel to configure trigger → animation mappings; preview mode to fire a test notification without waiting for a real one
-- [ ] Config panel — settings panel in designer covering: startup animation picker (type + dmx path), daemon tunables (poll interval, idle timeout, idle animation), hardware assignment (serial port, module calibration), notification rules, accent color and UI theme
+- [x] Notifications panel — per-app and per-urgency animation rules for D-Bus notification events (watcher already exists); designer panel to configure trigger → animation mappings; preview mode to fire a test notification without waiting for a real one
+- [x] Config panel — settings panel in designer covering: startup animation picker (type + dmx path), daemon tunables (poll interval, idle timeout, idle animation), hardware assignment (serial port, module calibration), notification rules, accent color and UI theme
 
 ## HUD enhancements
 
