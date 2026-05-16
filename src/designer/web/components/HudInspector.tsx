@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useId } from 'react';
 import { MatrixPreview } from './MatrixPreview.js';
 import { Tabs } from './ui/tabs.js';
+import { Select } from './ui/select.js';
 import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
 import type { DataStyle, DataMetric } from '../../../animations/data-renderers.js';
@@ -153,19 +154,12 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
           {/* Style toggle */}
           <div className="flex flex-col gap-1">
             <span className="font-mono text-xs text-foreground/50">style</span>
-            <div role="group" aria-label="Data style" className="flex gap-0 font-mono text-xs border border-foreground/30 self-start">
-              {(['line', 'bars'] as const satisfies DataStyle[]).map(style => (
-                <button
-                  key={style}
-                  type="button"
-                  aria-pressed={(widget.style ?? 'line') === style}
-                  className={`px-4 py-1 transition-colors ${(widget.style ?? 'line') === style ? 'bg-foreground text-background' : 'text-foreground/60 hover:text-foreground'}`}
-                  onClick={() => updateDataStyle(style)}
-                >
-                  {style}
-                </button>
-              ))}
-            </div>
+            <Tabs
+              options={['line', 'bars'] as const satisfies DataStyle[]}
+              value={widget.style ?? 'line'}
+              onChange={(v) => { if (v === 'line' || v === 'bars') updateDataStyle(v); }}
+              aria-label="Data style"
+            />
           </div>
 
           {/* Quadrant dropdowns */}
@@ -184,16 +178,15 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
                 return (
                   <div key={key} className="flex flex-col gap-1">
                     <label htmlFor={`${uid}-${key}`} className="font-mono text-xs text-foreground/55">{label}</label>
-                    <select
+                    <Select
                       id={`${uid}-${key}`}
-                      className="font-mono text-xs bg-background text-foreground border border-foreground/30 px-2 py-1 rounded-none focus:outline-none focus:border-white"
                       value={value}
                       onChange={e => updateQuadrant(key, e.target.value as DataMetric | 'none')}
                     >
                       {DATA_METRICS.map(m => (
                         <option key={m.id} value={m.id}>{m.label}</option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                 );
               })}

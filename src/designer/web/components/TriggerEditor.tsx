@@ -1,5 +1,7 @@
 import { useState, useId } from 'react';
 import type { HudTrigger } from '../types/hud-preset.js';
+import { Select } from './ui/select.js';
+import { Tabs } from './ui/tabs.js';
 
 export type TriggerEditorProps = {
   triggers: HudTrigger[];
@@ -102,16 +104,15 @@ function ThresholdFields({ trigger, onChange }: RowProps) {
 
   return (
     <>
-      <select
+      <Select
         aria-label="Metric"
-        className="font-mono text-xs bg-background text-foreground border border-foreground/30 px-2 py-0.5 rounded-none focus:outline-none focus:border-white"
         value={trigger.metric}
         onChange={e => update({ metric: e.target.value as typeof trigger.metric })}
       >
         {(['cpu', 'ram', 'net_rx', 'net_tx'] as const).map(m => (
           <option key={m} value={m}>{m}</option>
         ))}
-      </select>
+      </Select>
       <div className="flex items-center gap-1">
         <label htmlFor={`${uid}-above`} className="font-mono text-xs text-foreground/55">above</label>
         <input
@@ -157,15 +158,14 @@ function InterfaceFields({ trigger, onChange }: RowProps) {
         value={trigger.name}
         onChange={e => onChange({ ...trigger, name: e.target.value })}
       />
-      <select
+      <Select
         aria-label="Interface state"
-        className="font-mono text-xs bg-background text-foreground border border-foreground/30 px-2 py-0.5 rounded-none focus:outline-none focus:border-white"
         value={trigger.state}
         onChange={e => onChange({ ...trigger, state: e.target.value as 'up' | 'down' })}
       >
         <option value="up">up</option>
         <option value="down">down</option>
-      </select>
+      </Select>
     </>
   );
 }
@@ -192,16 +192,15 @@ function VmFields({ trigger, onChange }: RowProps) {
         value={trigger.name}
         onChange={e => update(e.target.value, stateValue)}
       />
-      <select
+      <Select
         aria-label="VM state"
-        className="font-mono text-xs bg-background text-foreground border border-foreground/30 px-2 py-0.5 rounded-none focus:outline-none focus:border-white"
         value={stateValue}
         onChange={e => update(trigger.name, e.target.value)}
       >
         <option value="any">any</option>
         <option value="running">running</option>
         <option value="stopped">stopped</option>
-      </select>
+      </Select>
     </>
   );
 }
@@ -278,20 +277,14 @@ export function TriggerEditor({ triggers, onChange, match = 'all', onMatchChange
         <div id={`${uid}-body`} className="flex flex-col gap-0 mt-1">
           {/* match mode toggle — only shown with 2+ triggers */}
           {triggers.length >= 2 && onMatchChange && (
-            <div role="group" aria-label="match mode" className="flex items-center gap-1 mb-1">
+            <div className="flex items-center gap-2 mb-1">
               <span className="font-mono text-xs text-foreground/55" aria-hidden="true">match</span>
-              {(['all', 'any'] as const).map(m => (
-                <button
-                  key={m}
-                  type="button"
-                  aria-pressed={match === m}
-                  aria-label={`match ${m} triggers`}
-                  className={`font-mono text-xs px-1.5 py-0.5 border transition-colors ${match === m ? 'border-foreground text-foreground' : 'border-foreground/20 text-foreground/55 hover:text-foreground hover:border-foreground/50'}`}
-                  onClick={() => onMatchChange(m)}
-                >
-                  {m}
-                </button>
-              ))}
+              <Tabs
+                options={['all', 'any']}
+                value={match}
+                onChange={(v) => { if (v === 'all' || v === 'any') onMatchChange(v); }}
+                aria-label="match mode"
+              />
             </div>
           )}
           {/* Trigger list */}
