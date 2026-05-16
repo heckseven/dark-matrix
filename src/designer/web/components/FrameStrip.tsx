@@ -137,6 +137,7 @@ function FrameCell({
             <Button
               variant="ghost"
               aria-label="Clone frame"
+              tooltip="Clone frame"
               onClick={e => { e.stopPropagation(); designerStore.getState().cloneFrame(idx); }}
             >
               ⧉
