@@ -23,7 +23,7 @@ import { createGolAnimation } from '../animations/gol.js';
 import { createHeatmapState, bumpTool, tickHeatmap, renderHeatmap } from '../animations/heatmap.js';
 import { createAudioEqAnimation, createAudioBandStream } from '../animations/audio-eq.js';
 import type { AudioSource } from '../animations/audio-eq.js';
-import { AUDIO_STYLES } from '../animations/audio-renderers.js';
+import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../animations/audio-renderers.js';
 import type { AudioStyle } from '../animations/audio-renderers.js';
 import { createClockRenderer, isClockFace } from '../animations/clock-renderers.js';
 import { createDataRenderer } from '../animations/data-renderers.js';
@@ -323,8 +323,17 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     const needsHeatmap = leftWidgetType === 'heatmap' || rightWidgetType === 'heatmap';
 
+    // Audio renderers (used when widget = 'audio')
+    const leftAudioHud  = currentConfig.hud?.left;
+    const rightAudioHud = currentConfig.hud?.right;
+    const leftAudioStyle: AudioStyle  = leftAudioHud?.widget  === 'audio' ? (leftAudioHud.style  ?? 'dark-matter') : 'dark-matter';
+    const rightAudioStyle: AudioStyle = rightAudioHud?.widget === 'audio' ? (rightAudioHud.style ?? 'dark-matter') : 'dark-matter';
+    const leftAudioRenderer  = leftWidgetType  === 'audio' ? createAudioRenderer(leftAudioStyle)  : null;
+    const rightAudioRenderer = rightWidgetType === 'audio' ? createAudioRenderer(rightAudioStyle) : null;
+
     let audioCtx: { bands: number[]; fftSize: number; gain: number } | null = null;
-    const needsAudio = leftClockFace === 'binary-audio' || rightClockFace === 'binary-audio';
+    const needsAudio = leftClockFace === 'binary-audio' || rightClockFace === 'binary-audio'
+      || leftWidgetType === 'audio' || rightWidgetType === 'audio';
     if (needsAudio) hudAudioStreaming = true;
     const stopAudio = needsAudio
       ? streamAudioBands(hudAudioSource, (ctx) => { audioCtx = ctx; }, () => { audioCtx = null; })
@@ -342,6 +351,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         if (leftWidgetType === 'heatmap' && hmLeft) {
           lf = hmLeft;
           ditherBW(lf, FRAME_COLS, FRAME_ROWS);
+        } else if (leftWidgetType === 'audio' && leftAudioRenderer) {
+          lf = leftAudioRenderer(audioCtx ?? { bands: new Array(9).fill(0) as number[], fftSize: 2048, gain: 1.0 });
+          ditherBW(lf, FRAME_COLS, FRAME_ROWS);
         } else if (leftWidgetType === 'data' && leftDataRenderer) {
           lf = leftDataRenderer.render();
           ditherBW(lf, FRAME_COLS, FRAME_ROWS);
@@ -353,6 +365,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
         if (rightWidgetType === 'heatmap' && hmRight) {
           rf = hmRight;
+          ditherBW(rf, FRAME_COLS, FRAME_ROWS);
+        } else if (rightWidgetType === 'audio' && rightAudioRenderer) {
+          rf = rightAudioRenderer(audioCtx ?? { bands: new Array(9).fill(0) as number[], fftSize: 2048, gain: 1.0 });
           ditherBW(rf, FRAME_COLS, FRAME_ROWS);
         } else if (rightWidgetType === 'data' && rightDataRenderer) {
           rf = rightDataRenderer.render();
@@ -901,10 +916,13 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               break;
             }
             case 'hud-config': {
-              const m = msg as { cmd: string; leftFace?: string; leftWidget?: string; leftDataStyle?: string; rightFace?: string; rightWidget?: string; rightDataStyle?: string };
+              const m = msg as { cmd: string; leftFace?: string; leftWidget?: string; leftDataStyle?: string; leftAudioStyle?: string; rightFace?: string; rightWidget?: string; rightDataStyle?: string; rightAudioStyle?: string };
               const newHud = { ...currentConfig.hud };
               if (m.leftWidget === 'heatmap') {
                 newHud.left = { widget: 'heatmap' };
+              } else if (m.leftWidget === 'audio') {
+                const style = AUDIO_STYLES.find(s => s.id === m.leftAudioStyle)?.id;
+                newHud.left = { widget: 'audio', ...(style ? { style } : {}) };
               } else if (m.leftWidget === 'data') {
                 const style = DATA_STYLES.find(s => s.id === m.leftDataStyle)?.id;
                 newHud.left = { widget: 'data', ...(style ? { style } : {}) };
@@ -914,6 +932,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               }
               if (m.rightWidget === 'heatmap') {
                 newHud.right = { widget: 'heatmap' };
+              } else if (m.rightWidget === 'audio') {
+                const style = AUDIO_STYLES.find(s => s.id === m.rightAudioStyle)?.id;
+                newHud.right = { widget: 'audio', ...(style ? { style } : {}) };
               } else if (m.rightWidget === 'data') {
                 const style = DATA_STYLES.find(s => s.id === m.rightDataStyle)?.id;
                 newHud.right = { widget: 'data', ...(style ? { style } : {}) };

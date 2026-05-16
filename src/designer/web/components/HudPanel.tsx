@@ -38,9 +38,11 @@ function buildPresetConfigPayload(preset: HudPresetClient) {
     leftWidget: l.widget,
     leftFace: l.widget === 'clock' ? l.face : undefined,
     leftDataStyle: l.widget === 'data' ? l.style : undefined,
+    leftAudioStyle: l.widget === 'audio' ? l.style : undefined,
     rightWidget: r.widget,
     rightFace: r.widget === 'clock' ? r.face : undefined,
     rightDataStyle: r.widget === 'data' ? r.style : undefined,
+    rightAudioStyle: r.widget === 'audio' ? r.style : undefined,
   };
 }
 
@@ -50,9 +52,11 @@ function buildHudConfigPayload(widget: HudWidget, side: 'left' | 'right') {
   const rightWidget = side === 'right' ? (widget.widget) : store.hudRightWidget;
   const leftFace    = side === 'left'  && widget.widget === 'clock' ? (widget.face ?? store.hudLeftFace)  : store.hudLeftFace;
   const rightFace   = side === 'right' && widget.widget === 'clock' ? (widget.face ?? store.hudRightFace) : store.hudRightFace;
-  const leftDataStyle  = side === 'left'  && widget.widget === 'data' ? (widget.style ?? store.hudLeftDataStyle)  : store.hudLeftDataStyle;
-  const rightDataStyle = side === 'right' && widget.widget === 'data' ? (widget.style ?? store.hudRightDataStyle) : store.hudRightDataStyle;
-  return { type: 'hud-config' as const, leftWidget, leftFace, leftDataStyle, rightWidget, rightFace, rightDataStyle };
+  const leftDataStyle  = side === 'left'  && widget.widget === 'data'  ? (widget.style ?? store.hudLeftDataStyle)  : store.hudLeftDataStyle;
+  const rightDataStyle = side === 'right' && widget.widget === 'data'  ? (widget.style ?? store.hudRightDataStyle) : store.hudRightDataStyle;
+  const leftAudioStyle  = side === 'left'  && widget.widget === 'audio' ? widget.style : undefined;
+  const rightAudioStyle = side === 'right' && widget.widget === 'audio' ? widget.style : undefined;
+  return { type: 'hud-config' as const, leftWidget, leftFace, leftDataStyle, leftAudioStyle, rightWidget, rightFace, rightDataStyle, rightAudioStyle };
 }
 
 // ── main component ────────────────────────────────────────────────────────

@@ -6,6 +6,8 @@ import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-rend
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
 import { createDataRenderer } from '../../../animations/data-renderers.js';
 import type { DataStyle, DataRenderer } from '../../../animations/data-renderers.js';
+import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
+import type { AudioStyle } from '../../../animations/audio-renderers.js';
 import { createHeatmapState, bumpTool, renderHeatmap } from '../../../animations/heatmap.js';
 import type { HudPresetClient, HudWidget } from '../types/hud-preset.js';
 
@@ -16,6 +18,8 @@ const ROWS = 34;
 
 const _clockCache: Partial<Record<ClockFace, ClockRenderer>> = {};
 const _dataCache: Partial<Record<DataStyle, DataRenderer>> = {};
+const _audioCache: Partial<Record<AudioStyle, ReturnType<typeof createAudioRenderer>>> = {};
+const MOCK_AUDIO_CTX = { bands: [200, 150, 100, 70, 40, 20, 10, 5, 2], fftSize: 2048, gain: 1.5 };
 
 const _heatmapPreview = (() => {
   const s = createHeatmapState();
@@ -27,6 +31,7 @@ if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     for (const k in _clockCache) delete _clockCache[k as ClockFace];
     for (const k in _dataCache) delete _dataCache[k as DataStyle];
+    for (const k in _audioCache) delete _audioCache[k as AudioStyle];
   });
 }
 
@@ -38,6 +43,13 @@ function renderWidgetToB64(widget: HudWidget | null, side: 'left' | 'right'): st
       const face: ClockFace = widget.face ?? 'elegant';
       if (!_clockCache[face]) _clockCache[face] = createClockRenderer(face);
       const frame = _clockCache[face]!({ now: new Date(), side });
+      const out = new Uint8Array(COLS * ROWS);
+      for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
+      return btoa(String.fromCharCode(...out));
+    } else if (widget.widget === 'audio') {
+      const style = widget.style ?? AUDIO_STYLES[0]!.id;
+      if (!_audioCache[style]) _audioCache[style] = createAudioRenderer(style);
+      const frame = _audioCache[style]!(MOCK_AUDIO_CTX);
       const out = new Uint8Array(COLS * ROWS);
       for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
       return btoa(String.fromCharCode(...out));

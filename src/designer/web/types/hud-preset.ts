@@ -1,10 +1,12 @@
 import type { ClockFace } from '../../../animations/clock-renderers.js';
 import type { DataStyle, DataMetric } from '../../../animations/data-renderers.js';
+import type { AudioStyle } from '../../../animations/audio-renderers.js';
 
 export type HudWidget =
   | { widget: 'clock'; face?: ClockFace }
   | { widget: 'data'; style?: DataStyle; top_left?: DataMetric; top_right?: DataMetric; bottom_left?: DataMetric; bottom_right?: DataMetric }
-  | { widget: 'heatmap' };
+  | { widget: 'heatmap' }
+  | { widget: 'audio'; style?: AudioStyle };
 
 export type HudTrigger =
   | { type: 'time'; from: string; to: string }
