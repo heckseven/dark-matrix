@@ -31,8 +31,9 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 export function BrightnessTab({ value, onChange }: Props) {
   const uid = useId();
-  const sensorValid = SENSOR_PATH_RE.test(value.sensor_path);
+  const sensorValid = value.mode === 'sensor' && SENSOR_PATH_RE.test(value.sensor_path);
   const minMaxError = value.min > value.max;
+  const minMaxErrorId = `${uid}-minmax-error`;
 
   return (
     <div className="font-mono text-xs flex flex-col">
@@ -66,7 +67,11 @@ export function BrightnessTab({ value, onChange }: Props) {
               spellCheck={false}
             />
             {value.sensor_path.length > 0 && (
-              <span className={`text-xs ${sensorValid ? 'text-green-400' : 'text-red-400'}`}>
+              <span
+                role="status"
+                aria-label={sensorValid ? 'valid path' : 'path does not match expected pattern'}
+                className={`text-xs ${sensorValid ? 'text-green-400' : 'text-red-400'}`}
+              >
                 {sensorValid ? '✓ valid path' : '✗ path does not match expected pattern'}
               </span>
             )}
@@ -103,19 +108,21 @@ export function BrightnessTab({ value, onChange }: Props) {
       <Row label="min brightness">
         <Slider
           aria-label="minimum brightness"
+          aria-describedby={minMaxErrorId}
           min={0}
           max={255}
           step={1}
           value={value.min}
           onChange={e => onChange({ ...value, min: Number(e.target.value) })}
         />
-        {minMaxError && <span className="text-red-400 text-xs">must be ≤ max</span>}
+        {minMaxError && <span id={minMaxErrorId} role="alert" className="text-red-400 text-xs">must be ≤ max</span>}
       </Row>
 
       {/* max */}
       <Row label="max brightness">
         <Slider
           aria-label="maximum brightness"
+          aria-describedby={minMaxErrorId}
           min={0}
           max={255}
           step={1}
