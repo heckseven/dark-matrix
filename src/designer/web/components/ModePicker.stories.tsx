@@ -4,7 +4,7 @@ import { ModePicker } from './ModePicker';
 import type { AppMode } from './ModePicker';
 
 const meta = {
-  title: 'App/Design/ModePicker',
+  title: 'App/ModePicker',
   component: ModePicker,
   parameters: {
     layout: 'fullscreen',
