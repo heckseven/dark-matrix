@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, Fragment } from 'react';
+import { Button } from './ui/button.js';
 import { MatrixPreview } from './MatrixPreview.js';
 import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
@@ -49,7 +50,7 @@ function combinePixels(left: string, right: string): string {
   try { return btoa(atob(left) + atob(right)); } catch { return left; }
 }
 
-// ── corner bracket ────────────────────────────────────────────────────────
+// ── corner brackets ───────────────────────────────────────────────────────
 
 function CornerBrackets({ active }: { active: boolean }) {
   const c = { position: 'absolute' as const, width: 10, height: 10, pointerEvents: 'none' as const };
@@ -64,29 +65,73 @@ function CornerBrackets({ active }: { active: boolean }) {
   );
 }
 
+// ── gap zone (drag drop target between cards) ─────────────────────────────
+
+function GapZone({ afterIdx, showDrop, setDropTarget, presetCount }: {
+  afterIdx: number;
+  showDrop: boolean;
+  setDropTarget: (v: number | null) => void;
+  presetCount: number;
+}) {
+  return (
+    <div
+      className={`-my-10 h-10 flex items-center px-1 transition-opacity ${showDrop ? '' : 'opacity-0 hover:opacity-100 focus-within:opacity-100'}`}
+      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropTarget(afterIdx + 1); }}
+      onDrop={e => {
+        e.preventDefault();
+        const raw = e.dataTransfer.getData('text/plain');
+        if (!raw) return;
+        const from = Number(raw);
+        setDropTarget(null);
+        if (!Number.isInteger(from) || from < 0 || from >= presetCount) return;
+        const target = afterIdx + 1;
+        const to = from < target ? target - 1 : target;
+        if (to !== from) setDropTarget(-from - 1); // signal move via negative sentinel — handled in parent
+      }}
+    >
+      <div className={`flex-1 h-0.5 rounded-full ${showDrop ? 'bg-green-500' : 'bg-border'}`} />
+    </div>
+  );
+}
+
 // ── preset card ───────────────────────────────────────────────────────────
 
 function PresetCard({
   preset,
+  idx,
+  presetCount,
   isActive,
   isSelected,
   pixels,
+  dropTarget,
   onSelect,
   onDelete,
   onDuplicate,
   onRename,
+  onMoveUp,
+  onMoveDown,
+  setDropTarget,
+  onDrop,
 }: {
   preset: HudPresetClient;
+  idx: number;
+  presetCount: number;
   isActive: boolean;
   isSelected: boolean;
   pixels: string;
+  dropTarget: number | null;
   onSelect: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
   onRename: (newName: string) => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  setDropTarget: (v: number | null) => void;
+  onDrop: (from: number, onto: number) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(preset.name);
+  const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -104,63 +149,120 @@ function PresetCard({
 
   return (
     <div
-      className="group relative flex items-center gap-3 rounded-sm p-2 cursor-pointer"
+      aria-label={preset.name}
+      tabIndex={0}
+      className="group relative flex flex-row gap-3 p-1 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
       onClick={onSelect}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); }
+      }}
+      onDragOver={e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const rect = e.currentTarget.getBoundingClientRect();
+        setDropTarget(e.clientY < rect.top + rect.height / 2 ? idx : idx + 1);
+      }}
+      onDrop={e => {
+        e.preventDefault();
+        const raw = e.dataTransfer.getData('text/plain');
+        if (!raw) return;
+        const from = Number(raw);
+        const target = dropTarget;
+        setDropTarget(null);
+        if (!Number.isInteger(from) || from < 0 || from >= presetCount || target === null) return;
+        const to = from < target ? target - 1 : target;
+        if (to !== from) onDrop(from, to);
+      }}
     >
       <CornerBrackets active={highlighted} />
 
-      <div className="shrink-0">
+      {/* Draggable thumbnail */}
+      <div
+        draggable
+        aria-hidden="true"
+        tabIndex={-1}
+        className="shrink-0"
+        onDragStart={e => { setDragging(true); e.dataTransfer.setData('text/plain', String(idx)); e.dataTransfer.effectAllowed = 'move'; }}
+        onDragEnd={() => { setDragging(false); setDropTarget(null); }}
+        style={{ cursor: dragging ? 'grabbing' : 'grab' }}
+      >
         <MatrixPreview pixels={pixels} width={18} />
       </div>
 
-      <div className="flex-1 min-w-0 flex items-center gap-2">
-        {isActive && (
-          <span
-            aria-label="active"
-            className="shrink-0 w-1.5 h-1.5 rounded-full bg-white"
-          />
-        )}
-        {editing ? (
-          <input
-            ref={inputRef}
-            className="font-mono text-xs bg-transparent border-b border-white text-foreground outline-none min-w-0 w-full"
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            onBlur={commitRename}
-            onKeyDown={e => {
-              e.stopPropagation();
-              if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
-              if (e.key === 'Escape') { setDraft(preset.name); setEditing(false); }
-            }}
-            onClick={e => e.stopPropagation()}
-          />
-        ) : (
-          <span
-            className="font-mono text-xs text-foreground truncate"
-            onDoubleClick={e => { e.stopPropagation(); setDraft(preset.name); setEditing(true); }}
-          >
-            {preset.name}
-          </span>
-        )}
-      </div>
+      {/* Right: name + controls */}
+      <div className="flex flex-col justify-between flex-1 min-w-0 py-0.5">
+        {/* Name row */}
+        <div className="flex items-center gap-1.5 min-w-0">
+          {isActive && (
+            <span aria-label="active" className="shrink-0 w-1.5 h-1.5 rounded-full bg-white" />
+          )}
+          {editing ? (
+            <input
+              ref={inputRef}
+              className="font-mono text-xs bg-transparent border-b border-white text-foreground outline-none min-w-0 w-full"
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={e => {
+                e.stopPropagation();
+                if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
+                if (e.key === 'Escape') { setDraft(preset.name); setEditing(false); }
+              }}
+              onClick={e => e.stopPropagation()}
+            />
+          ) : (
+            <span
+              className="font-mono text-xs text-foreground truncate"
+              onClick={e => { e.stopPropagation(); setDraft(preset.name); setEditing(true); }}
+              title="click to rename"
+            >
+              {preset.name}
+            </span>
+          )}
+        </div>
 
-      <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-        <button
-          type="button"
-          aria-label={`duplicate ${preset.name}`}
-          className="font-mono text-xs text-foreground/40 hover:text-foreground transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-1"
-          onClick={e => { e.stopPropagation(); onDuplicate(); }}
-        >
-          ⧉
-        </button>
-        <button
-          type="button"
-          aria-label={`delete ${preset.name}`}
-          className="font-mono text-xs text-foreground/40 hover:text-foreground transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-1"
-          onClick={e => { e.stopPropagation(); onDelete(); }}
-        >
-          ✕
-        </button>
+        {/* Controls row */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-0">
+            <Button
+              variant="ghost"
+              aria-label="Move preset up"
+              tooltip="Move up"
+              disabled={idx === 0}
+              onClick={e => { e.stopPropagation(); onMoveUp(); }}
+            >
+              ↑
+            </Button>
+            <Button
+              variant="ghost"
+              aria-label="Move preset down"
+              tooltip="Move down"
+              disabled={idx === presetCount - 1}
+              onClick={e => { e.stopPropagation(); onMoveDown(); }}
+            >
+              ↓
+            </Button>
+          </div>
+          <div className="flex items-center gap-0">
+            <Button
+              variant="ghost"
+              aria-label="Duplicate preset"
+              onClick={e => { e.stopPropagation(); onDuplicate(); }}
+            >
+              ⧉
+            </Button>
+            {presetCount > 1 && (
+              <Button
+                variant="ghost"
+                aria-label="Delete preset"
+                tooltip="Delete preset"
+                onClick={e => { e.stopPropagation(); onDelete(); }}
+              >
+                ×
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -177,6 +279,7 @@ export type PresetListProps = {
   onDelete: (name: string) => void;
   onDuplicate: (name: string) => void;
   onRename: (oldName: string, newName: string) => void;
+  onMove: (fromIdx: number, toIdx: number) => void;
 };
 
 export function PresetList({
@@ -188,8 +291,10 @@ export function PresetList({
   onDelete,
   onDuplicate,
   onRename,
+  onMove,
 }: PresetListProps) {
   const [tick, setTick] = useState(0);
+  const [dropTarget, setDropTarget] = useState<number | null>(null);
 
   const refresh = useCallback(() => setTick(t => t + 1), []);
 
@@ -198,46 +303,69 @@ export function PresetList({
     return () => clearInterval(id);
   }, [refresh]);
 
-  // suppress unused-variable lint on tick — it's used to trigger re-renders
   void tick;
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex-1 overflow-y-auto flex flex-col gap-1 py-2">
+    <div
+      className="flex flex-col overflow-y-auto flex-1 min-h-0 pr-2"
+      onDragLeave={e => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropTarget(null);
+      }}
+    >
+      <div className="flex flex-col gap-6 pb-2 pt-2">
         {presets.length === 0 && (
-          <p className="font-mono text-xs text-foreground/40 px-4 py-4">no presets</p>
+          <p className="font-mono text-xs text-foreground/40 px-2 py-4">no presets</p>
         )}
-        {presets.map(preset => {
-          const leftPx = renderWidgetToB64(preset.left, 'left');
+        {dropTarget === 0 && (
+          <div aria-hidden="true" className="-my-[19px] h-0.5 bg-green-500 rounded-full pointer-events-none" />
+        )}
+        {presets.map((preset, idx) => {
+          const leftPx  = renderWidgetToB64(preset.left,  'left');
           const rightPx = renderWidgetToB64(preset.right, 'right');
-          const pixels = combinePixels(leftPx, rightPx);
+          const pixels  = combinePixels(leftPx, rightPx);
           return (
-            <PresetCard
-              key={preset.name}
-              preset={preset}
-              isActive={activeName === preset.name}
-              isSelected={selectedName === preset.name}
-              pixels={pixels}
-              onSelect={() => onSelect(preset.name)}
-              onDelete={() => onDelete(preset.name)}
-              onDuplicate={() => onDuplicate(preset.name)}
-              onRename={newName => onRename(preset.name, newName)}
-            />
+            <Fragment key={preset.name}>
+              <PresetCard
+                preset={preset}
+                idx={idx}
+                presetCount={presets.length}
+                isActive={activeName === preset.name}
+                isSelected={selectedName === preset.name}
+                pixels={pixels}
+                dropTarget={dropTarget}
+                onSelect={() => onSelect(preset.name)}
+                onDelete={() => onDelete(preset.name)}
+                onDuplicate={() => onDuplicate(preset.name)}
+                onRename={newName => onRename(preset.name, newName)}
+                onMoveUp={() => onMove(idx, idx - 1)}
+                onMoveDown={() => onMove(idx, idx + 1)}
+                setDropTarget={setDropTarget}
+                onDrop={onMove}
+              />
+              {idx < presets.length - 1 && (
+                <GapZone
+                  afterIdx={idx}
+                  showDrop={dropTarget === idx + 1}
+                  setDropTarget={setDropTarget}
+                  presetCount={presets.length}
+                />
+              )}
+            </Fragment>
           );
         })}
+        {dropTarget === presets.length && (
+          <div aria-hidden="true" className="-my-[19px] h-0.5 bg-green-500 rounded-full pointer-events-none" />
+        )}
       </div>
 
-      <div className="shrink-0 border-t border-foreground/10 px-2 py-2">
-        <button
-          type="button"
-          className="w-full font-mono text-xs text-foreground/50 hover:text-foreground transition-colors py-1.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-1"
-          onClick={onCreate}
-        >
-          + new preset
-        </button>
-      </div>
+      <Button
+        variant="ghost"
+        aria-label="Add preset"
+        tooltip="Add preset"
+        onClick={onCreate}
+      >
+        +
+      </Button>
     </div>
   );
 }
-
-

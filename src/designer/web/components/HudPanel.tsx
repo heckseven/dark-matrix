@@ -181,6 +181,10 @@ export function HudPanel({ dualModule = false, topPad = 0 }: { dualModule?: bool
             designerStore.getState().renamePreset(old, next);
             debouncedSave();
           }}
+          onMove={(from, to) => {
+            designerStore.getState().movePreset(from, to);
+            debouncedSave();
+          }}
         />
       </aside>
 
