@@ -141,17 +141,13 @@ export const SelectStyle: Story = {
   },
 };
 
-/** Clicking the mic toggle updates the store. */
+/** Mic source toggle (no UI yet — source is store-only). */
 export const ToggleToMic: Story = {
   decorators: [
     (Story) => {
+      designerStore.setState({ audioSource: 'mic' });
       installMockWs();
       return <Story />;
     },
   ],
-  play: async ({ canvas }) => {
-    const btn = canvas.getByRole('button', { name: 'mic' });
-    await userEvent.click(btn);
-    await expect(designerStore.getState().audioSource).toBe('mic');
-  },
 };

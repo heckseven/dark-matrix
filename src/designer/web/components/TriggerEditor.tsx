@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useId } from 'react';
 import type { HudTrigger } from '../types/hud-preset.js';
 
 export type TriggerEditorProps = {
@@ -35,12 +35,14 @@ function TimeFields({ trigger, onChange }: RowProps) {
   if (trigger.type !== 'time') return null;
   const [fromErr, setFromErr] = useState(false);
   const [toErr, setToErr] = useState(false);
+  const uid = useId();
 
   return (
     <>
       <div className="flex items-center gap-1">
-        <label className="font-mono text-xs text-foreground/40">from</label>
+        <label htmlFor={`${uid}-from`} className="font-mono text-xs text-foreground/40">from</label>
         <input
+          id={`${uid}-from`}
           type="text"
           className={`font-mono text-xs bg-background text-foreground border px-2 py-0.5 w-20 rounded-none focus:outline-none focus:border-white ${fromErr ? 'border-red-500' : 'border-foreground/30'}`}
           defaultValue={trigger.from}
@@ -54,8 +56,9 @@ function TimeFields({ trigger, onChange }: RowProps) {
         />
       </div>
       <div className="flex items-center gap-1">
-        <label className="font-mono text-xs text-foreground/40">to</label>
+        <label htmlFor={`${uid}-to`} className="font-mono text-xs text-foreground/40">to</label>
         <input
+          id={`${uid}-to`}
           type="text"
           className={`font-mono text-xs bg-background text-foreground border px-2 py-0.5 w-20 rounded-none focus:outline-none focus:border-white ${toErr ? 'border-red-500' : 'border-foreground/30'}`}
           defaultValue={trigger.to}
@@ -75,6 +78,7 @@ function TimeFields({ trigger, onChange }: RowProps) {
 function ThresholdFields({ trigger, onChange }: RowProps) {
   if (trigger.type !== 'threshold') return null;
   const t = trigger; // capture narrowed type for use in closures
+  const uid = useId();
   const conflict =
     t.above !== undefined &&
     t.below !== undefined &&
@@ -93,6 +97,7 @@ function ThresholdFields({ trigger, onChange }: RowProps) {
   return (
     <>
       <select
+        aria-label="Metric"
         className="font-mono text-xs bg-background text-foreground border border-foreground/30 px-2 py-0.5 rounded-none focus:outline-none focus:border-white"
         value={trigger.metric}
         onChange={e => update({ metric: e.target.value as typeof trigger.metric })}
@@ -102,8 +107,9 @@ function ThresholdFields({ trigger, onChange }: RowProps) {
         ))}
       </select>
       <div className="flex items-center gap-1">
-        <label className="font-mono text-xs text-foreground/40">above</label>
+        <label htmlFor={`${uid}-above`} className="font-mono text-xs text-foreground/40">above</label>
         <input
+          id={`${uid}-above`}
           type="number"
           className="font-mono text-xs bg-background text-foreground border border-foreground/30 px-2 py-0.5 w-16 rounded-none focus:outline-none focus:border-white"
           value={trigger.above ?? ''}
@@ -114,8 +120,9 @@ function ThresholdFields({ trigger, onChange }: RowProps) {
         />
       </div>
       <div className="flex items-center gap-1">
-        <label className="font-mono text-xs text-foreground/40">below</label>
+        <label htmlFor={`${uid}-below`} className="font-mono text-xs text-foreground/40">below</label>
         <input
+          id={`${uid}-below`}
           type="number"
           className="font-mono text-xs bg-background text-foreground border border-foreground/30 px-2 py-0.5 w-16 rounded-none focus:outline-none focus:border-white"
           value={trigger.below ?? ''}
@@ -126,7 +133,7 @@ function ThresholdFields({ trigger, onChange }: RowProps) {
         />
       </div>
       {conflict && (
-        <span className="font-mono text-xs text-yellow-400" title="above ≥ below — condition can never be met">⚠</span>
+        <span className="font-mono text-xs text-yellow-400" title="above ≥ below — condition can never be met" aria-label="Warning: above is greater than or equal to below, condition can never be met">⚠</span>
       )}
     </>
   );
@@ -138,12 +145,14 @@ function InterfaceFields({ trigger, onChange }: RowProps) {
     <>
       <input
         type="text"
+        aria-label="Interface name"
         className="font-mono text-xs bg-background text-foreground border border-foreground/30 px-2 py-0.5 w-24 rounded-none focus:outline-none focus:border-white"
         placeholder="name"
         value={trigger.name}
         onChange={e => onChange({ ...trigger, name: e.target.value })}
       />
       <select
+        aria-label="Interface state"
         className="font-mono text-xs bg-background text-foreground border border-foreground/30 px-2 py-0.5 rounded-none focus:outline-none focus:border-white"
         value={trigger.state}
         onChange={e => onChange({ ...trigger, state: e.target.value as 'up' | 'down' })}
@@ -171,12 +180,14 @@ function VmFields({ trigger, onChange }: RowProps) {
     <>
       <input
         type="text"
+        aria-label="VM name"
         className="font-mono text-xs bg-background text-foreground border border-foreground/30 px-2 py-0.5 w-24 rounded-none focus:outline-none focus:border-white"
         placeholder="name"
         value={trigger.name}
         onChange={e => update(e.target.value, stateValue)}
       />
       <select
+        aria-label="VM state"
         className="font-mono text-xs bg-background text-foreground border border-foreground/30 px-2 py-0.5 rounded-none focus:outline-none focus:border-white"
         value={stateValue}
         onChange={e => update(trigger.name, e.target.value)}
@@ -213,7 +224,7 @@ function TriggerRow({ trigger, onUpdate, onDelete }: TriggerRowProps) {
         type="button"
         className="font-mono text-xs text-foreground/40 hover:text-foreground ml-auto shrink-0 px-1"
         onClick={onDelete}
-        aria-label="delete trigger"
+        aria-label={`Delete ${trigger.type} trigger`}
       >
         ×
       </button>
