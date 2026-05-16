@@ -7,6 +7,8 @@ import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-rend
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
 import { DATA_STYLES, createDataRenderer } from '../../../animations/data-renderers.js';
 import type { DataStyle, DataMetric, DataRenderer } from '../../../animations/data-renderers.js';
+import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
+import type { AudioStyle } from '../../../animations/audio-renderers.js';
 import { createHeatmapState, bumpTool, renderHeatmap } from '../../../animations/heatmap.js';
 import type { HudWidget } from '../types/hud-preset.js';
 
@@ -25,6 +27,28 @@ function renderClockToB64(face: ClockFace, now: Date): string {
   const frame = _clockCache[face]!({ now, side: 'left' });
   const out = new Uint8Array(COLS * ROWS);
   for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
+  return btoa(String.fromCharCode(...out));
+}
+
+// ── audio thumbnails ──────────────────────────────────────────────────────
+
+// Mid-level descending spectrum — looks natural across most styles
+const MOCK_AUDIO_CTX = { bands: [200, 150, 100, 70, 40, 20, 10, 5, 2], fftSize: 2048, gain: 1.5 };
+
+const _audioThumbCache: Partial<Record<AudioStyle, ReturnType<typeof createAudioRenderer>>> = {};
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => { for (const k in _audioThumbCache) delete _audioThumbCache[k as AudioStyle]; });
+}
+
+function getAudioThumb(style: AudioStyle) {
+  if (!_audioThumbCache[style]) _audioThumbCache[style] = createAudioRenderer(style);
+  return _audioThumbCache[style]!;
+}
+
+function renderAudioStyleToB64(style: AudioStyle): string {
+  const frame = getAudioThumb(style)(MOCK_AUDIO_CTX);
+  const out = new Uint8Array(COLS * ROWS);
+  for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
   return btoa(String.fromCharCode(...out));
 }
 
@@ -131,6 +155,7 @@ const EMPTY_PIXELS = btoa(String.fromCharCode(...new Uint8Array(COLS * ROWS)));
 function categoryOfWidget(w: HudWidget): string {
   if (w.widget === 'clock') return 'clocks';
   if (w.widget === 'heatmap') return 'ai';
+  if (w.widget === 'audio') return 'audio';
   return 'data';
 }
 
@@ -154,6 +179,7 @@ const PLACEHOLDER_CATEGORIES = ['audio', 'image', 'animation'] as const;
 type PanelPickerProps = {
   clockPixels: Partial<Record<ClockFace, string>>;
   dataThumbnails: Partial<Record<DataStyle, string>>;
+  audioThumbnails: Partial<Record<AudioStyle, string>>;
   heatmapPixels: string;
   currentWidget: HudWidget | null;
   scrollToCategory: string | null;
@@ -161,7 +187,7 @@ type PanelPickerProps = {
   onPick: (widget: HudWidget) => void;
 };
 
-function PanelPicker({ clockPixels, dataThumbnails, heatmapPixels, currentWidget, scrollToCategory, onScrolled, onPick }: PanelPickerProps) {
+function PanelPicker({ clockPixels, dataThumbnails, audioThumbnails, heatmapPixels, currentWidget, scrollToCategory, onScrolled, onPick }: PanelPickerProps) {
   const catRefs = useRef<Partial<Record<string, HTMLElement>>>({});
 
   useEffect(() => {
@@ -225,6 +251,35 @@ function PanelPicker({ clockPixels, dataThumbnails, heatmapPixels, currentWidget
                 <CornerBrackets active={active} />
                 <MatrixPreview pixels={dataThumbnails[preset.style] ?? EMPTY_PIXELS} width={9} />
                 <span className="font-mono text-xs text-foreground">{preset.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Audio */}
+      <section>
+        <h3
+          ref={el => { if (el) catRefs.current['audio'] = el; }}
+          className="font-mono text-xs text-foreground/50 mb-3"
+        >
+          audio
+        </h3>
+        <div role="group" aria-label="Audio panels" className="grid grid-cols-3 gap-4">
+          {AUDIO_STYLES.map(({ id, label }) => {
+            const active = currentWidget?.widget === 'audio' && (currentWidget.style ?? AUDIO_STYLES[0]!.id) === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                aria-label={label}
+                aria-pressed={active}
+                className="group relative flex flex-col gap-2 items-center rounded-sm p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
+                onClick={() => onPick({ widget: 'audio', style: id })}
+              >
+                <CornerBrackets active={active} />
+                <MatrixPreview pixels={audioThumbnails[id] ?? EMPTY_PIXELS} width={9} />
+                <span className="font-mono text-xs text-foreground">{label}</span>
               </button>
             );
           })}
@@ -306,6 +361,7 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
   const [scrollTarget, setScrollTarget] = useState<string | null>(null);
   const [clockPixels, setClockPixels] = useState<Partial<Record<ClockFace, string>>>({});
   const [dataThumbnails, setDataThumbnails] = useState<Partial<Record<DataStyle, string>>>({});
+  const [audioThumbnails, setAudioThumbnails] = useState<Partial<Record<AudioStyle, string>>>({});
   const [heatmapPixels, setHeatmapPixels] = useState<string>(EMPTY_PIXELS);
 
   const renderAll = useCallback(() => {
@@ -316,6 +372,9 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
     const nextData: Partial<Record<DataStyle, string>> = {};
     for (const { id } of DATA_STYLES) nextData[id] = renderDataStyleToB64(id);
     setDataThumbnails(nextData);
+    const nextAudio: Partial<Record<AudioStyle, string>> = {};
+    for (const { id } of AUDIO_STYLES) nextAudio[id] = renderAudioStyleToB64(id);
+    setAudioThumbnails(nextAudio);
     setHeatmapPixels(renderHeatmapThumbToB64());
   }, []);
 
@@ -351,6 +410,7 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
         <PanelPicker
           clockPixels={clockPixels}
           dataThumbnails={dataThumbnails}
+          audioThumbnails={audioThumbnails}
           heatmapPixels={heatmapPixels}
           currentWidget={widget}
           scrollToCategory={scrollTarget}
@@ -392,6 +452,28 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
                   >
                     <CornerBrackets active={active} />
                     <MatrixPreview pixels={clockPixels[id] ?? EMPTY_PIXELS} width={9} />
+                    <span className="font-mono text-xs text-foreground">{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {widget.widget === 'audio' && (
+            <div role="group" aria-label="Audio style" className="grid grid-cols-3 gap-4">
+              {AUDIO_STYLES.map(({ id, label }) => {
+                const active = (widget.style ?? AUDIO_STYLES[0]!.id) === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-label={label}
+                    aria-pressed={active}
+                    className="group relative flex flex-col gap-2 items-center rounded-sm p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
+                    onClick={() => onChange({ widget: 'audio', style: id })}
+                  >
+                    <CornerBrackets active={active} />
+                    <MatrixPreview pixels={audioThumbnails[id] ?? EMPTY_PIXELS} width={9} />
                     <span className="font-mono text-xs text-foreground">{label}</span>
                   </button>
                 );

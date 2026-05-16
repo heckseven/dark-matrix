@@ -3,6 +3,8 @@ import { createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
 import { getDataRenderer } from '../data-renderer-pool.js';
 import { createHeatmapState, bumpTool, renderHeatmap } from '../../../animations/heatmap.js';
+import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
+import type { AudioStyle } from '../../../animations/audio-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 
 // ── layout constants — match PixelCanvas at zoom=1 ────────────────────────
@@ -30,6 +32,14 @@ const SPLIT_X  = HALF_W + Math.floor((RIGHT_X - HALF_W) / 2); // 192
 const _clockL: Partial<Record<ClockFace, ClockRenderer>> = {};
 const _clockR: Partial<Record<ClockFace, ClockRenderer>> = {};
 
+// Mock audio context for preview thumbnails — mid-level descending spectrum
+const MOCK_AUDIO_CTX = { bands: [200, 150, 100, 70, 40, 20, 10, 5, 2], fftSize: 2048, gain: 1.5 };
+const _audioRenderers: Partial<Record<AudioStyle, ReturnType<typeof createAudioRenderer>>> = {};
+function getAudioRenderer(style: AudioStyle) {
+  if (!_audioRenderers[style]) _audioRenderers[style] = createAudioRenderer(style);
+  return _audioRenderers[style]!;
+}
+
 // Seeded heatmap preview state — static demo for the dual-preview canvas
 const _heatmapPreview = (() => {
   const s = createHeatmapState();
@@ -43,6 +53,7 @@ if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     for (const k in _clockL) delete _clockL[k as ClockFace];
     for (const k in _clockR) delete _clockR[k as ClockFace];
+    for (const k in _audioRenderers) delete _audioRenderers[k as AudioStyle];
   });
 }
 
@@ -55,6 +66,12 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date):
       const cache = side === 'left' ? _clockL : _clockR;
       if (!cache[face]) cache[face] = createClockRenderer(face);
       const frame = cache[face]!({ now, side });
+      const out = new Uint8Array(COLS * ROWS);
+      for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
+      return out;
+    } else if (widget.widget === 'audio') {
+      const style = widget.style ?? AUDIO_STYLES[0]!.id;
+      const frame = getAudioRenderer(style)(MOCK_AUDIO_CTX);
       const out = new Uint8Array(COLS * ROWS);
       for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
       return out;

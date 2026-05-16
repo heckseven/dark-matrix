@@ -124,3 +124,21 @@ export const HeatmapAi: Story = {
     widget: { widget: 'heatmap' } satisfies HudWidget,
   },
 };
+
+/** Audio settings — dark matter style selected. */
+export const AudioDarkMatter: Story = {
+  args: {
+    widget: { widget: 'audio', style: 'dark-matter' } satisfies HudWidget,
+  },
+};
+
+/** Audio picker — shows all styles in the audio category. */
+export const PickerAudio: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', { name: 'Select different panel' }));
+  },
+  args: {
+    widget: { widget: 'audio', style: 'specter' } satisfies HudWidget,
+  },
+};
