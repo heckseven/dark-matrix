@@ -37,18 +37,18 @@ export function routeNotification(
   n: DesktopNotification,
   rules: NotificationRule[],
 ): { action: 'scroll' | 'dmx' | 'none'; dmx_path?: string } {
-  // DesktopNotification does not currently expose urgency from dbus hints.
-  // Urgency-filtered rules (rule.urgency != null && rule.urgency != 'any')
-  // will not match until DesktopNotification includes an urgency field.
-  const urgency = (n as DesktopNotification & { urgency?: 'low' | 'normal' | 'critical' }).urgency;
+  // TODO: populate urgency from dbus hints in dbus-notifications.ts (parseDbusMonitorLine
+  // skips the hints array). Until then urgency-filtered rules never fire.
+  const urgency = undefined as 'low' | 'normal' | 'critical' | undefined;
 
   for (const rule of rules) {
     if (!matchesGlob(rule.app_name_glob, n.appName)) continue;
     if (rule.urgency && rule.urgency !== 'any' && rule.urgency !== urgency) continue;
 
-    const result: { action: typeof rule.animation; dmx_path?: string } = { action: rule.animation };
-    if (rule.animation === 'dmx' && rule.dmx_path) result.dmx_path = rule.dmx_path;
-    return result;
+    if (rule.animation === 'dmx' && rule.dmx_path) {
+      return { action: 'dmx', dmx_path: rule.dmx_path };
+    }
+    return { action: rule.animation };
   }
 
   return { action: 'scroll' };

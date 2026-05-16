@@ -13,8 +13,9 @@ import { Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparat
 import { saveToLibrary, saveLibraryCopy, renameLibraryFile, exportProject, importFile, openFromLibrary } from './files.js';
 import { useDesignerStore, designerStore, stepZoom, ZOOM_STEPS, ROWS, DEFAULT_WIDTH } from './store.js';
 import { ShortcutDialog } from './components/ui/shortcut-dialog.js';
-import { ModePicker, MODES } from './components/ModePicker.js';
-import type { AppMode } from './components/ModePicker.js';
+import { ModePicker } from './components/ModePicker.js';
+import { MODES } from './app-modes.js';
+import type { AppMode } from './app-modes.js';
 import { AudioPanel } from './components/AudioPanel.js';
 import { ConfigPanel } from './components/ConfigPanel.js';
 import { HudPanel, hudSendWsGlobal } from './components/HudPanel.js';
@@ -153,15 +154,22 @@ function ConfigHeading() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(configData),
     });
-    if (res.ok) designerStore.getState().markClean();
+    if (res.ok) {
+      designerStore.getState().markClean();
+    } else {
+      console.error('config save failed', res.status);
+    }
   }
 
   return (
     <>
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {configDirty ? 'Config has unsaved changes' : ''}
+      </div>
       <div className="absolute inset-x-0 flex justify-center pointer-events-none">
         <span className="flex items-center gap-2 font-mono text-xs text-foreground">
           config
-          {configDirty && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" aria-label="unsaved changes" />}
+          {configDirty && <span role="img" aria-label="unsaved changes" className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />}
         </span>
       </div>
       <Button

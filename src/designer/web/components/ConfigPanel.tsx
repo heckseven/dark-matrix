@@ -20,6 +20,7 @@ export function ConfigPanel({ dualModule: _dualModule, topPad }: { dualModule: b
   useEffect(() => {
     fetch('/api/config')
       .then(r => r.json())
+      // Accepted boundary: server always returns Config shape; Zod validates on write.
       .then(({ config }: { config: Config }) => designerStore.getState().loadConfigData(config))
       .catch(console.error);
   }, []);
@@ -31,12 +32,12 @@ export function ConfigPanel({ dualModule: _dualModule, topPad }: { dualModule: b
           <Tabs
             options={CONFIG_TABS}
             value={activeTab}
-            onChange={v => setActiveTab(v as ConfigTab)}
+            onChange={v => { if ((CONFIG_TABS as readonly string[]).includes(v)) setActiveTab(v as ConfigTab); }}
             aria-label="Config sections"
           />
         </div>
 
-        <div className="py-4">
+        <div className="py-4" aria-live="polite" aria-busy={!configData}>
         {configData ? (
           <>
             {activeTab === 'hardware' && (
@@ -75,7 +76,7 @@ export function ConfigPanel({ dualModule: _dualModule, topPad }: { dualModule: b
             )}
           </>
         ) : (
-          <p className="text-xs text-white/40">loading…</p>
+          <p className="text-xs text-white/60">loading…</p>
         )}
         </div>
       </div>
