@@ -6,6 +6,27 @@ import os from 'node:os';
 const BY_PATH_RE = /^\/dev\/(serial\/by-path\/[a-zA-Z0-9:._-]+|ttyACM\d+|ttyUSB\d+)$/;
 const SENSOR_PATH_RE = /^\/sys\/bus\/iio\/devices\/iio:device\d+\/in_illuminance_raw$/;
 
+const HudWidgetSchema = z.discriminatedUnion('widget', [
+  z.object({ widget: z.literal('clock'), face: z.enum(['binary-audio', 'elegant', 'stretch', 'analogue', 'binary-blocks', 'binary-tall', 'binary-diamond']) }),
+  z.object({ widget: z.literal('data'), style: z.enum(['line', 'bars']).optional(), top_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), top_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional() }),
+]);
+
+const HudTriggerSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('time'), from: z.string().regex(/^\d{2}:\d{2}$/), to: z.string().regex(/^\d{2}:\d{2}$/) }),
+  z.object({ type: z.literal('idle') }),
+  z.object({ type: z.literal('active') }),
+  z.object({ type: z.literal('threshold'), metric: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']), above: z.number().min(0).optional(), below: z.number().min(0).optional() }),
+  z.object({ type: z.literal('interface'), name: z.string().min(1), state: z.enum(['up', 'down']) }),
+  z.object({ type: z.literal('vm'), name: z.string().min(1), state: z.enum(['running', 'stopped']).optional() }),
+]);
+
+const HudPresetSchema = z.object({
+  name: z.string().min(1),
+  left: HudWidgetSchema,
+  right: HudWidgetSchema,
+  triggers: z.array(HudTriggerSchema).optional(),
+});
+
 const ConfigSchema = z.object({
   modules: z.object({
     left: z.string().regex(BY_PATH_RE),
@@ -36,18 +57,20 @@ const ConfigSchema = z.object({
     idle_eq_source: z.enum(['monitor', 'mic']).optional(),
   }),
   hud: z.object({
-    left:  z.discriminatedUnion('widget', [
-      z.object({ widget: z.literal('clock'), face: z.enum(['binary-audio', 'elegant', 'stretch', 'analogue', 'binary-blocks', 'binary-tall', 'binary-diamond']) }),
-      z.object({ widget: z.literal('data'), style: z.enum(['line', 'bars']).optional(), top_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), top_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional() }),
-    ]).optional(),
-    right: z.discriminatedUnion('widget', [
-      z.object({ widget: z.literal('clock'), face: z.enum(['binary-audio', 'elegant', 'stretch', 'analogue', 'binary-blocks', 'binary-tall', 'binary-diamond']) }),
-      z.object({ widget: z.literal('data'), style: z.enum(['line', 'bars']).optional(), top_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), top_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional() }),
-    ]).optional(),
+    left:  HudWidgetSchema.optional(),
+    right: HudWidgetSchema.optional(),
   }).optional(),
+  hud_presets: z.array(HudPresetSchema).optional().superRefine((presets, ctx) => {
+    if (!presets) return;
+    const names = presets.map(p => p.name);
+    const dupes = names.filter((n, i) => names.indexOf(n) !== i);
+    for (const d of dupes) ctx.addIssue({ code: 'custom', message: `duplicate preset name: "${d}"`, path: [] });
+  }),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
+export type HudPreset = z.infer<typeof HudPresetSchema>;
+export type HudTrigger = z.infer<typeof HudTriggerSchema>;
 
 export const DEFAULT_CONFIG: Config = {
   modules: {
