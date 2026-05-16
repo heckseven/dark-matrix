@@ -5,6 +5,7 @@ import os from 'node:os';
 import {
   loadConfig, writeDefaultConfig, watchConfig,
   DEFAULT_CONFIG, ConfigError,
+  type NotificationRule,
 } from './config.js';
 
 // Use a temp dir per test to avoid touching ~/.config
@@ -91,6 +92,50 @@ describe('loadConfig', () => {
     const cfg = await loadConfig();
     expect(cfg.startup.animation).toBe('dmx');
     expect(cfg.startup.dmx_path).toBeUndefined();
+  });
+});
+
+describe('notification_rules', () => {
+  it('accepts a rule with all fields', async () => {
+    const rule: NotificationRule = { app_name_glob: 'firefox', urgency: 'critical', animation: 'dmx', dmx_path: '/home/user/alert.dmx.json' };
+    await write({ ...DEFAULT_CONFIG, notification_rules: [rule] });
+    const cfg = await loadConfig();
+    expect(cfg.notification_rules).toHaveLength(1);
+    expect(cfg.notification_rules![0]).toEqual(rule);
+  });
+
+  it('accepts a rule with only required fields', async () => {
+    const rule = { app_name_glob: '*', animation: 'scroll' };
+    await write({ ...DEFAULT_CONFIG, notification_rules: [rule] });
+    const cfg = await loadConfig();
+    const parsed = cfg.notification_rules;
+    expect(parsed).toBeDefined();
+    expect(parsed![0]).toMatchObject({ app_name_glob: '*', animation: 'scroll' });
+    expect(parsed![0]!.urgency).toBeUndefined();
+    expect(parsed![0]!.dmx_path).toBeUndefined();
+  });
+
+  it('rejects an unknown animation value', async () => {
+    await write({ ...DEFAULT_CONFIG, notification_rules: [{ app_name_glob: 'slack', animation: 'blink' }] });
+    await expect(loadConfig()).rejects.toBeInstanceOf(ConfigError);
+  });
+
+  it('rejects an invalid urgency value', async () => {
+    await write({ ...DEFAULT_CONFIG, notification_rules: [{ app_name_glob: 'slack', urgency: 'urgent', animation: 'scroll' }] });
+    await expect(loadConfig()).rejects.toBeInstanceOf(ConfigError);
+  });
+
+  it('round-trips: config with notification_rules serializes and re-parses correctly', async () => {
+    const rules: NotificationRule[] = [
+      { app_name_glob: 'discord', urgency: 'normal', animation: 'scroll' },
+      { app_name_glob: 'plex', animation: 'none' },
+    ];
+    await write({ ...DEFAULT_CONFIG, notification_rules: rules });
+    const cfg = await loadConfig();
+    const json = JSON.stringify(cfg);
+    await write(JSON.parse(json));
+    const cfg2 = await loadConfig();
+    expect(cfg2.notification_rules).toEqual(rules);
   });
 });
 

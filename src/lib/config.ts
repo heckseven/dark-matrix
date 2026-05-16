@@ -28,6 +28,13 @@ const HudPresetSchema = z.object({
   match: z.enum(['all', 'any']).optional(),
 });
 
+const NotificationRuleSchema = z.object({
+  app_name_glob: z.string(),
+  urgency: z.enum(['low', 'normal', 'critical', 'any']).optional(),
+  animation: z.enum(['scroll', 'dmx', 'none']),
+  dmx_path: z.string().regex(/\.dmx\.json$/i).optional(),
+});
+
 const ConfigSchema = z.object({
   modules: z.object({
     left: z.string().regex(BY_PATH_RE),
@@ -61,6 +68,7 @@ const ConfigSchema = z.object({
     left:  HudWidgetSchema.optional(),
     right: HudWidgetSchema.optional(),
   }).optional(),
+  notification_rules: z.array(NotificationRuleSchema).optional(),
   hud_presets: z.array(HudPresetSchema).optional().superRefine((presets, ctx) => {
     if (!presets) return;
     const names = presets.map(p => p.name);
@@ -72,6 +80,7 @@ const ConfigSchema = z.object({
 export type Config = z.infer<typeof ConfigSchema>;
 export type HudPreset = z.infer<typeof HudPresetSchema>;
 export type HudTrigger = z.infer<typeof HudTriggerSchema>;
+export type NotificationRule = z.infer<typeof NotificationRuleSchema>;
 
 export const DEFAULT_CONFIG: Config = {
   modules: {
