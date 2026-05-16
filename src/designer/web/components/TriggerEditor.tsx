@@ -44,6 +44,8 @@ function TimeFields({ trigger, onChange }: RowProps) {
         <input
           id={`${uid}-from`}
           type="text"
+          aria-invalid={fromErr}
+          aria-describedby={fromErr ? `${uid}-from-err` : undefined}
           className={`font-mono text-xs bg-background text-foreground border px-2 py-0.5 w-20 rounded-none focus:outline-none focus:border-white ${fromErr ? 'border-red-500' : 'border-foreground/30'}`}
           defaultValue={trigger.from}
           onBlur={e => {
@@ -54,12 +56,15 @@ function TimeFields({ trigger, onChange }: RowProps) {
           }}
           onChange={() => setFromErr(false)}
         />
+        {fromErr && <span id={`${uid}-from-err`} className="sr-only">Invalid time — use HH:MM</span>}
       </div>
       <div className="flex items-center gap-1">
         <label htmlFor={`${uid}-to`} className="font-mono text-xs text-foreground/40">to</label>
         <input
           id={`${uid}-to`}
           type="text"
+          aria-invalid={toErr}
+          aria-describedby={toErr ? `${uid}-to-err` : undefined}
           className={`font-mono text-xs bg-background text-foreground border px-2 py-0.5 w-20 rounded-none focus:outline-none focus:border-white ${toErr ? 'border-red-500' : 'border-foreground/30'}`}
           defaultValue={trigger.to}
           onBlur={e => {
@@ -70,6 +75,7 @@ function TimeFields({ trigger, onChange }: RowProps) {
           }}
           onChange={() => setToErr(false)}
         />
+        {toErr && <span id={`${uid}-to-err`} className="sr-only">Invalid time — use HH:MM</span>}
       </div>
     </>
   );
@@ -133,7 +139,7 @@ function ThresholdFields({ trigger, onChange }: RowProps) {
         />
       </div>
       {conflict && (
-        <span className="font-mono text-xs text-yellow-400" title="above ≥ below — condition can never be met" aria-label="Warning: above is greater than or equal to below, condition can never be met">⚠</span>
+        <span role="alert" className="font-mono text-xs text-yellow-400" aria-label="Warning: above is greater than or equal to below, condition can never be met">⚠</span>
       )}
     </>
   );
@@ -235,6 +241,7 @@ function TriggerRow({ trigger, onUpdate, onDelete }: TriggerRowProps) {
 // ── main component ─────────────────────────────────────────────────────────
 
 export function TriggerEditor({ triggers, onChange, match = 'all', onMatchChange }: TriggerEditorProps) {
+  const uid = useId();
   const [expanded, setExpanded] = useState(true);
   const [picking, setPicking] = useState(false);
 
@@ -261,13 +268,14 @@ export function TriggerEditor({ triggers, onChange, match = 'all', onMatchChange
         className="flex items-center gap-2 font-mono text-xs text-foreground/60 hover:text-foreground py-1 self-start"
         onClick={() => { setExpanded(e => !e); if (expanded) setPicking(false); }}
         aria-expanded={expanded}
+        aria-controls={`${uid}-body`}
       >
-        <span>{expanded ? '▾' : '▸'}</span>
+        <span aria-hidden="true">{expanded ? '▾' : '▸'}</span>
         <span>triggers ({triggers.length})</span>
       </button>
 
       {expanded && (
-        <div className="flex flex-col gap-0 mt-1">
+        <div id={`${uid}-body`} className="flex flex-col gap-0 mt-1">
           {/* match mode toggle — only shown with 2+ triggers */}
           {triggers.length >= 2 && onMatchChange && (
             <div role="group" aria-label="match mode" className="flex items-center gap-1 mb-1">
@@ -303,6 +311,7 @@ export function TriggerEditor({ triggers, onChange, match = 'all', onMatchChange
                 <button
                   key={type}
                   type="button"
+                  aria-label={`Add ${type} trigger`}
                   className="font-mono text-xs border border-foreground/30 px-2 py-0.5 text-foreground/70 hover:text-foreground hover:border-foreground transition-colors"
                   onClick={() => addTrigger(type)}
                 >
