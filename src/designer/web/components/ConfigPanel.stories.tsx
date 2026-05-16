@@ -41,7 +41,7 @@ const MOCK_CONFIG: Config = {
 // ── meta ─────────────────────────────────────────────────────────────────────
 
 const meta = {
-  title: 'App/Config/ConfigPanel',
+  title: 'Screens/ConfigPanel',
   component: ConfigPanel,
   parameters: {
     layout: 'fullscreen',
