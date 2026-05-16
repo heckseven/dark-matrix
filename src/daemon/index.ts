@@ -271,6 +271,14 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     return () => { stopped = true; anim?.stop(); };
   }
 
+  function applyPreset(preset: import('../lib/config.js').HudPreset): void {
+    currentConfig = { ...currentConfig, hud: { left: preset.left, right: preset.right } };
+    if (hudHardwareActive || currentConfig.daemon.idle_animation === 'hud') {
+      stopCurrentAnim?.();
+      stopCurrentAnim = runHudOnModules();
+    }
+  }
+
   function hudDataConfig(side: 'left' | 'right'): DataWidgetConfig {
     const w = side === 'left' ? currentConfig.hud?.left : currentConfig.hud?.right;
     if (w?.widget !== 'data') return {};
@@ -878,6 +886,17 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 stopCurrentAnim = runHudOnModules();
               }
               socket.write(JSON.stringify({ ok: true }) + '\n');
+              break;
+            }
+            case 'hud-preset': {
+              const m = msg as { cmd: string; name?: string };
+              const preset = (currentConfig.hud_presets ?? []).find(p => p.name === m.name);
+              if (!preset) {
+                socket.write(JSON.stringify({ ok: false, error: `preset not found: "${m.name ?? ''}"` }) + '\n');
+                break;
+              }
+              applyPreset(preset);
+              socket.write(JSON.stringify({ ok: true, name: preset.name }) + '\n');
               break;
             }
             default:

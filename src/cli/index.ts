@@ -428,6 +428,32 @@ switch (cmd) {
     }
     break;
   }
+  case 'hud': {
+    const sub = args[0];
+    if (sub === 'preset') {
+      const name = args[1];
+      if (!name) {
+        process.stderr.write('Usage: dark-matrix hud preset <name>\n');
+        process.exit(1);
+      }
+      try {
+        const res = await sendToDaemon({ cmd: 'hud-preset', name });
+        if (res['ok']) {
+          process.stdout.write(`Switched to "${name}".\n`);
+        } else {
+          process.stderr.write(`Error: ${res['error'] ?? JSON.stringify(res)}\n`);
+          process.exit(1);
+        }
+      } catch (err) {
+        process.stderr.write(`${(err as Error).message}\n`);
+        process.exit(1);
+      }
+    } else {
+      process.stderr.write('Usage: dark-matrix hud preset <name>\n');
+      process.exit(1);
+    }
+    break;
+  }
   default:
     process.stderr.write([
       'Usage: dark-matrix <command>',
@@ -440,6 +466,7 @@ switch (cmd) {
       '  designer [--port <n>]',
       '  scroll [--hold] [--size tiny|small|medium|large] [--speed slow|normal|fast] <text>',
       '  animate gif [--hold] [--dual] [--mode bw|gray] <path>',
+      '  hud preset <name>',
       '  calibrate',
       '  ping',
       '  release',
