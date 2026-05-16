@@ -15,9 +15,9 @@ import { useDesignerStore, designerStore, stepZoom, ZOOM_STEPS, ROWS, DEFAULT_WI
 import { ShortcutDialog } from './components/ui/shortcut-dialog.js';
 import { ModePicker, MODES } from './components/ModePicker.js';
 import type { AppMode } from './components/ModePicker.js';
+import { AudioPanel } from './components/AudioPanel.js';
 
 const MODE_LABEL = Object.fromEntries(MODES.map(m => [m.id, m.label])) as Record<AppMode, string>;
-import { AudioPanel } from './components/AudioPanel.js';
 import { HudPanel, hudSendWsGlobal } from './components/HudPanel.js';
 
 function storeCompat() {

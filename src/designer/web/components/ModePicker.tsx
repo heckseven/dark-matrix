@@ -97,7 +97,7 @@ export function ModePicker({ activeMode, dualModule, onSelect, onClose }: {
             active={m.id === activeMode}
             pixels={MODE_ICONS[i] ?? MODE_ICONS[0]!}
             dualModule={dualModule}
-            onSelect={() => { onSelect(m.id); onClose(); }}
+            onSelect={() => { onSelect(m.id); onClose?.(); }}
           />
         ))}
       </div>
