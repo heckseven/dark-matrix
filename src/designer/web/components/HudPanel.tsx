@@ -7,6 +7,7 @@ import type { HudWidget, HudPresetClient } from '../types/hud-preset.js';
 import { PresetList } from './PresetList.js';
 import { HudDualPreview } from './HudDualPreview.js';
 import { HudInspector } from './HudInspector.js';
+import { TriggerEditor } from './TriggerEditor.js';
 
 // ── module-level WS send (shared with App header) ────────────────────────
 
@@ -168,20 +169,30 @@ export function HudPanel({ dualModule = false }: { dualModule?: boolean }) {
         />
       </main>
 
-      {/* Right: widget inspector */}
+      {/* Right: widget inspector + trigger editor */}
       <aside style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <HudInspector
-          widget={selectedPreset
-            ? (hudSelectedSide === 'left' ? selectedPreset.left : selectedPreset.right)
-            : null
-          }
-          onChange={(widget) => {
-            if (!selectedPreset) return;
-            designerStore.getState().updatePresetWidget(selectedPreset.name, hudSelectedSide, widget);
-            sendHudConfig(widget);
-            debouncedSave();
-          }}
-        />
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+          <HudInspector
+            widget={selectedPreset
+              ? (hudSelectedSide === 'left' ? selectedPreset.left : selectedPreset.right)
+              : null
+            }
+            onChange={(widget) => {
+              if (!selectedPreset) return;
+              designerStore.getState().updatePresetWidget(selectedPreset.name, hudSelectedSide, widget);
+              sendHudConfig(widget);
+              debouncedSave();
+            }}
+          />
+          <TriggerEditor
+            triggers={selectedPreset?.triggers ?? []}
+            onChange={(triggers) => {
+              if (!selectedPreset) return;
+              designerStore.getState().updatePresetTriggers(selectedPreset.name, triggers);
+              debouncedSave();
+            }}
+          />
+        </div>
       </aside>
     </div>
   );
