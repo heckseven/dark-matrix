@@ -84,12 +84,46 @@ export const PickerWithData: Story = {
   },
 };
 
+/** Data settings — fill preset (area chart, all 4 metrics). */
+export const DataFill: Story = {
+  args: {
+    widget: {
+      widget: 'data',
+      style: 'fill',
+      top_left: 'cpu',
+      top_right: 'ram',
+      bottom_left: 'net_rx',
+      bottom_right: 'net_tx',
+    } satisfies HudWidget,
+  },
+};
+
+/** Data settings — scroll preset (cpu core history). */
+export const DataScroll: Story = {
+  args: {
+    widget: {
+      widget: 'data',
+      style: 'scroll',
+    } satisfies HudWidget,
+  },
+};
+
 /** Data settings — cpu cores preset (bars style). */
 export const DataCpuCores: Story = {
   args: {
     widget: {
       widget: 'data',
       style: 'bars',
+    } satisfies HudWidget,
+  },
+};
+
+/** Data settings — core bars preset (symmetric full-height bars). */
+export const DataCoreBars: Story = {
+  args: {
+    widget: {
+      widget: 'data',
+      style: 'cores',
     } satisfies HudWidget,
   },
 };

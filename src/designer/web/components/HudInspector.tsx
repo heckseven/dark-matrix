@@ -37,11 +37,25 @@ if (import.meta.hot) {
 function getDataThumb(style: DataStyle): DataRenderer {
   if (_dataThumbCache[style] === undefined) {
     const r = createDataRenderer({ style });
-    if (style === 'bars') {
-      // 8 simulated CPU cores at varied utilisation
+    if (style === 'bars' || style === 'cores') {
       r.update({ cpuPct: 45, ramPct: 70, netRxBps: 1_000_000, netTxBps: 500_000, cpuCores: [80, 45, 30, 60, 70, 20, 50, 40] });
+    } else if (style === 'scroll') {
+      // Seed 17 frames of animated cpu core groups
+      for (let i = 16; i >= 0; i--) {
+        const base = i * 0.4;
+        r.update({ cpuPct: 0, ramPct: 0, netRxBps: 0, netTxBps: 0, cpuCores: [
+          Math.round(50 + 40 * Math.sin(base)),
+          Math.round(50 + 40 * Math.sin(base + 1.5)),
+          Math.round(50 + 40 * Math.sin(base + 3)),
+          Math.round(50 + 40 * Math.sin(base + 4.5)),
+          Math.round(50 + 40 * Math.sin(base + 0.7)),
+          Math.round(50 + 40 * Math.sin(base + 2.2)),
+          Math.round(50 + 40 * Math.sin(base + 3.7)),
+          Math.round(50 + 40 * Math.sin(base + 5.2)),
+        ]});
+      }
     } else {
-      // Seed 17 frames so the full line history is filled
+      // line and fill — seed 17 frames of sine-wave metric history
       for (let i = 16; i >= 0; i--) {
         r.update({
           cpuPct:   35 + 25 * Math.sin(i * 0.4),
@@ -73,10 +87,28 @@ const DATA_PRESETS: { id: string; label: string; style: DataStyle; widget: HudWi
     widget: { widget: 'data', style: 'line', top_left: 'cpu', top_right: 'ram', bottom_left: 'net_rx', bottom_right: 'net_tx' },
   },
   {
+    id: 'fill-system',
+    label: 'fill',
+    style: 'fill',
+    widget: { widget: 'data', style: 'fill', top_left: 'cpu', top_right: 'ram', bottom_left: 'net_rx', bottom_right: 'net_tx' },
+  },
+  {
+    id: 'cpu-scroll',
+    label: 'scroll',
+    style: 'scroll',
+    widget: { widget: 'data', style: 'scroll' },
+  },
+  {
     id: 'cpu-cores',
     label: 'cpu cores',
     style: 'bars',
     widget: { widget: 'data', style: 'bars' },
+  },
+  {
+    id: 'core-bars',
+    label: 'core bars',
+    style: 'cores',
+    widget: { widget: 'data', style: 'cores' },
   },
 ];
 
@@ -323,57 +355,60 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
               <div className="flex flex-col gap-1">
                 <span className="font-mono text-xs text-foreground/50">style</span>
                 <Tabs
-                  options={['line', 'bars'] as const satisfies DataStyle[]}
+                  options={DATA_STYLES.map(s => ({ value: s.id, label: s.label }))}
                   value={widget.style ?? 'line'}
                   onChange={(v) => {
-                    if (v === 'line' || v === 'bars') onChange({ ...widget, widget: 'data', style: v });
+                    const s = DATA_STYLES.find(d => d.id === v);
+                    if (s) onChange({ ...widget, widget: 'data', style: s.id });
                   }}
                   aria-label="Data style"
                 />
               </div>
 
-              <div className="flex flex-col gap-3">
-                <span className="font-mono text-xs text-foreground/50">quadrants</span>
-                <div className="grid grid-cols-2 gap-2">
-                  {(
-                    [
-                      { key: 'top_left',     label: 'top left'  },
-                      { key: 'top_right',    label: 'top right' },
-                      { key: 'bottom_left',  label: 'bot left'  },
-                      { key: 'bottom_right', label: 'bot right' },
-                    ] as const
-                  ).map(({ key, label }) => {
-                    const val: DataMetric | 'none' = widget[key] ?? 'none';
-                    return (
-                      <div key={key} className="flex flex-col gap-1">
-                        <label htmlFor={`${uid}-${key}`} className="font-mono text-xs text-foreground/55">{label}</label>
-                        <Select
-                          id={`${uid}-${key}`}
-                          value={val}
-                          onChange={e => {
-                            const raw = e.target.value;
-                            if (!DATA_METRIC_IDS.has(raw as DataMetric | 'none')) return;
-                            const metric = raw as DataMetric | 'none';
-                            type DataW = { widget: 'data'; style?: DataStyle; top_left?: DataMetric; top_right?: DataMetric; bottom_left?: DataMetric; bottom_right?: DataMetric };
-                            const base: DataW = { widget: 'data' };
-                            if (widget.style !== undefined) base.style = widget.style;
-                            if (widget.top_left !== undefined) base.top_left = widget.top_left;
-                            if (widget.top_right !== undefined) base.top_right = widget.top_right;
-                            if (widget.bottom_left !== undefined) base.bottom_left = widget.bottom_left;
-                            if (widget.bottom_right !== undefined) base.bottom_right = widget.bottom_right;
-                            if (metric !== 'none') base[key] = metric;
-                            onChange(base);
-                          }}
-                        >
-                          {DATA_METRICS.map(m => (
-                            <option key={m.id} value={m.id}>{m.label}</option>
-                          ))}
-                        </Select>
-                      </div>
-                    );
-                  })}
+              {(widget.style === 'line' || widget.style === 'fill' || widget.style === undefined) && (
+                <div className="flex flex-col gap-3">
+                  <span className="font-mono text-xs text-foreground/50">quadrants</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(
+                      [
+                        { key: 'top_left',     label: 'top left'  },
+                        { key: 'top_right',    label: 'top right' },
+                        { key: 'bottom_left',  label: 'bot left'  },
+                        { key: 'bottom_right', label: 'bot right' },
+                      ] as const
+                    ).map(({ key, label }) => {
+                      const val: DataMetric | 'none' = widget[key] ?? 'none';
+                      return (
+                        <div key={key} className="flex flex-col gap-1">
+                          <label htmlFor={`${uid}-${key}`} className="font-mono text-xs text-foreground/55">{label}</label>
+                          <Select
+                            id={`${uid}-${key}`}
+                            value={val}
+                            onChange={e => {
+                              const raw = e.target.value;
+                              if (!DATA_METRIC_IDS.has(raw as DataMetric | 'none')) return;
+                              const metric = raw as DataMetric | 'none';
+                              type DataW = { widget: 'data'; style?: DataStyle; top_left?: DataMetric; top_right?: DataMetric; bottom_left?: DataMetric; bottom_right?: DataMetric };
+                              const base: DataW = { widget: 'data' };
+                              if (widget.style !== undefined) base.style = widget.style;
+                              if (widget.top_left !== undefined) base.top_left = widget.top_left;
+                              if (widget.top_right !== undefined) base.top_right = widget.top_right;
+                              if (widget.bottom_left !== undefined) base.bottom_left = widget.bottom_left;
+                              if (widget.bottom_right !== undefined) base.bottom_right = widget.bottom_right;
+                              if (metric !== 'none') base[key] = metric;
+                              onChange(base);
+                            }}
+                          >
+                            {DATA_METRICS.map(m => (
+                              <option key={m.id} value={m.id}>{m.label}</option>
+                            ))}
+                          </Select>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
