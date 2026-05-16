@@ -1,6 +1,7 @@
 import { createStore } from 'zustand/vanilla';
 import { useStore } from 'zustand/react';
 import type { DmxFrame } from '../format.js';
+import { MODES } from './components/ModePicker.js';
 import type { AppMode } from './components/ModePicker.js';
 import type { AudioStyle } from '../../animations/audio-renderers.js';
 import type { ClockFace } from '../../animations/clock-renderers.js';
@@ -492,7 +493,7 @@ if (typeof localStorage !== 'undefined') {
           ...(s.zoom !== undefined ? { zoom: s.zoom } : {}),
           ...(s.activeColor !== undefined ? { activeColor: s.activeColor } : {}),
           ...(s.previewTarget !== undefined ? { previewTarget: s.previewTarget } : {}),
-          ...(s.activeMode !== undefined ? { activeMode: s.activeMode } : {}),
+          ...(s.activeMode !== undefined && MODES.some(m => m.id === s.activeMode) ? { activeMode: s.activeMode as AppMode } : {}),
           ...(s.audioStyle !== undefined ? { audioStyle: s.audioStyle } : {}),
           ...(s.audioSource !== undefined ? { audioSource: s.audioSource } : {}),
           ...(s.micSensitivity !== undefined ? { micSensitivity: Math.min(100, Math.max(0, Math.round(Number(s.micSensitivity)))) } : {}),
