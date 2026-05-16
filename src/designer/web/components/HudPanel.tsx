@@ -195,17 +195,27 @@ export function HudPanel({ dualModule = false, topPad = 0 }: { dualModule?: bool
         />
       </aside>
 
-      {/* Center: dual preview */}
-      <main style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <HudDualPreview
-          leftWidget={selectedPreset?.left ?? null}
-          rightWidget={selectedPreset?.right ?? null}
-          selectedSide={hudSelectedSide}
-          onSelectSide={(side) => designerStore.getState().selectSide(side)}
-        />
+      {/* Center: dual preview + trigger editor */}
+      <main style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <HudDualPreview
+            leftWidget={selectedPreset?.left ?? null}
+            rightWidget={selectedPreset?.right ?? null}
+            selectedSide={hudSelectedSide}
+            onSelectSide={(side) => designerStore.getState().selectSide(side)}
+          />
+          <TriggerEditor
+            triggers={selectedPreset?.triggers ?? []}
+            onChange={(triggers) => {
+              if (!selectedPreset) return;
+              designerStore.getState().updatePresetTriggers(selectedPreset.name, triggers);
+              debouncedSave();
+            }}
+          />
+        </div>
       </main>
 
-      {/* Right: widget inspector + trigger editor */}
+      {/* Right: widget inspector */}
       <aside style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', paddingTop: topPad }}>
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           <HudInspector
@@ -217,14 +227,6 @@ export function HudPanel({ dualModule = false, topPad = 0 }: { dualModule?: bool
               if (!selectedPreset) return;
               designerStore.getState().updatePresetWidget(selectedPreset.name, hudSelectedSide, widget);
               sendHudConfig(widget);
-              debouncedSave();
-            }}
-          />
-          <TriggerEditor
-            triggers={selectedPreset?.triggers ?? []}
-            onChange={(triggers) => {
-              if (!selectedPreset) return;
-              designerStore.getState().updatePresetTriggers(selectedPreset.name, triggers);
               debouncedSave();
             }}
           />
