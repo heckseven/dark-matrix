@@ -59,7 +59,7 @@ The mapping is stored in `~/.config/dark-matrix/config.json`.
 A browser-based pixel animation editor. Launches a local HTTP server and opens the UI.
 
 ```sh
-dark-matrix designer [--port <n>]   # default: 7340
+dark-matrix ui [--port <n>]   # default: 7340
 ```
 
 ### Features
@@ -84,7 +84,7 @@ Projects are saved as `.dmx.json` files:
 
 ```jsonc
 {
-  "format": "dark-matrix-designer",
+  "format": "dark-matrix",
   "version": 1,
   "width": 9,        // 9 (single) or 18 (dual spanning)
   "height": 34,
@@ -128,7 +128,7 @@ dark-matrix <command>
 | `ping` | Check if daemon is running |
 | `release` | Release serial port handles (for compatibility with `matrix.sh`) |
 | `calibrate` | Confirm left/right module assignment |
-| `designer [--port <n>]` | Launch pixel animation designer (default port 7340) |
+| `ui [--port <n>]` | Launch pixel animation designer (default port 7340) |
 
 ### Images
 

@@ -118,7 +118,7 @@ describe('designer server', () => {
 
 const pixels = Buffer.alloc(9 * 34).toString('base64');
 const validProject = {
-  format: 'dark-matrix-designer',
+  format: 'dark-matrix',
   version: 1,
   width: 9,
   height: 34,
@@ -153,7 +153,7 @@ describe('designer server — library API', () => {
     expect(JSON.parse(body)).toMatchObject({ ok: true, name: 'test_anim' });
     const libPath = path.join(configDir, 'library', 'test_anim.dmx.json');
     const saved = JSON.parse(await fs.readFile(libPath, 'utf-8'));
-    expect(saved.format).toBe('dark-matrix-designer');
+    expect(saved.format).toBe('dark-matrix');
   });
 
   it('GET /api/library lists the saved file', async () => {
@@ -167,7 +167,7 @@ describe('designer server — library API', () => {
     await post(`${server.url}/api/library`, JSON.stringify({ name: 'get_test', project: validProject }));
     const { status, body } = await get(`${server.url}/api/library/get_test`);
     expect(status).toBe(200);
-    expect(JSON.parse(body)).toMatchObject({ format: 'dark-matrix-designer' });
+    expect(JSON.parse(body)).toMatchObject({ format: 'dark-matrix' });
   });
 
   it('GET /api/library/:name returns 404 for missing file', async () => {

@@ -11,7 +11,7 @@
   "scripts": {
     "dev": "node --watch dist/daemon/index.js",
     "dev:designer": "vite",
-    "dev:all": "concurrently -n daemon,designer,vite -c blue,yellow,green \"node --watch dist/daemon/index.js\" \"node dist/cli/index.js designer\" \"vite\"",
+    "dev:all": "concurrently -n daemon,designer,vite -c blue,yellow,green \"node --watch dist/daemon/index.js\" \"node dist/cli/index.js ui\" \"vite\"",
     "build": "tsc && vite build",
     "build:designer": "vite build",
     "test": "vitest run",

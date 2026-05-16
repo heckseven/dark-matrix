@@ -74,7 +74,7 @@ async function postMultipart(
 function makeProject(frames = 1): DmxProject {
   const pixels = Buffer.alloc(9 * 34, 0);
   return {
-    format: 'dark-matrix-designer',
+    format: 'dark-matrix',
     version: 1,
     width: 9,
     height: 34,
@@ -118,7 +118,7 @@ describe('import/export endpoints', () => {
     expect(status).toBe(200);
     const resp = JSON.parse(bodyBuf.toString('utf8')) as { ok: boolean; project: DmxProject };
     expect(resp.ok).toBe(true);
-    expect(resp.project.format).toBe('dark-matrix-designer');
+    expect(resp.project.format).toBe('dark-matrix');
     expect(resp.project.frames.length).toBe(1);
     expect(resp.project.frames[0]!.pixels).toBe(project.frames[0]!.pixels);
   });

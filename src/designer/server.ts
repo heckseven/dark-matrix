@@ -201,7 +201,7 @@ const ALLOWED_IMPORT_TYPES = new Set(['image/png', 'image/gif', 'application/jso
 
 const DmxProjectExportSchema = z.object({
   project: z.object({
-    format: z.literal('dark-matrix-designer'),
+    format: z.literal('dark-matrix'),
     version: z.literal(1),
     width: z.union([z.literal(9), z.literal(18)]),
     height: z.literal(34),
@@ -270,7 +270,7 @@ async function handleImport(req: http.IncomingMessage, res: http.ServerResponse)
       }
 
       project = {
-        format: 'dark-matrix-designer',
+        format: 'dark-matrix',
         version: 1,
         width: 9,
         height: 34,
@@ -304,7 +304,7 @@ async function handleImport(req: http.IncomingMessage, res: http.ServerResponse)
       }
 
       project = {
-        format: 'dark-matrix-designer',
+        format: 'dark-matrix',
         version: 1,
         width: 9,
         height: 34,

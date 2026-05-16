@@ -42,7 +42,7 @@ export async function importFile(file: File, store: FileStoreCompat): Promise<vo
 
 function buildProject(store: FileStoreCompat): DmxProject {
   return {
-    format: 'dark-matrix-designer',
+    format: 'dark-matrix',
     version: 1,
     width: store.state.width,
     height: 34,
