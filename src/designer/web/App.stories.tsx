@@ -34,9 +34,11 @@ function setup(frames: Frame[], opts: {
   activeFrameIdx?: number;
   zoom?: number;
   previewTarget?: 'left' | 'right' | 'both' | 'mirror';
+  activeMode?: import('./store.js').AppMode | null;
 } = {}) {
   designerStore.getState().loadProject({ frames, width: W, mode: opts.mode ?? 'bw', loop: true });
   designerStore.setState({ isPlaying: opts.isPlaying ?? false, zoom: opts.zoom ?? 1 });
+  designerStore.getState().setActiveMode(opts.activeMode !== undefined ? opts.activeMode : 'design');
   if (opts.activeFrameIdx !== undefined) designerStore.setState({ activeFrameIdx: opts.activeFrameIdx });
   if (opts.previewTarget !== undefined) designerStore.getState().setPreviewTarget(opts.previewTarget);
 }
@@ -91,6 +93,14 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
+
+/** Initial launch state — mode picker full-screen, no mode selected yet. */
+export const Launcher: Story = {
+  render: () => {
+    useEffect(() => { designerStore.getState().setActiveMode(null); }, []);
+    return <AppStory mode="bw" frameCount={1} isPlaying={false} zoom={1} previewTarget="left" />;
+  },
+};
 
 /** Default state: single blank frame, BW mode. */
 export const Playground: Story = {};

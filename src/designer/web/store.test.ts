@@ -108,8 +108,8 @@ describe('Store', () => {
     expect(store.getState().frames[0]!.delayMs).toBe(100);
   });
 
-  it('11. initial activeMode is design, setActiveMode updates it', () => {
-    expect(store.getState().activeMode).toBe('design');
+  it('11. initial activeMode is null, setActiveMode updates it', () => {
+    expect(store.getState().activeMode).toBe(null);
     store.getState().setActiveMode('hud');
     expect(store.getState().activeMode).toBe('hud');
     store.getState().setActiveMode('games');
