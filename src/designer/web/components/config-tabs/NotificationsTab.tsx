@@ -192,6 +192,21 @@ export function NotificationsTab({ value, onChange }: NotificationsTabProps) {
         + add rule
       </Button>
 
+      <div className="font-mono text-xs text-foreground/40 flex flex-col gap-1 border-t border-foreground/10 mt-4 pt-4">
+        <p className="text-foreground/60 mb-1">finding an app name</p>
+        <p>sniff the next real notification from any app:</p>
+        <pre className="bg-foreground/5 px-2 py-1 rounded-sm mt-1 whitespace-pre-wrap">{'dbus-monitor --session "interface=\'org.freedesktop.Notifications\',member=\'Notify\'"'}</pre>
+        <p className="mt-1">the first string argument on each <span className="text-foreground/70">Notify</span> call is the app name.</p>
+        <p className="mt-2">or fire a synthetic one to test a specific name:</p>
+        <pre className="bg-foreground/5 px-2 py-1 rounded-sm mt-1">{'notify-send --app-name="Slack" "hello"'}</pre>
+
+        <p className="text-foreground/60 mt-3 mb-1">glob patterns</p>
+        <p><span className="text-foreground/70">*</span> matches any sequence — <span className="text-foreground/70">Slack*</span> matches Slack, SlackBot, etc.</p>
+        <p className="mt-1"><span className="text-foreground/70">?</span> matches exactly one character — <span className="text-foreground/70">app?</span> matches app1, appX, etc.</p>
+        <p className="mt-1">an exact string matches only that name — case-sensitive.</p>
+        <p className="mt-1"><span className="text-foreground/70">*</span> alone matches everything and acts as a catch-all.</p>
+      </div>
+
       <TestNotification rules={value} />
     </div>
   );
