@@ -35,7 +35,7 @@ const NotificationRuleSchema = z.object({
   dmx_path: z.string().regex(/\.dmx\.json$/i).optional(),
 });
 
-const ConfigSchema = z.object({
+export const ConfigSchema = z.object({
   modules: z.object({
     left: z.string().regex(BY_PATH_RE),
     right: z.string().regex(BY_PATH_RE),
