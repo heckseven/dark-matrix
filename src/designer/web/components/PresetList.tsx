@@ -324,7 +324,7 @@ export function PresetList({
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropTarget(null);
       }}
     >
-      <div className="flex flex-col gap-6 pb-2 pt-2">
+      <div className="flex flex-col gap-10 pb-2 pt-2">
         {presets.length === 0 && (
           <p className="font-mono text-xs text-foreground/40 px-2 py-4">no presets</p>
         )}

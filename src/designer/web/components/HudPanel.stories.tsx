@@ -131,7 +131,7 @@ export const Playground: Story = {
   decorators: [
     (Story) => {
       installMockWs({ activeName: 'default' });
-      designerStore.setState({ hudPresets: [], activePresetName: null, selectedPresetName: null, hudSelectedSide: 'left' });
+      designerStore.setState({ hudPresets: [], activePresetName: null, selectedPresetName: 'default', hudSelectedSide: 'left' });
       return (
         <div style={{ height: '100vh', padding: '1rem', boxSizing: 'border-box' }}>
           <Story />
