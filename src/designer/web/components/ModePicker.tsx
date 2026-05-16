@@ -1,23 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { MatrixPreview } from './MatrixPreview.js';
 import { MODE_ICONS } from '../mode-icons.js';
+import { MODES, type AppMode } from '../app-modes.js';
+
+export { MODES, type AppMode };
 
 function leftHalf(pixels: string): string {
   try { return btoa(atob(pixels).slice(0, 9 * 34)); } catch { return pixels; }
 }
-
-export const MODES = [
-  { id: 'hud',    label: 'hud' },
-  { id: 'audio',  label: 'audio' },
-  { id: 'data',   label: 'data' },
-  { id: 'video',  label: 'video' },
-  { id: 'runes',  label: 'runes' },
-  { id: 'games',  label: 'life' },
-  { id: 'design', label: 'design' },
-  { id: 'config', label: 'config' },
-] as const;
-
-export type AppMode = (typeof MODES)[number]['id'];
 
 function ModeCard({ label, active, pixels, dualModule, onSelect }: {
   label: string;

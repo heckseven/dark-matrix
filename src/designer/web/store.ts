@@ -1,8 +1,7 @@
 import { createStore } from 'zustand/vanilla';
 import { useStore } from 'zustand/react';
 import type { DmxFrame } from '../format.js';
-import { MODES } from './components/ModePicker.js';
-import type { AppMode } from './components/ModePicker.js';
+import { MODES, type AppMode } from './app-modes.js';
 import type { AudioStyle } from '../../animations/audio-renderers.js';
 import type { ClockFace } from '../../animations/clock-renderers.js';
 import type { DataStyle } from '../../animations/data-renderers.js';
