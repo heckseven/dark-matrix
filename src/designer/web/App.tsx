@@ -11,7 +11,6 @@ import { Tooltip, TooltipProvider } from './components/ui/tooltip.js';
 import { Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger } from './components/ui/menu.js';
 import { saveToLibrary, saveLibraryCopy, renameLibraryFile, exportProject, importFile, openFromLibrary } from './files.js';
 import { useDesignerStore, designerStore, stepZoom, ZOOM_STEPS, ROWS, DEFAULT_WIDTH } from './store.js';
-import type { AudioSource } from './store.js';
 import { ShortcutDialog } from './components/ui/shortcut-dialog.js';
 import { ModePicker } from './components/ModePicker.js';
 import { AudioPanel } from './components/AudioPanel.js';
@@ -154,6 +153,7 @@ export function App() {
   const selectedPreset     = hudPresets.find(p => p.name === selectedPresetName) ?? null;
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [modePickerOpen, setModePickerOpen] = useState(false);
+  const [hasMic, setHasMic] = useState(false);
   const [livePreviewOn, setLivePreviewOn] = useState(false);
   const bridge = usePreviewBridge();
   const hudSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -181,6 +181,17 @@ export function App() {
     void poll();
     const id = setInterval(() => void poll(), 2000);
     return () => { alive = false; clearInterval(id); };
+  }, []);
+
+  useEffect(() => {
+    const md = navigator.mediaDevices;
+    if (!md) return;
+    const check = () => {
+      md.enumerateDevices().then(devs => setHasMic(devs.some(d => d.kind === 'audioinput'))).catch(() => {});
+    };
+    check();
+    md.addEventListener('devicechange', check);
+    return () => md.removeEventListener('devicechange', check);
   }, []);
 
   useLayoutEffect(() => {
@@ -325,18 +336,17 @@ export function App() {
               <div className="absolute inset-x-0 flex justify-center pointer-events-none">
                 <span className="font-mono text-xs text-foreground">audio</span>
               </div>
-              <div className="ml-auto flex items-center gap-0 font-mono text-xs border border-foreground/30">
-                {(['monitor', 'mic'] as const satisfies AudioSource[]).map((src) => (
-                  <button
-                    key={src}
-                    aria-pressed={audioSource === src}
-                    className={`px-4 py-1 transition-colors ${audioSource === src ? 'bg-foreground text-background' : 'text-foreground/60 hover:text-foreground'}`}
-                    onClick={() => designerStore.getState().setAudioSource(src)}
-                  >
-                    {src}
-                  </button>
-                ))}
-              </div>
+              {hasMic && (
+                <Toggle
+                  className="ml-auto"
+                  pressed={audioSource === 'mic'}
+                  onPressedChange={(on) => designerStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
+                  title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                  aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                >
+                  🎤
+                </Toggle>
+              )}
             </>
           ) : (
             <>
