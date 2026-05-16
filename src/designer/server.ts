@@ -10,7 +10,7 @@ import sharp from 'sharp';
 import { parseProject, frameToBase64 } from './format.js';
 import type { DmxProject } from './format.js';
 import { sendToDaemon, PersistentDaemonClient, daemonSocketPath } from '../lib/daemon-client.js';
-import { loadConfig } from '../lib/config.js';
+import { loadConfig, ConfigSchema } from '../lib/config.js';
 import { AUDIO_STYLES } from '../animations/audio-renderers.js';
 import { watchProcStats } from '../lib/proc-source.js';
 
@@ -503,6 +503,45 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
         }
         prefs = merged.data;
         await savePrefs(prefs, configDir);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'bad request' }));
+      }
+      return;
+    }
+
+    // Config GET
+    if (url === '/api/config' && method === 'GET') {
+      try {
+        const config = await loadConfig(configFilePath(configDir));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, config }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: String(err) }));
+      }
+      return;
+    }
+
+    // Config PUT
+    if (url === '/api/config' && method === 'PUT') {
+      try {
+        const body = await readBody(req);
+        const incoming = JSON.parse(body) as unknown;
+        const result = ConfigSchema.safeParse(incoming);
+        if (!result.success) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, issues: result.error.issues }));
+          return;
+        }
+        const cfgPath = configFilePath(configDir);
+        await fs.mkdir(path.dirname(cfgPath), { recursive: true });
+        const tmp = cfgPath + '.tmp';
+        await fs.writeFile(tmp, JSON.stringify(result.data, null, 2) + '\n', { mode: 0o600 });
+        await fs.rename(tmp, cfgPath);
+        sendToDaemon({ cmd: 'reload' }).catch(() => {});
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
       } catch {
