@@ -108,8 +108,8 @@ export const DataScroll: Story = {
   },
 };
 
-/** Data settings — cpu cores preset (bars style). */
-export const DataCpuCores: Story = {
+/** Data settings — cpu bars preset (grouped block per CPU group). */
+export const DataCpuBars: Story = {
   args: {
     widget: {
       widget: 'data',
@@ -118,8 +118,8 @@ export const DataCpuCores: Story = {
   },
 };
 
-/** Data settings — core bars preset (symmetric full-height bars). */
-export const DataCoreBars: Story = {
+/** Data settings — cpu cores preset (symmetric column per CPU group). */
+export const DataCpuCores: Story = {
   args: {
     widget: {
       widget: 'data',
