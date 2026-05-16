@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { Input } from '../ui/input.js';
+import { Radio } from '../ui/radio.js';
 import { Slider } from '../ui/slider.js';
 
 const SENSOR_PATH_RE = /^\/sys\/bus\/iio\/devices\/iio:device\d+\/in_illuminance_raw$/;
@@ -41,9 +42,8 @@ export function BrightnessTab({ value, onChange }: Props) {
       {/* mode */}
       <Row label="mode">
         {(['sensor', 'time', 'manual'] as const).map(m => (
-          <label key={m} className="flex items-center gap-1 cursor-pointer">
-            <input
-              type="radio"
+          <label key={m} className="flex items-center gap-2 cursor-pointer">
+            <Radio
               name={`${uid}-mode`}
               value={m}
               checked={value.mode === m}
