@@ -166,7 +166,6 @@ function PresetCard({
 
   return (
     <div
-      role="listitem"
       aria-label={isActive ? `${preset.name} (active)` : preset.name}
       tabIndex={0}
       className="group relative flex flex-row gap-3 p-1 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -326,12 +325,12 @@ export function PresetList({
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropTarget(null);
       }}
     >
-      <div role="list" className="flex flex-col gap-10 pb-2 pt-2">
+      <ul className="flex flex-col gap-10 pb-2 pt-2" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
         {presets.length === 0 && (
-          <p className="font-mono text-xs text-foreground/40 px-2 py-4">no presets</p>
+          <li className="font-mono text-xs text-foreground/55 px-2 py-4">no presets</li>
         )}
         {dropTarget === 0 && (
-          <div aria-hidden="true" className="-my-[19px] h-0.5 bg-green-500 rounded-full pointer-events-none" />
+          <li aria-hidden="true" className="-my-[19px] h-0.5 bg-green-500 rounded-full pointer-events-none" />
         )}
         {presets.map((preset, idx) => {
           const leftPx  = renderWidgetToB64(preset.left,  'left');
@@ -339,39 +338,43 @@ export function PresetList({
           const pixels  = combinePixels(leftPx, rightPx);
           return (
             <Fragment key={preset.name}>
-              <PresetCard
-                preset={preset}
-                idx={idx}
-                presetCount={presets.length}
-                isActive={activeName === preset.name}
-                isSelected={selectedName === preset.name}
-                pixels={pixels}
-                dropTarget={dropTarget}
-                onSelect={() => onSelect(preset.name)}
-                onDelete={() => onDelete(preset.name)}
-                onDuplicate={() => onDuplicate(preset.name)}
-                onRename={newName => onRename(preset.name, newName)}
-                onMoveUp={() => onMove(idx, idx - 1)}
-                onMoveDown={() => onMove(idx, idx + 1)}
-                setDropTarget={setDropTarget}
-                onDrop={onMove}
-              />
-              {idx < presets.length - 1 && (
-                <GapZone
-                  afterIdx={idx}
-                  showDrop={dropTarget === idx + 1}
-                  setDropTarget={setDropTarget}
+              <li>
+                <PresetCard
+                  preset={preset}
+                  idx={idx}
                   presetCount={presets.length}
-                  onInsert={() => onInsert(idx)}
+                  isActive={activeName === preset.name}
+                  isSelected={selectedName === preset.name}
+                  pixels={pixels}
+                  dropTarget={dropTarget}
+                  onSelect={() => onSelect(preset.name)}
+                  onDelete={() => onDelete(preset.name)}
+                  onDuplicate={() => onDuplicate(preset.name)}
+                  onRename={newName => onRename(preset.name, newName)}
+                  onMoveUp={() => onMove(idx, idx - 1)}
+                  onMoveDown={() => onMove(idx, idx + 1)}
+                  setDropTarget={setDropTarget}
+                  onDrop={onMove}
                 />
+              </li>
+              {idx < presets.length - 1 && (
+                <li>
+                  <GapZone
+                    afterIdx={idx}
+                    showDrop={dropTarget === idx + 1}
+                    setDropTarget={setDropTarget}
+                    presetCount={presets.length}
+                    onInsert={() => onInsert(idx)}
+                  />
+                </li>
               )}
             </Fragment>
           );
         })}
         {dropTarget === presets.length && (
-          <div aria-hidden="true" className="-my-[19px] h-0.5 bg-green-500 rounded-full pointer-events-none" />
+          <li aria-hidden="true" className="-my-[19px] h-0.5 bg-green-500 rounded-full pointer-events-none" />
         )}
-      </div>
+      </ul>
 
       <Button
         variant="ghost"
