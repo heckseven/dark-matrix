@@ -59,8 +59,26 @@ export const ClockAnalogue: Story = {
   },
 };
 
-/** Data settings — line style with all quadrants set. */
-export const DataSettings: Story = {
+/** Picker with data assigned — system preset tile marked active. */
+export const PickerWithData: Story = {
+  args: {
+    widget: {
+      widget: 'data',
+      style: 'line',
+      top_left: 'cpu',
+      top_right: 'ram',
+      bottom_left: 'net_rx',
+      bottom_right: 'net_tx',
+    } satisfies HudWidget,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', { name: 'Select different panel' }));
+  },
+};
+
+/** Data settings — system preset (line, all 4 metrics). */
+export const DataSystem: Story = {
   args: {
     widget: {
       widget: 'data',
@@ -73,8 +91,8 @@ export const DataSettings: Story = {
   },
 };
 
-/** Data settings — bars style. */
-export const DataBars: Story = {
+/** Data settings — cpu cores preset (bars style). */
+export const DataCpuCores: Story = {
   args: {
     widget: {
       widget: 'data',

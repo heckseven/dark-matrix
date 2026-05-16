@@ -5,8 +5,8 @@ import { Select } from './ui/select.js';
 import { Button } from './ui/button.js';
 import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
-import { createDataRenderer } from '../../../animations/data-renderers.js';
-import type { DataStyle, DataMetric, DataRenderer, DataStats } from '../../../animations/data-renderers.js';
+import { DATA_STYLES, createDataRenderer } from '../../../animations/data-renderers.js';
+import type { DataStyle, DataMetric, DataRenderer } from '../../../animations/data-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 
 const COLS = 9;
@@ -27,25 +27,58 @@ function renderClockToB64(face: ClockFace, now: Date): string {
   return btoa(String.fromCharCode(...out));
 }
 
-// ── data thumbnail ────────────────────────────────────────────────────────
+// ── data thumbnails ───────────────────────────────────────────────────────
 
-const DEMO_STATS: DataStats = { cpuPct: 0.45, ramPct: 0.7, netRxBps: 1_000_000, netTxBps: 500_000 };
-
-let _dataThumbnail: DataRenderer | null = null;
+const _dataThumbCache: Partial<Record<DataStyle, DataRenderer>> = {};
 if (import.meta.hot) {
-  import.meta.hot.dispose(() => { _dataThumbnail = null; });
+  import.meta.hot.dispose(() => { for (const k in _dataThumbCache) delete _dataThumbCache[k as DataStyle]; });
 }
 
-function renderDataToB64(): string {
-  if (!_dataThumbnail) {
-    _dataThumbnail = createDataRenderer({ style: 'line' });
-    _dataThumbnail.update(DEMO_STATS);
+function getDataThumb(style: DataStyle): DataRenderer {
+  if (!_dataThumbCache[style]) {
+    const r = createDataRenderer({ style });
+    if (style === 'bars') {
+      // 8 simulated CPU cores at varied utilisation
+      r.update({ cpuPct: 45, ramPct: 70, netRxBps: 1_000_000, netTxBps: 500_000, cpuCores: [80, 45, 30, 60, 70, 20, 50, 40] });
+    } else {
+      // Seed 17 frames so the full line history is filled
+      for (let i = 16; i >= 0; i--) {
+        r.update({
+          cpuPct:   35 + 25 * Math.sin(i * 0.4),
+          ramPct:   60 + 15 * Math.sin(i * 0.3 + 1),
+          netRxBps: 800_000 + 400_000 * Math.sin(i * 0.5 + 2),
+          netTxBps: 300_000 + 200_000 * Math.sin(i * 0.35),
+        });
+      }
+    }
+    _dataThumbCache[style] = r;
   }
-  const frame = _dataThumbnail.render();
+  return _dataThumbCache[style]!;
+}
+
+function renderDataStyleToB64(style: DataStyle): string {
+  const frame = getDataThumb(style).render();
   const out = new Uint8Array(COLS * ROWS);
   for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
   return btoa(String.fromCharCode(...out));
 }
+
+// ── data presets ──────────────────────────────────────────────────────────
+
+const DATA_PRESETS: { id: string; label: string; style: DataStyle; widget: HudWidget }[] = [
+  {
+    id: 'system',
+    label: 'system',
+    style: 'line',
+    widget: { widget: 'data', style: 'line', top_left: 'cpu', top_right: 'ram', bottom_left: 'net_rx', bottom_right: 'net_tx' },
+  },
+  {
+    id: 'cpu-cores',
+    label: 'cpu cores',
+    style: 'bars',
+    widget: { widget: 'data', style: 'bars' },
+  },
+];
 
 // ── helpers ───────────────────────────────────────────────────────────────
 
@@ -74,16 +107,15 @@ const PLACEHOLDER_CATEGORIES = ['ai', 'audio', 'image', 'animation'] as const;
 
 type PanelPickerProps = {
   clockPixels: Partial<Record<ClockFace, string>>;
-  dataThumbnail: string;
+  dataThumbnails: Partial<Record<DataStyle, string>>;
   currentWidget: HudWidget | null;
   scrollToCategory: string | null;
   onScrolled: () => void;
   onPick: (widget: HudWidget) => void;
 };
 
-function PanelPicker({ clockPixels, dataThumbnail, currentWidget, scrollToCategory, onScrolled, onPick }: PanelPickerProps) {
+function PanelPicker({ clockPixels, dataThumbnails, currentWidget, scrollToCategory, onScrolled, onPick }: PanelPickerProps) {
   const catRefs = useRef<Partial<Record<string, HTMLElement>>>({});
-  const dataActive = currentWidget?.widget === 'data';
 
   useEffect(() => {
     if (!scrollToCategory) return;
@@ -132,17 +164,23 @@ function PanelPicker({ clockPixels, dataThumbnail, currentWidget, scrollToCatego
           data
         </h3>
         <div role="group" aria-label="Data panels" className="grid grid-cols-3 gap-4">
-          <button
-            type="button"
-            aria-label="Data panel"
-            aria-pressed={dataActive}
-            className="group relative flex flex-col gap-2 items-center rounded-sm p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
-            onClick={() => onPick({ widget: 'data', style: 'line' })}
-          >
-            <CornerBrackets active={dataActive} />
-            <MatrixPreview pixels={dataThumbnail || EMPTY_PIXELS} width={9} />
-            <span className="font-mono text-xs text-foreground">data</span>
-          </button>
+          {DATA_PRESETS.map(preset => {
+            const active = currentWidget?.widget === 'data' && (currentWidget.style ?? 'line') === preset.style;
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                aria-label={preset.label}
+                aria-pressed={active}
+                className="group relative flex flex-col gap-2 items-center rounded-sm p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
+                onClick={() => onPick(preset.widget)}
+              >
+                <CornerBrackets active={active} />
+                <MatrixPreview pixels={dataThumbnails[preset.style] ?? EMPTY_PIXELS} width={9} />
+                <span className="font-mono text-xs text-foreground">{preset.label}</span>
+              </button>
+            );
+          })}
         </div>
       </section>
 
@@ -190,14 +228,16 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
   const [view, setView] = useState<View>(() => widget ? 'settings' : 'picker');
   const [scrollTarget, setScrollTarget] = useState<string | null>(null);
   const [clockPixels, setClockPixels] = useState<Partial<Record<ClockFace, string>>>({});
-  const [dataThumbnail, setDataThumbnail] = useState('');
+  const [dataThumbnails, setDataThumbnails] = useState<Partial<Record<DataStyle, string>>>({});
 
   const renderAll = useCallback(() => {
     const now = new Date();
     const next: Partial<Record<ClockFace, string>> = {};
     for (const { id } of CLOCK_FACES) next[id] = renderClockToB64(id, now);
     setClockPixels(next);
-    setDataThumbnail(renderDataToB64());
+    const nextData: Partial<Record<DataStyle, string>> = {};
+    for (const { id } of DATA_STYLES) nextData[id] = renderDataStyleToB64(id);
+    setDataThumbnails(nextData);
   }, []);
 
   useEffect(() => {
@@ -229,7 +269,7 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
       <div className="flex flex-col h-full overflow-hidden">
         <PanelPicker
           clockPixels={clockPixels}
-          dataThumbnail={dataThumbnail}
+          dataThumbnails={dataThumbnails}
           currentWidget={widget}
           scrollToCategory={scrollTarget}
           onScrolled={handleScrolled}
