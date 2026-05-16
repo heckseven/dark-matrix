@@ -23,7 +23,6 @@
   --radius-lg: 0.375rem;
 }
 
-
 @layer base {
   * { box-sizing: border-box; }
   input[type='number']::-webkit-outer-spin-button,
