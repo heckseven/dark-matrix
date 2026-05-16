@@ -99,14 +99,14 @@ const DATA_PRESETS: { id: string; label: string; style: DataStyle; widget: HudWi
     widget: { widget: 'data', style: 'scroll' },
   },
   {
-    id: 'cpu-cores',
-    label: 'cpu cores',
+    id: 'cpu-bars',
+    label: 'cpu bars',
     style: 'bars',
     widget: { widget: 'data', style: 'bars' },
   },
   {
-    id: 'core-bars',
-    label: 'core bars',
+    id: 'cpu-cores',
+    label: 'cpu cores',
     style: 'cores',
     widget: { widget: 'data', style: 'cores' },
   },
