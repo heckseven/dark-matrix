@@ -56,7 +56,7 @@ type Story = StoryObj<typeof meta>;
 
 /** Default state — fetch fires on mount (will fail gracefully in Storybook, showing "loading…"). */
 export const Playground: Story = {
-  args: { dualModule: false },
+  args: { dualModule: false, topPad: 0 },
   decorators: [
     (Story) => {
       useEffect(() => {
@@ -73,7 +73,7 @@ export const Playground: Story = {
 
 /** Dirty state — unsaved changes indicator (amber dot) visible in the header. */
 export const DirtyState: Story = {
-  args: { dualModule: false },
+  args: { dualModule: false, topPad: 0 },
   decorators: [
     (Story) => {
       useEffect(() => {
@@ -91,7 +91,7 @@ export const DirtyState: Story = {
 
 /** Dirty state with richer config — notification rules and all optional daemon fields populated. */
 export const DirtyWithAllTabs: Story = {
-  args: { dualModule: true },
+  args: { dualModule: true, topPad: 0 },
   decorators: [
     (Story) => {
       useEffect(() => {
