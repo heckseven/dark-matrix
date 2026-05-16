@@ -90,7 +90,7 @@ export function createPresetTriggerEngine(opts: TriggerEngineOpts): TriggerEngin
           if (latestStats) {
             const statsKey = METRIC_MAP[trigger.metric];
             if (statsKey) {
-              const key = `${pi}:${ti}`;
+              const key = `${preset.name}:${ti}`;
               const value = latestStats[statsKey];
               let conditionMet = true;
               if (trigger.above !== undefined && value <= trigger.above) conditionMet = false;
@@ -111,7 +111,12 @@ export function createPresetTriggerEngine(opts: TriggerEngineOpts): TriggerEngin
           triggerMatch = state === (trigger.state ?? 'running');
         }
 
-        if (triggerMatch) matchCount++;
+        if (triggerMatch) {
+          matchCount++;
+          if (isAny) break;
+        } else if (!isAny) {
+          break;
+        }
       }
 
       const presetMatches = isAny ? matchCount > 0 : matchCount === triggers.length;

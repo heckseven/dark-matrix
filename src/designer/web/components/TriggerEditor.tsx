@@ -259,12 +259,14 @@ export function TriggerEditor({ triggers, onChange, match = 'all', onMatchChange
         <div className="flex flex-col gap-0 mt-1">
           {/* match mode toggle — only shown with 2+ triggers */}
           {triggers.length >= 2 && onMatchChange && (
-            <div className="flex items-center gap-1 mb-1">
-              <span className="font-mono text-xs text-foreground/40">match</span>
+            <div role="group" aria-label="match mode" className="flex items-center gap-1 mb-1">
+              <span className="font-mono text-xs text-foreground/40" aria-hidden="true">match</span>
               {(['all', 'any'] as const).map(m => (
                 <button
                   key={m}
                   type="button"
+                  aria-pressed={match === m}
+                  aria-label={`match ${m} triggers`}
                   className={`font-mono text-xs px-1.5 py-0.5 border transition-colors ${match === m ? 'border-foreground text-foreground' : 'border-foreground/20 text-foreground/40 hover:text-foreground hover:border-foreground/50'}`}
                   onClick={() => onMatchChange(m)}
                 >
