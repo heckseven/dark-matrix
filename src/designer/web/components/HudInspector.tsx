@@ -159,6 +159,14 @@ function categoryOfWidget(w: HudWidget): string {
   return 'data';
 }
 
+function widgetToKey(w: HudWidget | null): string | null {
+  if (!w) return null;
+  if (w.widget === 'clock')  return `clock:${w.face ?? 'elegant'}`;
+  if (w.widget === 'audio')  return `audio:${w.style ?? AUDIO_STYLES[0]!.id}`;
+  if (w.widget === 'heatmap') return null; // static — never needs live updates
+  return null; // data — static
+}
+
 function CornerBrackets({ active }: { active: boolean }) {
   const c = { position: 'absolute' as const, width: 16, height: 16, pointerEvents: 'none' as const };
   const b = `1px solid ${active ? 'white' : 'rgba(255,255,255,0.35)'}`;
@@ -185,10 +193,17 @@ type PanelPickerProps = {
   scrollToCategory: string | null;
   onScrolled: () => void;
   onPick: (widget: HudWidget) => void;
+  onLiveKey: (key: string | null) => void;
 };
 
-function PanelPicker({ clockPixels, dataThumbnails, audioThumbnails, heatmapPixels, currentWidget, scrollToCategory, onScrolled, onPick }: PanelPickerProps) {
+function PanelPicker({ clockPixels, dataThumbnails, audioThumbnails, heatmapPixels, currentWidget, scrollToCategory, onScrolled, onPick, onLiveKey }: PanelPickerProps) {
   const catRefs = useRef<Partial<Record<string, HTMLElement>>>({});
+  const live = (key: string) => ({
+    onMouseEnter: () => onLiveKey(key),
+    onMouseLeave: () => onLiveKey(null),
+    onFocus: () => onLiveKey(key),
+    onBlur: () => onLiveKey(null),
+  });
 
   useEffect(() => {
     if (!scrollToCategory) return;
@@ -217,6 +232,7 @@ function PanelPicker({ clockPixels, dataThumbnails, audioThumbnails, heatmapPixe
                 aria-label={label}
                 aria-pressed={active}
                 className="group relative flex flex-col gap-2 items-center rounded-sm p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
+                {...live(`clock:${id}`)}
                 onClick={() => onPick({ widget: 'clock', face: id })}
               >
                 <CornerBrackets active={active} />
@@ -275,6 +291,7 @@ function PanelPicker({ clockPixels, dataThumbnails, audioThumbnails, heatmapPixe
                 aria-label={label}
                 aria-pressed={active}
                 className="group relative flex flex-col gap-2 items-center rounded-sm p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
+                {...live(`audio:${id}`)}
                 onClick={() => onPick({ widget: 'audio', style: id })}
               >
                 <CornerBrackets active={active} />
@@ -363,26 +380,42 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
   const [dataThumbnails, setDataThumbnails] = useState<Partial<Record<DataStyle, string>>>({});
   const [audioThumbnails, setAudioThumbnails] = useState<Partial<Record<AudioStyle, string>>>({});
   const [heatmapPixels, setHeatmapPixels] = useState<string>(EMPTY_PIXELS);
+  const [interactiveKey, setInteractiveKey] = useState<string | null>(null);
 
-  const renderAll = useCallback(() => {
-    const now = new Date();
-    const next: Partial<Record<ClockFace, string>> = {};
-    for (const { id } of CLOCK_FACES) next[id] = renderClockToB64(id, now);
-    setClockPixels(next);
-    const nextData: Partial<Record<DataStyle, string>> = {};
-    for (const { id } of DATA_STYLES) nextData[id] = renderDataStyleToB64(id);
-    setDataThumbnails(nextData);
-    const nextAudio: Partial<Record<AudioStyle, string>> = {};
-    for (const { id } of AUDIO_STYLES) nextAudio[id] = renderAudioStyleToB64(id);
-    setAudioThumbnails(nextAudio);
-    setHeatmapPixels(renderHeatmapThumbToB64());
-  }, []);
+  // Live key: hovered/focused item takes priority, else the active widget's key
+  const liveKey = interactiveKey ?? widgetToKey(widget);
+  const liveKeyRef = useRef(liveKey);
+  liveKeyRef.current = liveKey;
 
   useEffect(() => {
-    renderAll();
-    const id = setInterval(renderAll, 100);
-    return () => clearInterval(id);
-  }, [renderAll]);
+    // One-time static snapshots on mount
+    const now = new Date();
+    const clocks: Partial<Record<ClockFace, string>> = {};
+    for (const { id } of CLOCK_FACES) clocks[id] = renderClockToB64(id, now);
+    setClockPixels(clocks);
+    const data: Partial<Record<DataStyle, string>> = {};
+    for (const { id } of DATA_STYLES) data[id] = renderDataStyleToB64(id);
+    setDataThumbnails(data);
+    const audio: Partial<Record<AudioStyle, string>> = {};
+    for (const { id } of AUDIO_STYLES) audio[id] = renderAudioStyleToB64(id);
+    setAudioThumbnails(audio);
+    setHeatmapPixels(renderHeatmapThumbToB64());
+
+    // 100ms interval — only re-renders the live (hovered/focused/active) thumbnail
+    const iid = setInterval(() => {
+      const k = liveKeyRef.current;
+      if (!k) return;
+      const n = new Date();
+      if (k.startsWith('clock:')) {
+        const face = k.slice(6) as ClockFace;
+        setClockPixels(prev => ({ ...prev, [face]: renderClockToB64(face, n) }));
+      } else if (k.startsWith('audio:')) {
+        const style = k.slice(6) as AudioStyle;
+        setAudioThumbnails(prev => ({ ...prev, [style]: renderAudioStyleToB64(style) }));
+      }
+    }, 100);
+    return () => clearInterval(iid);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleScrolled = useCallback(() => setScrollTarget(null), []);
 
@@ -416,6 +449,7 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
           scrollToCategory={scrollTarget}
           onScrolled={handleScrolled}
           onPick={handlePick}
+          onLiveKey={setInteractiveKey}
         />
       </div>
     );
@@ -448,6 +482,10 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
                     aria-label={label}
                     aria-pressed={active}
                     className="group relative flex flex-col gap-2 items-center rounded-sm p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
+                    onMouseEnter={() => setInteractiveKey(`clock:${id}`)}
+                    onMouseLeave={() => setInteractiveKey(null)}
+                    onFocus={() => setInteractiveKey(`clock:${id}`)}
+                    onBlur={() => setInteractiveKey(null)}
                     onClick={() => onChange({ widget: 'clock', face: id })}
                   >
                     <CornerBrackets active={active} />
@@ -470,6 +508,10 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
                     aria-label={label}
                     aria-pressed={active}
                     className="group relative flex flex-col gap-2 items-center rounded-sm p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
+                    onMouseEnter={() => setInteractiveKey(`audio:${id}`)}
+                    onMouseLeave={() => setInteractiveKey(null)}
+                    onFocus={() => setInteractiveKey(`audio:${id}`)}
+                    onBlur={() => setInteractiveKey(null)}
                     onClick={() => onChange({ widget: 'audio', style: id })}
                   >
                     <CornerBrackets active={active} />
