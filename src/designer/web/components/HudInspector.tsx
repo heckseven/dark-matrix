@@ -37,7 +37,7 @@ if (import.meta.hot) {
 function getDataThumb(style: DataStyle): DataRenderer {
   if (_dataThumbCache[style] === undefined) {
     const r = createDataRenderer({ style });
-    if (style === 'bars' || style === 'cores') {
+    if (style === 'cores') {
       r.update({ cpuPct: 45, ramPct: 70, netRxBps: 1_000_000, netTxBps: 500_000, cpuCores: [80, 45, 30, 60, 70, 20, 50, 40] });
     } else if (style === 'scroll') {
       // Seed 17 frames of animated cpu core groups
@@ -97,12 +97,6 @@ const DATA_PRESETS: { id: string; label: string; style: DataStyle; widget: HudWi
     label: 'scroll',
     style: 'scroll',
     widget: { widget: 'data', style: 'scroll' },
-  },
-  {
-    id: 'cpu-bars',
-    label: 'cpu bars',
-    style: 'bars',
-    widget: { widget: 'data', style: 'bars' },
   },
   {
     id: 'cpu-cores',

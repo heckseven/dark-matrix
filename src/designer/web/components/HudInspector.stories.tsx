@@ -108,16 +108,6 @@ export const DataScroll: Story = {
   },
 };
 
-/** Data settings — cpu bars preset (grouped block per CPU group). */
-export const DataCpuBars: Story = {
-  args: {
-    widget: {
-      widget: 'data',
-      style: 'bars',
-    } satisfies HudWidget,
-  },
-};
-
 /** Data settings — cpu cores preset (symmetric column per CPU group). */
 export const DataCpuCores: Story = {
   args: {

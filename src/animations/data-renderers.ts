@@ -11,7 +11,7 @@ export type DataStats = {
 };
 
 export type DataMetric = 'cpu' | 'ram' | 'net_rx' | 'net_tx';
-export type DataStyle  = 'line' | 'fill' | 'scroll' | 'bars' | 'cores';
+export type DataStyle  = 'line' | 'fill' | 'scroll' | 'cores';
 
 export type DataWidgetConfig = {
   style?:       DataStyle;
@@ -25,7 +25,6 @@ export const DATA_STYLES: { id: DataStyle; label: string }[] = [
   { id: 'line',   label: 'line'   },
   { id: 'fill',   label: 'fill'   },
   { id: 'scroll', label: 'scroll' },
-  { id: 'bars',   label: 'bars'   },
   { id: 'cores',  label: 'cores'  },
 ];
 
@@ -52,11 +51,15 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
   const botLeftM: DataMetric = cfg.bottomLeft ?? 'net_rx';
   const botRightM:DataMetric = cfg.bottomRight ?? 'net_tx';
 
-  // Ring buffers — line/fill use full history; bars/cores use slot [0]; scroll uses full history
+  // Ring buffers — line/fill/scroll use full history; cores uses slot [0] only
   const histTL = new Float32Array(HIST_LEN);
   const histTR = new Float32Array(HIST_LEN);
   const histBL = new Float32Array(HIST_LEN);
   const histBR = new Float32Array(HIST_LEN);
+
+  // cores: 5th group value and group count (4 or 5 depending on core count)
+  let coreCenterVal  = 0;
+  let coreGroupCount: 4 | 5 = 4;
 
   let netRxCeil = 1 * 1024 * 1024;
   let netTxCeil = 1 * 1024 * 1024;
@@ -82,17 +85,17 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
     buf[0] = v;
   }
 
-  // Group cpuCores into 4 evenly-sized buckets, return avg per bucket (0–1)
-  function cpuGroups(cores: number[]): [number, number, number, number] {
-    const n = cores.length;
-    if (n === 0) return [0, 0, 0, 0];
-    const gs = Math.ceil(n / 4);
-    const avg = (start: number): number => {
+  // Group cpuCores into n evenly-sized buckets, return avg per bucket (0–1)
+  function cpuGroups(cores: number[], n: 4 | 5): number[] {
+    if (cores.length === 0) return Array(n).fill(0) as number[];
+    const gs = Math.ceil(cores.length / n);
+    return Array.from({ length: n }, (_, gi) => {
       let s = 0, cnt = 0;
-      for (let i = start; i < Math.min(start + gs, n); i++) { s += cores[i] ?? 0; cnt++; }
+      for (let i = gi * gs; i < Math.min((gi + 1) * gs, cores.length); i++) {
+        s += cores[i] ?? 0; cnt++;
+      }
       return cnt > 0 ? s / cnt / 100 : 0;
-    };
-    return [avg(0), avg(gs), avg(gs * 2), avg(gs * 3)];
+    });
   }
 
   // Line: single-pixel trace per history row
@@ -116,16 +119,6 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
         const col = reflect ? colBase + 3 - c : colBase + c;
         f[col * ROWS + row] = 255;
       }
-    }
-  }
-
-  // Bars: solid fill from center outward (height only), all 4 cols, height = value * HIST_LEN
-  function drawBar(f: Frame, value: number, colBase: number, top: boolean): void {
-    const filled = Math.round(value * HIST_LEN);
-    for (let i = 0; i < filled; i++) {
-      const row = top ? TOP_BASE - i : BOT_BASE + i;
-      if (row < 0 || row >= ROWS) continue;
-      for (let c = 0; c < 4; c++) f[(colBase + c) * ROWS + row] = 255;
     }
   }
 
@@ -155,18 +148,21 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
 
   return {
     update(stats: DataStats) {
-      if (style === 'bars' || style === 'cores') {
-        const [g0, g1, g2, g3] = cpuGroups(stats.cpuCores ?? []);
-        histTL[0] = g0;
-        histTR[0] = g1;
-        histBL[0] = g2;
-        histBR[0] = g3;
+      if (style === 'cores') {
+        const n: 4 | 5 = (stats.cpuCores?.length ?? 0) > 16 ? 5 : 4;
+        coreGroupCount = n;
+        const groups = cpuGroups(stats.cpuCores ?? [], n);
+        histTL[0] = groups[0] ?? 0;
+        histTR[0] = groups[1] ?? 0;
+        histBL[0] = groups[2] ?? 0;
+        histBR[0] = groups[3] ?? 0;
+        coreCenterVal = groups[4] ?? 0;
       } else if (style === 'scroll') {
-        const [g0, g1, g2, g3] = cpuGroups(stats.cpuCores ?? []);
-        shiftPush(histTL, g0);
-        shiftPush(histTR, g1);
-        shiftPush(histBL, g2);
-        shiftPush(histBR, g3);
+        const groups = cpuGroups(stats.cpuCores ?? [], 4);
+        shiftPush(histTL, groups[0] ?? 0);
+        shiftPush(histTR, groups[1] ?? 0);
+        shiftPush(histBL, groups[2] ?? 0);
+        shiftPush(histBR, groups[3] ?? 0);
       } else {
         // line and fill — use configurable metrics with full history
         updateCeilings(stats);
@@ -188,26 +184,23 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
         drawScrollBars(f, histTR, RIGHT_BASE, true,  false);
         drawScrollBars(f, histBL, LEFT_BASE,  false, true);
         drawScrollBars(f, histBR, RIGHT_BASE, false, false);
-      } else if (style === 'bars') {
-        drawBar(f, histTL[0] ?? 0, LEFT_BASE,  true);
-        drawBar(f, histTR[0] ?? 0, RIGHT_BASE, true);
-        drawBar(f, histBL[0] ?? 0, LEFT_BASE,  false);
-        drawBar(f, histBR[0] ?? 0, RIGHT_BASE, false);
       } else if (style === 'cores') {
         const g0 = histTL[0] ?? 0;
         const g1 = histTR[0] ?? 0;
         const g2 = histBL[0] ?? 0;
         const g3 = histBR[0] ?? 0;
-        // Left half: groups 0–3 outward from col 3
+        // Left half: groups 0–3, innermost at col 3
         drawCoreBar(f, g0, LEFT_BASE + 0);
         drawCoreBar(f, g1, LEFT_BASE + 1);
         drawCoreBar(f, g2, LEFT_BASE + 2);
         drawCoreBar(f, g3, LEFT_BASE + 3);
-        // Right half: mirrored — groups 3–0 outward from col 5
+        // Right half: mirrored
         drawCoreBar(f, g3, RIGHT_BASE + 0);
         drawCoreBar(f, g2, RIGHT_BASE + 1);
         drawCoreBar(f, g1, RIGHT_BASE + 2);
         drawCoreBar(f, g0, RIGHT_BASE + 3);
+        // Center column: 5th group, only when >16 cores
+        if (coreGroupCount === 5) drawCoreBar(f, coreCenterVal, 4);
       } else {
         // line
         drawLine(f, histTL, LEFT_BASE,  true,  true);

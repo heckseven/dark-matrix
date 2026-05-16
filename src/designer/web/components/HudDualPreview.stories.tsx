@@ -6,7 +6,7 @@ import type { HudWidget } from '../types/hud-preset.js';
 const CLOCK_LEFT: HudWidget = { widget: 'clock', face: 'elegant' };
 const CLOCK_RIGHT: HudWidget = { widget: 'clock', face: 'analogue' };
 const DATA_LINE: HudWidget = { widget: 'data', style: 'line' };
-const DATA_BARS: HudWidget = { widget: 'data', style: 'bars' };
+const DATA_BARS: HudWidget = { widget: 'data', style: 'cores' };
 
 const meta = {
   title: 'App/HUD/HudDualPreview',
