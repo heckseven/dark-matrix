@@ -61,7 +61,7 @@ const DEFS: Record<TabsVariant, Def> = {
     groupClass: 'flex gap-0 border-b border-amber-700/40',
     btnClass: a => cn(
       'px-4 py-1 font-mono text-xs transition-colors border-b-2 -mb-px',
-      a ? 'text-amber-400 border-amber-400' : 'text-amber-700/55 border-transparent hover:text-amber-600/75',
+      a ? 'text-amber-400 border-amber-400' : 'text-amber-500/55 border-transparent hover:text-amber-400/75',
     ),
     btnStyle: a => a ? { textShadow: '0 0 10px rgba(251,191,36,0.6)' } : {},
   },
@@ -100,10 +100,10 @@ const DEFS: Record<TabsVariant, Def> = {
     groupClass: 'flex gap-0 border border-fuchsia-500/35',
     btnClass: a => cn(
       'px-4 py-1 font-mono text-xs transition-colors',
-      a ? 'bg-fuchsia-500/15 text-fuchsia-300' : 'text-fuchsia-400/55 hover:text-fuchsia-300',
+      a ? 'bg-fuchsia-500/25 text-fuchsia-300' : 'text-fuchsia-400/55 hover:text-fuchsia-300',
     ),
     btnStyle: a => a ? {
-      boxShadow: 'inset 0 0 8px rgba(217,70,239,0.1)',
+      boxShadow: 'inset 0 0 12px rgba(217,70,239,0.2)',
       textShadow: '0 0 10px rgba(217,70,239,0.9)',
     } : {},
   },
