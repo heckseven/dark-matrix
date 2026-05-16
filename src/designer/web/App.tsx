@@ -16,9 +16,10 @@ import { ShortcutDialog } from './components/ui/shortcut-dialog.js';
 import { ModePicker, MODES } from './components/ModePicker.js';
 import type { AppMode } from './components/ModePicker.js';
 import { AudioPanel } from './components/AudioPanel.js';
+import { ConfigPanel } from './components/ConfigPanel.js';
+import { HudPanel, hudSendWsGlobal } from './components/HudPanel.js';
 
 const MODE_LABEL = Object.fromEntries(MODES.map(m => [m.id, m.label])) as Record<AppMode, string>;
-import { HudPanel, hudSendWsGlobal } from './components/HudPanel.js';
 
 function storeCompat() {
   return { state: designerStore.getState(), loadProject: (p: unknown) => designerStore.getState().loadProject(p) };
@@ -353,6 +354,10 @@ export function App() {
                 </div>
               </div>
             </>
+          ) : activeMode === 'config' ? (
+            <>
+              <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
+            </>
           ) : activeMode === 'audio' ? (
             <>
               <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
@@ -480,6 +485,10 @@ export function App() {
           <div className="h-full flex">
             <AudioPanel dualModule={dualModule} />
           </div>
+        ) : activeMode === 'config' ? (
+          <div className="h-full flex">
+            <ConfigPanel dualModule={dualModule} />
+          </div>
         ) : (
           <div className="h-full grid overflow-hidden" style={{ gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)' }}>
             <aside aria-label="Color palette" className="overflow-hidden flex items-start justify-end pl-4" style={{ paddingTop: topPad }}>
@@ -498,7 +507,7 @@ export function App() {
           </div>
         )}
 
-        {activeMode !== 'audio' && activeMode !== 'hud' && <footer ref={footerRef} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+        {activeMode !== 'audio' && activeMode !== 'hud' && activeMode !== 'config' && <footer ref={footerRef} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
           <div className="flex-1 flex items-center gap-4">
             <span>frame {activeFrameIdx + 1}</span>
             <span>row {cursor.row}</span>

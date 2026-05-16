@@ -7,10 +7,13 @@ import type { AudioStyle } from '../../animations/audio-renderers.js';
 import type { ClockFace } from '../../animations/clock-renderers.js';
 import type { DataStyle } from '../../animations/data-renderers.js';
 import type { HudPresetClient, HudWidget, HudTrigger } from './types/hud-preset.js';
+import type { Config } from './types/config-types.js';
 
 export type Frame = DmxFrame;
 export type PreviewTarget = 'left' | 'right' | 'both' | 'mirror';
 export type AudioSource = 'monitor' | 'mic';
+
+type DeepPartial<T> = T extends object ? { [K in keyof T]?: DeepPartial<T[K]> } : T;
 
 export type { AppMode };
 export type { AudioStyle };
@@ -49,6 +52,8 @@ export interface DesignerState {
   activePresetName: string | null;
   selectedPresetName: string | null;
   hudSelectedSide: 'left' | 'right';
+  configData: Config | null;
+  configDirty: boolean;
 }
 
 export interface DesignerActions {
@@ -97,6 +102,9 @@ export interface DesignerActions {
   setActivePreset(name: string | null): void;
   movePreset(fromIdx: number, toIdx: number): void;
   insertPreset(preset: HudPresetClient, afterIdx: number): void;
+  loadConfigData(config: Config): void;
+  patchConfig(patch: DeepPartial<Config>): void;
+  markClean(): void;
 }
 
 export type DesignerStore = DesignerState & DesignerActions;
@@ -202,6 +210,8 @@ export function createDesignerStore() {
     activePresetName: null,
     selectedPresetName: null,
     hudSelectedSide: 'left',
+    configData: null,
+    configDirty: false,
 
     setPixel(frameIdx, col, row, value) {
       const { frames, mode, undoStack, strokeSnapshot, previewTarget, width } = get();
@@ -450,6 +460,32 @@ export function createDesignerStore() {
       const next = [...hudPresets];
       next.splice(afterIdx + 1, 0, preset);
       set({ hudPresets: next });
+    },
+
+    loadConfigData(config) {
+      set({ configData: config, configDirty: false });
+    },
+
+    patchConfig(patch) {
+      const { configData } = get();
+      function deepMerge<T>(base: T, p: DeepPartial<T>): T {
+        if (base === null || base === undefined || typeof base !== 'object') return p as T;
+        const result = { ...base } as Record<string, unknown>;
+        for (const key of Object.keys(p as object)) {
+          const pVal = (p as Record<string, unknown>)[key];
+          const bVal = (base as Record<string, unknown>)[key];
+          result[key] = (pVal !== null && typeof pVal === 'object' && !Array.isArray(pVal) && bVal !== null && typeof bVal === 'object')
+            ? deepMerge(bVal as object, pVal as DeepPartial<object>)
+            : pVal;
+        }
+        return result as T;
+      }
+      const next = configData === null ? (patch as Config) : deepMerge(configData, patch);
+      set({ configData: next, configDirty: true });
+    },
+
+    markClean() {
+      set({ configDirty: false });
     },
   }));
 }
