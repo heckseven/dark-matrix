@@ -14,6 +14,7 @@ import type { DmxProject } from '../designer/format.js';
 import { watchDesktopNotifications } from '../lib/dbus-notifications.js';
 import { watchMic } from '../lib/mic-source.js';
 import { Dispatcher, ecSwitchIntent, vmIntent, notificationIntent } from '../lib/dispatcher.js';
+import { routeNotification } from '../lib/notification-routing.js';
 import { SerialTransport } from '../lib/transport.js';
 import { runAnimation } from '../lib/animation.js';
 import { createStartupAnimation } from '../animations/startup.js';
@@ -617,6 +618,13 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   }, { intervalMs: 2000 }));
 
   disposeWatches.push(watchDesktopNotifications((n) => {
+    const route = routeNotification(n, currentConfig.notification_rules ?? []);
+    if (route.action === 'none') return;
+    if (route.action === 'dmx' && route.dmx_path) {
+      // TODO: load and dispatch dmx animation for notification
+      startDmxAnimation(route.dmx_path, false);
+      return;
+    }
     dispatcher.push(notificationIntent(n));
   }));
 
@@ -941,6 +949,12 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       currentBrightness = pct;
       await setBrightness(pct);
     });
+    // Restart the idle animation if it is currently running so it picks up
+    // any changed idle_animation / idle_gif_path / hud settings.
+    if (!hudHardwareActive && !frameHeld && !dispatcher.current()) {
+      stopAnim();
+      startIdleAnimation();
+    }
   });
 
   // Startup animation
