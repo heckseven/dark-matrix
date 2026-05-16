@@ -1,8 +1,8 @@
 import * as React from 'react';
 import type { Meta, StoryObj } from '@storybook/tanstack-react';
 import { fn } from 'storybook/test';
-import { expect, userEvent, within } from 'storybook/test';
-import { Radio, type RadioVariant } from './radio.js';
+import { expect, userEvent } from 'storybook/test';
+import { Radio } from './radio.js';
 import { Text } from './text.js';
 
 const meta = {
@@ -15,22 +15,6 @@ const meta = {
         component: [
           'A styled `<input type="radio">`. All standard radio attributes are forwarded.',
           '',
-          '**Variants**',
-          '10 visual styles are available via the `variant` prop. Run the **Design Options** story to compare them interactively and choose one as the project default.',
-          '',
-          '| Variant | Off | On |',
-          '|---------|-----|----|',
-          '| `paren` | `( )` | `(•)` |',
-          '| `bracket` | `[ ]` | `[•]` |',
-          '| `green` | `( )` | `(•)` green glow |',
-          '| `cursor` | `  ` | `› ` |',
-          '| `circle` | `○` | `●` |',
-          '| `angle` | `<·>` | `<•>` |',
-          '| `block` | `[ ]` | `[■]` |',
-          '| `asterisk` | `( )` | `(*)` |',
-          '| `dot` | `·` | `●` |',
-          '| `track` | `─·─` | `─●─` |',
-          '',
           '**Usage**',
           '- Always wrap radio inputs in a `<fieldset>` with a `<legend>` for accessibility.',
           '- Use `name` to group radios. Use `value` + `checked` + `onChange` for controlled usage.',
@@ -40,11 +24,6 @@ const meta = {
     },
   },
   argTypes: {
-    variant: {
-      control: 'select',
-      options: ['paren', 'bracket', 'green', 'cursor', 'circle', 'angle', 'block', 'asterisk', 'dot', 'track'] satisfies RadioVariant[],
-      description: 'Visual style.',
-    },
     checked: { control: 'boolean', description: 'Checked state for controlled usage.' },
     defaultChecked: { control: 'boolean', description: 'Initial checked state for uncontrolled usage.' },
     disabled: { control: 'boolean', description: 'Prevents interaction and reduces opacity to 40%.' },
@@ -62,9 +41,9 @@ const disabledA11yParams = {
   a11y: { context: { exclude: ['[aria-hidden="true"]'] } },
 };
 
-/** Variant, checked state, and disabled configurable via controls. */
+/** State and disabled configurable via controls. */
 export const Playground: Story = {
-  args: { variant: 'paren', defaultChecked: false, 'aria-label': 'Option' },
+  args: { defaultChecked: false, 'aria-label': 'Option' },
   render: (args) => (
     <label className="flex items-center gap-2 cursor-pointer">
       <Radio {...args} />
@@ -73,7 +52,6 @@ export const Playground: Story = {
   ),
 };
 
-/** Checked state. */
 export const Checked: Story = {
   args: { defaultChecked: true, 'aria-label': 'Option' },
   play: async ({ canvas }) => {
@@ -81,7 +59,6 @@ export const Checked: Story = {
   },
 };
 
-/** Unchecked state. */
 export const Unchecked: Story = {
   args: { defaultChecked: false, 'aria-label': 'Option' },
   play: async ({ canvas }) => {
@@ -89,7 +66,6 @@ export const Unchecked: Story = {
   },
 };
 
-/** Disabled — cannot be interacted with. */
 export const Disabled: Story = {
   args: { disabled: true, 'aria-label': 'Option' },
   parameters: disabledA11yParams,
@@ -98,7 +74,6 @@ export const Disabled: Story = {
   },
 };
 
-/** Disabled + checked. */
 export const DisabledChecked: Story = {
   args: { defaultChecked: true, disabled: true, 'aria-label': 'Option' },
   parameters: disabledA11yParams,
@@ -125,9 +100,7 @@ export const WithGroup: Story = {
                 checked={value === o.value}
                 onChange={() => setValue(o.value)}
               />
-              <Text as="span" size="xs" className={value === o.value ? 'text-foreground' : 'text-foreground/50'}>
-                {o.label}
-              </Text>
+              <Text as="span" size="xs">{o.label}</Text>
             </label>
           ))}
         </div>
@@ -163,94 +136,4 @@ export const Inline: Story = {
       </fieldset>
     );
   },
-};
-
-const ALL_VARIANTS: RadioVariant[] = [
-  'paren', 'bracket', 'green', 'cursor', 'circle',
-  'angle', 'block', 'asterisk', 'dot', 'track',
-];
-
-const OPTIONS = [
-  { value: 'alpha', label: 'alpha' },
-  { value: 'beta',  label: 'beta'  },
-  { value: 'gamma', label: 'gamma' },
-];
-
-/**
- * All 10 visual variants side-by-side. Each group is interactive — click around
- * to see checked/unchecked states. Pick your favourite and let me know its name.
- */
-export const DesignOptions: Story = {
-  name: 'Design Options',
-  parameters: {
-    controls: { disable: true },
-    docs: {
-      description: {
-        story: 'All 10 variants shown in a 2-column grid with interactive groups. Click the options to compare checked states. Tell me which number/name to use as the default.',
-      },
-    },
-  },
-  render: () => {
-    const [selected, setSelected] = React.useState<Record<RadioVariant, string>>(
-      Object.fromEntries(ALL_VARIANTS.map(v => [v, 'alpha'])) as Record<RadioVariant, string>
-    );
-
-    return (
-      <div className="grid grid-cols-2 gap-x-10 gap-y-7 p-4 font-mono text-xs">
-        {ALL_VARIANTS.map((variant, i) => (
-          <fieldset key={variant} className="border-0 p-0 m-0">
-            <legend className="text-foreground/40 mb-2">
-              {i + 1}. <span className="text-foreground/70">{variant}</span>
-            </legend>
-            <div className="flex flex-col gap-1.5">
-              {OPTIONS.map(o => (
-                <label key={o.value} className="flex items-center gap-2 cursor-pointer">
-                  <Radio
-                    variant={variant}
-                    name={`demo-${variant}`}
-                    value={o.value}
-                    checked={selected[variant] === o.value}
-                    onChange={() => setSelected(s => ({ ...s, [variant]: o.value }))}
-                  />
-                  <span className={selected[variant] === o.value ? 'text-foreground' : 'text-foreground/50'}>
-                    {o.label}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-        ))}
-      </div>
-    );
-  },
-};
-
-/** All variants in a single scannable row — unchecked vs checked. */
-export const VariantMatrix: Story = {
-  name: 'Variant Matrix',
-  parameters: { controls: { disable: true } },
-  render: () => (
-    <table className="font-mono text-xs border-collapse">
-      <thead>
-        <tr>
-          <th className="text-left text-foreground/40 font-normal pr-6 pb-2">variant</th>
-          <th className="text-left text-foreground/40 font-normal pr-6 pb-2">unchecked</th>
-          <th className="text-left text-foreground/40 font-normal pb-2">checked</th>
-        </tr>
-      </thead>
-      <tbody>
-        {ALL_VARIANTS.map(variant => (
-          <tr key={variant}>
-            <td className="pr-6 py-0.5 text-foreground/50">{variant}</td>
-            <td className="pr-6 py-0.5">
-              <Radio variant={variant} name={`matrix-${variant}`} value="off" defaultChecked={false} aria-label={`${variant} unchecked`} />
-            </td>
-            <td className="py-0.5">
-              <Radio variant={variant} name={`matrix-${variant}`} value="on" defaultChecked aria-label={`${variant} checked`} />
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  ),
 };
