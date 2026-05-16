@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Select } from '../ui/select.js';
 import { Input } from '../ui/input.js';
 import { Button } from '../ui/button.js';
@@ -191,6 +191,68 @@ export function NotificationsTab({ value, onChange }: NotificationsTabProps) {
       <Button variant="ghost" className="mt-2 self-start" aria-label="Add rule" onClick={addRule}>
         + add rule
       </Button>
+
+      <TestNotification rules={value} />
+    </div>
+  );
+}
+
+function TestNotification({ rules }: { rules: NotificationRule[] }) {
+  const [appName, setAppName] = useState('');
+  const [firing, setFiring] = useState(false);
+  const [result, setResult] = useState<{ action: string } | { error: string } | null>(null);
+
+  async function fire() {
+    setFiring(true);
+    setResult(null);
+    try {
+      const res = await fetch('/api/test-notification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appName: appName || '*', summary: 'test notification' }),
+      });
+      const data = await res.json() as { ok: boolean; action?: string; error?: string };
+      setResult(data.ok ? { action: data.action ?? 'scroll' } : { error: data.error ?? 'request failed' });
+    } catch {
+      setResult({ error: 'request failed' });
+    } finally {
+      setFiring(false);
+    }
+  }
+
+  const matchedRule = rules.find(r => {
+    const glob = r.app_name_glob;
+    const name = appName || '*';
+    if (glob === '*') return true;
+    if (glob === name) return true;
+    return false;
+  });
+
+  return (
+    <div className="mt-4 pt-4 border-t border-foreground/10 flex flex-col gap-2">
+      <span className="font-mono text-xs text-foreground/50">test notification</span>
+      <div className="flex items-center gap-2">
+        <Input
+          aria-label="Test app name"
+          placeholder="app name (or * for default)"
+          value={appName}
+          onChange={e => { setAppName(e.target.value); setResult(null); }}
+          spellCheck={false}
+        />
+        <Button variant="ghost" disabled={firing} onClick={() => void fire()}>
+          {firing ? 'firing…' : 'fire'}
+        </Button>
+        {result && (
+          'error' in result
+            ? <span className="font-mono text-xs text-red-400">{result.error}</span>
+            : <span className="font-mono text-xs text-foreground/60">→ {result.action}{result.action === 'none' ? ' (suppressed)' : ''}</span>
+        )}
+      </div>
+      {appName && matchedRule && !result && (
+        <span className="font-mono text-xs text-foreground/40">
+          matches rule: {matchedRule.app_name_glob} → {matchedRule.animation}
+        </span>
+      )}
     </div>
   );
 }

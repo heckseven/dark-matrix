@@ -924,6 +924,20 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               socket.write(JSON.stringify({ ok: true, name: preset.name }) + '\n');
               break;
             }
+            case 'notify-test': {
+              const m = msg as { cmd: string; appName?: string; summary?: string; body?: string };
+              const n = { appName: m.appName ?? 'test', summary: m.summary ?? 'test notification', body: m.body ?? '' };
+              const route = routeNotification(n, currentConfig.notification_rules ?? []);
+              if (route.action !== 'none') {
+                if (route.action === 'dmx' && route.dmx_path) {
+                  startDmxAnimation(route.dmx_path, false);
+                } else {
+                  dispatcher.push(notificationIntent(n));
+                }
+              }
+              socket.write(JSON.stringify({ ok: true, action: route.action }) + '\n');
+              break;
+            }
             default:
               socket.write(JSON.stringify({ ok: false, error: 'unknown command' }) + '\n');
           }
