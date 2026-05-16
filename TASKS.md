@@ -15,10 +15,10 @@
 ## Major modes
 
 - [x] Audio visualizer mode — multiple visualization styles (eq bars, waveform, radial, etc.); UI panel to browse and select style; live preview in designer and mirrored to modules; source selectable (monitor/mic)
-- [ ] Clock mode — multiple clock face designs (binary, bar, digit segments, etc.); UI panel to browse faces; live preview in designer and on modules; may be a HUD widget
-- [ ] HUD mode — daemon-side data sources (CPU, memory, network, time via `/proc`); WebSocket push from daemon; HUD web UI mode with widget picker; multiple named configurations saveable and switchable; live preview in designer and on modules
+- [x] Clock mode — multiple face designs (binary, analogue, bar, segment); implemented as a HUD widget with live face picker in HudInspector; live preview on modules
+- [x] HUD mode — daemon data sources (CPU, memory, network, time via `/proc`); WebSocket push from daemon; three-column preset designer (PresetList, HudDualPreview, HudInspector); named presets saveable and switchable via `dark-matrix hud preset <name>`; event-driven trigger engine (time, idle, active, threshold, interface, vm); live preview in designer and on modules
 - [ ] Generative art panel — new tool panel in designer with parameterized generators (noise, reaction-diffusion, CA seeds); writes into frames; save to library
 - [ ] Image import tooling — contrast, brightness, dithering controls in designer when importing PNG/GIF; helps optimize images for the low-res display
-- [ ] Default view settings — user-configurable startup mode and animation stored in config; persists across power cycles
+- [ ] Default view settings — designer UI to configure startup mode and animation (`config.json` schema already exists); persists across power cycles
 - [ ] YouTube / video pipeline — `yt-dlp` + `ffmpeg` capture, scale to 9×34 or 18×34, dither, push via frame command at ~20fps; audio plays through system independently
 - [ ] Interactive games — keyboard input from browser routed via WebSocket to game loop (Tetris, Snake); game state lives in browser, renders frames and pushes via existing live preview `frame` mechanism
