@@ -69,7 +69,8 @@ export function HardwareTab({ value, onChange }: HardwareTabProps) {
     setDetectError('');
     try {
       const res = await fetch('/api/serial-ports');
-      const { ports } = await res.json() as { ok: boolean; ports: string[] };
+      const data = await res.json() as { ok: boolean; ports?: string[] };
+      const ports = data.ports ?? [];
       setDetected(ports);
       if (ports.length === 0) setDetectError('no serial ports found');
     } catch {

@@ -48,7 +48,8 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown }:
   }
 
   function handleAnimation(v: string) {
-    const anim = v as NotificationRule['animation'];
+    if (v !== 'scroll' && v !== 'dmx' && v !== 'none') return;
+    const anim = v;
     const updated: NotificationRule = {
       app_name_glob: rule.app_name_glob,
       animation: anim,
@@ -79,7 +80,7 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown }:
   }
 
   return (
-    <div className="flex items-center gap-2 flex-wrap py-1.5 border-b border-foreground/10 last:border-b-0">
+    <div role="group" aria-label={`Rule ${idx + 1}: ${rule.app_name_glob}`} className="flex items-center gap-2 flex-wrap py-1.5 border-b border-foreground/10 last:border-b-0">
       {/* reorder */}
       <div className="flex flex-col shrink-0">
         <button
@@ -160,9 +161,6 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown }:
 
 export function NotificationsTab({ value, onChange }: NotificationsTabProps) {
   const idsRef = useRef<string[]>(value.map(() => crypto.randomUUID()));
-  if (idsRef.current.length !== value.length) {
-    idsRef.current = value.map(() => crypto.randomUUID());
-  }
 
   function addRule() {
     onChange([...value, { app_name_glob: '*', animation: 'scroll' }]);
@@ -193,7 +191,7 @@ export function NotificationsTab({ value, onChange }: NotificationsTabProps) {
   }
 
   return (
-    <div className="flex flex-col gap-0 p-2">
+    <div className="flex flex-col p-2">
       <p className="font-mono text-xs text-white/40 mb-2">
         first match wins — default when no rules match: scroll
       </p>
@@ -213,7 +211,7 @@ export function NotificationsTab({ value, onChange }: NotificationsTabProps) {
         ))}
       </div>
 
-      <Button variant="ghost" className="mt-2 self-start" onClick={addRule}>
+      <Button variant="ghost" className="mt-2 self-start" aria-label="Add rule" onClick={addRule}>
         + add rule
       </Button>
     </div>
