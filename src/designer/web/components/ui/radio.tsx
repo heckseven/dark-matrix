@@ -22,7 +22,7 @@ type VariantDef = {
 };
 
 const VARIANTS: Record<RadioVariant, VariantDef> = {
-  paren:    { off: '( )', on: '(•)', offCls: 'text-muted-foreground', onCls: 'text-foreground' },
+  paren:    { off: '( )', on: '(●)', offCls: 'text-foreground',       onCls: 'text-foreground' },
   bracket:  { off: '[ ]', on: '[•]', offCls: 'text-muted-foreground', onCls: 'text-foreground' },
   green:    { off: '( )', on: '(•)', offCls: 'text-green-400/40',     onCls: 'text-green-400', onStyle: { textShadow: '0 0 8px rgba(74,222,128,0.6)' } },
   cursor:   { off: '  ' , on: '› ',  offCls: 'text-muted-foreground', onCls: 'text-foreground' },
