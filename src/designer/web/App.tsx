@@ -16,7 +16,6 @@ import { ShortcutDialog } from './components/ui/shortcut-dialog.js';
 import { ModePicker } from './components/ModePicker.js';
 import { AudioPanel } from './components/AudioPanel.js';
 import { HudPanel, hudSendWsGlobal } from './components/HudPanel.js';
-import type { HudPresetClient } from './types/hud-preset.js';
 
 function storeCompat() {
   return { state: designerStore.getState(), loadProject: (p: unknown) => designerStore.getState().loadProject(p) };
@@ -165,6 +164,7 @@ export function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [topPad, setTopPad] = useState(0);
   const [bottomPad, setBottomPad] = useState(0);
+  const [headerHeight, setHeaderHeight] = useState(0);
   const [modules, setModules] = useState({ left: true, right: true });
   const dualModule = modules.left && modules.right;
   const dualModuleRef = useRef(true);
@@ -192,6 +192,7 @@ export function App() {
       const usable = h - hh - fh;
       setTopPad(hh + Math.max(0, Math.round((usable - canvasComponentH(zoom)) / 2)));
       setBottomPad(fh);
+      setHeaderHeight(hh);
     };
     update();
     const ro = new ResizeObserver(update);
@@ -259,22 +260,6 @@ export function App() {
     }, 800);
   }
 
-  function hudCreatePreset() {
-    const ts = Date.now().toString(36);
-    const preset: HudPresetClient = {
-      name: `preset-${ts}`,
-      left:  { widget: 'clock', face: 'elegant' },
-      right: { widget: 'clock', face: 'elegant' },
-    };
-    designerStore.getState().createPreset(preset);
-    hudDebouncedSave();
-  }
-
-  function hudSetActive() {
-    if (!selectedPreset) return;
-    hudSendWsGlobal({ type: 'hud-preset-activate', name: selectedPreset.name });
-  }
-
   function hudRenameSelected(newName: string) {
     if (!selectedPreset) return;
     const old = selectedPreset.name;
@@ -332,10 +317,6 @@ export function App() {
                     <span className="font-mono text-xs text-foreground/40">no preset selected</span>
                   )}
                 </div>
-              </div>
-              <div className="ml-auto flex items-center gap-2">
-                <Button variant="ghost" onClick={hudCreatePreset}>+ new</Button>
-                <Button variant="ghost" disabled={!selectedPreset} onClick={hudSetActive}>set active</Button>
               </div>
             </>
           ) : activeMode === 'audio' ? (
@@ -450,7 +431,7 @@ export function App() {
 
         {activeMode === 'hud' ? (
           <div className="h-full flex">
-            <HudPanel dualModule={dualModule} topPad={topPad} />
+            <HudPanel dualModule={dualModule} topPad={headerHeight} />
           </div>
         ) : activeMode === 'audio' ? (
           <div className="h-full flex">
