@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useId } from 'react';
 import { MatrixPreview } from './MatrixPreview.js';
+import { Tabs } from './ui/tabs.js';
 import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
 import type { DataStyle, DataMetric } from '../../../animations/data-renderers.js';
@@ -117,19 +118,12 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
   return (
     <div className="flex flex-col h-full overflow-y-auto gap-6 py-4 px-2">
       {/* Widget type toggle */}
-      <div role="group" aria-label="Widget type" className="flex gap-0 font-mono text-xs border border-foreground/30 self-start">
-        {(['clock', 'data'] as const).map(type => (
-          <button
-            key={type}
-            type="button"
-            aria-pressed={widgetType === type}
-            className={`px-4 py-1 transition-colors ${widgetType === type ? 'bg-foreground text-background' : 'text-foreground/60 hover:text-foreground'}`}
-            onClick={() => switchType(type)}
-          >
-            {type}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        options={['clock', 'data']}
+        value={widgetType}
+        onChange={(v) => switchType(v as 'clock' | 'data')}
+        aria-label="Widget type"
+      />
 
       {widgetType === 'clock' && (
         <div role="group" aria-label="Clock face" className="grid grid-cols-3 gap-4">
