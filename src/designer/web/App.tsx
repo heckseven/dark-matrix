@@ -13,7 +13,10 @@ import { Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparat
 import { saveToLibrary, saveLibraryCopy, renameLibraryFile, exportProject, importFile, openFromLibrary } from './files.js';
 import { useDesignerStore, designerStore, stepZoom, ZOOM_STEPS, ROWS, DEFAULT_WIDTH } from './store.js';
 import { ShortcutDialog } from './components/ui/shortcut-dialog.js';
-import { ModePicker } from './components/ModePicker.js';
+import { ModePicker, MODES } from './components/ModePicker.js';
+import type { AppMode } from './components/ModePicker.js';
+
+const MODE_LABEL = Object.fromEntries(MODES.map(m => [m.id, m.label])) as Record<AppMode, string>;
 import { AudioPanel } from './components/AudioPanel.js';
 import { HudPanel, hudSendWsGlobal } from './components/HudPanel.js';
 
@@ -153,6 +156,11 @@ export function App() {
   const hudPresets         = useDesignerStore(s => s.hudPresets);
   const selectedPresetName = useDesignerStore(s => s.selectedPresetName);
   const selectedPreset     = hudPresets.find(p => p.name === selectedPresetName) ?? null;
+
+  useEffect(() => {
+    document.title = `dark-matrix - ${MODE_LABEL[activeMode]}`;
+  }, [activeMode]);
+
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [hasMic, setHasMic] = useState(false);
