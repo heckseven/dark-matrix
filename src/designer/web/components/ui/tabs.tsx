@@ -20,9 +20,9 @@ function ShelfLabel({ text, active }: { text: string; active: boolean }): ReactN
   const inner = '  ' + text + '  ';
   const bar = `┕${'━'.repeat(text.length + 2)}┙`;
   return (
-    <span className="flex flex-col leading-none">
+    <span aria-hidden="true" className="flex flex-col leading-none">
       <span className="py-1">{inner}</span>
-      <span aria-hidden="true" style={active ? undefined : { visibility: 'hidden' }}>{bar}</span>
+      <span style={active ? undefined : { visibility: 'hidden' }}>{bar}</span>
     </span>
   );
 }
@@ -48,6 +48,7 @@ export function Tabs({
             key={v}
             type="button"
             aria-pressed={active}
+            aria-label={label}
             className={cn(
               'font-mono text-xs transition-colors text-left',
               active ? 'text-white' : 'text-white/35 hover:text-white/60',

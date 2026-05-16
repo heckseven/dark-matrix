@@ -1,4 +1,4 @@
-import { useState, useId } from 'react';
+import { useState, useId, useRef } from 'react';
 import type { HudTrigger } from '../types/hud-preset.js';
 import { Select } from './ui/select.js';
 import { Tabs } from './ui/tabs.js';
@@ -34,10 +34,10 @@ type RowProps = {
 };
 
 function TimeFields({ trigger, onChange }: RowProps) {
-  if (trigger.type !== 'time') return null;
   const [fromErr, setFromErr] = useState(false);
   const [toErr, setToErr] = useState(false);
   const uid = useId();
+  if (trigger.type !== 'time') return null;
 
   return (
     <>
@@ -84,9 +84,9 @@ function TimeFields({ trigger, onChange }: RowProps) {
 }
 
 function ThresholdFields({ trigger, onChange }: RowProps) {
-  if (trigger.type !== 'threshold') return null;
-  const t = trigger; // capture narrowed type for use in closures
   const uid = useId();
+  if (trigger.type !== 'threshold') return null;
+  const t = trigger;
   const conflict =
     t.above !== undefined &&
     t.below !== undefined &&
@@ -140,7 +140,10 @@ function ThresholdFields({ trigger, onChange }: RowProps) {
         />
       </div>
       {conflict && (
-        <span role="alert" className="font-mono text-xs text-yellow-400" aria-label="Warning: above is greater than or equal to below, condition can never be met">⚠</span>
+        <span role="alert" className="font-mono text-xs text-yellow-400">
+          <span aria-hidden="true">⚠</span>
+          <span className="sr-only">above is ≥ below — condition can never be met</span>
+        </span>
       )}
     </>
   );
@@ -175,10 +178,10 @@ function VmFields({ trigger, onChange }: RowProps) {
   const stateValue = trigger.state ?? 'any';
 
   function update(name: string, state: string) {
-    if (state === 'any') {
-      onChange({ type: 'vm', name });
+    if (state === 'running' || state === 'stopped') {
+      onChange({ type: 'vm', name, state });
     } else {
-      onChange({ type: 'vm', name, state: state as 'running' | 'stopped' });
+      onChange({ type: 'vm', name });
     }
   }
 
@@ -243,6 +246,10 @@ export function TriggerEditor({ triggers, onChange, match = 'all', onMatchChange
   const uid = useId();
   const [expanded, setExpanded] = useState(true);
   const [picking, setPicking] = useState(false);
+  const triggerIdsRef = useRef<string[]>(triggers.map(() => crypto.randomUUID()));
+  if (triggerIdsRef.current.length !== triggers.length) {
+    triggerIdsRef.current = triggers.map(() => crypto.randomUUID());
+  }
 
   function updateTrigger(idx: number, t: HudTrigger) {
     const next = [...triggers];
@@ -252,10 +259,12 @@ export function TriggerEditor({ triggers, onChange, match = 'all', onMatchChange
 
   function deleteTrigger(idx: number) {
     onChange(triggers.filter((_, i) => i !== idx));
+    triggerIdsRef.current = triggerIdsRef.current.filter((_, i) => i !== idx);
   }
 
   function addTrigger(type: TriggerType) {
     onChange([...triggers, defaultTrigger(type)]);
+    triggerIdsRef.current = [...triggerIdsRef.current, crypto.randomUUID()];
     setPicking(false);
   }
 
@@ -290,7 +299,7 @@ export function TriggerEditor({ triggers, onChange, match = 'all', onMatchChange
           {/* Trigger list */}
           {triggers.map((t, i) => (
             <TriggerRow
-              key={i}
+              key={triggerIdsRef.current[i] ?? String(i)}
               trigger={t}
               onUpdate={t => updateTrigger(i, t)}
               onDelete={() => deleteTrigger(i)}
