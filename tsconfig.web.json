@@ -13,7 +13,8 @@
     "noImplicitOverride": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "types": ["vite/client"]
   },
   "include": ["src/designer/web/**/*", "vite.config.ts"]
 }

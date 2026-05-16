@@ -171,7 +171,7 @@ export function ColorPalette({ value: _value, onChange }: ColorPaletteProps) {
         onKeyDown={handleKeyDown}
       >
         {swatches.map((s, i) => (
-          <Tooltip key={s.id} content={String(s.value)} side="left" open={editingId === s.id ? false : undefined}>
+          <Tooltip key={s.id} content={String(s.value)} side="left" {...(editingId === s.id ? { open: false } : {})}>
             <div data-swatch="">
               <SwatchRow
                 swatch={s}
@@ -179,7 +179,7 @@ export function ColorPalette({ value: _value, onChange }: ColorPaletteProps) {
                 editing={editingId === s.id}
                 kbFocused={kbIdx === i}
                 onSelect={() => selectSwatch(s.id)}
-                onChange={!s.preset ? v => updateValue(s.id, v) : undefined}
+                {...(!s.preset ? { onChange: (v: number) => updateValue(s.id, v) } : {})}
               />
             </div>
           </Tooltip>

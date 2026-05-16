@@ -46,7 +46,12 @@ export function Tooltip({
   return (
     <TooltipPrimitive.Root delayDuration={delayDuration} {...rootProps}>
       <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
-      <TooltipContent side={side} align={align} sideOffset={sideOffset} collisionPadding={collisionPadding}>
+      <TooltipContent
+        {...(side !== undefined ? { side } : {})}
+        {...(align !== undefined ? { align } : {})}
+        {...(sideOffset !== undefined ? { sideOffset } : {})}
+        {...(collisionPadding !== undefined ? { collisionPadding } : {})}
+      >
         {content}
       </TooltipContent>
     </TooltipPrimitive.Root>

@@ -16,8 +16,8 @@ function makeFrame(fill: (c: number, r: number) => number): string {
 }
 
 const STYLE_FRAMES: Partial<Record<AudioStyle, string>> = {
-  'eq-bars':   makeFrame((c, r) => r >= ROWS - Math.round((c + 1) * 5) ? 255 : 0),
-  'vu-meter':  makeFrame((c, r) => c < 2 && r >= 6 ? 255 : 0),
+  'dark-matter': makeFrame((c, r) => r >= ROWS - Math.round((c + 1) * 5) ? 255 : 0),
+  'vu-glitch': makeFrame((c, r) => c < 2 && r >= 6 ? 255 : 0),
   'waterfall': makeFrame((_c, r) => r < 10 ? 255 : 0),
   'heat':      makeFrame((_c, r) => r >= 28 ? 255 : 0),
 };
@@ -69,7 +69,7 @@ const meta = {
   },
   decorators: [
     (Story) => {
-      designerStore.setState({ audioStyle: 'eq-bars', audioSource: 'monitor' });
+      designerStore.setState({ audioStyle: 'dark-matter', audioSource: 'monitor' });
       return <Story />;
     },
   ],
@@ -82,7 +82,7 @@ type Story = StoryObj<typeof meta>;
 export const Playground: Story = {
   decorators: [
     (Story) => {
-      const restore = installMockWs(STYLE_FRAMES['eq-bars']);
+      const restore = installMockWs(STYLE_FRAMES['dark-matter']);
       return (
         <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
           <Story />
@@ -98,7 +98,7 @@ export const MicSource: Story = {
   decorators: [
     (Story) => {
       designerStore.setState({ audioSource: 'mic' });
-      installMockWs(STYLE_FRAMES['eq-bars']);
+      installMockWs(STYLE_FRAMES['dark-matter']);
       return <Story />;
     },
   ],
