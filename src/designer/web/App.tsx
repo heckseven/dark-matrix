@@ -344,7 +344,7 @@ export function App() {
                   title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
                   aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
                 >
-                  🎙
+                  mic
                 </Toggle>
               )}
             </>
