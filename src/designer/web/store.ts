@@ -92,6 +92,7 @@ export interface DesignerActions {
   updatePresetTriggers(presetName: string, triggers: HudTrigger[]): void;
   setActivePreset(name: string | null): void;
   movePreset(fromIdx: number, toIdx: number): void;
+  insertPreset(preset: HudPresetClient, afterIdx: number): void;
 }
 
 export type DesignerStore = DesignerState & DesignerActions;
@@ -428,6 +429,12 @@ export function createDesignerStore() {
       const next = [...hudPresets];
       const [p] = next.splice(fromIdx, 1);
       next.splice(toIdx, 0, p!);
+      set({ hudPresets: next });
+    },
+    insertPreset(preset, afterIdx) {
+      const { hudPresets } = get();
+      const next = [...hudPresets];
+      next.splice(afterIdx + 1, 0, preset);
       set({ hudPresets: next });
     },
   }));

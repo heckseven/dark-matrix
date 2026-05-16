@@ -38,6 +38,7 @@ const meta = {
     selectedName: 'stats left',
     onSelect: fn(),
     onCreate: fn(),
+    onInsert: fn(),
     onDelete: fn(),
     onDuplicate: fn(),
     onRename: fn(),
