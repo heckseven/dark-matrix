@@ -1,111 +1,107 @@
-import { useState, useEffect, useCallback, type CSSProperties } from 'react';
-import { MatrixPreview } from './MatrixPreview.js';
+import { useEffect, useRef, useCallback } from 'react';
 import { createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
 import { createDataRenderer } from '../../../animations/data-renderers.js';
 import type { DataStyle, DataRenderer } from '../../../animations/data-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 
-const COLS = 9;
-const ROWS = 34;
+// ── layout constants — match PixelCanvas at zoom=1 ────────────────────────
+
+const MIN_L    = 48;
+const CELL     = 20;
+const GAP      = 1;
+const PITCH    = CELL + GAP;   // 21
+const ROWS     = 34;
+const COLS     = 9;
+const MOD_GAP  = 8;
+const FONT     = '14px monospace';
+const BRACKET  = 16;           // arm length for corner brackets
+
+// Derived dimensions
+const HALF_W   = COLS * PITCH - GAP;           // 188 — width of one 9-col module
+const CANVAS_W = COLS * PITCH * 2 - GAP + MOD_GAP; // 385
+const CANVAS_H = ROWS * PITCH - GAP;           // 713
+const RIGHT_X  = COLS * PITCH + MOD_GAP;       // 197 — x where right module starts
+// Click split: midpoint of the inter-module gap
+const SPLIT_X  = HALF_W + Math.floor((RIGHT_X - HALF_W) / 2); // 192
 
 // ── renderer caches ───────────────────────────────────────────────────────
 
-const _clockCacheL: Partial<Record<ClockFace, ClockRenderer>> = {};
-const _clockCacheR: Partial<Record<ClockFace, ClockRenderer>> = {};
-const _dataCache: Partial<Record<DataStyle, DataRenderer>> = {};
+const _clockL: Partial<Record<ClockFace, ClockRenderer>> = {};
+const _clockR: Partial<Record<ClockFace, ClockRenderer>> = {};
+const _data:   Partial<Record<DataStyle, DataRenderer>>  = {};
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
-    for (const k in _clockCacheL) delete _clockCacheL[k as ClockFace];
-    for (const k in _clockCacheR) delete _clockCacheR[k as ClockFace];
-    for (const k in _dataCache) delete _dataCache[k as DataStyle];
+    for (const k in _clockL) delete _clockL[k as ClockFace];
+    for (const k in _clockR) delete _clockR[k as ClockFace];
+    for (const k in _data)   delete _data[k as DataStyle];
   });
 }
 
-function emptyB64(): string {
-  return btoa(String.fromCharCode(...new Uint8Array(COLS * ROWS)));
-}
-
-function renderWidget(widget: HudWidget | null, side: 'left' | 'right', now: Date): string {
-  if (!widget) return emptyB64();
+function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date): Uint8Array {
+  const empty = new Uint8Array(COLS * ROWS);
+  if (!widget) return empty;
   try {
     if (widget.widget === 'clock') {
-      const face: ClockFace = widget.face ?? 'elegant';
-      const cache = side === 'left' ? _clockCacheL : _clockCacheR;
+      const face  = widget.face ?? 'elegant';
+      const cache = side === 'left' ? _clockL : _clockR;
       if (!cache[face]) cache[face] = createClockRenderer(face);
       const frame = cache[face]!({ now, side });
       const out = new Uint8Array(COLS * ROWS);
-      for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
-      return btoa(String.fromCharCode(...out));
+      for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
+      return out;
     } else {
-      const style: DataStyle = widget.style ?? 'line';
-      if (!_dataCache[style]) _dataCache[style] = createDataRenderer({ style });
-      const frame = _dataCache[style]!.render();
+      const style = widget.style ?? 'line';
+      if (!_data[style]) _data[style] = createDataRenderer({ style });
+      const frame = _data[style]!.render();
       const out = new Uint8Array(COLS * ROWS);
-      for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
-      return btoa(String.fromCharCode(...out));
+      for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
+      return out;
     }
   } catch {
-    return emptyB64();
+    return empty;
   }
 }
 
-function combinePixels(left: string, right: string): string {
-  try { return btoa(atob(left) + atob(right)); } catch { return left; }
+// ── canvas drawing ────────────────────────────────────────────────────────
+
+function drawModule(ctx: CanvasRenderingContext2D, pixels: Uint8Array, xOffset: number): void {
+  ctx.font = FONT;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let col = 0; col < COLS; col++) {
+    const x = xOffset + col * PITCH;
+    for (let row = 0; row < ROWS; row++) {
+      const y = row * PITCH;
+      const v = pixels[col * ROWS + row] ?? 0;
+      const l = Math.round(MIN_L + (v / 255) * (255 - MIN_L));
+      ctx.fillStyle = '#000';
+      ctx.fillRect(x, y, CELL, CELL);
+      ctx.fillStyle = `rgb(${l},${l},${l})`;
+      ctx.fillText(v === 0 ? '•' : '∗', x + CELL / 2, y + CELL / 2 + 1);
+    }
+  }
 }
 
-// ── corner brackets ───────────────────────────────────────────────────────
-
-function SideIndicator({ active, side }: { active: boolean; side: 'left' | 'right' }) {
-  if (!active) return null;
-  const CELL = 3;
-  const GAP = 2;
-  const PITCH = CELL + GAP;
-  const MODULE_GAP = 4;
-  // The 9-col half width in CSS pixels
-  const halfW = 9 * PITCH - GAP;
-  const fullH = ROWS * PITCH - GAP;
-  const bracketSize = 12;
-  const borderColor = 'white';
-  const b = `1px solid ${borderColor}`;
-  const offset = side === 'right' ? halfW + MODULE_GAP : 0;
-
-  const c = (extra: CSSProperties): CSSProperties => ({
-    position: 'absolute',
-    width: bracketSize,
-    height: bracketSize,
-    pointerEvents: 'none',
-    ...extra,
-  });
-
-  return (
-    <div
-      aria-hidden="true"
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: offset,
-        width: halfW,
-        height: fullH,
-        pointerEvents: 'none',
-      }}
-    >
-      <span style={c({ top: 0, left: 0, borderTop: b, borderLeft: b })} />
-      <span style={c({ top: 0, right: 0, borderTop: b, borderRight: b })} />
-      <span style={c({ bottom: 0, left: 0, borderBottom: b, borderLeft: b })} />
-      <span style={c({ bottom: 0, right: 0, borderBottom: b, borderRight: b })} />
-    </div>
-  );
+function drawBrackets(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number): void {
+  ctx.strokeStyle = 'white';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x1,          y1 + BRACKET); ctx.lineTo(x1,          y1); ctx.lineTo(x1 + BRACKET, y1);
+  ctx.moveTo(x2 - BRACKET, y1);          ctx.lineTo(x2,          y1); ctx.lineTo(x2,          y1 + BRACKET);
+  ctx.moveTo(x1,          y2 - BRACKET); ctx.lineTo(x1,          y2); ctx.lineTo(x1 + BRACKET, y2);
+  ctx.moveTo(x2 - BRACKET, y2);          ctx.lineTo(x2,          y2); ctx.lineTo(x2,          y2 - BRACKET);
+  ctx.stroke();
 }
 
-// ── main component ────────────────────────────────────────────────────────
+// ── component ─────────────────────────────────────────────────────────────
 
 export type HudDualPreviewProps = {
-  leftWidget: HudWidget | null;
-  rightWidget: HudWidget | null;
-  selectedSide: 'left' | 'right';
-  onSelectSide: (side: 'left' | 'right') => void;
+  leftWidget:    HudWidget | null;
+  rightWidget:   HudWidget | null;
+  selectedSide:  'left' | 'right';
+  onSelectSide:  (side: 'left' | 'right') => void;
 };
 
 export function HudDualPreview({
@@ -114,49 +110,62 @@ export function HudDualPreview({
   selectedSide,
   onSelectSide,
 }: HudDualPreviewProps) {
-  const [pixels, setPixels] = useState<string>(() => {
-    const now = new Date();
-    return combinePixels(renderWidget(leftWidget, 'left', now), renderWidget(rightWidget, 'right', now));
-  });
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const refresh = useCallback(() => {
+  // Size canvas on mount (DPR-aware)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio ?? 1;
+    canvas.width        = Math.round(CANVAS_W * dpr);
+    canvas.height       = Math.round(CANVAS_H * dpr);
+    canvas.style.width  = `${CANVAS_W}px`;
+    canvas.style.height = `${CANVAS_H}px`;
+    const ctx = canvas.getContext('2d');
+    ctx?.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }, []);
+
+  const paint = useCallback(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!ctx) return;
     const now = new Date();
-    setPixels(combinePixels(renderWidget(leftWidget, 'left', now), renderWidget(rightWidget, 'right', now)));
-  }, [leftWidget, rightWidget]);
+    drawModule(ctx, getPixels(leftWidget,  'left',  now), 0);
+    drawModule(ctx, getPixels(rightWidget, 'right', now), RIGHT_X);
+    // Bracket around the selected side
+    if (selectedSide === 'left') {
+      drawBrackets(ctx, 0.5, 0.5, HALF_W - 0.5, CANVAS_H - 0.5);
+    } else {
+      drawBrackets(ctx, RIGHT_X + 0.5, 0.5, CANVAS_W - 0.5, CANVAS_H - 0.5);
+    }
+  }, [leftWidget, rightWidget, selectedSide]);
 
   useEffect(() => {
-    refresh();
-    const id = setInterval(refresh, 100);
+    paint();
+    const id = setInterval(paint, 100);
     return () => clearInterval(id);
-  }, [refresh]);
+  }, [paint]);
 
-  // Canvas-relative layout constants (must match MatrixPreview internals)
-  const CELL = 3;
-  const GAP = 2;
-  const PITCH = CELL + GAP;
-  const MODULE_GAP = 4;
-  const halfW = 9 * PITCH - GAP;
+  // p-2 = 8px padding; hit regions are offset accordingly
+  const PAD = 8;
 
   return (
-    <div style={{ position: 'relative', display: 'inline-flex' }}>
-      <MatrixPreview pixels={pixels} width={18} />
-
-      <SideIndicator active={selectedSide === 'left'} side="left" />
-      <SideIndicator active={selectedSide === 'right'} side="right" />
+    <div className="p-2" style={{ position: 'relative', display: 'inline-block' }}>
+      <canvas ref={canvasRef} aria-hidden="true" className="block" />
 
       {/* Left hit region */}
       <button
         type="button"
-        aria-label="select left panel"
+        aria-label="Select left panel"
         aria-pressed={selectedSide === 'left'}
         style={{
           position: 'absolute',
-          top: 0,
-          left: 0,
-          width: halfW,
-          bottom: 0,
+          top: PAD, left: PAD,
+          width: SPLIT_X, height: CANVAS_H,
           background: 'transparent',
           cursor: 'pointer',
+          border: 'none',
+          padding: 0,
         }}
         onClick={() => onSelectSide('left')}
       />
@@ -164,16 +173,16 @@ export function HudDualPreview({
       {/* Right hit region */}
       <button
         type="button"
-        aria-label="select right panel"
+        aria-label="Select right panel"
         aria-pressed={selectedSide === 'right'}
         style={{
           position: 'absolute',
-          top: 0,
-          left: halfW + MODULE_GAP,
-          right: 0,
-          bottom: 0,
+          top: PAD, left: PAD + SPLIT_X,
+          right: PAD, height: CANVAS_H,
           background: 'transparent',
           cursor: 'pointer',
+          border: 'none',
+          padding: 0,
         }}
         onClick={() => onSelectSide('right')}
       />
