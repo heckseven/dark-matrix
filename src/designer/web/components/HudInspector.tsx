@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useId } from 'react';
 import { MatrixPreview } from './MatrixPreview.js';
 import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
@@ -57,6 +57,7 @@ export type HudInspectorProps = {
 };
 
 export function HudInspector({ widget, onChange }: HudInspectorProps) {
+  const uid = useId();
   const [clockPixels, setClockPixels] = useState<Partial<Record<ClockFace, string>>>({});
 
   const renderClocks = useCallback(() => {
@@ -116,7 +117,7 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
   return (
     <div className="flex flex-col h-full overflow-y-auto gap-6 py-4 px-2">
       {/* Widget type toggle */}
-      <div className="flex gap-0 font-mono text-xs border border-foreground/30 self-start">
+      <div role="group" aria-label="Widget type" className="flex gap-0 font-mono text-xs border border-foreground/30 self-start">
         {(['clock', 'data'] as const).map(type => (
           <button
             key={type}
@@ -158,7 +159,7 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
           {/* Style toggle */}
           <div className="flex flex-col gap-1">
             <span className="font-mono text-xs text-foreground/50">style</span>
-            <div className="flex gap-0 font-mono text-xs border border-foreground/30 self-start">
+            <div role="group" aria-label="Data style" className="flex gap-0 font-mono text-xs border border-foreground/30 self-start">
               {(['line', 'bars'] as const satisfies DataStyle[]).map(style => (
                 <button
                   key={style}
@@ -188,8 +189,9 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
                 const value: DataMetric | 'none' = widget[key] ?? 'none';
                 return (
                   <div key={key} className="flex flex-col gap-1">
-                    <label className="font-mono text-xs text-foreground/40">{label}</label>
+                    <label htmlFor={`${uid}-${key}`} className="font-mono text-xs text-foreground/40">{label}</label>
                     <select
+                      id={`${uid}-${key}`}
                       className="font-mono text-xs bg-background text-foreground border border-foreground/30 px-2 py-1 rounded-none focus:outline-none focus:border-white"
                       value={value}
                       onChange={e => updateQuadrant(key, e.target.value as DataMetric | 'none')}

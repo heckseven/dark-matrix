@@ -166,6 +166,7 @@ function PresetCard({
 
   return (
     <div
+      role="listitem"
       aria-label={isActive ? `${preset.name} (active)` : preset.name}
       tabIndex={0}
       className="group relative flex flex-row gap-3 p-1 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -252,6 +253,7 @@ function PresetCard({
           {editing ? (
             <input
               ref={inputRef}
+              aria-label={`Rename: ${preset.name}`}
               className="font-mono text-xs bg-transparent border-b border-white text-foreground outline-none w-full"
               value={draft}
               onChange={e => setDraft(e.target.value)}
@@ -324,7 +326,7 @@ export function PresetList({
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropTarget(null);
       }}
     >
-      <div className="flex flex-col gap-10 pb-2 pt-2">
+      <div role="list" className="flex flex-col gap-10 pb-2 pt-2">
         {presets.length === 0 && (
           <p className="font-mono text-xs text-foreground/40 px-2 py-4">no presets</p>
         )}

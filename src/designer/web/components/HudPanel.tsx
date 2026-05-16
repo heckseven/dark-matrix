@@ -152,7 +152,7 @@ export function HudPanel({ dualModule = false, topPad = 0 }: { dualModule?: bool
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)', gap: '1rem', height: '100%', width: '100%' }}>
       {/* Left: preset list */}
-      <aside style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', paddingTop: topPad }}>
+      <aside aria-label="Preset list" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', paddingTop: topPad }}>
         <PresetList
           presets={hudPresets}
           activeName={activePresetName}
@@ -222,7 +222,7 @@ export function HudPanel({ dualModule = false, topPad = 0 }: { dualModule?: bool
       </main>
 
       {/* Right: widget inspector */}
-      <aside style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', paddingTop: topPad }}>
+      <aside aria-label="Widget inspector" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', paddingTop: topPad }}>
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           <HudInspector
             widget={selectedPreset
