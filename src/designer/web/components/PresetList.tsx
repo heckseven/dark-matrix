@@ -6,6 +6,7 @@ import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-rend
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
 import { createDataRenderer } from '../../../animations/data-renderers.js';
 import type { DataStyle, DataRenderer } from '../../../animations/data-renderers.js';
+import { createHeatmapState, bumpTool, renderHeatmap } from '../../../animations/heatmap.js';
 import type { HudPresetClient, HudWidget } from '../types/hud-preset.js';
 
 const COLS = 9;
@@ -15,6 +16,12 @@ const ROWS = 34;
 
 const _clockCache: Partial<Record<ClockFace, ClockRenderer>> = {};
 const _dataCache: Partial<Record<DataStyle, DataRenderer>> = {};
+
+const _heatmapPreview = (() => {
+  const s = createHeatmapState();
+  for (const t of ['Bash', 'Read', 'Edit', 'Agent', 'Skill', 'ToolSearch', 'TodoWrite', 'Task']) bumpTool(s, t);
+  return s;
+})();
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
@@ -31,6 +38,12 @@ function renderWidgetToB64(widget: HudWidget | null, side: 'left' | 'right'): st
       const face: ClockFace = widget.face ?? 'elegant';
       if (!_clockCache[face]) _clockCache[face] = createClockRenderer(face);
       const frame = _clockCache[face]!({ now: new Date(), side });
+      const out = new Uint8Array(COLS * ROWS);
+      for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
+      return btoa(String.fromCharCode(...out));
+    } else if (widget.widget === 'heatmap') {
+      const [lf, rf] = renderHeatmap(_heatmapPreview);
+      const frame = side === 'left' ? lf : rf;
       const out = new Uint8Array(COLS * ROWS);
       for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
       return btoa(String.fromCharCode(...out));

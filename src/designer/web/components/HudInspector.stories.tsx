@@ -117,3 +117,10 @@ export const DataCpuCores: Story = {
     } satisfies HudWidget,
   },
 };
+
+/** AI picker — tool heatmap widget selected, stays in picker (no settings). */
+export const HeatmapAi: Story = {
+  args: {
+    widget: { widget: 'heatmap' } satisfies HudWidget,
+  },
+};

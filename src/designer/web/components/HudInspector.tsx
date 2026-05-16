@@ -7,6 +7,7 @@ import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-rend
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
 import { DATA_STYLES, createDataRenderer } from '../../../animations/data-renderers.js';
 import type { DataStyle, DataMetric, DataRenderer } from '../../../animations/data-renderers.js';
+import { createHeatmapState, bumpTool, renderHeatmap } from '../../../animations/heatmap.js';
 import type { HudWidget } from '../types/hud-preset.js';
 
 const COLS = 9;
@@ -24,6 +25,23 @@ function renderClockToB64(face: ClockFace, now: Date): string {
   const frame = _clockCache[face]!({ now, side: 'left' });
   const out = new Uint8Array(COLS * ROWS);
   for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
+  return btoa(String.fromCharCode(...out));
+}
+
+// ── heatmap thumbnail ─────────────────────────────────────────────────────
+
+const _heatmapThumbState = (() => {
+  const s = createHeatmapState();
+  for (const t of ['Bash', 'Read', 'Edit', 'Write', 'Grep', 'Agent', 'Skill', 'ToolSearch', 'TodoWrite', 'Task', 'WebSearch']) {
+    bumpTool(s, t);
+  }
+  return s;
+})();
+
+function renderHeatmapThumbToB64(): string {
+  const [left] = renderHeatmap(_heatmapThumbState);
+  const out = new Uint8Array(COLS * ROWS);
+  for (let i = 0; i < out.length; i++) out[i] = (left[i] ?? 0) > 127 ? 255 : 0;
   return btoa(String.fromCharCode(...out));
 }
 
@@ -111,7 +129,9 @@ const DATA_PRESETS: { id: string; label: string; style: DataStyle; widget: HudWi
 const EMPTY_PIXELS = btoa(String.fromCharCode(...new Uint8Array(COLS * ROWS)));
 
 function categoryOfWidget(w: HudWidget): string {
-  return w.widget === 'clock' ? 'clocks' : 'data';
+  if (w.widget === 'clock') return 'clocks';
+  if (w.widget === 'heatmap') return 'ai';
+  return 'data';
 }
 
 function CornerBrackets({ active }: { active: boolean }) {
@@ -129,18 +149,19 @@ function CornerBrackets({ active }: { active: boolean }) {
 
 // ── panel picker ──────────────────────────────────────────────────────────
 
-const PLACEHOLDER_CATEGORIES = ['ai', 'audio', 'image', 'animation'] as const;
+const PLACEHOLDER_CATEGORIES = ['audio', 'image', 'animation'] as const;
 
 type PanelPickerProps = {
   clockPixels: Partial<Record<ClockFace, string>>;
   dataThumbnails: Partial<Record<DataStyle, string>>;
+  heatmapPixels: string;
   currentWidget: HudWidget | null;
   scrollToCategory: string | null;
   onScrolled: () => void;
   onPick: (widget: HudWidget) => void;
 };
 
-function PanelPicker({ clockPixels, dataThumbnails, currentWidget, scrollToCategory, onScrolled, onPick }: PanelPickerProps) {
+function PanelPicker({ clockPixels, dataThumbnails, heatmapPixels, currentWidget, scrollToCategory, onScrolled, onPick }: PanelPickerProps) {
   const catRefs = useRef<Partial<Record<string, HTMLElement>>>({});
 
   useEffect(() => {
@@ -210,6 +231,34 @@ function PanelPicker({ clockPixels, dataThumbnails, currentWidget, scrollToCateg
         </div>
       </section>
 
+      {/* AI */}
+      <section>
+        <h3
+          ref={el => { if (el) catRefs.current['ai'] = el; }}
+          className="font-mono text-xs text-foreground/50 mb-3"
+        >
+          ai
+        </h3>
+        <div role="group" aria-label="AI panels" className="grid grid-cols-3 gap-4">
+          {(() => {
+            const active = currentWidget?.widget === 'heatmap';
+            return (
+              <button
+                type="button"
+                aria-label="tool heatmap"
+                aria-pressed={active}
+                className="group relative flex flex-col gap-2 items-center rounded-sm p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
+                onClick={() => onPick({ widget: 'heatmap' })}
+              >
+                <CornerBrackets active={active} />
+                <MatrixPreview pixels={heatmapPixels} width={9} />
+                <span className="font-mono text-xs text-foreground">tool heatmap</span>
+              </button>
+            );
+          })()}
+        </div>
+      </section>
+
       {/* Placeholder categories — non-functional, hidden from assistive tech */}
       {PLACEHOLDER_CATEGORIES.map(cat => (
         <section key={cat} aria-hidden="true">
@@ -252,11 +301,12 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
   const uid = useId();
   // Snapshot on mount — remount via `key` in HudPanel to reset when side/preset changes.
   const [view, setView] = useState<View>(() =>
-    widget && !(widget.widget === 'data' && (widget.style === 'cores' || widget.style === 'scroll')) ? 'settings' : 'picker'
+    widget && !(widget.widget === 'data' && (widget.style === 'cores' || widget.style === 'scroll')) && widget.widget !== 'heatmap' ? 'settings' : 'picker'
   );
   const [scrollTarget, setScrollTarget] = useState<string | null>(null);
   const [clockPixels, setClockPixels] = useState<Partial<Record<ClockFace, string>>>({});
   const [dataThumbnails, setDataThumbnails] = useState<Partial<Record<DataStyle, string>>>({});
+  const [heatmapPixels, setHeatmapPixels] = useState<string>(EMPTY_PIXELS);
 
   const renderAll = useCallback(() => {
     const now = new Date();
@@ -266,6 +316,7 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
     const nextData: Partial<Record<DataStyle, string>> = {};
     for (const { id } of DATA_STYLES) nextData[id] = renderDataStyleToB64(id);
     setDataThumbnails(nextData);
+    setHeatmapPixels(renderHeatmapThumbToB64());
   }, []);
 
   useEffect(() => {
@@ -289,7 +340,7 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
 
   function handlePick(picked: HudWidget) {
     onChange(picked);
-    const noSettings = picked.widget === 'data' && (picked.style === 'cores' || picked.style === 'scroll');
+    const noSettings = picked.widget === 'heatmap' || (picked.widget === 'data' && (picked.style === 'cores' || picked.style === 'scroll'));
     if (!noSettings) setView('settings');
   }
 
@@ -300,6 +351,7 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
         <PanelPicker
           clockPixels={clockPixels}
           dataThumbnails={dataThumbnails}
+          heatmapPixels={heatmapPixels}
           currentWidget={widget}
           scrollToCategory={scrollTarget}
           onScrolled={handleScrolled}
