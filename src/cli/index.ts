@@ -340,7 +340,6 @@ switch (cmd) {
     break;
   case 'play':       await cmdPlay(args); break;
   case 'ui':         await cmdDesigner(args); break;
-  case 'designer':   process.stderr.write("warn: 'designer' is deprecated, use 'dark-matrix ui'\n"); await cmdDesigner(args); break;
   case 'show':       await cmdShow(args); break;
   case 'show-split': await cmdShowSplit(args); break;
   case 'display':    await cmdDisplay(args); break;
