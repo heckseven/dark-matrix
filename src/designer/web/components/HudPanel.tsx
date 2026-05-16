@@ -225,6 +225,7 @@ export function HudPanel({ dualModule = false, topPad = 0 }: { dualModule?: bool
       <aside aria-label="Widget inspector" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', paddingTop: topPad }}>
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           <HudInspector
+            key={`${hudSelectedSide}-${selectedPresetName ?? 'none'}`}
             widget={selectedPreset
               ? (hudSelectedSide === 'left' ? selectedPreset.left : selectedPreset.right)
               : null
