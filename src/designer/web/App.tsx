@@ -314,7 +314,7 @@ export function App() {
                       onChange={hudRenameSelected}
                     />
                   ) : (
-                    <span className="font-mono text-xs text-foreground/40">no preset selected</span>
+                    <span className="font-mono text-xs text-foreground/55">no preset selected</span>
                   )}
                 </div>
               </div>

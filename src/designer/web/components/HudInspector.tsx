@@ -76,7 +76,7 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
   if (!widget) {
     return (
       <div className="flex flex-col h-full items-center justify-center">
-        <p className="font-mono text-xs text-foreground/40">no preset selected</p>
+        <p className="font-mono text-xs text-foreground/55">no preset selected</p>
       </div>
     );
   }
@@ -189,7 +189,7 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
                 const value: DataMetric | 'none' = widget[key] ?? 'none';
                 return (
                   <div key={key} className="flex flex-col gap-1">
-                    <label htmlFor={`${uid}-${key}`} className="font-mono text-xs text-foreground/40">{label}</label>
+                    <label htmlFor={`${uid}-${key}`} className="font-mono text-xs text-foreground/55">{label}</label>
                     <select
                       id={`${uid}-${key}`}
                       className="font-mono text-xs bg-background text-foreground border border-foreground/30 px-2 py-1 rounded-none focus:outline-none focus:border-white"

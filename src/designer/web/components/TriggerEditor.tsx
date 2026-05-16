@@ -40,7 +40,7 @@ function TimeFields({ trigger, onChange }: RowProps) {
   return (
     <>
       <div className="flex items-center gap-1">
-        <label htmlFor={`${uid}-from`} className="font-mono text-xs text-foreground/40">from</label>
+        <label htmlFor={`${uid}-from`} className="font-mono text-xs text-foreground/55">from</label>
         <input
           id={`${uid}-from`}
           type="text"
@@ -59,7 +59,7 @@ function TimeFields({ trigger, onChange }: RowProps) {
         {fromErr && <span id={`${uid}-from-err`} className="sr-only">Invalid time — use HH:MM</span>}
       </div>
       <div className="flex items-center gap-1">
-        <label htmlFor={`${uid}-to`} className="font-mono text-xs text-foreground/40">to</label>
+        <label htmlFor={`${uid}-to`} className="font-mono text-xs text-foreground/55">to</label>
         <input
           id={`${uid}-to`}
           type="text"
@@ -113,7 +113,7 @@ function ThresholdFields({ trigger, onChange }: RowProps) {
         ))}
       </select>
       <div className="flex items-center gap-1">
-        <label htmlFor={`${uid}-above`} className="font-mono text-xs text-foreground/40">above</label>
+        <label htmlFor={`${uid}-above`} className="font-mono text-xs text-foreground/55">above</label>
         <input
           id={`${uid}-above`}
           type="number"
@@ -126,7 +126,7 @@ function ThresholdFields({ trigger, onChange }: RowProps) {
         />
       </div>
       <div className="flex items-center gap-1">
-        <label htmlFor={`${uid}-below`} className="font-mono text-xs text-foreground/40">below</label>
+        <label htmlFor={`${uid}-below`} className="font-mono text-xs text-foreground/55">below</label>
         <input
           id={`${uid}-below`}
           type="number"
@@ -228,7 +228,7 @@ function TriggerRow({ trigger, onUpdate, onDelete }: TriggerRowProps) {
       </div>
       <button
         type="button"
-        className="font-mono text-xs text-foreground/40 hover:text-foreground ml-auto shrink-0 px-1"
+        className="font-mono text-xs text-foreground/55 hover:text-foreground ml-auto shrink-0 px-1"
         onClick={onDelete}
         aria-label={`Delete ${trigger.type} trigger`}
       >
@@ -279,14 +279,14 @@ export function TriggerEditor({ triggers, onChange, match = 'all', onMatchChange
           {/* match mode toggle — only shown with 2+ triggers */}
           {triggers.length >= 2 && onMatchChange && (
             <div role="group" aria-label="match mode" className="flex items-center gap-1 mb-1">
-              <span className="font-mono text-xs text-foreground/40" aria-hidden="true">match</span>
+              <span className="font-mono text-xs text-foreground/55" aria-hidden="true">match</span>
               {(['all', 'any'] as const).map(m => (
                 <button
                   key={m}
                   type="button"
                   aria-pressed={match === m}
                   aria-label={`match ${m} triggers`}
-                  className={`font-mono text-xs px-1.5 py-0.5 border transition-colors ${match === m ? 'border-foreground text-foreground' : 'border-foreground/20 text-foreground/40 hover:text-foreground hover:border-foreground/50'}`}
+                  className={`font-mono text-xs px-1.5 py-0.5 border transition-colors ${match === m ? 'border-foreground text-foreground' : 'border-foreground/20 text-foreground/55 hover:text-foreground hover:border-foreground/50'}`}
                   onClick={() => onMatchChange(m)}
                 >
                   {m}
@@ -320,7 +320,7 @@ export function TriggerEditor({ triggers, onChange, match = 'all', onMatchChange
               ))}
               <button
                 type="button"
-                className="font-mono text-xs text-foreground/40 hover:text-foreground px-1"
+                className="font-mono text-xs text-foreground/55 hover:text-foreground px-1"
                 onClick={() => setPicking(false)}
                 aria-label="cancel"
               >
@@ -330,7 +330,7 @@ export function TriggerEditor({ triggers, onChange, match = 'all', onMatchChange
           ) : (
             <button
               type="button"
-              className="font-mono text-xs text-foreground/40 hover:text-foreground mt-2 self-start"
+              className="font-mono text-xs text-foreground/55 hover:text-foreground mt-2 self-start"
               onClick={() => setPicking(true)}
             >
               + add trigger
