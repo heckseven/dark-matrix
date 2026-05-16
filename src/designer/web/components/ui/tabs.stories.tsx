@@ -40,7 +40,7 @@ const meta = {
     },
   },
   args: {
-    options: ['clock', 'data'],
+    options: ['clock', 'data', 'net', 'cpu', 'mem'],
     value: 'clock',
     'aria-label': 'Widget type',
     onChange: fn(),
@@ -84,7 +84,7 @@ function Demo({ variant }: { variant: TabsVariant }) {
   return (
     <div className="flex flex-col gap-2 min-w-fit">
       <Tabs
-        options={['clock', 'data']}
+        options={['clock', 'data', 'net', 'cpu', 'mem']}
         value={value}
         onChange={setValue}
         variant={variant}
