@@ -1,8 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useDesignerStore, designerStore } from '../store.js';
-import type { DataStyle } from '../store.js';
-import { DATA_STYLES, createDataRenderer } from '../../../animations/data-renderers.js';
-import type { DataRenderer, DataStats } from '../../../animations/data-renderers.js';
+import { updateAllDataRenderers } from '../data-renderer-pool.js';
+import type { DataStats } from '../../../animations/data-renderers.js';
 import type { HudWidget, HudPresetClient } from '../types/hud-preset.js';
 import { PresetList } from './PresetList.js';
 import { HudDualPreview } from './HudDualPreview.js';
@@ -19,20 +18,6 @@ export function hudSendWsGlobal(msg: object): void {
   }
 }
 
-// ── data renderer instances (shared with live stats) ──────────────────────
-
-const _dataRenderers: Partial<Record<DataStyle, DataRenderer>> = {};
-
-if (import.meta.hot) {
-  import.meta.hot.dispose(() => {
-    for (const k in _dataRenderers) delete _dataRenderers[k as DataStyle];
-  });
-}
-
-function getDataRenderer(style: DataStyle): DataRenderer {
-  if (!_dataRenderers[style]) _dataRenderers[style] = createDataRenderer({ style });
-  return _dataRenderers[style]!;
-}
 
 // ── helpers ───────────────────────────────────────────────────────────────
 
@@ -131,8 +116,9 @@ export function HudPanel({ dualModule = false, topPad = 0 }: { dualModule?: bool
             ramPct:   msg.ramPct   ?? 0,
             netRxBps: msg.netRxBps ?? 0,
             netTxBps: msg.netTxBps ?? 0,
+            ...(Array.isArray(msg.cpuCores) ? { cpuCores: msg.cpuCores as number[] } : {}),
           };
-          for (const { id } of DATA_STYLES) getDataRenderer(id).update(stats);
+          updateAllDataRenderers(stats);
         }
       } catch { /* ignore */ }
     });

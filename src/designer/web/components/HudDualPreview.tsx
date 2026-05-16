@@ -1,8 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
-import { createDataRenderer } from '../../../animations/data-renderers.js';
-import type { DataStyle, DataRenderer } from '../../../animations/data-renderers.js';
+import { getDataRenderer } from '../data-renderer-pool.js';
 import type { HudWidget } from '../types/hud-preset.js';
 
 // ── layout constants — match PixelCanvas at zoom=1 ────────────────────────
@@ -29,13 +28,11 @@ const SPLIT_X  = HALF_W + Math.floor((RIGHT_X - HALF_W) / 2); // 192
 
 const _clockL: Partial<Record<ClockFace, ClockRenderer>> = {};
 const _clockR: Partial<Record<ClockFace, ClockRenderer>> = {};
-const _data:   Partial<Record<DataStyle, DataRenderer>>  = {};
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     for (const k in _clockL) delete _clockL[k as ClockFace];
     for (const k in _clockR) delete _clockR[k as ClockFace];
-    for (const k in _data)   delete _data[k as DataStyle];
   });
 }
 
@@ -53,8 +50,7 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date):
       return out;
     } else {
       const style = widget.style ?? 'line';
-      if (!_data[style]) _data[style] = createDataRenderer({ style });
-      const frame = _data[style]!.render();
+      const frame = getDataRenderer(style).render();
       const out = new Uint8Array(COLS * ROWS);
       for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
       return out;
