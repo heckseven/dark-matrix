@@ -5,6 +5,7 @@ import type { AppMode } from './components/ModePicker.js';
 import type { AudioStyle } from '../../animations/audio-renderers.js';
 import type { ClockFace } from '../../animations/clock-renderers.js';
 import type { DataStyle } from '../../animations/data-renderers.js';
+import type { HudPresetClient, HudWidget, HudTrigger } from './types/hud-preset.js';
 
 export type Frame = DmxFrame;
 export type PreviewTarget = 'left' | 'right' | 'both' | 'mirror';
@@ -14,6 +15,7 @@ export type { AppMode };
 export type { AudioStyle };
 export type { ClockFace };
 export type { DataStyle };
+export type { HudPresetClient, HudWidget, HudTrigger };
 
 export interface DesignerState {
   frames: Frame[];
@@ -41,6 +43,10 @@ export interface DesignerState {
   hudRightDataStyle: DataStyle;
   libraryPath: string | null;
   recentFiles: string[];
+  hudPresets: HudPresetClient[];
+  activePresetName: string | null;
+  selectedPresetName: string | null;
+  hudSelectedSide: 'left' | 'right';
 }
 
 export interface DesignerActions {
@@ -76,6 +82,15 @@ export interface DesignerActions {
   setHudRightWidget(widget: 'clock' | 'data', dataStyle?: DataStyle): void;
   setLibraryPath(path: string | null): void;
   addRecentFile(name: string): void;
+  loadPresets(presets: HudPresetClient[], activeName: string | null): void;
+  selectPreset(name: string | null): void;
+  selectSide(side: 'left' | 'right'): void;
+  createPreset(preset: HudPresetClient): void;
+  deletePreset(name: string): void;
+  renamePreset(oldName: string, newName: string): void;
+  updatePresetWidget(presetName: string, side: 'left' | 'right', widget: HudWidget): void;
+  updatePresetTriggers(presetName: string, triggers: HudTrigger[]): void;
+  setActivePreset(name: string | null): void;
 }
 
 export type DesignerStore = DesignerState & DesignerActions;
@@ -176,6 +191,10 @@ export function createDesignerStore() {
     hudRightDataStyle: 'line',
     libraryPath: null,
     recentFiles: [],
+    hudPresets: [],
+    activePresetName: null,
+    selectedPresetName: null,
+    hudSelectedSide: 'left',
 
     setPixel(frameIdx, col, row, value) {
       const { frames, mode, undoStack, strokeSnapshot, previewTarget, width } = get();
@@ -360,6 +379,48 @@ export function createDesignerStore() {
       const { recentFiles } = get();
       set({ recentFiles: [name, ...recentFiles.filter(f => f !== name)].slice(0, 7) });
     },
+
+    loadPresets(presets, activeName) {
+      set({ hudPresets: presets, activePresetName: activeName });
+    },
+    selectPreset(name) { set({ selectedPresetName: name }); },
+    selectSide(side) { set({ hudSelectedSide: side }); },
+    createPreset(preset) {
+      const { hudPresets } = get();
+      set({ hudPresets: [...hudPresets, preset] });
+    },
+    deletePreset(name) {
+      const { hudPresets, selectedPresetName } = get();
+      set({
+        hudPresets: hudPresets.filter(p => p.name !== name),
+        ...(selectedPresetName === name ? { selectedPresetName: null } : {}),
+      });
+    },
+    renamePreset(oldName, newName) {
+      const { hudPresets, selectedPresetName } = get();
+      set({
+        hudPresets: hudPresets.map(p => p.name === oldName ? { ...p, name: newName } : p),
+        ...(selectedPresetName === oldName ? { selectedPresetName: newName } : {}),
+      });
+    },
+    updatePresetWidget(presetName, side, widget) {
+      const { hudPresets } = get();
+      set({
+        hudPresets: hudPresets.map(p => {
+          if (p.name !== presetName) return p;
+          return side === 'left' ? { ...p, left: widget } : { ...p, right: widget };
+        }),
+      });
+    },
+    updatePresetTriggers(presetName, triggers) {
+      const { hudPresets } = get();
+      set({
+        hudPresets: hudPresets.map(p =>
+          p.name === presetName ? { ...p, triggers } : p
+        ),
+      });
+    },
+    setActivePreset(name) { set({ activePresetName: name }); },
   }));
 }
 
@@ -381,7 +442,8 @@ type SessionSnapshot = Pick<DesignerState,
   'activeMode' | 'audioStyle' | 'audioSource' |
   'hudLeftFace' | 'hudRightFace' |
   'hudLeftWidget' | 'hudRightWidget' | 'hudLeftDataStyle' | 'hudRightDataStyle' |
-  'libraryPath' | 'recentFiles'
+  'libraryPath' | 'recentFiles' |
+  'selectedPresetName' | 'hudSelectedSide'
 >;
 
 if (typeof localStorage !== 'undefined') {
@@ -412,6 +474,8 @@ if (typeof localStorage !== 'undefined') {
           ...(s.hudRightDataStyle !== undefined ? { hudRightDataStyle: s.hudRightDataStyle } : {}),
           ...(s.libraryPath !== undefined ? { libraryPath: s.libraryPath } : {}),
           ...(Array.isArray(s.recentFiles) ? { recentFiles: (s.recentFiles as unknown[]).filter((f): f is string => typeof f === 'string').slice(0, 7) } : {}),
+          ...(s.selectedPresetName !== undefined ? { selectedPresetName: s.selectedPresetName } : {}),
+          ...(s.hudSelectedSide !== undefined ? { hudSelectedSide: s.hudSelectedSide } : {}),
         });
       }
     }
@@ -423,9 +487,9 @@ if (typeof localStorage !== 'undefined') {
     if (_saveTimer) clearTimeout(_saveTimer);
     _saveTimer = setTimeout(() => {
       try {
-        const { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, hudLeftFace, hudRightFace, hudLeftWidget, hudRightWidget, hudLeftDataStyle, hudRightDataStyle, libraryPath, recentFiles } = state;
+        const { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, hudLeftFace, hudRightFace, hudLeftWidget, hudRightWidget, hudLeftDataStyle, hudRightDataStyle, libraryPath, recentFiles, selectedPresetName, hudSelectedSide } = state;
         localStorage.setItem(SESSION_KEY, JSON.stringify(
-          { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, hudLeftFace, hudRightFace, hudLeftWidget, hudRightWidget, hudLeftDataStyle, hudRightDataStyle, libraryPath, recentFiles } satisfies SessionSnapshot
+          { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, hudLeftFace, hudRightFace, hudLeftWidget, hudRightWidget, hudLeftDataStyle, hudRightDataStyle, libraryPath, recentFiles, selectedPresetName, hudSelectedSide } satisfies SessionSnapshot
         ));
       } catch { /* storage full or unavailable */ }
     }, 500);
