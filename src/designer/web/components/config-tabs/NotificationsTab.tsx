@@ -83,24 +83,8 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown }:
     <div role="group" aria-label={`Rule ${idx + 1}: ${rule.app_name_glob}`} className="flex items-center gap-2 flex-wrap py-1.5 border-b border-foreground/10 last:border-b-0">
       {/* reorder */}
       <div className="flex flex-col shrink-0">
-        <button
-          type="button"
-          aria-label="Move rule up"
-          disabled={idx === 0}
-          className="font-mono text-xs text-foreground/40 hover:text-foreground disabled:opacity-20 leading-none px-0.5"
-          onClick={onMoveUp}
-        >
-          ↑
-        </button>
-        <button
-          type="button"
-          aria-label="Move rule down"
-          disabled={idx === total - 1}
-          className="font-mono text-xs text-foreground/40 hover:text-foreground disabled:opacity-20 leading-none px-0.5"
-          onClick={onMoveDown}
-        >
-          ↓
-        </button>
+        <Button variant="ghost" aria-label="Move rule up" disabled={idx === 0} className="px-1 py-0 leading-none" onClick={onMoveUp}>↑</Button>
+        <Button variant="ghost" aria-label="Move rule down" disabled={idx === total - 1} className="px-1 py-0 leading-none" onClick={onMoveDown}>↓</Button>
       </div>
 
       {/* glob */}
@@ -147,14 +131,7 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown }:
       )}
 
       {/* delete */}
-      <button
-        type="button"
-        aria-label={`Delete rule for ${rule.app_name_glob}`}
-        className="font-mono text-xs text-foreground/40 hover:text-foreground ml-auto shrink-0 px-1"
-        onClick={onDelete}
-      >
-        ×
-      </button>
+      <Button variant="ghost" aria-label={`Delete rule for ${rule.app_name_glob}`} className="ml-auto shrink-0 px-1" onClick={onDelete}>×</Button>
     </div>
   );
 }
