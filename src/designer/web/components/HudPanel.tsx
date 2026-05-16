@@ -45,6 +45,20 @@ function makeDefaultPreset(): HudPresetClient {
   };
 }
 
+function buildPresetConfigPayload(preset: HudPresetClient) {
+  const l = preset.left;
+  const r = preset.right;
+  return {
+    type: 'hud-config' as const,
+    leftWidget: l.widget,
+    leftFace: l.widget === 'clock' ? l.face : undefined,
+    leftDataStyle: l.widget === 'data' ? l.style : undefined,
+    rightWidget: r.widget,
+    rightFace: r.widget === 'clock' ? r.face : undefined,
+    rightDataStyle: r.widget === 'data' ? r.style : undefined,
+  };
+}
+
 function buildHudConfigPayload(widget: HudWidget, side: 'left' | 'right') {
   const store = designerStore.getState();
   const leftWidget  = side === 'left'  ? (widget.widget) : store.hudLeftWidget;
@@ -58,7 +72,7 @@ function buildHudConfigPayload(widget: HudWidget, side: 'left' | 'right') {
 
 // ── main component ────────────────────────────────────────────────────────
 
-export function HudPanel({ dualModule = false }: { dualModule?: boolean }) {
+export function HudPanel({ dualModule = false, topPad = 0 }: { dualModule?: boolean; topPad?: number }) {
   const hudPresets       = useDesignerStore(s => s.hudPresets);
   const activePresetName = useDesignerStore(s => s.activePresetName);
   const selectedPresetName = useDesignerStore(s => s.selectedPresetName);
@@ -96,6 +110,7 @@ export function HudPanel({ dualModule = false }: { dualModule?: boolean }) {
     _moduleWs = ws;
 
     ws.addEventListener('open', () => {
+      ws.send(JSON.stringify({ type: 'hud-mode-start' }));
       ws.send(JSON.stringify({ type: 'hud-presets-get' }));
       ws.send(JSON.stringify({ type: 'data-stats-start' }));
     });
@@ -105,6 +120,9 @@ export function HudPanel({ dualModule = false }: { dualModule?: boolean }) {
         const msg = JSON.parse(e.data) as { type: string } & Partial<DataStats> & Partial<{ presets: HudPresetClient[]; activeName: string | null; name: string | null }>;
         if (msg.type === 'hud-presets') {
           designerStore.getState().loadPresets(msg.presets ?? [], msg.activeName ?? null);
+          const { hudPresets, selectedPresetName } = designerStore.getState();
+          const sel = hudPresets.find(p => p.name === selectedPresetName);
+          if (sel) ws.send(JSON.stringify(buildPresetConfigPayload(sel)));
         } else if (msg.type === 'hud-preset-activated') {
           designerStore.getState().setActivePreset(msg.name ?? null);
         } else if (msg.type === 'data-stats') {
@@ -134,7 +152,7 @@ export function HudPanel({ dualModule = false }: { dualModule?: boolean }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)', gap: '1rem', height: '100%', width: '100%' }}>
       {/* Left: preset list */}
-      <aside style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <aside style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', paddingTop: topPad }}>
         <PresetList
           presets={hudPresets}
           activeName={activePresetName}
@@ -150,6 +168,13 @@ export function HudPanel({ dualModule = false }: { dualModule?: boolean }) {
           }}
           onDelete={(name) => {
             designerStore.getState().deletePreset(name);
+            debouncedSave();
+          }}
+          onDuplicate={(name) => {
+            const preset = hudPresets.find(p => p.name === name);
+            if (!preset) return;
+            const copy: HudPresetClient = { ...preset, name: `${preset.name} copy` };
+            designerStore.getState().createPreset(copy);
             debouncedSave();
           }}
           onRename={(old, next) => {
@@ -170,7 +195,7 @@ export function HudPanel({ dualModule = false }: { dualModule?: boolean }) {
       </main>
 
       {/* Right: widget inspector + trigger editor */}
-      <aside style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <aside style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', paddingTop: topPad }}>
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           <HudInspector
             widget={selectedPreset

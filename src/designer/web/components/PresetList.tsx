@@ -73,6 +73,7 @@ function PresetCard({
   pixels,
   onSelect,
   onDelete,
+  onDuplicate,
   onRename,
 }: {
   preset: HudPresetClient;
@@ -81,6 +82,7 @@ function PresetCard({
   pixels: string;
   onSelect: () => void;
   onDelete: () => void;
+  onDuplicate: () => void;
   onRename: (newName: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -142,14 +144,24 @@ function PresetCard({
         )}
       </div>
 
-      <button
-        type="button"
-        aria-label={`delete ${preset.name}`}
-        className="shrink-0 font-mono text-xs text-foreground/40 hover:text-foreground transition-colors opacity-0 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-1"
-        onClick={e => { e.stopPropagation(); onDelete(); }}
-      >
-        ✕
-      </button>
+      <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+        <button
+          type="button"
+          aria-label={`duplicate ${preset.name}`}
+          className="font-mono text-xs text-foreground/40 hover:text-foreground transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-1"
+          onClick={e => { e.stopPropagation(); onDuplicate(); }}
+        >
+          ⧉
+        </button>
+        <button
+          type="button"
+          aria-label={`delete ${preset.name}`}
+          className="font-mono text-xs text-foreground/40 hover:text-foreground transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-1"
+          onClick={e => { e.stopPropagation(); onDelete(); }}
+        >
+          ✕
+        </button>
+      </div>
     </div>
   );
 }
@@ -163,6 +175,7 @@ export type PresetListProps = {
   onSelect: (name: string) => void;
   onCreate: () => void;
   onDelete: (name: string) => void;
+  onDuplicate: (name: string) => void;
   onRename: (oldName: string, newName: string) => void;
 };
 
@@ -173,6 +186,7 @@ export function PresetList({
   onSelect,
   onCreate,
   onDelete,
+  onDuplicate,
   onRename,
 }: PresetListProps) {
   const [tick, setTick] = useState(0);
@@ -206,6 +220,7 @@ export function PresetList({
               pixels={pixels}
               onSelect={() => onSelect(preset.name)}
               onDelete={() => onDelete(preset.name)}
+              onDuplicate={() => onDuplicate(preset.name)}
               onRename={newName => onRename(preset.name, newName)}
             />
           );
