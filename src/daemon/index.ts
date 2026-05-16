@@ -28,6 +28,7 @@ import { createClockRenderer, isClockFace } from '../animations/clock-renderers.
 import { createDataRenderer } from '../animations/data-renderers.js';
 import type { DataStyle, DataWidgetConfig } from '../animations/data-renderers.js';
 import { watchProcStats } from '../lib/proc-source.js';
+import { createPresetTriggerEngine } from '../lib/preset-triggers.js';
 import { createGifAnimation } from '../animations/gif.js';
 import type { GifAnimation } from '../animations/gif.js';
 import type { DisplayIntent } from '../lib/dispatcher.js';
@@ -122,6 +123,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
   function startIdleTimer() {
     if (idleTimer) clearTimeout(idleTimer);
+    triggerEngine.notifyActive();
     const idleMs = currentConfig.daemon.idle_after_ms;
     idleTimer = setTimeout(() => startIdleAnimation(), idleMs);
   }
@@ -522,6 +524,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
   function startIdleAnimation() {
     hudHardwareActive = false;
+    triggerEngine.notifyIdle();
     stopAnim();
     const idleName = currentConfig.daemon.idle_animation;
     if (idleName === 'none') return;
@@ -642,6 +645,20 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         resumeAfterInterrupt();
       }
     }
+  }, { intervalMs: 2000 }));
+
+  // Preset trigger engine
+  const triggerEngine = createPresetTriggerEngine({
+    presets: currentConfig.hud_presets ?? [],
+    onActivate: (name) => {
+      const preset = (currentConfig.hud_presets ?? []).find(p => p.name === name);
+      if (preset) applyPreset(preset);
+    },
+  });
+
+  // Feed proc stats into the trigger engine
+  disposeWatches.push(watchProcStats((stats) => {
+    triggerEngine.updateStats(stats);
   }, { intervalMs: 2000 }));
 
   // Brightness loop
@@ -918,6 +935,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
   const disposeWatch = watchConfig((cfg) => {
     currentConfig = cfg;
+    triggerEngine.updatePresets(cfg.hud_presets ?? []);
     disposeBrightness();
     disposeBrightness = startBrightnessLoop(currentConfig, async (pct) => {
       currentBrightness = pct;
@@ -953,6 +971,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     disposeDispatcher();
     disposeWatch();
     disposeBrightness();
+    triggerEngine.stop();
     disposeWatches.forEach(d => d());
     await transport.close();
     await new Promise<void>((resolve) => server.close(() => resolve()));
