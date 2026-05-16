@@ -27,6 +27,7 @@ import { AUDIO_STYLES } from '../animations/audio-renderers.js';
 import type { AudioStyle } from '../animations/audio-renderers.js';
 import { createClockRenderer, isClockFace } from '../animations/clock-renderers.js';
 import { createDataRenderer } from '../animations/data-renderers.js';
+import { DATA_STYLES } from '../animations/data-renderers.js';
 import type { DataStyle, DataWidgetConfig } from '../animations/data-renderers.js';
 import { watchProcStats } from '../lib/proc-source.js';
 import { createPresetTriggerEngine } from '../lib/preset-triggers.js';
@@ -892,14 +893,14 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               const m = msg as { cmd: string; leftFace?: string; leftWidget?: string; leftDataStyle?: string; rightFace?: string; rightWidget?: string; rightDataStyle?: string };
               const newHud = { ...currentConfig.hud };
               if (m.leftWidget === 'data') {
-                const style = (m.leftDataStyle === 'line' || m.leftDataStyle === 'bars') ? m.leftDataStyle : undefined;
+                const style = DATA_STYLES.find(s => s.id === m.leftDataStyle)?.id;
                 newHud.left = { widget: 'data', ...(style ? { style } : {}) };
               } else if (m.leftWidget !== 'data' && typeof m.leftFace === 'string') {
                 const face = isClockFace(m.leftFace) ? m.leftFace : 'elegant';
                 newHud.left = { widget: 'clock', face };
               }
               if (m.rightWidget === 'data') {
-                const style = (m.rightDataStyle === 'line' || m.rightDataStyle === 'bars') ? m.rightDataStyle : undefined;
+                const style = DATA_STYLES.find(s => s.id === m.rightDataStyle)?.id;
                 newHud.right = { widget: 'data', ...(style ? { style } : {}) };
               } else if (m.rightWidget !== 'data' && typeof m.rightFace === 'string') {
                 const face = isClockFace(m.rightFace) ? m.rightFace : 'elegant';
