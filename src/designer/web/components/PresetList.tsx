@@ -166,7 +166,7 @@ function PresetCard({
 
   return (
     <div
-      aria-label={preset.name}
+      aria-label={isActive ? `${preset.name} (active)` : preset.name}
       tabIndex={0}
       className="group relative flex flex-row gap-3 p-1 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       onClick={onSelect}
@@ -268,7 +268,7 @@ function PresetCard({
               className="font-mono text-xs text-foreground pl-2 block truncate"
               onDoubleClick={e => { e.stopPropagation(); setDraft(preset.name); setEditing(true); }}
             >
-              {isActive && <span aria-label="active" className="inline-block w-1.5 h-1.5 rounded-full bg-white align-middle mr-1" />}
+              {isActive && <span aria-hidden="true" className="inline-block w-1.5 h-1.5 rounded-full bg-white align-middle mr-1" />}
               {preset.name}
             </span>
           )}

@@ -16,8 +16,8 @@ const HudTriggerSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('idle') }),
   z.object({ type: z.literal('active') }),
   z.object({ type: z.literal('threshold'), metric: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']), above: z.number().min(0).optional(), below: z.number().min(0).optional() }),
-  z.object({ type: z.literal('interface'), name: z.string().min(1), state: z.enum(['up', 'down']) }),
-  z.object({ type: z.literal('vm'), name: z.string().min(1), state: z.enum(['running', 'stopped']).optional() }),
+  z.object({ type: z.literal('interface'), name: z.string(), state: z.enum(['up', 'down']) }),
+  z.object({ type: z.literal('vm'), name: z.string(), state: z.enum(['running', 'stopped']).optional() }),
 ]);
 
 const HudPresetSchema = z.object({
