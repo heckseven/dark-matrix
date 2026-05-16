@@ -1,5 +1,7 @@
 import { useRef } from 'react';
 import { Select } from '../ui/select.js';
+import { Input } from '../ui/input.js';
+import { Button } from '../ui/button.js';
 
 export type NotificationRule = {
   app_name_glob: string;
@@ -101,13 +103,12 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown }:
       </div>
 
       {/* glob */}
-      <input
-        type="text"
+      <Input
         aria-label="App name glob"
         placeholder="*"
         value={rule.app_name_glob}
         onChange={e => handleGlob(e.target.value)}
-        className="font-mono text-xs bg-background text-foreground border border-foreground/30 px-2 py-0.5 w-32 rounded-none focus:outline-none focus:border-white"
+        spellCheck={false}
       />
 
       {/* urgency */}
@@ -135,13 +136,12 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown }:
 
       {/* dmx_path — only shown when animation === 'dmx' */}
       {rule.animation === 'dmx' && (
-        <input
-          type="text"
+        <Input
           aria-label="DMX path"
           placeholder="path/to/file.dmx.json"
           value={rule.dmx_path ?? ''}
           onChange={e => handleDmxPath(e.target.value)}
-          className="font-mono text-xs bg-background text-foreground border border-foreground/30 px-2 py-0.5 w-48 rounded-none focus:outline-none focus:border-white"
+          spellCheck={false}
         />
       )}
 
@@ -213,13 +213,9 @@ export function NotificationsTab({ value, onChange }: NotificationsTabProps) {
         ))}
       </div>
 
-      <button
-        type="button"
-        className="font-mono text-xs text-foreground/55 hover:text-foreground mt-2 self-start"
-        onClick={addRule}
-      >
+      <Button variant="ghost" className="mt-2 self-start" onClick={addRule}>
         + add rule
-      </button>
+      </Button>
     </div>
   );
 }

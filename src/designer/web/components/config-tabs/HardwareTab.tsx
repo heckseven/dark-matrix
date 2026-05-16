@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Input } from '../ui/input.js';
+import { Select } from '../ui/select.js';
 
 const BY_PATH_RE = /^\/dev\/(serial\/by-path\/[a-zA-Z0-9:._-]+|ttyACM\d+|ttyUSB\d+)$/;
 
@@ -39,15 +40,14 @@ function PortField({
           spellCheck={false}
         />
         {detected.length > 0 && (
-          <select
+          <Select
             aria-label={`Pick detected port for ${label}`}
-            className="font-mono text-xs bg-background text-foreground border border-foreground/30 px-2 py-[3px] rounded-none focus:outline-none focus:border-white"
             value=""
             onChange={e => { if (e.target.value) onPick(e.target.value); }}
           >
             <option value="">pick…</option>
             {detected.map(p => <option key={p} value={p}>{p.replace('/dev/serial/by-path/', '')}</option>)}
-          </select>
+          </Select>
         )}
       </div>
       {value.length > 0 && (
