@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/tanstack-react';
-import { fn } from 'storybook/test';
+import { fn, userEvent, within } from 'storybook/test';
 import { HudInspector } from './HudInspector.js';
 import type { HudWidget } from '../types/hud-preset.js';
 
@@ -34,13 +34,15 @@ type Story = StoryObj<typeof meta>;
 /** No preset selected — shows panel picker. */
 export const NullState: Story = {};
 
-/** Picker with a clock assigned — elegant face marked active. */
+/** Picker with a clock assigned — elegant face marked active in the panel list. */
 export const PickerWithClock: Story = {
   args: {
     widget: { widget: 'clock', face: 'elegant' } satisfies HudWidget,
   },
-  // Note: component initialises to settings when widget is non-null.
-  // Use the story as a live demo — click "← select different" to reach the picker.
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', { name: 'Select different panel' }));
+  },
 };
 
 /** Clock settings — elegant face selected. */

@@ -83,6 +83,7 @@ type PanelPickerProps = {
 
 function PanelPicker({ clockPixels, dataThumbnail, currentWidget, scrollToCategory, onScrolled, onPick }: PanelPickerProps) {
   const catRefs = useRef<Partial<Record<string, HTMLElement>>>({});
+  const dataActive = currentWidget?.widget === 'data';
 
   useEffect(() => {
     if (!scrollToCategory) return;
@@ -131,28 +132,23 @@ function PanelPicker({ clockPixels, dataThumbnail, currentWidget, scrollToCatego
           data
         </h3>
         <div role="group" aria-label="Data panels" className="grid grid-cols-3 gap-4">
-          {(() => {
-            const active = currentWidget?.widget === 'data';
-            return (
-              <button
-                type="button"
-                aria-label="Data panel"
-                aria-pressed={active}
-                className="group relative flex flex-col gap-2 items-center rounded-sm p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
-                onClick={() => onPick({ widget: 'data', style: 'line' })}
-              >
-                <CornerBrackets active={active} />
-                <MatrixPreview pixels={dataThumbnail || EMPTY_PIXELS} width={9} />
-                <span className="font-mono text-xs text-foreground">data</span>
-              </button>
-            );
-          })()}
+          <button
+            type="button"
+            aria-label="Data panel"
+            aria-pressed={dataActive}
+            className="group relative flex flex-col gap-2 items-center rounded-sm p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
+            onClick={() => onPick({ widget: 'data', style: 'line' })}
+          >
+            <CornerBrackets active={dataActive} />
+            <MatrixPreview pixels={dataThumbnail || EMPTY_PIXELS} width={9} />
+            <span className="font-mono text-xs text-foreground">data</span>
+          </button>
         </div>
       </section>
 
-      {/* Placeholder categories */}
+      {/* Placeholder categories — non-functional, hidden from assistive tech */}
       {PLACEHOLDER_CATEGORIES.map(cat => (
-        <section key={cat}>
+        <section key={cat} aria-hidden="true">
           <h3
             ref={el => { if (el) catRefs.current[cat] = el; }}
             className="font-mono text-xs text-foreground/50 mb-2"
@@ -177,6 +173,8 @@ const DATA_METRICS: { id: DataMetric | 'none'; label: string }[] = [
   { id: 'none',   label: 'none'   },
 ];
 
+const DATA_METRIC_IDS = new Set(DATA_METRICS.map(m => m.id));
+
 // ── main component ────────────────────────────────────────────────────────
 
 export type HudInspectorProps = {
@@ -188,6 +186,7 @@ type View = 'picker' | 'settings';
 
 export function HudInspector({ widget, onChange }: HudInspectorProps) {
   const uid = useId();
+  // Snapshot on mount — remount via `key` in HudPanel to reset when side/preset changes.
   const [view, setView] = useState<View>(() => widget ? 'settings' : 'picker');
   const [scrollTarget, setScrollTarget] = useState<string | null>(null);
   const [clockPixels, setClockPixels] = useState<Partial<Record<ClockFace, string>>>({});
@@ -215,7 +214,7 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
   }
 
   function handleSelectDifferent() {
-    if (widget) setScrollTarget(categoryOfWidget(widget));
+    setScrollTarget(categoryOfWidget(widget!));
     setView('picker');
   }
 
@@ -224,24 +223,8 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
     setView('settings');
   }
 
-  // No preset selected
-  if (!widget) {
-    return (
-      <div className="flex flex-col h-full overflow-hidden">
-        <PanelPicker
-          clockPixels={clockPixels}
-          dataThumbnail={dataThumbnail}
-          currentWidget={null}
-          scrollToCategory={scrollTarget}
-          onScrolled={handleScrolled}
-          onPick={handlePick}
-        />
-      </div>
-    );
-  }
-
-  // Panel picker
-  if (view === 'picker') {
+  // Picker — null widget (no preset selected) or user switching panels
+  if (!widget || view === 'picker') {
     return (
       <div className="flex flex-col h-full overflow-hidden">
         <PanelPicker
@@ -261,10 +244,10 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
       <div className="flex items-center shrink-0 px-2 py-1 border-b border-foreground/10">
-        <Button variant="ghost" className="text-foreground/60 text-xs" onClick={handleSelectDifferent}>
+        <Button variant="ghost" className="text-foreground/60 text-xs" aria-label="Select different panel" onClick={handleSelectDifferent}>
           ← select different
         </Button>
-        <Button variant="ghost" className="ml-auto text-foreground/60" onClick={handleClose}>
+        <Button variant="ghost" className="ml-auto text-foreground/60" aria-label="Close inspector" onClick={handleClose}>
           ✕
         </Button>
       </div>
@@ -295,7 +278,7 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
           )}
 
           {widget.widget === 'data' && (
-            <div className="flex flex-col gap-4">
+            <div role="group" aria-label="Data widget settings" className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
                 <span className="font-mono text-xs text-foreground/50">style</span>
                 <Tabs
@@ -327,7 +310,9 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
                           id={`${uid}-${key}`}
                           value={val}
                           onChange={e => {
-                            const metric = e.target.value as DataMetric | 'none';
+                            const raw = e.target.value;
+                            if (!DATA_METRIC_IDS.has(raw as DataMetric | 'none')) return;
+                            const metric = raw as DataMetric | 'none';
                             type DataW = { widget: 'data'; style?: DataStyle; top_left?: DataMetric; top_right?: DataMetric; bottom_left?: DataMetric; bottom_right?: DataMetric };
                             const base: DataW = { widget: 'data' };
                             if (widget.style !== undefined) base.style = widget.style;
