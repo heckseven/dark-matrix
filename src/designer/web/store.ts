@@ -35,6 +35,7 @@ export interface DesignerState {
   activeMode: AppMode;
   audioStyle: AudioStyle;
   audioSource: AudioSource;
+  micSensitivity: number;
   hudLeftFace: ClockFace;
   hudRightFace: ClockFace;
   hudLeftWidget: 'clock' | 'data';
@@ -76,6 +77,7 @@ export interface DesignerActions {
   setActiveMode(mode: AppMode): void;
   setAudioStyle(style: AudioStyle): void;
   setAudioSource(source: AudioSource): void;
+  setMicSensitivity(value: number): void;
   setHudLeftFace(face: ClockFace): void;
   setHudRightFace(face: ClockFace): void;
   setHudLeftWidget(widget: 'clock' | 'data', dataStyle?: DataStyle): void;
@@ -186,6 +188,7 @@ export function createDesignerStore() {
     activeMode: 'design',
     audioStyle: 'dark-matter',
     audioSource: 'monitor',
+    micSensitivity: 50,
     hudLeftFace: 'elegant',
     hudRightFace: 'elegant',
     hudLeftWidget: 'clock',
@@ -373,6 +376,7 @@ export function createDesignerStore() {
     setActiveMode(mode) { set({ activeMode: mode }); },
     setAudioStyle(style) { set({ audioStyle: style }); },
     setAudioSource(source) { set({ audioSource: source }); },
+    setMicSensitivity(value) { set({ micSensitivity: Math.min(100, Math.max(0, Math.round(value))) }); },
     setHudLeftFace(face)   { set({ hudLeftFace: face }); },
     setHudRightFace(face)  { set({ hudRightFace: face }); },
     setHudLeftWidget(widget, dataStyle)  { set({ hudLeftWidget: widget,  ...(dataStyle ? { hudLeftDataStyle: dataStyle }  : {}) }); },
@@ -464,7 +468,7 @@ const SESSION_KEY = 'dark-matrix-designer';
 type SessionSnapshot = Pick<DesignerState,
   'frames' | 'width' | 'mode' | 'loop' | 'activeFrameIdx' |
   'zoom' | 'activeColor' | 'previewTarget' | 'projectTitle' |
-  'activeMode' | 'audioStyle' | 'audioSource' |
+  'activeMode' | 'audioStyle' | 'audioSource' | 'micSensitivity' |
   'hudLeftFace' | 'hudRightFace' |
   'hudLeftWidget' | 'hudRightWidget' | 'hudLeftDataStyle' | 'hudRightDataStyle' |
   'libraryPath' | 'recentFiles' |
@@ -491,6 +495,7 @@ if (typeof localStorage !== 'undefined') {
           ...(s.activeMode !== undefined ? { activeMode: s.activeMode } : {}),
           ...(s.audioStyle !== undefined ? { audioStyle: s.audioStyle } : {}),
           ...(s.audioSource !== undefined ? { audioSource: s.audioSource } : {}),
+          ...(s.micSensitivity !== undefined ? { micSensitivity: Math.min(100, Math.max(0, Math.round(Number(s.micSensitivity)))) } : {}),
           ...(s.hudLeftFace !== undefined ? { hudLeftFace: s.hudLeftFace } : {}),
           ...(s.hudRightFace !== undefined ? { hudRightFace: s.hudRightFace } : {}),
           ...(s.hudLeftWidget !== undefined ? { hudLeftWidget: s.hudLeftWidget } : {}),
@@ -512,9 +517,9 @@ if (typeof localStorage !== 'undefined') {
     if (_saveTimer) clearTimeout(_saveTimer);
     _saveTimer = setTimeout(() => {
       try {
-        const { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, hudLeftFace, hudRightFace, hudLeftWidget, hudRightWidget, hudLeftDataStyle, hudRightDataStyle, libraryPath, recentFiles, selectedPresetName, hudSelectedSide } = state;
+        const { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, micSensitivity, hudLeftFace, hudRightFace, hudLeftWidget, hudRightWidget, hudLeftDataStyle, hudRightDataStyle, libraryPath, recentFiles, selectedPresetName, hudSelectedSide } = state;
         localStorage.setItem(SESSION_KEY, JSON.stringify(
-          { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, hudLeftFace, hudRightFace, hudLeftWidget, hudRightWidget, hudLeftDataStyle, hudRightDataStyle, libraryPath, recentFiles, selectedPresetName, hudSelectedSide } satisfies SessionSnapshot
+          { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, micSensitivity, hudLeftFace, hudRightFace, hudLeftWidget, hudRightWidget, hudLeftDataStyle, hudRightDataStyle, libraryPath, recentFiles, selectedPresetName, hudSelectedSide } satisfies SessionSnapshot
         ));
       } catch { /* storage full or unavailable */ }
     }, 500);
