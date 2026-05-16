@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, Fragment } from 'react';
 import { Button } from './ui/button.js';
+import { Stack } from './ui/stack.js';
 import { MatrixPreview } from './MatrixPreview.js';
 import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
@@ -151,7 +152,7 @@ function PresetCard({
     <div
       aria-label={preset.name}
       tabIndex={0}
-      className="group relative flex flex-row gap-3 p-1 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
+      className="group relative flex flex-row gap-3 p-1 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       onClick={onSelect}
       onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); }
@@ -181,7 +182,6 @@ function PresetCard({
         draggable
         aria-hidden="true"
         tabIndex={-1}
-        className="shrink-0"
         onDragStart={e => { setDragging(true); e.dataTransfer.setData('text/plain', String(idx)); e.dataTransfer.effectAllowed = 'move'; }}
         onDragEnd={() => { setDragging(false); setDropTarget(null); }}
         style={{ cursor: dragging ? 'grabbing' : 'grab' }}
@@ -189,61 +189,30 @@ function PresetCard({
         <MatrixPreview pixels={pixels} width={18} />
       </div>
 
-      {/* Right: name + controls */}
-      <div className="flex flex-col justify-between flex-1 min-w-0 py-0.5">
-        {/* Name row */}
-        <div className="flex items-center gap-1.5 min-w-0">
-          {isActive && (
-            <span aria-label="active" className="shrink-0 w-1.5 h-1.5 rounded-full bg-white" />
-          )}
-          {editing ? (
-            <input
-              ref={inputRef}
-              className="font-mono text-xs bg-transparent border-b border-white text-foreground outline-none min-w-0 w-full"
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              onBlur={commitRename}
-              onKeyDown={e => {
-                e.stopPropagation();
-                if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
-                if (e.key === 'Escape') { setDraft(preset.name); setEditing(false); }
-              }}
-              onClick={e => e.stopPropagation()}
-            />
-          ) : (
-            <span
-              className="font-mono text-xs text-foreground truncate"
-              onClick={e => { e.stopPropagation(); setDraft(preset.name); setEditing(true); }}
-              title="click to rename"
-            >
-              {preset.name}
-            </span>
-          )}
-        </div>
-
-        {/* Controls row */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-0">
-            <Button
-              variant="ghost"
-              aria-label="Move preset up"
-              tooltip="Move up"
-              disabled={idx === 0}
-              onClick={e => { e.stopPropagation(); onMoveUp(); }}
-            >
-              ↑
-            </Button>
-            <Button
-              variant="ghost"
-              aria-label="Move preset down"
-              tooltip="Move down"
-              disabled={idx === presetCount - 1}
-              onClick={e => { e.stopPropagation(); onMoveDown(); }}
-            >
-              ↓
-            </Button>
-          </div>
-          <div className="flex items-center gap-0">
+      {/* Right: mirroring FrameCell's Stack justify="between" */}
+      <Stack justify="between" align="start">
+        <Stack gap="xs" align="start">
+          <Button
+            variant="ghost"
+            aria-label="Move preset up"
+            tooltip="Move up"
+            disabled={idx === 0}
+            onClick={e => { e.stopPropagation(); onMoveUp(); }}
+          >
+            ↑
+          </Button>
+          <Button
+            variant="ghost"
+            aria-label="Move preset down"
+            tooltip="Move down"
+            disabled={idx === presetCount - 1}
+            onClick={e => { e.stopPropagation(); onMoveDown(); }}
+          >
+            ↓
+          </Button>
+        </Stack>
+        <Stack gap="xs" align="start">
+          <div className="flex">
             <Button
               variant="ghost"
               aria-label="Duplicate preset"
@@ -262,8 +231,32 @@ function PresetCard({
               </Button>
             )}
           </div>
-        </div>
-      </div>
+          {/* Name — replaces the timing input */}
+          {editing ? (
+            <input
+              ref={inputRef}
+              className="font-mono text-xs bg-transparent border-b border-white text-foreground outline-none w-full"
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={e => {
+                e.stopPropagation();
+                if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
+                if (e.key === 'Escape') { setDraft(preset.name); setEditing(false); }
+              }}
+              onClick={e => e.stopPropagation()}
+            />
+          ) : (
+            <span
+              className="font-mono text-xs text-foreground/70 truncate max-w-[6rem]"
+              onDoubleClick={e => { e.stopPropagation(); setDraft(preset.name); setEditing(true); }}
+            >
+              {isActive && <span aria-label="active" className="inline-block w-1.5 h-1.5 rounded-full bg-white align-middle mr-1" />}
+              {preset.name}
+            </span>
+          )}
+        </Stack>
+      </Stack>
     </div>
   );
 }
