@@ -10,7 +10,7 @@ function ToolbarStory({ mode }: { mode: 'bw' | 'gray' }) {
 ToolbarStory.displayName = 'Toolbar';
 
 const meta = {
-  title: 'Components/Toolbar',
+  title: 'App/Design/Toolbar',
   component: ToolbarStory,
   tags: ['autodocs'],
   parameters: {

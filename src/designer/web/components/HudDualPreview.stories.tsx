@@ -9,7 +9,7 @@ const DATA_LINE: HudWidget = { widget: 'data', style: 'line' };
 const DATA_BARS: HudWidget = { widget: 'data', style: 'bars' };
 
 const meta = {
-  title: 'HUD/HudDualPreview',
+  title: 'App/HUD/HudDualPreview',
   component: HudDualPreview,
   parameters: {
     layout: 'centered',

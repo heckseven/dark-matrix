@@ -22,7 +22,7 @@ const PRESET_DATA: HudPresetClient = {
 };
 
 const meta = {
-  title: 'HUD/PresetList',
+  title: 'App/HUD/PresetList',
   component: PresetList,
   parameters: {
     layout: 'padded',

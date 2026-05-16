@@ -108,7 +108,7 @@ function installMockWs(opts: MockOpts = {}): () => void {
 // ── meta ─────────────────────────────────────────────────────────────────────
 
 const meta = {
-  title: 'HUD/HudPanel',
+  title: 'App/HUD/HudPanel',
   component: HudPanel,
   parameters: {
     layout: 'fullscreen',

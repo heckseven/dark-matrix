@@ -56,7 +56,7 @@ function installMockWs(frame?: string): () => void {
 }
 
 const meta = {
-  title: 'Designer/AudioPanel',
+  title: 'App/Audio/AudioPanel',
   component: AudioPanel,
   parameters: {
     layout: 'fullscreen',

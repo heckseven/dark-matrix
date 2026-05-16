@@ -44,7 +44,7 @@ function FrameStripStory({ frameCount }: { frameCount: number }) {
 FrameStripStory.displayName = 'FrameStrip';
 
 const meta = {
-  title: 'Designer/FrameStrip',
+  title: 'App/Design/FrameStrip',
   component: FrameStripStory,
   parameters: {
     docs: {
