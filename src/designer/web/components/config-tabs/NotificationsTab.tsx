@@ -169,7 +169,7 @@ export function NotificationsTab({ value, onChange }: NotificationsTabProps) {
 
   return (
     <div className="flex flex-col p-2">
-      <p className="font-mono text-xs text-white/40 mb-2">
+      <p className="font-mono text-xs text-white/55 mb-2">
         first match wins — default when no rules match: scroll
       </p>
 
@@ -192,7 +192,7 @@ export function NotificationsTab({ value, onChange }: NotificationsTabProps) {
         + add rule
       </Button>
 
-      <div className="font-mono text-xs text-foreground/40 flex flex-col gap-1 border-t border-foreground/10 mt-4 pt-4">
+      <div className="font-mono text-xs text-foreground/55 flex flex-col gap-1 border-t border-foreground/10 mt-4 pt-4">
         <p className="text-foreground/60 mb-1">finding an app name</p>
         <p>sniff the next real notification from any app:</p>
         <pre className="bg-foreground/5 px-2 py-1 rounded-sm mt-1 whitespace-pre-wrap">{'dbus-monitor --session "interface=\'org.freedesktop.Notifications\',member=\'Notify\'"'}</pre>
@@ -264,7 +264,7 @@ function TestNotification({ rules }: { rules: NotificationRule[] }) {
         )}
       </div>
       {appName && matchedRule && !result && (
-        <span className="font-mono text-xs text-foreground/40">
+        <span className="font-mono text-xs text-foreground/55">
           matches rule: {matchedRule.app_name_glob} → {matchedRule.animation}
         </span>
       )}
