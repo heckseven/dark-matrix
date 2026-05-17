@@ -85,7 +85,7 @@ function ThresholdFields({ trigger, onChange }: FieldProps) {
   return (
     <div className="flex items-center gap-4 flex-wrap">
       <div className="flex items-center gap-2">
-        <label className="font-mono text-xs text-foreground/55">metric</label>
+        <span className="font-mono text-xs text-foreground/55">metric</span>
         <Select
           aria-label="Metric"
           value={t.metric}
@@ -275,7 +275,7 @@ function DateFields({ trigger, onChange }: FieldProps) {
         value={trigger.month}
         min={1}
         max={12}
-        suffix={MONTHS[(trigger.month - 1) % 12]!}
+        suffix={MONTHS[Math.max(0, trigger.month - 1) % 12] ?? ''}
         onChange={v => onChange({ ...trigger, month: v })}
         className="w-6 text-center"
       />
