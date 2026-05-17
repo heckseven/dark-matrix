@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef, useId } from 'react';
+import { useState, useEffect, useRef, useId, useCallback } from 'react';
 import { MatrixPreview } from './MatrixPreview.js';
 import { Tabs } from './ui/tabs.js';
 import { Select } from './ui/select.js';
 import { Button } from './ui/button.js';
-import { Toggle } from './ui/toggle.js';
 import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
 import { DATA_STYLES, createDataRenderer } from '../../../animations/data-renderers.js';
@@ -12,7 +11,6 @@ import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../an
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { createHeatmapState, bumpTool, tickHeatmap, renderHeatmap } from '../../../animations/heatmap.js';
 import type { HudWidget } from '../types/hud-preset.js';
-import { useDesignerStore, designerStore } from '../store.js';
 
 const COLS = 9;
 const ROWS = 34;
@@ -321,60 +319,21 @@ function AiGrid({ currentWidget, onPick }: {
 
 const MOCK_AUDIO_CTX: RenderCtx = { bands: [200, 150, 100, 70, 40, 20, 10, 5, 2], fftSize: 2048, gain: 1.5 };
 
-function useAudioFeed(): RenderCtx {
-  const audioSource = useDesignerStore(s => s.audioSource);
-  const [liveCtx, setLiveCtx] = useState<RenderCtx | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-  const sourceRef = useRef(audioSource);
-  sourceRef.current = audioSource;
-
-  useEffect(() => {
-    const ws = new WebSocket(`ws://${location.host}/ws`);
-    wsRef.current = ws;
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'audio-viz', style: AUDIO_STYLES[0]!.id, source: sourceRef.current }));
-    };
-    ws.onmessage = (e: MessageEvent) => {
-      try {
-        const msg = JSON.parse(e.data as string) as { type: string; bands?: number[]; fftSize?: number; gain?: number };
-        if (msg.type === 'audio-bands' && msg.bands) {
-          setLiveCtx({ bands: msg.bands, fftSize: msg.fftSize ?? 2048, gain: msg.gain ?? 1.0 });
-        }
-      } catch { /* ignore */ }
-    };
-    return () => {
-      const w = wsRef.current;
-      wsRef.current = null;
-      if (w && w.readyState === WebSocket.OPEN) {
-        w.send(JSON.stringify({ type: 'audio-viz-stop' }));
-        w.close();
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: 'audio-viz', style: AUDIO_STYLES[0]!.id, source: audioSource }));
-  }, [audioSource]);
-
-  return liveCtx ?? MOCK_AUDIO_CTX;
-}
-
 function initAudioRenderers(): Record<AudioStyle, ReturnType<typeof createAudioRenderer>> {
   return Object.fromEntries(
     AUDIO_STYLES.map(({ id }) => [id, createAudioRenderer(id)])
   ) as Record<AudioStyle, ReturnType<typeof createAudioRenderer>>;
 }
 
-function AudioGrid({ currentWidget, onPick }: {
+function AudioGrid({ currentWidget, audioCtx, onPick, onMount, onUnmount }: {
   currentWidget: HudWidget | null;
+  audioCtx: RenderCtx;
   onPick: (w: HudWidget) => void;
+  onMount: () => void;
+  onUnmount: () => void;
 }) {
-  const audioSource = useDesignerStore(s => s.audioSource);
-  const ctx = useAudioFeed();
-  const ctxRef = useRef(ctx);
-  ctxRef.current = ctx;
+  const ctxRef = useRef(audioCtx);
+  ctxRef.current = audioCtx;
 
   const renderersRef = useRef<Record<AudioStyle, ReturnType<typeof createAudioRenderer>> | null>(null);
   if (!renderersRef.current) renderersRef.current = initAudioRenderers();
@@ -383,6 +342,12 @@ function AudioGrid({ currentWidget, onPick }: {
     const r = renderersRef.current!;
     return Object.fromEntries(AUDIO_STYLES.map(({ id }) => [id, bayerToB64(r[id]!(MOCK_AUDIO_CTX))]));
   });
+
+  useEffect(() => {
+    onMount();
+    return onUnmount;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const iid = setInterval(() => {
@@ -394,28 +359,16 @@ function AudioGrid({ currentWidget, onPick }: {
   }, []);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2 px-1">
-        <Toggle
-          pressed={audioSource === 'mic'}
-          onPressedChange={(on) => designerStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
-          aria-label={audioSource === 'mic' ? 'Switch to monitor' : 'Switch to mic'}
-          pressedLabel="mic"
-        >
-          mic
-        </Toggle>
-      </div>
-      <div role="group" aria-label="Audio panels" className="grid grid-cols-3 gap-4">
-        {AUDIO_STYLES.map(({ id, label }) => (
-          <WidgetTile
-            key={id}
-            label={label}
-            pixels={pixels[id] ?? EMPTY_PIXELS}
-            active={currentWidget?.widget === 'audio' && (currentWidget.style ?? AUDIO_STYLES[0]!.id) === id}
-            onClick={() => onPick({ widget: 'audio', style: id })}
-          />
-        ))}
-      </div>
+    <div role="group" aria-label="Audio panels" className="grid grid-cols-3 gap-4">
+      {AUDIO_STYLES.map(({ id, label }) => (
+        <WidgetTile
+          key={id}
+          label={label}
+          pixels={pixels[id] ?? EMPTY_PIXELS}
+          active={currentWidget?.widget === 'audio' && (currentWidget.style ?? AUDIO_STYLES[0]!.id) === id}
+          onClick={() => onPick({ widget: 'audio', style: id })}
+        />
+      ))}
     </div>
   );
 }
@@ -496,12 +449,14 @@ function DataSettings({ widget, uid, onChange }: {
 
 export type HudInspectorProps = {
   widget: HudWidget | null;
+  audioCtx?: RenderCtx;
+  onNeedsAudio?: (needs: boolean) => void;
   onChange: (widget: HudWidget) => void;
 };
 
 type View = 'categories' | 'grid' | 'settings';
 
-export function HudInspector({ widget, onChange }: HudInspectorProps) {
+export function HudInspector({ widget, audioCtx = MOCK_AUDIO_CTX, onNeedsAudio, onChange }: HudInspectorProps) {
   const uid = useId();
 
   const [view, setView] = useState<View>(() => {
@@ -526,19 +481,15 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
     }
   }
 
-  function handleClose() {
-    setView('categories');
-    setActiveCategory(null);
+  const handleAudioMount   = useCallback(() => onNeedsAudio?.(true),  [onNeedsAudio]);
+  const handleAudioUnmount = useCallback(() => onNeedsAudio?.(false), [onNeedsAudio]);
+
+  function handlePick(w: HudWidget) {
+    onChange(w);
   }
 
-  function handlePick(picked: HudWidget) {
-    onChange(picked);
-    // Stay on grid so the active highlight is visible
-  }
-
-  function handleSettings(picked: HudWidget) {
-    onChange(picked);
-    setActiveCategory('data');
+  function handleSettings(w: HudWidget) {
+    onChange(w);
     setView('settings');
   }
 
@@ -561,9 +512,6 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
         <span aria-hidden="true">{backLabel}</span>
       </Button>
       <span className="font-mono text-xs text-foreground/50 mx-auto">{activeCategory ?? ''}</span>
-      <Button variant="ghost" className="text-foreground/60" aria-label="Close inspector" onClick={handleClose}>
-        <span aria-hidden="true">✕</span>
-      </Button>
     </div>
   );
 
@@ -577,7 +525,7 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
             {activeCategory === 'clocks' && <ClockGrid currentWidget={widget} onPick={handlePick} />}
             {activeCategory === 'data'   && <DataGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} />}
             {activeCategory === 'ai'     && <AiGrid    currentWidget={widget} onPick={handlePick} />}
-            {activeCategory === 'audio'  && <AudioGrid currentWidget={widget} onPick={handlePick} />}
+            {activeCategory === 'audio'  && <AudioGrid currentWidget={widget} audioCtx={audioCtx} onPick={handlePick} onMount={handleAudioMount} onUnmount={handleAudioUnmount} />}
           </div>
         </div>
       </div>
