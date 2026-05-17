@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { AUDIO_STYLES, LAB_PARAMS, createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
+import { MatrixPreview } from './MatrixPreview.js';
+import { Select } from './ui/select.js';
+import { Button } from './ui/button.js';
+import { Slider } from './ui/slider.js';
 
 const COLS = 9;
 const ROWS = 34;
-const SCALE = 6;  // CSS scale; canvas native is 9×34
 
 // ── mock audio ─────────────────────────────────────────────────────────────
 
@@ -19,6 +22,12 @@ function mockAudio(tick: number): RenderCtx {
   });
   return { bands, fftSize: 2048, gain: 1.5 };
 }
+
+function frameToB64(frame: Uint8Array): string {
+  return btoa(String.fromCharCode(...frame));
+}
+
+const EMPTY_PIXELS = frameToB64(new Uint8Array(COLS * ROWS));
 
 // ── cell state ─────────────────────────────────────────────────────────────
 
@@ -40,38 +49,24 @@ function LabCell({ cell, audioCtx, onClone, onRemove, onChange }: {
   onRemove: () => void;
   onChange: (style: AudioStyle, params: Record<string, number>) => void;
 }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioRef = useRef(audioCtx);
   audioRef.current = audioCtx;
 
   const renderer = useMemo(
     () => createAudioRenderer(cell.style, cell.params),
-    // Recreate when style or params change; JSON.stringify is intentional for dev-tool use
+    // Recreate renderer on style/param change; JSON.stringify intentional for dev-tool use
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [cell.style, JSON.stringify(cell.params)],
   );
   const rendererRef = useRef(renderer);
   rendererRef.current = renderer;
 
+  const [pixels, setPixels] = useState<string>(EMPTY_PIXELS);
+
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx2d = canvas.getContext('2d');
-    if (!ctx2d) return;
-    const imgData = new ImageData(COLS, ROWS);
     const id = setInterval(() => {
       const frame = rendererRef.current(audioRef.current);
-      for (let row = 0; row < ROWS; row++) {
-        for (let col = 0; col < COLS; col++) {
-          const v = frame[col * ROWS + row] ?? 0;
-          const idx = (row * COLS + col) * 4;
-          imgData.data[idx]     = v;
-          imgData.data[idx + 1] = v;
-          imgData.data[idx + 2] = v;
-          imgData.data[idx + 3] = 255;
-        }
-      }
-      ctx2d.putImageData(imgData, 0, 0);
+      setPixels(frameToB64(frame));
     }, 80);
     return () => clearInterval(id);
   }, []);
@@ -87,64 +82,37 @@ function LabCell({ cell, audioCtx, onClone, onRemove, onChange }: {
   }
 
   return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', gap: 8,
-      background: '#111', border: '1px solid #2a2a2a', borderRadius: 4,
-      padding: 10, minWidth: 160, maxWidth: 220,
-    }}>
+    <div className="flex flex-col gap-2 p-3 border border-border rounded bg-background" style={{ minWidth: 180 }}>
       {/* header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        <select
+      <div className="flex items-center gap-1">
+        <Select
           value={cell.style}
           onChange={e => setStyle(e.target.value as AudioStyle)}
-          style={{
-            flex: 1, background: '#1a1a1a', border: '1px solid #333', color: '#ccc',
-            borderRadius: 3, padding: '2px 4px', fontSize: 11,
-          }}
+          className="flex-1"
         >
           {AUDIO_STYLES.map(s => (
             <option key={s.id} value={s.id}>{s.label}</option>
           ))}
-        </select>
-        <button
-          onClick={onClone}
-          title="Clone"
-          style={{ background: 'none', border: '1px solid #333', color: '#888', borderRadius: 3, cursor: 'pointer', padding: '2px 6px', fontSize: 11 }}
-        >⎘</button>
-        <button
-          onClick={onRemove}
-          title="Remove"
-          style={{ background: 'none', border: '1px solid #333', color: '#666', borderRadius: 3, cursor: 'pointer', padding: '2px 6px', fontSize: 11 }}
-        >×</button>
+        </Select>
+        <Button variant="ghost" size="sm" tooltip="Clone" onClick={onClone}>⎘</Button>
+        <Button variant="destructive" size="sm" tooltip="Remove" onClick={onRemove}>×</Button>
       </div>
 
       {/* preview */}
-      <canvas
-        ref={canvasRef}
-        width={COLS}
-        height={ROWS}
-        style={{
-          width: COLS * SCALE, height: ROWS * SCALE,
-          imageRendering: 'pixelated', alignSelf: 'center',
-          border: '1px solid #1e1e1e',
-        }}
-      />
+      <div className="flex justify-center">
+        <MatrixPreview pixels={pixels} width={9} />
+      </div>
 
       {/* params */}
       {params.map(p => {
         const val = cell.params[p.key] ?? p.default;
         return (
-          <div key={p.key} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#666' }}>
-              <span>{p.label}</span>
-              <span style={{ color: '#999', fontVariantNumeric: 'tabular-nums' }}>{val.toFixed(3)}</span>
-            </div>
-            <input
-              type="range"
+          <div key={p.key} className="flex flex-col gap-0.5">
+            <span className="text-xs text-muted-foreground">{p.label}</span>
+            <Slider
               min={p.min} max={p.max} step={p.step}
               value={val}
               onChange={e => setParam(p.key, Number(e.target.value))}
-              style={{ width: '100%', accentColor: '#4a9eff' }}
             />
           </div>
         );
@@ -195,25 +163,14 @@ export function AudioLab() {
   }
 
   return (
-    <div style={{
-      minHeight: '100vh', background: '#0a0a0a', color: '#ccc',
-      padding: 20, fontFamily: 'monospace',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
-        <span style={{ fontSize: 13, color: '#555' }}>audio lab</span>
-        <button
-          onClick={addCell}
-          style={{
-            background: 'none', border: '1px solid #333', color: '#888',
-            borderRadius: 3, cursor: 'pointer', padding: '4px 10px', fontSize: 11,
-          }}
-        >+ add cell</button>
-        <span style={{ fontSize: 10, color: '#333', marginLeft: 'auto' }}>
-          preview is raw grayscale · hardware applies threshold at 128
-        </span>
+    <div className="min-h-screen bg-background text-foreground p-5 font-mono">
+      <div className="flex items-center gap-4 mb-5">
+        <span className="text-xs text-muted-foreground">audio lab</span>
+        <Button variant="default" size="sm" onClick={addCell}>+ add cell</Button>
+        <span className="text-xs text-muted-foreground ml-auto">preview is raw grayscale · hardware thresholds at 128</span>
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' }}>
+      <div className="flex flex-wrap gap-3 items-start">
         {cells.map(cell => (
           <LabCell
             key={cell.id}
