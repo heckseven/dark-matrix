@@ -7,6 +7,7 @@ import { Toggle } from './components/ui/toggle.js';
 import { Button } from './components/ui/button.js';
 import { Slider } from './components/ui/slider.js';
 import { Input } from './components/ui/input.js';
+import { ScrubInput } from './components/ui/scrub-input.js';
 import { Text } from './components/ui/text.js';
 import { Tooltip, TooltipProvider } from './components/ui/tooltip.js';
 import { Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger } from './components/ui/menu.js';
@@ -198,6 +199,7 @@ export function App() {
   const recentFiles = useDesignerStore(s => s.recentFiles);
   const hudPresets         = useDesignerStore(s => s.hudPresets);
   const selectedPresetName = useDesignerStore(s => s.selectedPresetName);
+  const hudSelectedSide    = useDesignerStore(s => s.hudSelectedSide);
   const selectedPreset     = hudPresets.find(p => p.name === selectedPresetName) ?? null;
 
   useEffect(() => {
@@ -208,6 +210,10 @@ export function App() {
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [hasMic, setHasMic] = useState(false);
   const [hudNeedsAudio, setHudNeedsAudio] = useState(false);
+  const [clockOverrideH, setClockOverrideH] = useState(() => new Date().getHours());
+  const [clockOverrideM, setClockOverrideM] = useState(() => new Date().getMinutes());
+  const [clockFastForward, setClockFastForward] = useState(false);
+  const [hudClocksVisible, setHudClocksVisible] = useState(false);
   const [livePreviewOn, setLivePreviewOn] = useState(false);
   const bridge = usePreviewBridge();
   const hudSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -248,6 +254,26 @@ export function App() {
     md.addEventListener('devicechange', check);
     return () => { alive = false; md.removeEventListener('devicechange', check); };
   }, []);
+
+  const isClockSelected = activeMode === 'hud' && (selectedPreset?.[hudSelectedSide]?.widget === 'clock' || hudClocksVisible);
+
+  useEffect(() => {
+    if (!clockFastForward) return;
+    const id = setInterval(() => {
+      setClockOverrideM(m => {
+        const next = (m + 1) % 60;
+        if (next === 0) setClockOverrideH(h => (h + 1) % 24);
+        return next;
+      });
+    }, 100);
+    return () => clearInterval(id);
+  }, [clockFastForward]);
+
+  const clockNow = isClockSelected ? (() => {
+    const d = new Date();
+    d.setHours(clockOverrideH, clockOverrideM, 0, 0);
+    return d;
+  })() : undefined;
 
   useLayoutEffect(() => {
     if (typeof ResizeObserver === 'undefined') return;
@@ -396,16 +422,56 @@ export function App() {
                   )}
                 </div>
               </div>
-              {hasMic && hudNeedsAudio && (
+              {(isClockSelected || (hasMic && hudNeedsAudio)) && (
                 <div className="ml-auto flex items-center gap-2">
-                  <Toggle
-                    pressed={audioSource === 'mic'}
-                    onPressedChange={(on) => designerStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
-                    title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
-                    aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
-                  >
-                    <span aria-hidden="true">mic</span>
-                  </Toggle>
+                  {isClockSelected && (
+                    <>
+                      <ScrubInput
+                        aria-label="Clock hours"
+                        value={clockOverrideH}
+                        min={0}
+                        max={23}
+                        onChange={setClockOverrideH}
+                      />
+                      <ScrubInput
+                        aria-label="Clock minutes"
+                        value={clockOverrideM}
+                        min={0}
+                        max={59}
+                        onChange={setClockOverrideM}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label="Reset to current time"
+                        onClick={() => { const n = new Date(); setClockOverrideH(n.getHours()); setClockOverrideM(n.getMinutes()); }}
+                      >
+                        now
+                      </Button>
+                      <Tooltip content="fast forward">
+                        <Toggle
+                          pressed={clockFastForward}
+                          onPressedChange={setClockFastForward}
+                          aria-label="Fast forward clock"
+                        >
+                          <span aria-hidden="true">»</span>
+                        </Toggle>
+                      </Tooltip>
+                    </>
+                  )}
+                  {isClockSelected && hasMic && hudNeedsAudio && (
+                    <span aria-hidden="true" className="w-px h-4 bg-foreground/20" />
+                  )}
+                  {hasMic && hudNeedsAudio && (
+                    <Toggle
+                      pressed={audioSource === 'mic'}
+                      onPressedChange={(on) => designerStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
+                      title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                      aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                    >
+                      <span aria-hidden="true">mic</span>
+                    </Toggle>
+                  )}
                 </div>
               )}
             </>
@@ -535,7 +601,7 @@ export function App() {
 
         {activeMode === 'hud' ? (
           <div className="h-full flex">
-            <HudPanel dualModule={dualModule} topPad={headerHeight} onNeedsAudioChange={setHudNeedsAudio} />
+            <HudPanel dualModule={dualModule} topPad={headerHeight} onNeedsAudioChange={setHudNeedsAudio} onClocksVisibleChange={setHudClocksVisible} {...(clockNow !== undefined ? { clockNow } : {})} />
           </div>
         ) : activeMode === 'audio' ? (
           <div className="h-full flex">

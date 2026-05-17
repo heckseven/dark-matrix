@@ -133,7 +133,7 @@ function CategoryList({ currentWidget, onSelect }: {
           </span>
           {cat.disabled
             ? <span className="font-mono text-xs text-foreground/25">soon</span>
-            : <span aria-hidden="true" className="font-mono text-xs text-foreground/30">→</span>
+            : <span aria-hidden="true" className="font-mono text-xs text-foreground/30">›</span>
           }
         </button>
       ))}
@@ -472,12 +472,13 @@ export type HudInspectorProps = {
   side?: 'left' | 'right';
   audioCtx?: RenderCtx;
   onNeedsAudio?: (needs: boolean) => void;
+  onClocksVisible?: (visible: boolean) => void;
   onChange: (widget: HudWidget) => void;
 };
 
 type View = 'categories' | 'grid' | 'settings';
 
-export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX, onNeedsAudio, onChange }: HudInspectorProps) {
+export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX, onNeedsAudio, onClocksVisible, onChange }: HudInspectorProps) {
   const uid = useId();
 
   const [view, setView] = useState<View>(() => {
@@ -505,6 +506,22 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
   const handleAudioMount   = useCallback(() => onNeedsAudio?.(true),  [onNeedsAudio]);
   const handleAudioUnmount = useCallback(() => onNeedsAudio?.(false), [onNeedsAudio]);
 
+  useEffect(() => {
+    onClocksVisible?.(view === 'grid' && activeCategory === 'clocks');
+  }, [view, activeCategory, onClocksVisible]);
+
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const activeCategoryRef = useRef(activeCategory);
+  activeCategoryRef.current = activeCategory;
+
+  useEffect(() => {
+    if (widget && viewRef.current === 'categories' && activeCategoryRef.current === null) {
+      setActiveCategory(categoryOfWidget(widget));
+      setView(widgetHasSettings(widget) ? 'settings' : 'grid');
+    }
+  }, [widget]);
+
   function handlePick(w: HudWidget) {
     onChange(w);
   }
@@ -523,16 +540,16 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
     );
   }
 
-  const backLabel = view === 'settings' ? `← ${activeCategory ?? 'back'}` : '← categories';
+  const backLabel = view === 'settings' ? `‹ ${activeCategory ?? 'back'}` : '‹ categories';
   const backAriaLabel = view === 'settings' ? `Back to ${activeCategory ?? 'grid'}` : 'Back to categories';
 
   // ── Layer 2 + Layer 3 header
   const header = (
-    <div className="flex items-center shrink-0 px-2 py-1 border-b border-foreground/10">
+    <div className="relative flex items-center shrink-0 px-2 py-1">
       <Button variant="ghost" className="text-foreground/60 text-xs" aria-label={backAriaLabel} onClick={handleBack}>
         <span aria-hidden="true">{backLabel}</span>
       </Button>
-      <span className="font-mono text-xs text-foreground/50 mx-auto">{activeCategory ?? ''}</span>
+      <span className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">{activeCategory ?? ''}</span>
     </div>
   );
 

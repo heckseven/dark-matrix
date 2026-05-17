@@ -152,6 +152,7 @@ export type HudDualPreviewProps = {
   selectedSide:  'left' | 'right';
   onSelectSide:  (side: 'left' | 'right') => void;
   audioCtx?:     RenderCtx;
+  clockNow?:     Date;
 };
 
 export function HudDualPreview({
@@ -160,10 +161,13 @@ export function HudDualPreview({
   selectedSide,
   onSelectSide,
   audioCtx = MOCK_AUDIO_CTX,
+  clockNow,
 }: HudDualPreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioCtxRef = useRef<RenderCtx>(audioCtx);
   audioCtxRef.current = audioCtx;
+  const clockNowRef = useRef<Date | undefined>(clockNow);
+  clockNowRef.current = clockNow;
 
   // Size canvas on mount (DPR-aware)
   useEffect(() => {
@@ -182,7 +186,7 @@ export function HudDualPreview({
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (!ctx) return;
-    const now = new Date();
+    const now = clockNowRef.current ?? new Date();
     const audioCtx = audioCtxRef.current;
     drawModule(ctx, getPixels(leftWidget,  'left',  now, audioCtx), 0);
     drawModule(ctx, getPixels(rightWidget, 'right', now, audioCtx), RIGHT_X);

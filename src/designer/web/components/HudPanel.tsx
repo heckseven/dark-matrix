@@ -52,10 +52,12 @@ function buildPresetConfigPayload(preset: HudPresetClient) {
 
 const MOCK_AUDIO_CTX: RenderCtx = { bands: [200, 150, 100, 70, 40, 20, 10, 5, 2], fftSize: 2048, gain: 1.5 };
 
-export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange }: {
+export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, onClocksVisibleChange, clockNow }: {
   dualModule?: boolean;
   topPad?: number;
   onNeedsAudioChange?: (needs: boolean) => void;
+  onClocksVisibleChange?: (visible: boolean) => void;
+  clockNow?: Date;
 }) {
   const hudPresets         = useDesignerStore(s => s.hudPresets);
   const activePresetName   = useDesignerStore(s => s.activePresetName);
@@ -67,6 +69,7 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange }:
 
   const [audioCtx, setAudioCtx] = useState<RenderCtx>(MOCK_AUDIO_CTX);
   const [inspectorNeedsAudio, setInspectorNeedsAudio] = useState(false);
+  const [inspectorClocksVisible, setInspectorClocksVisible] = useState(false);
 
   const previewHasAudio = selectedPreset?.left?.widget === 'audio' || selectedPreset?.right?.widget === 'audio';
   const needsAudio = previewHasAudio || inspectorNeedsAudio;
@@ -193,6 +196,10 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange }:
     onNeedsAudioChange?.(needsAudio);
   }, [needsAudio, onNeedsAudioChange]);
 
+  useEffect(() => {
+    onClocksVisibleChange?.(inspectorClocksVisible);
+  }, [inspectorClocksVisible, onClocksVisibleChange]);
+
   // ── render ───────────────────────────────────────────────────────────
 
   return (
@@ -251,6 +258,7 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange }:
             selectedSide={hudSelectedSide}
             onSelectSide={(side) => designerStore.getState().selectSide(side)}
             audioCtx={audioCtx}
+            {...(clockNow !== undefined ? { clockNow } : {})}
           />
           <TriggerEditor
             triggers={selectedPreset?.triggers ?? []}
@@ -281,6 +289,7 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange }:
             side={hudSelectedSide}
             audioCtx={audioCtx}
             onNeedsAudio={setInspectorNeedsAudio}
+            onClocksVisible={setInspectorClocksVisible}
             onChange={(widget) => {
               if (!selectedPreset) return;
               designerStore.getState().updatePresetWidget(selectedPreset.name, hudSelectedSide, widget);
