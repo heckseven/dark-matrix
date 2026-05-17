@@ -710,6 +710,15 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
       return;
     }
 
+    if (url === '/api/net-interfaces' && method === 'GET') {
+      const interfaces = Object.keys(os.networkInterfaces())
+        .filter(n => n !== 'lo')
+        .sort();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, interfaces }));
+      return;
+    }
+
     if (url === '/api/modules' && method === 'GET') {
       try {
         const s = await sendToDaemon({ cmd: 'status' }) as { ok: boolean; modules: { left: boolean; right: boolean } };

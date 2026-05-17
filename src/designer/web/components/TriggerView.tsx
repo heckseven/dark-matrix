@@ -165,20 +165,50 @@ function ThresholdFields({ trigger, onChange }: FieldProps) {
 }
 
 function InterfaceFields({ trigger, onChange }: FieldProps) {
+  const [ifaces, setIfaces] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    fetch('/api/net-interfaces')
+      .then(r => r.json() as Promise<{ ok: boolean; interfaces?: string[] }>)
+      .then(d => setIfaces(d.interfaces ?? []))
+      .catch(() => setIfaces([]));
+  }, []);
+
   if (trigger.type !== 'interface') return null;
+
+  const detected = ifaces ?? [];
+  const useSelect = detected.length > 0;
+  const isOther = useSelect && !detected.includes(trigger.name);
+
   return (
     <div className="flex items-end gap-4 flex-wrap">
       <div className="flex flex-col gap-1">
         <label className="font-mono text-xs text-foreground/55">name</label>
-        <Input
-          type="text"
-          aria-label="Interface name"
-          placeholder="eth0"
-          value={trigger.name}
-          onChange={e => onChange({ ...trigger, name: e.target.value })}
-          className="w-32"
-          expandedClassName="w-32"
-        />
+        <div className="flex items-center gap-2">
+          {useSelect && (
+            <Select
+              aria-label="Interface name"
+              value={isOther ? '__other__' : trigger.name}
+              onChange={e => onChange({ ...trigger, name: e.target.value === '__other__' ? '' : e.target.value })}
+            >
+              {detected.map(iface => (
+                <option key={iface} value={iface}>{iface}</option>
+              ))}
+              <option value="__other__">other…</option>
+            </Select>
+          )}
+          {(!useSelect || isOther) && (
+            <Input
+              type="text"
+              aria-label="Custom interface name"
+              placeholder="eth0"
+              value={trigger.name}
+              onChange={e => onChange({ ...trigger, name: e.target.value })}
+              className="w-32"
+              expandedClassName="w-32"
+            />
+          )}
+        </div>
       </div>
       <div className="flex flex-col gap-1">
         <span className="font-mono text-xs text-foreground/55">state</span>
