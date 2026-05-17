@@ -1,7 +1,7 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'vu-glitch' | 'circuit' | 'spirits' | 'scope-dual' | 'kick-d' | 'waterfall' | 'sparks' | 'hex' | 'specter' | 'heat' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'rhythm' | 'drop' | 'life-erode-4' | 'life-erode-4b' | 'life-erode-4c' | 'life-erode-4e' | 'glitch-sort-b' | 'spiral-d' | 'strobe' | 'glitch-corrupt';
+export type AudioStyle = 'vu-glitch' | 'circuit' | 'spirits' | 'scope-dual' | 'kick-d' | 'waterfall' | 'sparks' | 'hex' | 'specter' | 'heat' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'rhythm' | 'drop' | 'life-erode-4' | 'life-erode-4b' | 'life-erode-4c' | 'life-erode-4e' | 'life-erode-4ec' | 'glitch-sort-b' | 'spiral-d' | 'strobe' | 'glitch-corrupt';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'dark-matter',         label: 'dark matter' },
@@ -18,6 +18,7 @@ export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'life-erode-4b',       label: 'replicants b' },
   { id: 'life-erode-4c',       label: 'replicants c' },
   { id: 'life-erode-4e',       label: 'replicants e' },
+  { id: 'life-erode-4ec',      label: 'replicants ec' },
   { id: 'wake',                label: 'wake' },
   { id: 'drop',                label: 'drop' },
   { id: 'spirits',             label: 'spirits' },
@@ -53,6 +54,12 @@ export const LAB_PARAMS: Partial<Record<AudioStyle, LabParam[]>> = {
     { key: 'seedRate',       label: 'seed rate',  min: 0,     max: 0.5,  step: 0.005, default: 0.15  },
     { key: 'continuousCull', label: 'cull',        min: 0,     max: 1,    step: 0.01,  default: 0.70  },
     { key: 'decay',          label: 'decay',       min: 0.5,   max: 0.99, step: 0.01,  default: 0.75  },
+    { key: 'dipRate',        label: 'dip rate',    min: 0.1,   max: 0.99, step: 0.01,  default: 0.70  },
+  ],
+  'life-erode-4ec': [
+    { key: 'seedRate',       label: 'seed rate',  min: 0,     max: 0.5,  step: 0.005, default: 0.16  },
+    { key: 'continuousCull', label: 'cull',        min: 0,     max: 1,    step: 0.01,  default: 0.66  },
+    { key: 'decay',          label: 'decay',       min: 0.5,   max: 0.99, step: 0.01,  default: 0.74  },
     { key: 'dipRate',        label: 'dip rate',    min: 0.1,   max: 0.99, step: 0.01,  default: 0.70  },
   ],
 };
@@ -894,7 +901,8 @@ function dripB(): Renderer { return makeDripLine(5, 0.88); }
 type LifeRevival =
   | { mode: 'stochastic'; birthRate: number }
   | { mode: 'blinker' }
-  | { mode: 'threshold-dip'; dipRate: number };
+  | { mode: 'threshold-dip'; dipRate: number }
+  | { mode: 'threshold-dip-blinker'; dipRate: number };
 
 type LifeOpts = { seedRate: number; threshold: number; decay: number; survive: (n: number) => boolean; born: (n: number) => boolean; transientWipe?: number; transientCull?: number; continuousCull?: number; revival?: LifeRevival };
 
@@ -989,6 +997,22 @@ function makeLife(opts: LifeOpts): Renderer {
         } else {
           thresholdMult = Math.min(1.0, thresholdMult / revival.dipRate);
         }
+      } else if (revival.mode === 'threshold-dip-blinker') {
+        if (aliveCount === 0) {
+          thresholdMult = Math.max(0.01, thresholdMult * revival.dipRate);
+          if (thresholdMult <= 0.1 && !blinkerActive) {
+            const col = 1 + Math.floor(Math.random() * (BAND_COUNT - 3));
+            const row = 1 + Math.floor(Math.random() * (ROWS - 2));
+            cells[col * ROWS + row] = 1.0;
+            cells[(col + 1) * ROWS + row] = 1.0;
+            cells[(col + 2) * ROWS + row] = 1.0;
+            blinkerActive = true;
+            thresholdMult = 1.0;
+          }
+        } else {
+          thresholdMult = Math.min(1.0, thresholdMult / revival.dipRate);
+          blinkerActive = false;
+        }
       }
     }
     const frame = createFrame();
@@ -1009,6 +1033,9 @@ function lifeErode4C(p?: Record<string, number>): Renderer {
 }
 function lifeErode4E(p?: Record<string, number>): Renderer {
   return makeLife({ seedRate: p?.['seedRate'] ?? 0.15, threshold: p?.['threshold'] ?? 0.4, decay: p?.['decay'] ?? 0.75, survive: n => n === 2 || n === 3, born: n => n === 3, continuousCull: p?.['continuousCull'] ?? 0.70, revival: { mode: 'threshold-dip', dipRate: p?.['dipRate'] ?? 0.7 } });
+}
+function lifeErode4EC(p?: Record<string, number>): Renderer {
+  return makeLife({ seedRate: p?.['seedRate'] ?? 0.16, threshold: p?.['threshold'] ?? 0.4, decay: p?.['decay'] ?? 0.74, survive: n => n === 2 || n === 3, born: n => n === 3, continuousCull: p?.['continuousCull'] ?? 0.66, revival: { mode: 'threshold-dip-blinker', dipRate: p?.['dipRate'] ?? 0.7 } });
 }
 
 function glitchCorrupt(): Renderer {
@@ -1064,6 +1091,7 @@ const FACTORIES: Record<AudioStyle, (params?: Record<string, number>) => Rendere
   'life-erode-4b':       lifeErode4B,
   'life-erode-4c':       lifeErode4C,
   'life-erode-4e':       lifeErode4E,
+  'life-erode-4ec':      lifeErode4EC,
   'kick-d':              kickD,
   'waterfall':           waterfall,
   'sparks':              sparks,
