@@ -16,6 +16,17 @@ const COLS = 9;
 const ROWS = 34;
 const EMPTY_PIXELS = btoa(String.fromCharCode(...new Uint8Array(COLS * ROWS)));
 
+function mirrorFrame(frame: Uint8Array): Uint8Array {
+  const out = new Uint8Array(frame.length);
+  for (let col = 0; col < COLS; col++) {
+    const src = COLS - 1 - col;
+    for (let row = 0; row < ROWS; row++) {
+      out[col * ROWS + row] = frame[src * ROWS + row] ?? 0;
+    }
+  }
+  return out;
+}
+
 // ── pixel helpers ─────────────────────────────────────────────────────────
 
 const BAYER4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]] as const;
@@ -325,22 +336,32 @@ function initAudioRenderers(): Record<AudioStyle, ReturnType<typeof createAudioR
   ) as Record<AudioStyle, ReturnType<typeof createAudioRenderer>>;
 }
 
-function AudioGrid({ currentWidget, audioCtx, onPick, onMount, onUnmount }: {
+function AudioGrid({ currentWidget, audioCtx, side, onPick, onMount, onUnmount }: {
   currentWidget: HudWidget | null;
   audioCtx: RenderCtx;
+  side: 'left' | 'right';
   onPick: (w: HudWidget) => void;
   onMount: () => void;
   onUnmount: () => void;
 }) {
   const ctxRef = useRef(audioCtx);
   ctxRef.current = audioCtx;
+  const sideRef = useRef(side);
+  sideRef.current = side;
 
   const renderersRef = useRef<Record<AudioStyle, ReturnType<typeof createAudioRenderer>> | null>(null);
   if (!renderersRef.current) renderersRef.current = initAudioRenderers();
 
+  function renderAudio(r: Record<AudioStyle, ReturnType<typeof createAudioRenderer>>, c: RenderCtx, s: 'left' | 'right') {
+    return Object.fromEntries(AUDIO_STYLES.map(({ id }) => {
+      const raw = r[id]!(c);
+      return [id, bayerToB64(s === 'right' ? mirrorFrame(raw) : raw)];
+    }));
+  }
+
   const [pixels, setPixels] = useState<Partial<Record<AudioStyle, string>>>(() => {
     const r = renderersRef.current!;
-    return Object.fromEntries(AUDIO_STYLES.map(({ id }) => [id, bayerToB64(r[id]!(MOCK_AUDIO_CTX))]));
+    return renderAudio(r, MOCK_AUDIO_CTX, side);
   });
 
   useEffect(() => {
@@ -352,8 +373,7 @@ function AudioGrid({ currentWidget, audioCtx, onPick, onMount, onUnmount }: {
   useEffect(() => {
     const iid = setInterval(() => {
       const r = renderersRef.current!;
-      const c = ctxRef.current;
-      setPixels(Object.fromEntries(AUDIO_STYLES.map(({ id }) => [id, bayerToB64(r[id]!(c))])));
+      setPixels(renderAudio(r, ctxRef.current, sideRef.current));
     }, 100);
     return () => clearInterval(iid);
   }, []);
@@ -449,6 +469,7 @@ function DataSettings({ widget, uid, onChange }: {
 
 export type HudInspectorProps = {
   widget: HudWidget | null;
+  side?: 'left' | 'right';
   audioCtx?: RenderCtx;
   onNeedsAudio?: (needs: boolean) => void;
   onChange: (widget: HudWidget) => void;
@@ -456,7 +477,7 @@ export type HudInspectorProps = {
 
 type View = 'categories' | 'grid' | 'settings';
 
-export function HudInspector({ widget, audioCtx = MOCK_AUDIO_CTX, onNeedsAudio, onChange }: HudInspectorProps) {
+export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX, onNeedsAudio, onChange }: HudInspectorProps) {
   const uid = useId();
 
   const [view, setView] = useState<View>(() => {
@@ -525,7 +546,7 @@ export function HudInspector({ widget, audioCtx = MOCK_AUDIO_CTX, onNeedsAudio, 
             {activeCategory === 'clocks' && <ClockGrid currentWidget={widget} onPick={handlePick} />}
             {activeCategory === 'data'   && <DataGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} />}
             {activeCategory === 'ai'     && <AiGrid    currentWidget={widget} onPick={handlePick} />}
-            {activeCategory === 'audio'  && <AudioGrid currentWidget={widget} audioCtx={audioCtx} onPick={handlePick} onMount={handleAudioMount} onUnmount={handleAudioUnmount} />}
+            {activeCategory === 'audio'  && <AudioGrid currentWidget={widget} audioCtx={audioCtx} side={side} onPick={handlePick} onMount={handleAudioMount} onUnmount={handleAudioUnmount} />}
           </div>
         </div>
       </div>
