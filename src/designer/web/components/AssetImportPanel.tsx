@@ -83,7 +83,6 @@ async function fileToBase64(file: File): Promise<string> {
 export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
   const [file, setFile] = useState<File | null>(null);
   const [width, setWidth] = useState<9 | 18>(9);
-  const [mode, setMode] = useState<'bw' | 'gray'>('gray');
   const [fit, setFit] = useState<'contain' | 'cover' | 'fill'>('contain');
   const [brightness, setBrightness] = useState(0);
   const [contrast, setContrast] = useState(1);
@@ -156,9 +155,9 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
   // Re-run preview whenever any control changes (file already set)
   useEffect(() => {
     if (!file) return;
-    schedulePreview(file, { width, mode, fit, brightness, contrast });
+    schedulePreview(file, { width, mode: 'bw', fit, brightness, contrast });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file, width, mode, fit, brightness, contrast]);
+  }, [file, width, fit, brightness, contrast]);
 
   function handleFileChange(f: File) {
     if (f.size > MAX_FILE_BYTES) {
@@ -202,7 +201,7 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
           filename,
           sourceBase64: b64,
           width,
-          mode,
+          mode: 'bw',
           fit,
           brightness,
           contrast,
@@ -284,25 +283,6 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
                   onClick={() => setWidth(w)}
                 >
                   {w}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Mode toggle */}
-          <div className="flex flex-col gap-1">
-            <span className="font-mono text-xs text-foreground/50" id="aip-mode-label">mode</span>
-            <div role="group" aria-labelledby="aip-mode-label" className="flex gap-2">
-              {(['bw', 'gray'] as const).map(m => (
-                <button
-                  key={m}
-                  type="button"
-                  aria-pressed={mode === m}
-                  aria-label={m === 'bw' ? 'black and white' : 'grayscale'}
-                  className={`font-mono text-xs px-2 py-1 border ${mode === m ? 'border-foreground/60 text-foreground' : 'border-foreground/20 text-foreground/55 hover:border-foreground/40'}`}
-                  onClick={() => setMode(m)}
-                >
-                  {m}
                 </button>
               ))}
             </div>
