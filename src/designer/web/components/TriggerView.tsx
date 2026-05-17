@@ -408,7 +408,7 @@ export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-2xl mx-auto px-8 py-6">
           {triggers.length === 0 && (
-            <p className="font-mono text-xs text-foreground/40 py-4">
+            <p className="font-mono text-xs text-foreground/55 py-4">
               no triggers — this preset is always active
             </p>
           )}
