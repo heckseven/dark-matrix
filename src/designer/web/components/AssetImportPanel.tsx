@@ -56,6 +56,7 @@ export interface AssetImportPanelProps {
 }
 
 const ALLOWED_FILENAME_RE = /^[a-zA-Z0-9_\-]+$/;
+const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
 
 function sanitizeFilename(raw: string): string {
   return raw
@@ -160,10 +161,15 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
   }, [file, width, mode, fit, brightness, contrast]);
 
   function handleFileChange(f: File) {
+    if (f.size > MAX_FILE_BYTES) {
+      setError('file too large (max 20 MB)');
+      return;
+    }
     fileBase64Ref.current = null;
     setFile(f);
     setFilename(sanitizeFilename(f.name));
     setPreview(null);
+    setError(null);
   }
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
