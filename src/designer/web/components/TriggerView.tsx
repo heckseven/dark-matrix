@@ -322,8 +322,8 @@ function TriggerRow({ trigger, onUpdate, onDelete }: {
   onDelete: () => void;
 }) {
   return (
-    <div className="flex items-center gap-4 py-3">
-      <span className="font-mono text-xs font-bold text-foreground/60 shrink-0">
+    <div className="group flex items-center gap-4 py-3">
+      <span className="font-mono text-xs font-bold text-foreground shrink-0">
         {trigger.type}:
       </span>
       <div className="flex-1 min-w-0">
@@ -334,7 +334,7 @@ function TriggerRow({ trigger, onUpdate, onDelete }: {
         {trigger.type === 'interface' && <InterfaceFields trigger={trigger} onChange={onUpdate} />}
         {trigger.type === 'vm'        && <VmFields        trigger={trigger} onChange={onUpdate} />}
         {(trigger.type === 'idle' || trigger.type === 'active') && (
-          <p className="font-mono text-xs text-foreground/40">{TRIGGER_DESCRIPTIONS[trigger.type]}</p>
+          <p className="font-mono text-xs text-foreground/55">{TRIGGER_DESCRIPTIONS[trigger.type]}</p>
         )}
       </div>
       <Button
@@ -342,6 +342,7 @@ function TriggerRow({ trigger, onUpdate, onDelete }: {
         aria-label={`Delete ${trigger.type} trigger`}
         tooltip="Remove trigger"
         onClick={onDelete}
+        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-100"
       >
         del
       </Button>
