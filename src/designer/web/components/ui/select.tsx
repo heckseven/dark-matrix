@@ -15,7 +15,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
         style={{ textShadow: '0 0 8px rgba(74,222,128,0.6)' }}
         {...props}
       >{children}</select>
-      <span aria-hidden className="text-green-400/55 select-none">{']'}</span>
+      <span aria-hidden className="text-green-400/55 select-none">{' ▾]'}</span>
     </span>
   )
 );
