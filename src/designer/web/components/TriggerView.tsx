@@ -405,29 +405,28 @@ export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
       aria-modal="true"
       className="fixed inset-0 z-50 bg-background text-foreground font-mono flex flex-col"
     >
-      <header className="relative flex items-center pl-7 pr-5 py-4 shrink-0">
+      <header className="relative flex items-center px-5 py-4 shrink-0 gap-3">
         <span className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
-          {preset.name}
+          {preset.name} — triggers
         </span>
+        {triggers.length >= 2 && onMatchChange && (
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs text-foreground/55">match</span>
+            <Select
+              aria-label="match mode"
+              value={match}
+              onChange={e => { const v = e.target.value; if (v === 'all' || v === 'any') onMatchChange(v); }}
+            >
+              <option value="all">all</option>
+              <option value="any">any</option>
+            </Select>
+          </div>
+        )}
         <Button variant="default" size="sm" className="ml-auto" onClick={onDone}>done</Button>
       </header>
 
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-2xl mx-auto px-8 py-6">
-          {triggers.length >= 2 && onMatchChange && (
-            <div className="flex items-center gap-2 mb-6">
-              <span className="font-mono text-xs text-foreground/55">match</span>
-              <Select
-                aria-label="match mode"
-                value={match}
-                onChange={e => { const v = e.target.value; if (v === 'all' || v === 'any') onMatchChange(v); }}
-              >
-                <option value="all">all</option>
-                <option value="any">any</option>
-              </Select>
-            </div>
-          )}
-
           {triggers.length === 0 && (
             <p className="font-mono text-xs text-foreground/40 py-4">
               no triggers — this preset is always active
@@ -448,7 +447,7 @@ export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
           <div className="mt-4">
             <Menu onOpenChange={open => { menuOpenRef.current = open; setHighlighted(open ? TRIGGER_TYPES[0]! : null); }}>
               <MenuTrigger asChild>
-                <Button variant="ghost">+ add trigger</Button>
+                <Button variant={triggers.length === 0 ? 'primary' : 'default'}>+ add trigger</Button>
               </MenuTrigger>
               <MenuContent
                 align="start"
