@@ -4,6 +4,8 @@ import { Select } from './ui/select.js';
 import { Tabs } from './ui/tabs.js';
 import { Button } from './ui/button.js';
 import { Input } from './ui/input.js';
+import { ScrubInput } from './ui/scrub-input.js';
+import { Checkbox } from './ui/checkbox.js';
 import { Menu, MenuTrigger, MenuContent, MenuItem } from './ui/menu.js';
 
 // ── constants ──────────────────────────────────────────────────────────────
@@ -16,6 +18,13 @@ const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 type Weekday = typeof DAYS[number];
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+
+const METRIC_CONFIG = {
+  cpu:    { min: 0, max: 100,        pixelsPerUnit: 1,      defaultVal: 50 },
+  ram:    { min: 0, max: 100,        pixelsPerUnit: 1,      defaultVal: 50 },
+  net_rx: { min: 0, max: 10_000_000, pixelsPerUnit: 10_000, defaultVal: 100_000 },
+  net_tx: { min: 0, max: 10_000_000, pixelsPerUnit: 10_000, defaultVal: 100_000 },
+} as const;
 
 const TRIGGER_DESCRIPTIONS: Record<TriggerType, string> = {
   time:      'Active between two clock times each day. Wraps midnight when "from" is later than "to".',
@@ -103,6 +112,7 @@ function ThresholdFields({ trigger, onChange }: FieldProps) {
   const uid = useId();
   if (trigger.type !== 'threshold') return null;
   const t = trigger;
+  const cfg = METRIC_CONFIG[t.metric];
   const conflict = t.above !== undefined && t.below !== undefined && t.above >= t.below;
 
   function update(patch: { metric?: 'cpu' | 'ram' | 'net_rx' | 'net_tx'; above?: number; below?: number; clearAbove?: true; clearBelow?: true }) {
@@ -116,43 +126,56 @@ function ThresholdFields({ trigger, onChange }: FieldProps) {
   }
 
   return (
-    <div className="flex items-end gap-4 flex-wrap">
+    <div className="flex items-center gap-4 flex-wrap">
       <div className="flex flex-col gap-1">
-        <label className="font-mono text-xs text-foreground/55">metric</label>
-        <Select
-          aria-label="Metric"
+        <span className="font-mono text-xs text-foreground/55">metric</span>
+        <Tabs
+          options={(['cpu', 'ram', 'net_rx', 'net_tx'] as const).map(m => ({ value: m, label: m }))}
           value={t.metric}
-          onChange={e => update({ metric: e.target.value as 'cpu' | 'ram' | 'net_rx' | 'net_tx' })}
-        >
-          {(['cpu', 'ram', 'net_rx', 'net_tx'] as const).map(m => (
-            <option key={m} value={m}>{m}</option>
-          ))}
-        </Select>
-      </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`${uid}-above`} className="font-mono text-xs text-foreground/55">above</label>
-        <Input
-          id={`${uid}-above`}
-          type="number"
-          value={t.above ?? ''}
-          onChange={e => e.target.value === '' ? update({ clearAbove: true }) : update({ above: Number(e.target.value) })}
-          className={FW}
-          expandedClassName={FW}
+          onChange={v => { if (v === 'cpu' || v === 'ram' || v === 'net_rx' || v === 'net_tx') update({ metric: v }); }}
+          aria-label="Metric"
         />
       </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`${uid}-below`} className="font-mono text-xs text-foreground/55">below</label>
-        <Input
-          id={`${uid}-below`}
-          type="number"
-          value={t.below ?? ''}
-          onChange={e => e.target.value === '' ? update({ clearBelow: true }) : update({ below: Number(e.target.value) })}
-          className={FW}
-          expandedClassName={FW}
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id={`${uid}-above-en`}
+          checked={t.above !== undefined}
+          onChange={e => e.target.checked ? update({ above: cfg.defaultVal }) : update({ clearAbove: true })}
         />
+        <label htmlFor={`${uid}-above-en`} className="font-mono text-xs text-foreground/55 cursor-pointer select-none">above</label>
+        {t.above !== undefined && (
+          <ScrubInput
+            aria-label="above threshold"
+            value={t.above}
+            min={cfg.min}
+            max={cfg.max}
+            pixelsPerUnit={cfg.pixelsPerUnit}
+            onChange={v => update({ above: v })}
+            className={FW}
+          />
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id={`${uid}-below-en`}
+          checked={t.below !== undefined}
+          onChange={e => e.target.checked ? update({ below: cfg.defaultVal }) : update({ clearBelow: true })}
+        />
+        <label htmlFor={`${uid}-below-en`} className="font-mono text-xs text-foreground/55 cursor-pointer select-none">below</label>
+        {t.below !== undefined && (
+          <ScrubInput
+            aria-label="below threshold"
+            value={t.below}
+            min={cfg.min}
+            max={cfg.max}
+            pixelsPerUnit={cfg.pixelsPerUnit}
+            onChange={v => update({ below: v })}
+            className={FW}
+          />
+        )}
       </div>
       {conflict && (
-        <span role="alert" className="font-mono text-xs text-yellow-400 self-center">above ≥ below — never matches</span>
+        <span role="alert" className="font-mono text-xs text-yellow-400">above ≥ below — never matches</span>
       )}
     </div>
   );
@@ -175,15 +198,13 @@ function InterfaceFields({ trigger, onChange }: FieldProps) {
         />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="font-mono text-xs text-foreground/55">state</label>
-        <Select
-          aria-label="Interface state"
+        <span className="font-mono text-xs text-foreground/55">state</span>
+        <Tabs
+          options={['up', 'down']}
           value={trigger.state}
-          onChange={e => onChange({ ...trigger, state: e.target.value as 'up' | 'down' })}
-        >
-          <option value="up">up</option>
-          <option value="down">down</option>
-        </Select>
+          onChange={v => { if (v === 'up' || v === 'down') onChange({ ...trigger, state: v }); }}
+          aria-label="Interface state"
+        />
       </div>
     </div>
   );
@@ -211,16 +232,13 @@ function VmFields({ trigger, onChange }: FieldProps) {
         />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="font-mono text-xs text-foreground/55">state</label>
-        <Select
-          aria-label="VM state"
+        <span className="font-mono text-xs text-foreground/55">state</span>
+        <Tabs
+          options={['any', 'running', 'stopped']}
           value={stateValue}
-          onChange={e => update(trigger.name, e.target.value)}
-        >
-          <option value="any">any</option>
-          <option value="running">running</option>
-          <option value="stopped">stopped</option>
-        </Select>
+          onChange={v => update(trigger.name, v)}
+          aria-label="VM state"
+        />
       </div>
     </div>
   );
@@ -275,17 +293,14 @@ function DateFields({ trigger, onChange }: FieldProps) {
         </Select>
       </div>
       <div className="flex flex-col gap-1">
-        <label htmlFor={`${uid}-day`} className="font-mono text-xs text-foreground/55">day</label>
-        <Input
-          id={`${uid}-day`}
-          type="number"
+        <label className="font-mono text-xs text-foreground/55">day</label>
+        <ScrubInput
+          aria-label="Day of month"
           value={trigger.day}
-          onChange={e => {
-            const v = parseInt(e.target.value, 10);
-            if (!isNaN(v) && v >= 1 && v <= 31) onChange({ ...trigger, day: v });
-          }}
+          min={1}
+          max={31}
+          onChange={v => onChange({ ...trigger, day: v })}
           className={FW}
-          expandedClassName={FW}
         />
       </div>
     </div>
