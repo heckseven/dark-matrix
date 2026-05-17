@@ -11,13 +11,13 @@ const meta = {
     docs: {
       description: {
         component: [
-          'Right-column panel inspector for a single HUD module slot.',
+          'Three-layer panel inspector for a single HUD module slot.',
           '',
-          'Two views:',
-          '- **Picker** — scrollable list of panel categories (clocks, data, ai, audio, image, animation). Shown when no widget is assigned or after "← select different" / "✕ close".',
-          '- **Settings** — per-panel settings with a header row containing "← select different" (returns to picker, scrolled to this category) and "✕" (returns to picker at top).',
+          '- **Layer 1 — categories**: text menu (clocks, data, ai, audio; image/animation dimmed as coming soon).',
+          '- **Layer 2 — grid**: all options in the category, all animated continuously. Audio category has a monitor/mic toggle and connects to real FFT data (falls back to mock in Storybook).',
+          '- **Layer 3 — settings**: data (line/fill) quadrant selectors. Back returns to Layer 2.',
           '',
-          'Remount via `key` whenever the selected side or preset changes so view state resets correctly.',
+          'Entry state: Layer 3 if a data (line/fill) widget is assigned, Layer 2 of the widget\'s category otherwise, Layer 1 if no widget. Remount via `key` when selected side or preset changes.',
         ].join('\n'),
       },
     },
@@ -31,37 +31,37 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** No preset selected — shows panel picker. */
+/** No widget assigned — shows category list. */
 export const NullState: Story = {};
 
-/** Picker with a clock assigned — elegant face marked active in the panel list. */
-export const PickerWithClock: Story = {
+/** Category list with a clock assigned — 'clocks' row has active indicator. */
+export const CategoriesWithClock: Story = {
   args: {
     widget: { widget: 'clock', face: 'elegant' } satisfies HudWidget,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole('button', { name: 'Select different panel' }));
-    expect(canvas.getByRole('button', { name: 'elegant', pressed: true })).toBeVisible();
+    await userEvent.click(canvas.getByRole('button', { name: 'Back to categories' }));
+    expect(canvas.getByRole('button', { name: 'clocks' })).toBeVisible();
   },
 };
 
-/** Clock settings — elegant face selected. */
-export const ClockSettings: Story = {
+/** Clock grid — all 7 faces animate; elegant is active. */
+export const ClockGrid: Story = {
   args: {
     widget: { widget: 'clock', face: 'elegant' } satisfies HudWidget,
   },
 };
 
-/** Clock settings — analogue face. */
+/** Clock grid — analogue face active. */
 export const ClockAnalogue: Story = {
   args: {
     widget: { widget: 'clock', face: 'analogue' } satisfies HudWidget,
   },
 };
 
-/** Data settings — system preset (line, all 4 metrics). */
-export const DataSystem: Story = {
+/** Data settings — line style (Layer 3), system preset. */
+export const DataSettingsLine: Story = {
   args: {
     widget: {
       widget: 'data',
@@ -74,18 +74,8 @@ export const DataSystem: Story = {
   },
 };
 
-/** Picker with data assigned — system preset tile marked active. */
-export const PickerWithData: Story = {
-  ...DataSystem,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole('button', { name: 'Select different panel' }));
-    expect(canvas.getByRole('button', { name: 'system', pressed: true })).toBeVisible();
-  },
-};
-
-/** Data settings — fill preset (area chart, all 4 metrics). */
-export const DataFill: Story = {
+/** Data settings — fill style. */
+export const DataSettingsFill: Story = {
   args: {
     widget: {
       widget: 'data',
@@ -98,46 +88,55 @@ export const DataFill: Story = {
   },
 };
 
-/** Data settings — scroll preset (cpu core history). */
-export const DataScroll: Story = {
+/** Data grid — scroll preset active (Layer 2, no settings). */
+export const DataGridScroll: Story = {
   args: {
-    widget: {
-      widget: 'data',
-      style: 'scroll',
-    } satisfies HudWidget,
+    widget: { widget: 'data', style: 'scroll' } satisfies HudWidget,
   },
 };
 
-/** Data settings — cpu cores preset (symmetric column per CPU group). */
-export const DataCpuCores: Story = {
+/** Data grid — cpu cores preset active (Layer 2, no settings). */
+export const DataGridCores: Story = {
   args: {
-    widget: {
-      widget: 'data',
-      style: 'cores',
-    } satisfies HudWidget,
+    widget: { widget: 'data', style: 'cores' } satisfies HudWidget,
   },
 };
 
-/** AI picker — tool heatmap widget selected, stays in picker (no settings). */
-export const HeatmapAi: Story = {
+/** Data grid accessed from data settings via back button. */
+export const DataGridFromSettings: Story = {
+  args: {
+    widget: {
+      widget: 'data',
+      style: 'line',
+      top_left: 'cpu',
+      top_right: 'ram',
+      bottom_left: 'net_rx',
+      bottom_right: 'net_tx',
+    } satisfies HudWidget,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', { name: 'Back to data' }));
+    expect(canvas.getByRole('button', { name: 'system', pressed: true })).toBeVisible();
+  },
+};
+
+/** AI grid — heatmap (only option in the category). */
+export const AiHeatmap: Story = {
   args: {
     widget: { widget: 'heatmap' } satisfies HudWidget,
   },
 };
 
-/** Audio settings — dark matter style selected. */
+/** Audio grid — dark matter style active; mic toggle visible. */
 export const AudioDarkMatter: Story = {
   args: {
     widget: { widget: 'audio', style: 'dark-matter' } satisfies HudWidget,
   },
 };
 
-/** Audio picker — shows all styles in the audio category. */
-export const PickerAudio: Story = {
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole('button', { name: 'Select different panel' }));
-  },
+/** Audio grid — specter style active. */
+export const AudioSpecter: Story = {
   args: {
     widget: { widget: 'audio', style: 'specter' } satisfies HudWidget,
   },
