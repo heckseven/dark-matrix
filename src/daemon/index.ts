@@ -1028,7 +1028,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   await fs.chmod(sockPath, 0o600);
 
   const disposeWatch = watchConfig((cfg) => {
-    currentConfig = cfg;
+    // Preserve in-memory hud — it's driven by hud-config messages and never written to disk.
+    currentConfig = { ...cfg, ...(currentConfig.hud ? { hud: currentConfig.hud } : {}) };
     triggerEngine.updatePresets(cfg.hud_presets ?? []);
     disposeBrightness();
     disposeBrightness = startBrightnessLoop(currentConfig, async (pct) => {
