@@ -182,7 +182,7 @@ function CornerBrackets({ active }: { active: boolean }) {
 
 // ── panel picker ──────────────────────────────────────────────────────────
 
-const PLACEHOLDER_CATEGORIES = ['audio', 'image', 'animation'] as const;
+const PLACEHOLDER_CATEGORIES = ['image', 'animation'] as const;
 
 type PanelPickerProps = {
   clockPixels: Partial<Record<ClockFace, string>>;
@@ -312,22 +312,17 @@ function PanelPicker({ clockPixels, dataThumbnails, audioThumbnails, heatmapPixe
           ai
         </h3>
         <div role="group" aria-label="AI panels" className="grid grid-cols-3 gap-4">
-          {(() => {
-            const active = currentWidget?.widget === 'heatmap';
-            return (
-              <button
-                type="button"
-                aria-label="tool heatmap"
-                aria-pressed={active}
-                className="group relative flex flex-col gap-2 items-center rounded-sm p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
-                onClick={() => onPick({ widget: 'heatmap' })}
-              >
-                <CornerBrackets active={active} />
-                <MatrixPreview pixels={heatmapPixels} width={9} />
-                <span className="font-mono text-xs text-foreground">tool heatmap</span>
-              </button>
-            );
-          })()}
+          <button
+            type="button"
+            aria-label="tool heatmap"
+            aria-pressed={currentWidget?.widget === 'heatmap'}
+            className="group relative flex flex-col gap-2 items-center rounded-sm p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
+            onClick={() => onPick({ widget: 'heatmap' })}
+          >
+            <CornerBrackets active={currentWidget?.widget === 'heatmap'} />
+            <MatrixPreview pixels={heatmapPixels} width={9} />
+            <span className="font-mono text-xs text-foreground">tool heatmap</span>
+          </button>
         </div>
       </section>
 
@@ -561,15 +556,10 @@ export function HudInspector({ widget, onChange }: HudInspectorProps) {
                               const raw = e.target.value;
                               if (!DATA_METRIC_IDS.has(raw as DataMetric | 'none')) return;
                               const metric = raw as DataMetric | 'none';
-                              type DataW = { widget: 'data'; style?: DataStyle; top_left?: DataMetric; top_right?: DataMetric; bottom_left?: DataMetric; bottom_right?: DataMetric };
-                              const base: DataW = { widget: 'data' };
-                              if (widget.style !== undefined) base.style = widget.style;
-                              if (widget.top_left !== undefined) base.top_left = widget.top_left;
-                              if (widget.top_right !== undefined) base.top_right = widget.top_right;
-                              if (widget.bottom_left !== undefined) base.bottom_left = widget.bottom_left;
-                              if (widget.bottom_right !== undefined) base.bottom_right = widget.bottom_right;
-                              if (metric !== 'none') base[key] = metric;
-                              onChange(base);
+                              const next = { ...widget };
+                              if (metric !== 'none') next[key] = metric;
+                              else delete next[key];
+                              onChange(next);
                             }}
                           >
                             {DATA_METRICS.map(m => (
