@@ -14,6 +14,17 @@ import type { HudPresetClient, HudWidget } from '../types/hud-preset.js';
 const COLS = 9;
 const ROWS = 34;
 
+function mirrorFrame(frame: Uint8Array): Uint8Array {
+  const out = new Uint8Array(frame.length);
+  for (let col = 0; col < COLS; col++) {
+    const src = COLS - 1 - col;
+    for (let row = 0; row < ROWS; row++) {
+      out[col * ROWS + row] = frame[src * ROWS + row] ?? 0;
+    }
+  }
+  return out;
+}
+
 // ── pixel helpers ─────────────────────────────────────────────────────────
 
 const _clockCache: Partial<Record<ClockFace, ClockRenderer>> = {};
@@ -52,7 +63,8 @@ function renderWidgetToB64(widget: HudWidget | null, side: 'left' | 'right', aud
       const frame = _audioCache[style]!(audioCtx);
       const out = new Uint8Array(COLS * ROWS);
       for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
-      return btoa(String.fromCharCode(...out));
+      const pixels = side === 'right' ? mirrorFrame(out) : out;
+      return btoa(String.fromCharCode(...pixels));
     } else if (widget.widget === 'heatmap') {
       const [lf, rf] = renderHeatmap(_heatmapPreview);
       const frame = side === 'left' ? lf : rf;

@@ -372,7 +372,15 @@ export async function startDaemon(): Promise<() => Promise<void>> {
           rf = hmRight;
           ditherBW(rf, FRAME_COLS, FRAME_ROWS);
         } else if (rightWidgetType === 'audio' && rightAudioRenderer) {
-          rf = rightAudioRenderer(audioCtx ?? { bands: new Array(9).fill(0) as number[], fftSize: 2048, gain: 1.0 });
+          const rawRf = rightAudioRenderer(audioCtx ?? { bands: new Array(9).fill(0) as number[], fftSize: 2048, gain: 1.0 });
+          const mirroredRf = new Uint8Array(rawRf.length);
+          for (let col = 0; col < FRAME_COLS; col++) {
+            const src = FRAME_COLS - 1 - col;
+            for (let row = 0; row < FRAME_ROWS; row++) {
+              mirroredRf[col * FRAME_ROWS + row] = rawRf[src * FRAME_ROWS + row] ?? 0;
+            }
+          }
+          rf = mirroredRf as Frame;
           ditherBW(rf, FRAME_COLS, FRAME_ROWS);
         } else if (rightWidgetType === 'data' && rightDataRenderer) {
           rf = rightDataRenderer.render();

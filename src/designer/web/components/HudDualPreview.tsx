@@ -51,6 +51,17 @@ function bayerDither(frame: Uint8Array): Uint8Array {
   return out;
 }
 
+function mirrorFrame(frame: Uint8Array): Uint8Array {
+  const out = new Uint8Array(frame.length);
+  for (let col = 0; col < COLS; col++) {
+    const src = COLS - 1 - col;
+    for (let row = 0; row < ROWS; row++) {
+      out[col * ROWS + row] = frame[src * ROWS + row] ?? 0;
+    }
+  }
+  return out;
+}
+
 // Seeded heatmap preview state — static demo for the dual-preview canvas
 const _heatmapPreview = (() => {
   const s = createHeatmapState();
@@ -82,7 +93,8 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, 
       return out;
     } else if (widget.widget === 'audio') {
       const style = widget.style ?? AUDIO_STYLES[0]!.id;
-      return bayerDither(getAudioRenderer(style)(audioCtx));
+      const rendered = bayerDither(getAudioRenderer(style)(audioCtx));
+      return side === 'right' ? mirrorFrame(rendered) : rendered;
     } else if (widget.widget === 'heatmap') {
       const [lf, rf] = renderHeatmap(_heatmapPreview);
       const frame = side === 'left' ? lf : rf;
