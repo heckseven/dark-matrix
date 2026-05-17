@@ -10,9 +10,18 @@ import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../an
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { createHeatmapState, bumpTool, renderHeatmap } from '../../../animations/heatmap.js';
 import type { HudPresetClient, HudWidget } from '../types/hud-preset.js';
+import type { AssetMeta } from '../../../lib/asset-meta.js';
+import { useDesignerStore, designerStore } from '../store.js';
 
 const COLS = 9;
 const ROWS = 34;
+
+function b64ToUint8(b64: string, expectedBytes: number): Uint8Array {
+  const bin = atob(b64);
+  const arr = new Uint8Array(expectedBytes);
+  for (let i = 0; i < expectedBytes; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
 
 function mirrorFrame(frame: Uint8Array): Uint8Array {
   const out = new Uint8Array(frame.length);
@@ -48,7 +57,21 @@ if (import.meta.hot) {
 
 type AudioFrames = Partial<Record<AudioStyle, { left: string; right: string }>>;
 
-function renderWidgetToB64(widget: HudWidget | null, side: 'left' | 'right', audioCtx: RenderCtx, audioFrames?: AudioFrames): string {
+function extractHalfB64(asset: AssetMeta, side: 'left' | 'right'): string {
+  const totalBytes = asset.width * ROWS;
+  const full = b64ToUint8(asset.firstFrame, totalBytes);
+  if (asset.width === 9) return btoa(String.fromCharCode(...full));
+  const colOffset = side === 'right' ? COLS : 0;
+  const out = new Uint8Array(COLS * ROWS);
+  for (let col = 0; col < COLS; col++) {
+    for (let row = 0; row < ROWS; row++) {
+      out[col * ROWS + row] = full[(col + colOffset) * ROWS + row] ?? 0;
+    }
+  }
+  return btoa(String.fromCharCode(...out));
+}
+
+function renderWidgetToB64(widget: HudWidget | null, side: 'left' | 'right', audioCtx: RenderCtx, audioFrames?: AudioFrames, assetList?: AssetMeta[] | null): string {
   const empty = btoa(String.fromCharCode(...new Uint8Array(COLS * ROWS)));
   if (!widget) return empty;
   try {
@@ -76,8 +99,9 @@ function renderWidgetToB64(widget: HudWidget | null, side: 'left' | 'right', aud
       for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
       return btoa(String.fromCharCode(...out));
     } else if (widget.widget === 'image') {
-      // TODO: render image widget
-      return empty;
+      const asset = assetList?.find(a => a.name === widget.file);
+      if (!asset) return empty;
+      return extractHalfB64(asset, side);
     } else {
       const style: DataStyle = widget.style ?? 'line';
       if (!_dataCache[style]) _dataCache[style] = createDataRenderer({ style });
@@ -366,12 +390,19 @@ export function PresetList({
 }: PresetListProps) {
   const [tick, setTick] = useState(0);
   const [dropTarget, setDropTarget] = useState<number | null>(null);
+  const assetList = useDesignerStore(s => s.assetList);
 
   const audioCtxRef  = useRef(audioCtx);
   const presetsRef   = useRef(presets);
   audioCtxRef.current  = audioCtx;
   presetsRef.current   = presets;
   const audioFramesRef = useRef<AudioFrames>({});
+
+  // Load assets if any preset uses an image widget
+  useEffect(() => {
+    const hasImage = presets.some(p => p.left?.widget === 'image' || p.right?.widget === 'image');
+    if (hasImage) void designerStore.getState().loadAssets();
+  }, [presets]);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -416,8 +447,8 @@ export function PresetList({
         )}
         {presets.map((preset, idx) => {
           const af = audioFramesRef.current;
-          const leftPx  = renderWidgetToB64(preset.left,  'left',  audioCtx, af);
-          const rightPx = renderWidgetToB64(preset.right, 'right', audioCtx, af);
+          const leftPx  = renderWidgetToB64(preset.left,  'left',  audioCtx, af, assetList);
+          const rightPx = renderWidgetToB64(preset.right, 'right', audioCtx, af, assetList);
           const pixels  = combinePixels(leftPx, rightPx);
           return (
             <Fragment key={preset.name}>

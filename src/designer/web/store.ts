@@ -7,6 +7,7 @@ import type { ClockFace } from '../../animations/clock-renderers.js';
 import type { DataStyle } from '../../animations/data-renderers.js';
 import type { HudPresetClient, HudWidget, HudTrigger } from './types/hud-preset.js';
 import type { Config } from './types/config-types.js';
+import type { AssetMeta } from '../../lib/asset-meta.js';
 
 export type Frame = DmxFrame;
 export type PreviewTarget = 'left' | 'right' | 'both' | 'mirror';
@@ -53,6 +54,7 @@ export interface DesignerState {
   hudSelectedSide: 'left' | 'right';
   configData: Config | null;
   configDirty: boolean;
+  assetList: AssetMeta[] | null;
 }
 
 export interface DesignerActions {
@@ -104,6 +106,7 @@ export interface DesignerActions {
   loadConfigData(config: Config): void;
   patchConfig(patch: DeepPartial<Config>): void;
   markClean(): void;
+  loadAssets(): Promise<void>;
 }
 
 export type DesignerStore = DesignerState & DesignerActions;
@@ -211,6 +214,7 @@ export function createDesignerStore() {
     hudSelectedSide: 'left',
     configData: null,
     configDirty: false,
+    assetList: null,
 
     setPixel(frameIdx, col, row, value) {
       const { frames, mode, undoStack, strokeSnapshot, previewTarget, width } = get();
@@ -485,6 +489,15 @@ export function createDesignerStore() {
 
     markClean() {
       set({ configDirty: false });
+    },
+
+    async loadAssets() {
+      try {
+        const res = await fetch('/api/assets');
+        if (!res.ok) return;
+        const list = await res.json() as AssetMeta[];
+        set({ assetList: list });
+      } catch { /* network unavailable */ }
     },
   }));
 }
