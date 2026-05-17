@@ -4,8 +4,9 @@ import type { ClockFace, ClockRenderer } from '../../../animations/clock-rendere
 import { getDataRenderer } from '../data-renderer-pool.js';
 import { createHeatmapState, bumpTool, renderHeatmap } from '../../../animations/heatmap.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
-import type { AudioStyle } from '../../../animations/audio-renderers.js';
+import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
+import { designerStore } from '../store.js';
 
 // ── layout constants — match PixelCanvas at zoom=1 ────────────────────────
 
@@ -32,12 +33,23 @@ const SPLIT_X  = HALF_W + Math.floor((RIGHT_X - HALF_W) / 2); // 192
 const _clockL: Partial<Record<ClockFace, ClockRenderer>> = {};
 const _clockR: Partial<Record<ClockFace, ClockRenderer>> = {};
 
-// Mock audio context for preview thumbnails — mid-level descending spectrum
-const MOCK_AUDIO_CTX = { bands: [200, 150, 100, 70, 40, 20, 10, 5, 2], fftSize: 2048, gain: 1.5 };
+const MOCK_AUDIO_CTX: RenderCtx = { bands: [200, 150, 100, 70, 40, 20, 10, 5, 2], fftSize: 2048, gain: 1.5 };
 const _audioRenderers: Partial<Record<AudioStyle, ReturnType<typeof createAudioRenderer>>> = {};
 function getAudioRenderer(style: AudioStyle) {
   if (!_audioRenderers[style]) _audioRenderers[style] = createAudioRenderer(style);
   return _audioRenderers[style]!;
+}
+
+const BAYER4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]] as const;
+function bayerDither(frame: Uint8Array): Uint8Array {
+  const out = new Uint8Array(frame.length);
+  for (let col = 0; col < COLS; col++) {
+    for (let row = 0; row < ROWS; row++) {
+      const threshold = (BAYER4[row % 4]![col % 4]! + 0.5) * (255 / 16);
+      out[col * ROWS + row] = (frame[col * ROWS + row] ?? 0) > threshold ? 255 : 0;
+    }
+  }
+  return out;
 }
 
 // Seeded heatmap preview state — static demo for the dual-preview canvas
@@ -57,7 +69,7 @@ if (import.meta.hot) {
   });
 }
 
-function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date): Uint8Array {
+function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, audioCtx: RenderCtx): Uint8Array {
   const empty = new Uint8Array(COLS * ROWS);
   if (!widget) return empty;
   try {
@@ -71,10 +83,7 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date):
       return out;
     } else if (widget.widget === 'audio') {
       const style = widget.style ?? AUDIO_STYLES[0]!.id;
-      const frame = getAudioRenderer(style)(MOCK_AUDIO_CTX);
-      const out = new Uint8Array(COLS * ROWS);
-      for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
-      return out;
+      return bayerDither(getAudioRenderer(style)(audioCtx));
     } else if (widget.widget === 'heatmap') {
       const [lf, rf] = renderHeatmap(_heatmapPreview);
       const frame = side === 'left' ? lf : rf;
@@ -140,6 +149,35 @@ export function HudDualPreview({
   onSelectSide,
 }: HudDualPreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const audioCtxRef = useRef<RenderCtx>(MOCK_AUDIO_CTX);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  const hasAudio = leftWidget?.widget === 'audio' || rightWidget?.widget === 'audio';
+
+  useEffect(() => {
+    if (!hasAudio) return;
+    const ws = new WebSocket(`ws://${location.host}/ws`);
+    wsRef.current = ws;
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: 'audio-viz', style: AUDIO_STYLES[0]!.id, source: designerStore.getState().audioSource }));
+    };
+    ws.onmessage = (e: MessageEvent) => {
+      try {
+        const msg = JSON.parse(e.data as string) as { type: string; bands?: number[]; fftSize?: number; gain?: number };
+        if (msg.type === 'audio-bands' && msg.bands) {
+          audioCtxRef.current = { bands: msg.bands, fftSize: msg.fftSize ?? 2048, gain: msg.gain ?? 1.0 };
+        }
+      } catch { /* ignore */ }
+    };
+    return () => {
+      const w = wsRef.current;
+      wsRef.current = null;
+      if (w && w.readyState === WebSocket.OPEN) {
+        w.send(JSON.stringify({ type: 'audio-viz-stop' }));
+        w.close();
+      }
+    };
+  }, [hasAudio]);
 
   // Size canvas on mount (DPR-aware)
   useEffect(() => {
@@ -159,8 +197,9 @@ export function HudDualPreview({
     const ctx = canvas?.getContext('2d');
     if (!ctx) return;
     const now = new Date();
-    drawModule(ctx, getPixels(leftWidget,  'left',  now), 0);
-    drawModule(ctx, getPixels(rightWidget, 'right', now), RIGHT_X);
+    const audioCtx = audioCtxRef.current;
+    drawModule(ctx, getPixels(leftWidget,  'left',  now, audioCtx), 0);
+    drawModule(ctx, getPixels(rightWidget, 'right', now, audioCtx), RIGHT_X);
     // Bracket around the selected side
     if (selectedSide === 'left') {
       drawBrackets(ctx, 0.5, 0.5, HALF_W - 0.5, CANVAS_H - 0.5);
