@@ -7,7 +7,7 @@ import type { ClockFace, ClockRenderer } from '../../../animations/clock-rendere
 import { createDataRenderer } from '../../../animations/data-renderers.js';
 import type { DataStyle, DataRenderer } from '../../../animations/data-renderers.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
-import type { AudioStyle } from '../../../animations/audio-renderers.js';
+import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { createHeatmapState, bumpTool, renderHeatmap } from '../../../animations/heatmap.js';
 import type { HudPresetClient, HudWidget } from '../types/hud-preset.js';
 
@@ -35,7 +35,7 @@ if (import.meta.hot) {
   });
 }
 
-function renderWidgetToB64(widget: HudWidget | null, side: 'left' | 'right'): string {
+function renderWidgetToB64(widget: HudWidget | null, side: 'left' | 'right', audioCtx: RenderCtx): string {
   const empty = btoa(String.fromCharCode(...new Uint8Array(COLS * ROWS)));
   if (!widget) return empty;
   try {
@@ -49,7 +49,7 @@ function renderWidgetToB64(widget: HudWidget | null, side: 'left' | 'right'): st
     } else if (widget.widget === 'audio') {
       const style = widget.style ?? AUDIO_STYLES[0]!.id;
       if (!_audioCache[style]) _audioCache[style] = createAudioRenderer(style);
-      const frame = _audioCache[style]!(MOCK_AUDIO_CTX);
+      const frame = _audioCache[style]!(audioCtx);
       const out = new Uint8Array(COLS * ROWS);
       for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
       return btoa(String.fromCharCode(...out));
@@ -310,6 +310,7 @@ export type PresetListProps = {
   presets: HudPresetClient[];
   activeName: string | null;
   selectedName: string | null;
+  audioCtx?: RenderCtx;
   onSelect: (name: string) => void;
   onCreate: () => void;
   onInsert: (afterIdx: number) => void;
@@ -323,6 +324,7 @@ export function PresetList({
   presets,
   activeName,
   selectedName,
+  audioCtx = MOCK_AUDIO_CTX,
   onSelect,
   onCreate,
   onInsert,
@@ -358,8 +360,8 @@ export function PresetList({
           <li aria-hidden="true" className="-my-[19px] h-0.5 bg-green-500 rounded-full pointer-events-none" />
         )}
         {presets.map((preset, idx) => {
-          const leftPx  = renderWidgetToB64(preset.left,  'left');
-          const rightPx = renderWidgetToB64(preset.right, 'right');
+          const leftPx  = renderWidgetToB64(preset.left,  'left',  audioCtx);
+          const rightPx = renderWidgetToB64(preset.right, 'right', audioCtx);
           const pixels  = combinePixels(leftPx, rightPx);
           return (
             <Fragment key={preset.name}>
