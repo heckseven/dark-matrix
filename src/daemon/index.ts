@@ -28,7 +28,7 @@ import type { AudioStyle } from '../animations/audio-renderers.js';
 import { createClockRenderer, isClockFace } from '../animations/clock-renderers.js';
 import { createDataRenderer } from '../animations/data-renderers.js';
 import { DATA_STYLES } from '../animations/data-renderers.js';
-import type { DataStyle, DataWidgetConfig } from '../animations/data-renderers.js';
+import type { DataStyle, DataWidgetConfig, DataRenderer } from '../animations/data-renderers.js';
 import { watchProcStats } from '../lib/proc-source.js';
 import { createPresetTriggerEngine } from '../lib/preset-triggers.js';
 import { createGifAnimation } from '../animations/gif.js';
@@ -297,46 +297,117 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     return cfg;
   }
 
+  type AudioCtxData = { bands: number[]; fftSize: number; gain: number };
+
+  interface WidgetRenderer {
+    render(now: Date, audioCtx: AudioCtxData | null): Frame;
+    stop(): void;
+  }
+
+  function createWidgetRenderer(
+    widget: NonNullable<NonNullable<Config['hud']>['left']>,
+    side: 'left' | 'right',
+    procDataRendererRef: { renderer: DataRenderer | null },
+  ): WidgetRenderer {
+    switch (widget.widget) {
+      case 'clock': {
+        const face = widget.face ?? 'elegant';
+        const clockRenderer = createClockRenderer(face);
+        return {
+          render(now, audioCtx) {
+            const base = audioCtx ? { now, ...audioCtx } : { now };
+            return clockRenderer({ ...base, side });
+          },
+          stop() { /* stateless */ },
+        };
+      }
+      case 'data': {
+        const dataRenderer = createDataRenderer(
+          side === 'left' ? hudDataConfig('left') : hudDataConfig('right'),
+        );
+        procDataRendererRef.renderer = dataRenderer;
+        return {
+          render(_now, _audioCtx) { return dataRenderer.render(); },
+          stop() { /* no cleanup needed */ },
+        };
+      }
+      case 'heatmap': {
+        return {
+          render(_now, _audioCtx) {
+            const [lf, rf] = renderHeatmap(heatmapState);
+            return side === 'left' ? lf! : rf!;
+          },
+          stop() { /* stateless */ },
+        };
+      }
+      case 'audio': {
+        const style = widget.style ?? 'dark-matter';
+        const audioRenderer = createAudioRenderer(style);
+        return {
+          render(_now, audioCtx) {
+            const ctx = audioCtx ?? { bands: new Array(9).fill(0) as number[], fftSize: 2048, gain: 1.0 };
+            const raw = audioRenderer(ctx);
+            if (side === 'right') {
+              const mirrored = new Uint8Array(raw.length);
+              for (let col = 0; col < FRAME_COLS; col++) {
+                const src = FRAME_COLS - 1 - col;
+                for (let row = 0; row < FRAME_ROWS; row++) {
+                  mirrored[col * FRAME_ROWS + row] = raw[src * FRAME_ROWS + row] ?? 0;
+                }
+              }
+              return mirrored as Frame;
+            }
+            return raw;
+          },
+          stop() { /* stateless */ },
+        };
+      }
+      case 'image': {
+        // TODO: implement image widget (Wave 2)
+        return {
+          render(_now, _audioCtx) { return new Uint8Array(FRAME_COLS * FRAME_ROWS) as Frame; },
+          stop() { /* no cleanup needed */ },
+        };
+      }
+      default: {
+        const _exhaustive: never = widget;
+        void _exhaustive;
+        return createWidgetRenderer({ widget: 'clock', face: 'elegant' }, side, procDataRendererRef);
+      }
+    }
+  }
+
   function runHudOnModules(): () => void {
     const { left, right } = currentConfig.modules;
     let stopped = false;
 
-    const leftWidgetType  = currentConfig.hud?.left?.widget  ?? 'clock';
-    const rightWidgetType = currentConfig.hud?.right?.widget ?? 'clock';
+    const defaultClock = { widget: 'clock', face: 'elegant' } as const;
+    const leftHudWidget  = currentConfig.hud?.left  ?? defaultClock;
+    const rightHudWidget = currentConfig.hud?.right ?? defaultClock;
 
-    // Clock renderers (used when widget = 'clock')
-    const leftHud  = currentConfig.hud?.left;
-    const rightHud = currentConfig.hud?.right;
-    const leftClockFace  = leftHud?.widget  === 'clock' ? (leftHud.face  ?? 'elegant') : 'elegant';
-    const rightClockFace = rightHud?.widget === 'clock' ? (rightHud.face ?? 'elegant') : 'elegant';
-    const leftClockRenderer  = createClockRenderer(leftClockFace);
-    const rightClockRenderer = createClockRenderer(rightClockFace);
+    const leftProcRef:  { renderer: DataRenderer | null } = { renderer: null };
+    const rightProcRef: { renderer: DataRenderer | null } = { renderer: null };
 
-    // Data renderers (used when widget = 'data')
-    const leftDataRenderer  = leftWidgetType  === 'data' ? createDataRenderer(hudDataConfig('left'))  : null;
-    const rightDataRenderer = rightWidgetType === 'data' ? createDataRenderer(hudDataConfig('right')) : null;
-    const needsProc = leftWidgetType === 'data' || rightWidgetType === 'data';
+    const leftRenderer  = createWidgetRenderer(leftHudWidget,  'left',  leftProcRef);
+    const rightRenderer = createWidgetRenderer(rightHudWidget, 'right', rightProcRef);
+
+    const needsProc = leftHudWidget.widget === 'data' || rightHudWidget.widget === 'data';
     const stopProc = needsProc
       ? watchProcStats((stats) => {
-          leftDataRenderer?.update(stats);
-          rightDataRenderer?.update(stats);
+          leftProcRef.renderer?.update(stats);
+          rightProcRef.renderer?.update(stats);
         })
       : null;
 
-    const needsHeatmap = leftWidgetType === 'heatmap' || rightWidgetType === 'heatmap';
+    const needsHeatmap = leftHudWidget.widget === 'heatmap' || rightHudWidget.widget === 'heatmap';
 
-    // Audio renderers (used when widget = 'audio')
-    const leftAudioHud  = currentConfig.hud?.left;
-    const rightAudioHud = currentConfig.hud?.right;
-    const leftAudioStyle: AudioStyle  = leftAudioHud?.widget  === 'audio' ? (leftAudioHud.style  ?? 'dark-matter') : 'dark-matter';
-    const rightAudioStyle: AudioStyle = rightAudioHud?.widget === 'audio' ? (rightAudioHud.style ?? 'dark-matter') : 'dark-matter';
-    const leftAudioRenderer  = leftWidgetType  === 'audio' ? createAudioRenderer(leftAudioStyle)  : null;
-    const rightAudioRenderer = rightWidgetType === 'audio' ? createAudioRenderer(rightAudioStyle) : null;
-
-    let audioCtx: { bands: number[]; fftSize: number; gain: number } | null = null;
+    const leftClockFace  = leftHudWidget.widget  === 'clock' ? leftHudWidget.face  : 'elegant';
+    const rightClockFace = rightHudWidget.widget === 'clock' ? rightHudWidget.face : 'elegant';
     const needsAudio = leftClockFace === 'binary-audio' || rightClockFace === 'binary-audio'
-      || leftWidgetType === 'audio' || rightWidgetType === 'audio';
+      || leftHudWidget.widget === 'audio' || rightHudWidget.widget === 'audio';
     if (needsAudio) hudAudioStreaming = true;
+
+    let audioCtx: AudioCtxData | null = null;
     const stopAudio = needsAudio
       ? streamAudioBands(hudAudioSource, (ctx) => {
           audioCtx = ctx;
@@ -347,55 +418,14 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     const loop = async () => {
       while (!stopped) {
         const now = new Date();
-        let lf: Frame;
-        let rf: Frame;
 
         if (needsHeatmap) tickHeatmap(heatmapState);
-        const [hmLeft, hmRight] = needsHeatmap ? renderHeatmap(heatmapState) : [null, null];
 
-        if (leftWidgetType === 'heatmap' && hmLeft) {
-          lf = hmLeft;
-          ditherBW(lf, FRAME_COLS, FRAME_ROWS);
-        } else if (leftWidgetType === 'audio' && leftAudioRenderer) {
-          lf = leftAudioRenderer(audioCtx ?? { bands: new Array(9).fill(0) as number[], fftSize: 2048, gain: 1.0 });
-          ditherBW(lf, FRAME_COLS, FRAME_ROWS);
-        } else if (leftWidgetType === 'data' && leftDataRenderer) {
-          lf = leftDataRenderer.render();
-          ditherBW(lf, FRAME_COLS, FRAME_ROWS);
-        } else if (leftWidgetType === 'image') {
-          // TODO: render image widget
-          lf = new Uint8Array(FRAME_COLS * FRAME_ROWS) as Frame;
-        } else {
-          const base = audioCtx ? { now, ...audioCtx } : { now };
-          lf = leftClockRenderer({ ...base, side: 'left' });
-          ditherBW(lf, FRAME_COLS, FRAME_ROWS);
-        }
+        const lf = leftRenderer.render(now, audioCtx);
+        ditherBW(lf, FRAME_COLS, FRAME_ROWS);
 
-        if (rightWidgetType === 'heatmap' && hmRight) {
-          rf = hmRight;
-          ditherBW(rf, FRAME_COLS, FRAME_ROWS);
-        } else if (rightWidgetType === 'audio' && rightAudioRenderer) {
-          const rawRf = rightAudioRenderer(audioCtx ?? { bands: new Array(9).fill(0) as number[], fftSize: 2048, gain: 1.0 });
-          const mirroredRf = new Uint8Array(rawRf.length);
-          for (let col = 0; col < FRAME_COLS; col++) {
-            const src = FRAME_COLS - 1 - col;
-            for (let row = 0; row < FRAME_ROWS; row++) {
-              mirroredRf[col * FRAME_ROWS + row] = rawRf[src * FRAME_ROWS + row] ?? 0;
-            }
-          }
-          rf = mirroredRf as Frame;
-          ditherBW(rf, FRAME_COLS, FRAME_ROWS);
-        } else if (rightWidgetType === 'data' && rightDataRenderer) {
-          rf = rightDataRenderer.render();
-          ditherBW(rf, FRAME_COLS, FRAME_ROWS);
-        } else if (rightWidgetType === 'image') {
-          // TODO: render image widget
-          rf = new Uint8Array(FRAME_COLS * FRAME_ROWS) as Frame;
-        } else {
-          const base = audioCtx ? { now, ...audioCtx } : { now };
-          rf = rightClockRenderer({ ...base, side: 'right' });
-          ditherBW(rf, FRAME_COLS, FRAME_ROWS);
-        }
+        const rf = rightRenderer.render(now, audioCtx);
+        ditherBW(rf, FRAME_COLS, FRAME_ROWS);
 
         try { if (left)  await transport.frameBw(packBW(lf), left);  } catch { /* non-fatal */ }
         try { if (right) await transport.frameBw(packBW(rf), right); } catch { /* non-fatal */ }
@@ -404,7 +434,14 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     };
 
     void loop();
-    return () => { stopped = true; stopAudio?.(); stopProc?.(); hudAudioStreaming = false; };
+    return () => {
+      stopped = true;
+      stopAudio?.();
+      stopProc?.();
+      leftRenderer.stop();
+      rightRenderer.stop();
+      hudAudioStreaming = false;
+    };
   }
 
   function streamAudioBands(
