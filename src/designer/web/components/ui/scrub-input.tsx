@@ -81,7 +81,10 @@ export function ScrubInput({
         }}
         onBlur={() => setEditing(false)}
         onKeyDown={e => {
-          if (e.key === 'Enter' || e.key === 'Escape') {
+          if (!editing && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            setEditing(true);
+          } else if (e.key === 'Enter' || e.key === 'Escape') {
             inputRef.current?.blur();
           } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
             e.preventDefault();
