@@ -10,7 +10,6 @@ import { Menu, MenuTrigger, MenuContent, MenuItem } from './ui/menu.js';
 
 // ── constants ──────────────────────────────────────────────────────────────
 
-const TIME_RE = /^\d{2}:\d{2}$/;
 const TRIGGER_TYPES = ['time', 'idle', 'active', 'day', 'date', 'threshold', 'interface', 'vm'] as const;
 type TriggerType = typeof TRIGGER_TYPES[number];
 
@@ -56,54 +55,35 @@ function defaultTrigger(type: TriggerType): HudTrigger {
 
 type FieldProps = { trigger: HudTrigger; onChange: (t: HudTrigger) => void };
 
+function parseHHMM(hhmm: string): [number, number] {
+  const [h, m] = hhmm.split(':').map(Number);
+  return [h ?? 0, m ?? 0];
+}
+
+function fmtHHMM(h: number, m: number): string {
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function TimePair({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const [h, m] = parseHHMM(value);
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="font-mono text-xs text-foreground/55">{label}</span>
+      <div className="flex items-center gap-1">
+        <ScrubInput aria-label={`${label} hours`}   value={h} min={0} max={23} onChange={v => onChange(fmtHHMM(v, m))} className="w-8 text-center" />
+        <span aria-hidden="true" className="font-mono text-xs text-foreground/40">:</span>
+        <ScrubInput aria-label={`${label} minutes`} value={m} min={0} max={59} onChange={v => onChange(fmtHHMM(h, v))} className="w-8 text-center" />
+      </div>
+    </div>
+  );
+}
+
 function TimeFields({ trigger, onChange }: FieldProps) {
-  const [fromErr, setFromErr] = useState(false);
-  const [toErr, setToErr] = useState(false);
-  const uid = useId();
   if (trigger.type !== 'time') return null;
   return (
     <div className="flex items-end gap-4 flex-wrap">
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`${uid}-from`} className="font-mono text-xs text-foreground/55">from</label>
-        <Input
-          id={`${uid}-from`}
-          type="text"
-          aria-invalid={fromErr}
-          defaultValue={trigger.from}
-          placeholder="HH:MM"
-          onBlur={e => {
-            const v = e.target.value.trim();
-            if (!TIME_RE.test(v)) { setFromErr(true); return; }
-            setFromErr(false);
-            onChange({ ...trigger, from: v });
-          }}
-          onChange={() => setFromErr(false)}
-          className={FW}
-          expandedClassName={FW}
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`${uid}-to`} className="font-mono text-xs text-foreground/55">to</label>
-        <Input
-          id={`${uid}-to`}
-          type="text"
-          aria-invalid={toErr}
-          defaultValue={trigger.to}
-          placeholder="HH:MM"
-          onBlur={e => {
-            const v = e.target.value.trim();
-            if (!TIME_RE.test(v)) { setToErr(true); return; }
-            setToErr(false);
-            onChange({ ...trigger, to: v });
-          }}
-          onChange={() => setToErr(false)}
-          className={FW}
-          expandedClassName={FW}
-        />
-      </div>
-      {(fromErr || toErr) && (
-        <span role="alert" className="font-mono text-xs text-yellow-400 self-center">HH:MM</span>
-      )}
+      <TimePair label="from" value={trigger.from} onChange={v => onChange({ ...trigger, from: v })} />
+      <TimePair label="to"   value={trigger.to}   onChange={v => onChange({ ...trigger, to: v })} />
     </div>
   );
 }
