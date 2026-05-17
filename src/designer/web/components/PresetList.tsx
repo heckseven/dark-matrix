@@ -170,6 +170,7 @@ function PresetCard({
   onMoveDown,
   setDropTarget,
   onDrop,
+  onEditTriggers,
 }: {
   preset: HudPresetClient;
   idx: number;
@@ -186,6 +187,7 @@ function PresetCard({
   onMoveDown: () => void;
   setDropTarget: (v: number | null) => void;
   onDrop: (from: number, onto: number) => void;
+  onEditTriggers: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(preset.name);
@@ -272,6 +274,14 @@ function PresetCard({
           <div className="flex">
             <Button
               variant="ghost"
+              aria-label="Edit triggers"
+              tooltip="Edit triggers"
+              onClick={e => { e.stopPropagation(); onEditTriggers(); }}
+            >
+              if
+            </Button>
+            <Button
+              variant="ghost"
               aria-label="Clone preset"
               tooltip="Clone preset"
               onClick={e => { e.stopPropagation(); onDuplicate(); }}
@@ -334,6 +344,7 @@ export type PresetListProps = {
   onDuplicate: (name: string) => void;
   onRename: (oldName: string, newName: string) => void;
   onMove: (fromIdx: number, toIdx: number) => void;
+  onEditTriggers: (name: string) => void;
 };
 
 export function PresetList({
@@ -348,6 +359,7 @@ export function PresetList({
   onDuplicate,
   onRename,
   onMove,
+  onEditTriggers,
 }: PresetListProps) {
   const [tick, setTick] = useState(0);
   const [dropTarget, setDropTarget] = useState<number | null>(null);
@@ -423,6 +435,7 @@ export function PresetList({
                   onMoveDown={() => onMove(idx, idx + 1)}
                   setDropTarget={setDropTarget}
                   onDrop={onMove}
+                  onEditTriggers={() => onEditTriggers(preset.name)}
                 />
               </li>
               {idx < presets.length - 1 && (

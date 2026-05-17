@@ -8,7 +8,7 @@ import type { HudPresetClient } from '../types/hud-preset.js';
 import { PresetList } from './PresetList.js';
 import { HudDualPreview } from './HudDualPreview.js';
 import { HudInspector } from './HudInspector.js';
-import { TriggerEditor } from './TriggerEditor.js';
+import { TriggerView } from './TriggerView.js';
 
 // ── module-level WS send (shared with App header) ────────────────────────
 
@@ -70,6 +70,7 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
   const [audioCtx, setAudioCtx] = useState<RenderCtx>(MOCK_AUDIO_CTX);
   const [inspectorNeedsAudio, setInspectorNeedsAudio] = useState(false);
   const [inspectorClocksVisible, setInspectorClocksVisible] = useState(false);
+  const [triggerPresetName, setTriggerPresetName] = useState<string | null>(null);
 
   const previewHasAudio = selectedPreset?.left?.widget === 'audio' || selectedPreset?.right?.widget === 'audio';
   const needsAudio = previewHasAudio || inspectorNeedsAudio;
@@ -246,6 +247,7 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
             designerStore.getState().movePreset(from, to);
             debouncedSave();
           }}
+          onEditTriggers={(name) => setTriggerPresetName(name)}
         />
       </aside>
 
@@ -259,20 +261,6 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
             onSelectSide={(side) => designerStore.getState().selectSide(side)}
             audioCtx={audioCtx}
             {...(clockNow !== undefined ? { clockNow } : {})}
-          />
-          <TriggerEditor
-            triggers={selectedPreset?.triggers ?? []}
-            onChange={(triggers) => {
-              if (!selectedPreset) return;
-              designerStore.getState().updatePresetTriggers(selectedPreset.name, triggers);
-              debouncedSave();
-            }}
-            {...(selectedPreset?.match !== undefined ? { match: selectedPreset.match } : {})}
-            onMatchChange={(match) => {
-              if (!selectedPreset) return;
-              designerStore.getState().updatePresetMatch(selectedPreset.name, match);
-              debouncedSave();
-            }}
           />
         </div>
       </main>
@@ -299,6 +287,26 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
           />
         </div>
       </aside>
+
+      {triggerPresetName !== null && (() => {
+        const tp = hudPresets.find(p => p.name === triggerPresetName);
+        if (!tp) return null;
+        return (
+          <TriggerView
+            key={triggerPresetName}
+            preset={tp}
+            onDone={() => setTriggerPresetName(null)}
+            onChange={(triggers) => {
+              designerStore.getState().updatePresetTriggers(tp.name, triggers);
+              debouncedSave();
+            }}
+            onMatchChange={(match) => {
+              designerStore.getState().updatePresetMatch(tp.name, match);
+              debouncedSave();
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }
