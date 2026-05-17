@@ -10,6 +10,7 @@ import sharp from 'sharp';
 import { parseProject, frameToBase64 } from './format.js';
 import type { DmxProject } from './format.js';
 import type { AssetMeta } from '../lib/asset-meta.js';
+import { convertGifToDmx } from '../lib/image-convert.js';
 import { sendToDaemon, PersistentDaemonClient, daemonSocketPath } from '../lib/daemon-client.js';
 import { loadConfig, ConfigSchema } from '../lib/config.js';
 import { AUDIO_STYLES } from '../animations/audio-renderers.js';
@@ -453,6 +454,253 @@ async function handleExportPng(req: http.IncomingMessage, res: http.ServerRespon
   }
 }
 
+const MAX_ASSETS_BODY = 10 * 1024 * 1024; // 10 MB
+
+function readBodyLarge(req: http.IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    let total = 0;
+    req.on('data', (chunk: Buffer) => {
+      total += chunk.length;
+      if (total > MAX_ASSETS_BODY) { req.destroy(); reject(new Error('payload too large')); return; }
+      data += chunk.toString();
+    });
+    req.on('end', () => resolve(data));
+    req.on('error', reject);
+  });
+}
+
+function clamp(v: number, min: number, max: number): number {
+  return v < min ? min : v > max ? max : v;
+}
+
+async function convertSourceToProject(
+  sourceBuf: Buffer,
+  width: 9 | 18,
+  mode: 'bw' | 'gray',
+  fit: 'contain' | 'cover' | 'fill',
+  brightness: number,
+  contrast: number,
+): Promise<DmxProject> {
+  // Detect .dmx.json: starts with '{' and parses as dark-matrix JSON
+  const head = sourceBuf.slice(0, 1).toString();
+  if (head === '{') {
+    try {
+      const project = parseProject(sourceBuf.toString('utf8'));
+      return project;
+    } catch {
+      // not a valid dmx.json — fall through to image path
+    }
+  }
+
+  // Detect GIF magic bytes: GIF87a or GIF89a
+  const isGif =
+    sourceBuf[0] === 0x47 && sourceBuf[1] === 0x49 && sourceBuf[2] === 0x46;
+
+  if (isGif) {
+    return convertGifToDmx(sourceBuf, { width, mode, fit, brightness, contrast });
+  }
+
+  // PNG/JPEG: single frame
+  const raw = await sharp(sourceBuf)
+    .resize(width, 34, { fit, background: { r: 0, g: 0, b: 0 } })
+    .grayscale()
+    .modulate({ brightness: 1 + brightness })
+    .linear(contrast, 0)
+    .raw()
+    .toBuffer();
+
+  const pixels = new Uint8Array(width * 34);
+  for (let col = 0; col < width; col++) {
+    for (let row = 0; row < 34; row++) {
+      const v = raw[row * width + col] ?? 0;
+      pixels[col * 34 + row] = mode === 'bw' ? (v >= 128 ? 255 : 0) : v;
+    }
+  }
+
+  return {
+    format: 'dark-matrix',
+    version: 1,
+    width,
+    height: 34,
+    mode,
+    loop: false,
+    frames: [{ delayMs: 0, pixels: Buffer.from(pixels).toString('base64') }],
+  };
+}
+
+async function handleAssetsImport(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  aDir: string,
+): Promise<void> {
+  let body: string;
+  try {
+    body = await readBodyLarge(req);
+  } catch {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'payload too large' }));
+    return;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'invalid json' }));
+    return;
+  }
+
+  const p = parsed as Record<string, unknown>;
+
+  // Validate filename
+  const filename = p['filename'];
+  if (typeof filename !== 'string' || !/^[a-zA-Z0-9_\-]+$/.test(filename) || filename.length > 64) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'invalid filename' }));
+    return;
+  }
+
+  // Validate sourceBase64
+  if (typeof p['sourceBase64'] !== 'string') {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'missing sourceBase64' }));
+    return;
+  }
+
+  // Validate width
+  const width = p['width'];
+  if (width !== 9 && width !== 18) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'width must be 9 or 18' }));
+    return;
+  }
+
+  // Validate mode
+  const mode = p['mode'];
+  if (mode !== 'bw' && mode !== 'gray') {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'mode must be bw or gray' }));
+    return;
+  }
+
+  // Validate fit
+  const fit = p['fit'];
+  if (fit !== 'contain' && fit !== 'cover' && fit !== 'fill') {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'fit must be contain, cover, or fill' }));
+    return;
+  }
+
+  const brightness = clamp(typeof p['brightness'] === 'number' ? p['brightness'] : 0, -1, 1);
+  const contrast = clamp(typeof p['contrast'] === 'number' ? p['contrast'] : 1, 0.5, 2);
+  const overwrite = p['overwrite'] === true;
+
+  // Path traversal check
+  const outputPath = path.resolve(aDir, filename + '.dmx.json');
+  if (!outputPath.startsWith(aDir + path.sep)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'invalid filename' }));
+    return;
+  }
+
+  // Check existence
+  if (!overwrite) {
+    try {
+      await fs.access(outputPath);
+      res.writeHead(409, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: 'file exists' }));
+      return;
+    } catch {
+      // does not exist — OK
+    }
+  }
+
+  try {
+    const sourceBuf = Buffer.from(p['sourceBase64'] as string, 'base64');
+    const project = await convertSourceToProject(sourceBuf, width, mode, fit, brightness, contrast);
+
+    await fs.mkdir(aDir, { recursive: true });
+    const tmp = outputPath + '.tmp';
+    await fs.writeFile(tmp, JSON.stringify(project, null, 2) + '\n', { mode: 0o600 });
+    await fs.rename(tmp, outputPath);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, filename: filename + '.dmx.json' }));
+  } catch (err) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: String(err) }));
+  }
+}
+
+async function handleAssetsPreview(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+): Promise<void> {
+  let body: string;
+  try {
+    body = await readBodyLarge(req);
+  } catch {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'payload too large' }));
+    return;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'invalid json' }));
+    return;
+  }
+
+  const p = parsed as Record<string, unknown>;
+
+  if (typeof p['sourceBase64'] !== 'string') {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'missing sourceBase64' }));
+    return;
+  }
+
+  const width = p['width'];
+  if (width !== 9 && width !== 18) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'width must be 9 or 18' }));
+    return;
+  }
+
+  const mode = p['mode'];
+  if (mode !== 'bw' && mode !== 'gray') {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'mode must be bw or gray' }));
+    return;
+  }
+
+  const fit = p['fit'];
+  if (fit !== 'contain' && fit !== 'cover' && fit !== 'fill') {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'fit must be contain, cover, or fill' }));
+    return;
+  }
+
+  const brightness = clamp(typeof p['brightness'] === 'number' ? p['brightness'] : 0, -1, 1);
+  const contrast = clamp(typeof p['contrast'] === 'number' ? p['contrast'] : 1, 0.5, 2);
+
+  try {
+    const sourceBuf = Buffer.from(p['sourceBase64'] as string, 'base64');
+    const project = await convertSourceToProject(sourceBuf, width, mode, fit, brightness, contrast);
+    const frames = project.frames.slice(0, 10).map(f => f.pixels);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, frames, width: project.width, frameCount: project.frames.length }));
+  } catch (err) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: String(err) }));
+  }
+}
+
 export async function startDesignerServer(opts?: DesignerServerOptions): Promise<DesignerServer> {
   const host = opts?.host ?? '127.0.0.1';
   const configDir = opts?.configDir;
@@ -759,6 +1007,18 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
       } catch { /* readdir failed — return empty list */ }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true, assets }));
+      return;
+    }
+
+    // Assets import
+    if (url === '/api/assets' && method === 'POST') {
+      await handleAssetsImport(req, res, assetsDir(configDir));
+      return;
+    }
+
+    // Assets preview
+    if (url === '/api/assets/preview' && method === 'POST') {
+      await handleAssetsPreview(req, res);
       return;
     }
 
