@@ -99,7 +99,7 @@ if (import.meta.hot) {
   });
 }
 
-type ImagePixelsCache = Record<string, { w9: Uint8Array; w18: Uint8Array } | undefined>;
+type ImagePixelsCache = Record<string, { pixels: Uint8Array; width: 9 | 18 } | undefined>;
 
 function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, audioCtx: RenderCtx, imageCache: ImagePixelsCache): Uint8Array {
   const empty = new Uint8Array(COLS * ROWS);
@@ -126,12 +126,10 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, 
     } else if (widget.widget === 'image') {
       const cached = imageCache[widget.file];
       if (!cached) return empty;
-      // 18-wide asset: left gets cols 0–8, right gets cols 9–17
-      if (cached.w18.length === 18 * ROWS) {
-        return extractHalf(cached.w18, side);
+      if (cached.width === 18) {
+        return extractHalf(cached.pixels, side);
       }
-      // 9-wide asset: same pixels on both sides
-      return cached.w9;
+      return cached.pixels;
     } else {
       const style = widget.style ?? 'line';
       const frame = getDataRenderer(style).render();
@@ -206,20 +204,19 @@ export function HudDualPreview({
   const rightFile = rightWidget?.widget === 'image' ? rightWidget.file : null;
   useEffect(() => {
     if (!leftFile && !rightFile) return;
-    void designerStore.getState().loadAssets().then(() => {
+    let cancelled = false;
+    designerStore.getState().loadAssets().then(() => {
+      if (cancelled) return;
       const { assetList } = designerStore.getState();
       if (!assetList) return;
       for (const asset of assetList) {
         if (imageCacheRef.current[asset.name]) continue;
         const bytesPerFrame = asset.width * ROWS;
-        const full = b64ToUint8(asset.firstFrame, bytesPerFrame);
-        if (asset.width === 18) {
-          imageCacheRef.current[asset.name] = { w18: full, w9: extractHalf(full, 'left') };
-        } else {
-          imageCacheRef.current[asset.name] = { w9: full, w18: full };
-        }
+        const pixels = b64ToUint8(asset.firstFrame, bytesPerFrame);
+        imageCacheRef.current[asset.name] = { pixels, width: asset.width };
       }
-    });
+    }).catch(() => {});
+    return () => { cancelled = true; };
   }, [leftFile, rightFile]);
 
   // Size canvas on mount (DPR-aware)

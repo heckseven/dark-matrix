@@ -495,8 +495,8 @@ export function createDesignerStore() {
       try {
         const res = await fetch('/api/assets');
         if (!res.ok) return;
-        const list = await res.json() as AssetMeta[];
-        set({ assetList: list });
+        const data = await res.json() as { ok: boolean; assets: AssetMeta[] };
+        set({ assetList: data.assets ?? [] });
       } catch { /* network unavailable */ }
     },
   }));

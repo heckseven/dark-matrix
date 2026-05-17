@@ -179,7 +179,7 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
         ) : (
           <>
             <span className="font-mono text-xs text-foreground/55">drop image or click to select</span>
-            <span className="font-mono text-xs text-foreground/30">.png .jpg .gif .dmx.json</span>
+            <span className="font-mono text-xs text-foreground/55">.png .jpg .gif .dmx.json</span>
           </>
         )}
       </label>
@@ -188,9 +188,9 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
       {file && (
         <>
           {/* Preview */}
-          <div className="flex justify-center">
+          <div className="flex justify-center" aria-live="polite" aria-label="image preview">
             {previewLoading && (
-              <span className="font-mono text-xs text-foreground/40">loading…</span>
+              <span className="font-mono text-xs text-foreground/55">loading…</span>
             )}
             {!previewLoading && previewPixels && (
               <MatrixPreview
@@ -199,19 +199,21 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
               />
             )}
             {!previewLoading && !previewPixels && (
-              <span className="font-mono text-xs text-foreground/30">no preview yet</span>
+              <span className="font-mono text-xs text-foreground/55">no preview yet</span>
             )}
           </div>
 
           {/* Width toggle */}
           <div className="flex flex-col gap-1">
-            <span className="font-mono text-xs text-foreground/50">width</span>
-            <div className="flex gap-2">
+            <span className="font-mono text-xs text-foreground/50" id="aip-width-label">width</span>
+            <div role="group" aria-labelledby="aip-width-label" className="flex gap-2">
               {([9, 18] as const).map(w => (
                 <button
                   key={w}
                   type="button"
-                  className={`font-mono text-xs px-2 py-1 border ${width === w ? 'border-foreground/60 text-foreground' : 'border-foreground/20 text-foreground/45 hover:border-foreground/40'}`}
+                  aria-pressed={width === w}
+                  aria-label={`${w} columns`}
+                  className={`font-mono text-xs px-2 py-1 border ${width === w ? 'border-foreground/60 text-foreground' : 'border-foreground/20 text-foreground/55 hover:border-foreground/40'}`}
                   onClick={() => setWidth(w)}
                 >
                   {w}
@@ -222,13 +224,15 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
 
           {/* Mode toggle */}
           <div className="flex flex-col gap-1">
-            <span className="font-mono text-xs text-foreground/50">mode</span>
-            <div className="flex gap-2">
+            <span className="font-mono text-xs text-foreground/50" id="aip-mode-label">mode</span>
+            <div role="group" aria-labelledby="aip-mode-label" className="flex gap-2">
               {(['bw', 'gray'] as const).map(m => (
                 <button
                   key={m}
                   type="button"
-                  className={`font-mono text-xs px-2 py-1 border ${mode === m ? 'border-foreground/60 text-foreground' : 'border-foreground/20 text-foreground/45 hover:border-foreground/40'}`}
+                  aria-pressed={mode === m}
+                  aria-label={m === 'bw' ? 'black and white' : 'grayscale'}
+                  className={`font-mono text-xs px-2 py-1 border ${mode === m ? 'border-foreground/60 text-foreground' : 'border-foreground/20 text-foreground/55 hover:border-foreground/40'}`}
                   onClick={() => setMode(m)}
                 >
                   {m}
@@ -239,13 +243,14 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
 
           {/* Fit toggle */}
           <div className="flex flex-col gap-1">
-            <span className="font-mono text-xs text-foreground/50">fit</span>
-            <div className="flex gap-2">
+            <span className="font-mono text-xs text-foreground/50" id="aip-fit-label">fit</span>
+            <div role="group" aria-labelledby="aip-fit-label" className="flex gap-2">
               {(['contain', 'cover', 'fill'] as const).map(f => (
                 <button
                   key={f}
                   type="button"
-                  className={`font-mono text-xs px-2 py-1 border ${fit === f ? 'border-foreground/60 text-foreground' : 'border-foreground/20 text-foreground/45 hover:border-foreground/40'}`}
+                  aria-pressed={fit === f}
+                  className={`font-mono text-xs px-2 py-1 border ${fit === f ? 'border-foreground/60 text-foreground' : 'border-foreground/20 text-foreground/55 hover:border-foreground/40'}`}
                   onClick={() => setFit(f)}
                 >
                   {f}
@@ -258,6 +263,7 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
           <div className="flex flex-col gap-1">
             <span className="font-mono text-xs text-foreground/50">brightness</span>
             <Slider
+              aria-label="brightness"
               variant="value"
               min={-100}
               max={100}
@@ -270,6 +276,7 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
           <div className="flex flex-col gap-1">
             <span className="font-mono text-xs text-foreground/50">contrast</span>
             <Slider
+              aria-label="contrast"
               variant="value"
               min={50}
               max={200}
@@ -291,7 +298,7 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
           </div>
 
           {error && (
-            <span className="font-mono text-xs text-red-400">{error}</span>
+            <span role="alert" className="font-mono text-xs text-red-400">{error}</span>
           )}
 
           {/* Actions */}
