@@ -399,17 +399,19 @@ function AudioGrid({ currentWidget, audioCtx, side, onPick, onMount, onUnmount }
 
 // ── Layer 2: Image grid ───────────────────────────────────────────────────
 
-function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete }: {
+function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, getPresetCount }: {
   currentWidget: HudWidget | null;
   assets: AssetMeta[] | null;
   onPick: (w: HudWidget) => void;
   onShowImport: () => void;
   onDelete: (name: string) => void;
+  getPresetCount: (name: string) => number;
 }) {
   const animRef = useRef<Record<string, { frameIdx: number; elapsed: number; lastTick: number | null }>>({});
   const assetsRef = useRef(assets);
   assetsRef.current = assets;
   const [tick, setTick] = useState(0);
+  const [confirmFor, setConfirmFor] = useState<{ name: string; presetCount: number } | null>(null);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -436,6 +438,15 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete }: {
 
   void tick;
 
+  function handleDeleteClick(name: string) {
+    const count = getPresetCount(name);
+    if (count === 0) {
+      onDelete(name);
+    } else {
+      setConfirmFor({ name, presetCount: count });
+    }
+  }
+
   if (assets === null) {
     return <div className="font-mono text-xs text-foreground/55 p-4">loading…</div>;
   }
@@ -451,37 +462,58 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete }: {
           const pixels = asset.frames[frameIdx] ?? asset.firstFrame;
           const active = currentWidget?.widget === 'image' && currentWidget.file === asset.name;
           const label = asset.name.replace('.dmx.json', '');
+          const isConfirming = confirmFor?.name === asset.name;
           return (
-            <button
+            <div
               key={asset.name}
-              type="button"
-              aria-label={label}
-              aria-pressed={active}
-              className={`group relative flex flex-col gap-2 items-center rounded-sm p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]${asset.width === 18 ? ' col-span-2' : ''}`}
-              onClick={() => onPick({ widget: 'image', file: asset.name })}
+              className={`group relative${asset.width === 18 ? ' col-span-2' : ''}`}
             >
-              <CornerBrackets active={active} />
-              <MatrixPreview width={asset.width} pixels={pixels} />
-              <span className="font-mono text-xs text-foreground/55 truncate max-w-full">{label}</span>
               <button
                 type="button"
-                aria-label={`Delete ${label}`}
-                className="absolute top-1 right-1 font-mono text-xs text-foreground/40 hover:text-red-400 opacity-0 group-hover:opacity-100 z-10 leading-none p-0.5"
-                onClick={e => { e.stopPropagation(); onDelete(asset.name); }}
+                aria-label={label}
+                aria-pressed={active}
+                className="relative flex flex-col gap-2 items-center rounded-sm p-2 w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
+                onClick={() => onPick({ widget: 'image', file: asset.name })}
               >
-                ×
+                <CornerBrackets active={active} />
+                <MatrixPreview width={asset.width} pixels={pixels} />
+                <span className="font-mono text-xs text-foreground/55 truncate max-w-full">{label}</span>
               </button>
-            </button>
+              <Button
+                variant="ghost"
+                aria-label={`Delete ${label}`}
+                tooltip={`Delete ${label}`}
+                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 z-10 text-foreground/40 hover:text-red-400 leading-none p-0.5 h-auto min-w-0"
+                onClick={() => handleDeleteClick(asset.name)}
+              >×</Button>
+              {isConfirming && (
+                <div className="absolute top-6 right-0 z-20 bg-background border border-foreground/20 p-2 flex flex-col gap-2 w-40">
+                  <span className="font-mono text-xs text-foreground/70">
+                    used in {confirmFor.presetCount} preset{confirmFor.presetCount !== 1 ? 's' : ''}
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="destructive"
+                      className="font-mono text-xs"
+                      onClick={() => { onDelete(asset.name); setConfirmFor(null); }}
+                    >delete</Button>
+                    <Button
+                      variant="ghost"
+                      className="font-mono text-xs"
+                      onClick={() => setConfirmFor(null)}
+                    >cancel</Button>
+                  </div>
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
-      <button
-        type="button"
-        className="font-mono text-xs text-foreground/55 hover:text-foreground border border-foreground/20 hover:border-foreground/50 px-3 py-1.5 mt-1 self-start"
+      <Button
+        variant={assets.length === 0 ? 'primary' : 'default'}
+        className="font-mono text-xs mt-1 self-start"
         onClick={onShowImport}
-      >
-        + import
-      </button>
+      >+ import</Button>
     </div>
   );
 }
@@ -587,7 +619,6 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
   // Image assets
   const [assets, setAssets] = useState<AssetMeta[] | null>(null);
   const [showImport, setShowImport] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ name: string; presetCount: number } | null>(null);
   const mountedRef = useRef(true);
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
@@ -605,7 +636,6 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
   function handleCategorySelect(cat: string) {
     setActiveCategory(cat);
     setView('grid');
-    setDeleteConfirm(null);
   }
 
   function handleBack() {
@@ -642,23 +672,17 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
       .catch(() => {});
   }
 
-  function doDeleteAsset(name: string) {
+  function handleDeleteAsset(name: string) {
     fetch(`/api/assets/${encodeURIComponent(name)}`, { method: 'DELETE' })
-      .then(() => { setDeleteConfirm(null); refreshAssets(); })
-      .catch(() => { setDeleteConfirm(null); });
+      .then(() => refreshAssets())
+      .catch(() => {});
   }
 
-  function handleDeleteAsset(name: string) {
-    const presets = designerStore.getState().hudPresets;
-    const presetCount = presets.filter(p =>
+  function getPresetCount(name: string): number {
+    return designerStore.getState().hudPresets.filter(p =>
       (p.left?.widget === 'image' && p.left.file === name) ||
       (p.right?.widget === 'image' && p.right.file === name)
     ).length;
-    if (presetCount > 0) {
-      setDeleteConfirm({ name, presetCount });
-      return;
-    }
-    doDeleteAsset(name);
   }
 
   function handlePick(w: HudWidget) {
@@ -703,12 +727,6 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
 
   // ── Layer 2
   if (view === 'grid') {
-    // 18-wide paired indicator
-    const isPaired = oppositeWidget?.widget === 'image'
-      && widget?.widget === 'image'
-      && oppositeWidget.file === widget.file
-      && (assets ?? []).find(a => a.name === widget.file)?.width === 18;
-
     return (
       <div className="flex flex-col h-full overflow-hidden">
         {header}
@@ -733,41 +751,14 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
               {activeCategory === 'ai'     && <AiGrid    currentWidget={widget} onPick={handlePick} />}
               {activeCategory === 'audio'  && <AudioGrid currentWidget={widget} audioCtx={audioCtx} side={side} onPick={handlePick} onMount={handleAudioMount} onUnmount={handleAudioUnmount} />}
               {activeCategory === 'image'  && (
-                <>
-                  {isPaired && (
-                    <p className="font-mono text-xs text-foreground/55 mb-3">← paired with opposite side</p>
-                  )}
-                  {deleteConfirm && (
-                    <div className="font-mono text-xs mb-3 px-2 py-2 border border-foreground/20 flex flex-col gap-2">
-                      <span className="text-foreground/70">
-                        used in {deleteConfirm.presetCount} preset{deleteConfirm.presetCount !== 1 ? 's' : ''}
-                      </span>
-                      <div className="flex gap-3">
-                        <button
-                          type="button"
-                          className="font-mono text-xs text-red-400 hover:text-red-300"
-                          onClick={() => doDeleteAsset(deleteConfirm.name)}
-                        >
-                          delete anyway
-                        </button>
-                        <button
-                          type="button"
-                          className="font-mono text-xs text-foreground/55 hover:text-foreground"
-                          onClick={() => setDeleteConfirm(null)}
-                        >
-                          cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  <ImageGrid
-                    currentWidget={widget}
-                    assets={assets}
-                    onPick={handlePick}
-                    onShowImport={() => setShowImport(true)}
-                    onDelete={handleDeleteAsset}
-                  />
-                </>
+                <ImageGrid
+                  currentWidget={widget}
+                  assets={assets}
+                  onPick={handlePick}
+                  onShowImport={() => setShowImport(true)}
+                  onDelete={handleDeleteAsset}
+                  getPresetCount={getPresetCount}
+                />
               )}
             </div>
           </div>
