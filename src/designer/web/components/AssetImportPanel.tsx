@@ -292,14 +292,13 @@ export function AssetImportPanel({ onSaved }: AssetImportPanelProps) {
       </div>
 
       {/* Width */}
-      <div className="flex items-center gap-3">
+      <label className="flex items-center gap-3 cursor-pointer">
         <span className="font-mono text-xs text-foreground/50 w-20 shrink-0">wide</span>
         <Checkbox
           checked={width === 18}
-          aria-label="Use 18-column width"
           onChange={e => setWidth(e.target.checked ? 18 : 9)}
         />
-      </div>
+      </label>
 
       {/* Fit */}
       <div className="flex items-center gap-3">
