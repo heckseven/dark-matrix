@@ -75,6 +75,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   let hudAudioStreaming = false;
   let hudAudioSource: 'monitor' | 'mic' = 'monitor';
   let frameHeld = false;
+  // Shared band listeners: audio-viz sockets subscribe here when HUD loop owns audio
+  const hudAudioListeners = new Map<symbol, (ctx: { bands: number[]; fftSize: number; gain: number }) => void>();
   const heatmapState = createHeatmapState();
 
   function getModulePaths(): string[] {
@@ -336,7 +338,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       || leftWidgetType === 'audio' || rightWidgetType === 'audio';
     if (needsAudio) hudAudioStreaming = true;
     const stopAudio = needsAudio
-      ? streamAudioBands(hudAudioSource, (ctx) => { audioCtx = ctx; }, () => { audioCtx = null; })
+      ? streamAudioBands(hudAudioSource, (ctx) => {
+          audioCtx = ctx;
+          for (const cb of hudAudioListeners.values()) cb(ctx);
+        }, () => { audioCtx = null; })
       : null;
 
     const loop = async () => {
@@ -873,12 +878,24 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               const m = msg as { cmd: string; source?: string };
               const source: AudioSource = m.source === 'mic' ? 'mic' : 'monitor';
               socket.write(JSON.stringify({ ok: true }) + '\n');
-              const stopViz = streamAudioBands(source, (ctx) => {
-                if (socket.destroyed) return;
-                socket.write(JSON.stringify({ type: 'audio-bands', ...ctx }) + '\n');
-              });
-              socket.once('close', stopViz);
-              socket.once('error', stopViz);
+              if (hudAudioStreaming) {
+                // HUD loop owns the audio stream — subscribe to its bands directly
+                // so we don't spawn a competing pw-record process
+                const key = Symbol();
+                hudAudioListeners.set(key, (ctx) => {
+                  if (!socket.destroyed) socket.write(JSON.stringify({ type: 'audio-bands', ...ctx }) + '\n');
+                });
+                const unsub = () => hudAudioListeners.delete(key);
+                socket.once('close', unsub);
+                socket.once('error', unsub);
+              } else {
+                const stopViz = streamAudioBands(source, (ctx) => {
+                  if (socket.destroyed) return;
+                  socket.write(JSON.stringify({ type: 'audio-bands', ...ctx }) + '\n');
+                });
+                socket.once('close', stopViz);
+                socket.once('error', stopViz);
+              }
               break;
             }
             case 'audio-hardware-start': {
