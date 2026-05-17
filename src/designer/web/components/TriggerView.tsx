@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useId } from 'react';
 import type { HudTrigger, HudPresetClient } from '../types/hud-preset.js';
 import { Select } from './ui/select.js';
-import { Tabs } from './ui/tabs.js';
 import { Button } from './ui/button.js';
 import { Input } from './ui/input.js';
 import { ScrubInput } from './ui/scrub-input.js';
@@ -289,23 +288,19 @@ function DayFields({ trigger, onChange }: FieldProps) {
 }
 
 function DateFields({ trigger, onChange }: FieldProps) {
-  const uid = useId();
   if (trigger.type !== 'date') return null;
   return (
     <div className="flex items-center gap-4 flex-wrap">
-      <div className="flex items-center gap-2">
-        <label htmlFor={`${uid}-month`} className="font-mono text-xs text-foreground/55">month</label>
-        <Select
-          id={`${uid}-month`}
-          aria-label="Month"
-          value={trigger.month}
-          onChange={e => onChange({ ...trigger, month: Number(e.target.value) })}
-        >
-          {MONTHS.map((m, i) => (
-            <option key={m} value={i + 1}>{m}</option>
-          ))}
-        </Select>
-      </div>
+      <ScrubInput
+        label="month"
+        aria-label="Month"
+        value={trigger.month}
+        min={1}
+        max={12}
+        suffix={MONTHS[(trigger.month - 1) % 12]!}
+        onChange={v => onChange({ ...trigger, month: v })}
+        className="w-6 text-center"
+      />
       <ScrubInput
         label="day"
         aria-label="Day of month"
@@ -327,8 +322,8 @@ function TriggerRow({ trigger, onUpdate, onDelete }: {
   onDelete: () => void;
 }) {
   return (
-    <div className="flex items-start gap-4 py-4 border-b border-foreground/10 last:border-b-0">
-      <span className="font-mono text-xs font-bold text-foreground/60 shrink-0 mt-0.5">
+    <div className="flex items-center gap-4 py-4 border-b border-foreground/10 last:border-b-0">
+      <span className="font-mono text-xs font-bold text-foreground/60 shrink-0">
         {trigger.type}:
       </span>
       <div className="flex-1 min-w-0">
@@ -418,14 +413,16 @@ export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-2xl mx-auto px-8 py-6">
           {triggers.length >= 2 && onMatchChange && (
-            <div className="flex items-center gap-3 mb-6">
+            <div className="flex items-center gap-2 mb-6">
               <span className="font-mono text-xs text-foreground/55">match</span>
-              <Tabs
-                options={['all', 'any']}
-                value={match}
-                onChange={v => { if (v === 'all' || v === 'any') onMatchChange(v); }}
+              <Select
                 aria-label="match mode"
-              />
+                value={match}
+                onChange={e => { const v = e.target.value; if (v === 'all' || v === 'any') onMatchChange(v); }}
+              >
+                <option value="all">all</option>
+                <option value="any">any</option>
+              </Select>
             </div>
           )}
 
