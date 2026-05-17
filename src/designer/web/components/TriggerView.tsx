@@ -409,20 +409,22 @@ export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
         <span className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
           {preset.name} — triggers
         </span>
-        {triggers.length >= 2 && onMatchChange && (
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-xs text-foreground/55">match</span>
-            <Select
-              aria-label="match mode"
-              value={match}
-              onChange={e => { const v = e.target.value; if (v === 'all' || v === 'any') onMatchChange(v); }}
-            >
-              <option value="all">all</option>
-              <option value="any">any</option>
-            </Select>
-          </div>
-        )}
-        <Button variant="default" size="sm" className="ml-auto" onClick={onDone}>done</Button>
+        <div className="ml-auto flex items-center gap-3">
+          {triggers.length >= 2 && onMatchChange && (
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs text-foreground/55">match</span>
+              <Select
+                aria-label="match mode"
+                value={match}
+                onChange={e => { const v = e.target.value; if (v === 'all' || v === 'any') onMatchChange(v); }}
+              >
+                <option value="all">all</option>
+                <option value="any">any</option>
+              </Select>
+            </div>
+          )}
+          <Button variant="default" size="sm" onClick={onDone}>done</Button>
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto">
