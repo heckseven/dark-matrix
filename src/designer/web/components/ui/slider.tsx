@@ -31,7 +31,7 @@ export const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
     if (variant === 'cycling') {
       const pos = Math.round(t * (SEG - 1));
       return (
-        <span className={cn('relative inline-block', className)}>
+        <span className={cn('relative inline-block self-start', className)}>
           <input ref={ref} type="range" min={min} max={max} value={current} onChange={handleChange} className={trackInput} {...props} />
           <span aria-hidden="true" className={trackVisual}>
             <span className="text-foreground">{'─'.repeat(pos)}</span>
@@ -45,7 +45,7 @@ export const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
     const trackLen = SEG - 5;
     const pos = Math.round(t * trackLen);
     return (
-      <span className={cn('relative inline-block', className)}>
+      <span className={cn('relative inline-block self-start', className)}>
         <input ref={ref} type="range" min={min} max={max} value={current} onChange={handleChange} className={trackInput} {...props} />
         <span aria-hidden="true" className={trackVisual}>
           <span className="text-foreground">{'─'.repeat(pos)}</span>

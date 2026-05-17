@@ -15,6 +15,16 @@ const AnimatedPreview = memo(function AnimatedPreview({
   const [frameIdx, setFrameIdx] = useState(0);
   const [playing, setPlaying] = useState(true);
   const isAnimated = frames.length > 1;
+  const prevFramesRef = useRef(frames);
+
+  // Reset to frame 0 when new frames arrive without remounting,
+  // preserving the playing state across preview reloads.
+  useEffect(() => {
+    if (frames !== prevFramesRef.current) {
+      prevFramesRef.current = frames;
+      setFrameIdx(0);
+    }
+  }, [frames]);
 
   useEffect(() => {
     if (!playing || !isAnimated) return;
@@ -84,20 +94,31 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
   const [dragOver, setDragOver] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const fileBase64Ref = useRef<string | null>(null);
+  // Mirror of preview state as a ref — read synchronously inside callbacks.
+  const previewRef = useRef<typeof preview>(null);
+  previewRef.current = preview;
 
   const fetchPreview = useCallback(async (f: File, opts: {
     width: 9 | 18; mode: 'bw' | 'gray'; fit: 'contain' | 'cover' | 'fill';
     brightness: number; contrast: number;
   }) => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const isFirstLoad = previewRef.current === null;
+    if (isFirstLoad) setPreviewLoading(true);
+    setError(null);
     try {
       const b64 = fileBase64Ref.current ?? await fileToBase64(f);
+      if (controller.signal.aborted) return;
       fileBase64Ref.current = b64;
-      setPreviewLoading(true);
-      setError(null);
       const res = await fetch('/api/assets/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           sourceBase64: b64,
           width: opts.width,
@@ -109,13 +130,16 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
       });
       if (!res.ok) {
         const text = await res.text().catch(() => 'preview failed');
-        setError(text);
+        setError(text.slice(0, 200));
         return;
       }
       const data = await res.json() as { ok: boolean; frames: string[]; delays: number[]; width: 9 | 18 };
-      setPreview({ frames: data.frames, delays: data.delays, width: data.width });
+      const frameWidth = data.width === 9 || data.width === 18 ? data.width : opts.width;
+      setPreview({ frames: data.frames, delays: data.delays, width: frameWidth });
+      setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'preview failed');
+      if (e instanceof DOMException && e.name === 'AbortError') return;
+      setError(e instanceof Error ? e.message.slice(0, 200) : 'preview failed');
     } finally {
       setPreviewLoading(false);
     }
@@ -123,8 +147,10 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
 
   const schedulePreview = useCallback((f: File, opts: Parameters<typeof fetchPreview>[1]) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchPreview(f, opts), 300);
+    debounceRef.current = setTimeout(() => fetchPreview(f, opts), 50);
   }, [fetchPreview]);
+
+  useEffect(() => () => { abortRef.current?.abort(); }, []);
 
   // Re-run preview whenever any control changes (file already set)
   useEffect(() => {
@@ -178,7 +204,7 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
       });
       if (!res.ok) {
         const text = await res.text().catch(() => 'save failed');
-        setError(text);
+        setError(text.slice(0, 200));
         return;
       }
       onSaved(`${filename}.dmx.json`);
@@ -222,13 +248,12 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
       {file && (
         <>
           {/* Preview */}
-          <div className="flex justify-center" aria-live="polite" aria-label="image preview">
-            {previewLoading && (
+          <div className="flex justify-center" aria-live="polite" aria-busy={previewLoading && !preview}>
+            {previewLoading && !preview && (
               <span className="font-mono text-xs text-foreground/55">loading…</span>
             )}
-            {!previewLoading && preview && (
+            {preview && (
               <AnimatedPreview
-                key={preview.frames[0]}
                 frames={preview.frames}
                 delays={preview.delays}
                 width={preview.width}
