@@ -13,6 +13,7 @@ import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.
 import { createHeatmapState, bumpTool, tickHeatmap, renderHeatmap } from '../../../animations/heatmap.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
+import { designerStore } from '../store.js';
 
 const COLS = 9;
 const ROWS = 34;
@@ -398,19 +399,43 @@ function AudioGrid({ currentWidget, audioCtx, side, onPick, onMount, onUnmount }
 
 // ── Layer 2: Image grid ───────────────────────────────────────────────────
 
-function base64ToUint8(b64: string, n: number): Uint8Array {
-  const bin = atob(b64);
-  const out = new Uint8Array(n);
-  for (let i = 0; i < n && i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
-
-function ImageGrid({ currentWidget, assets, onPick, onShowImport }: {
+function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete }: {
   currentWidget: HudWidget | null;
   assets: AssetMeta[] | null;
   onPick: (w: HudWidget) => void;
   onShowImport: () => void;
+  onDelete: (name: string) => void;
 }) {
+  const animRef = useRef<Record<string, { frameIdx: number; elapsed: number; lastTick: number | null }>>({});
+  const assetsRef = useRef(assets);
+  assetsRef.current = assets;
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const nowMs = Date.now();
+      const al = assetsRef.current;
+      if (!al) return;
+      for (const asset of al) {
+        if (asset.frames.length <= 1) continue;
+        if (!animRef.current[asset.name]) {
+          animRef.current[asset.name] = { frameIdx: 0, elapsed: 0, lastTick: null };
+        }
+        const s = animRef.current[asset.name]!;
+        if (s.lastTick !== null) s.elapsed += nowMs - s.lastTick;
+        s.lastTick = nowMs;
+        while (s.elapsed >= (asset.delays[s.frameIdx] ?? 100)) {
+          s.elapsed -= asset.delays[s.frameIdx] ?? 100;
+          s.frameIdx = s.frameIdx < asset.frames.length - 1 ? s.frameIdx + 1 : 0;
+        }
+      }
+      setTick(t => t + 1);
+    }, 100);
+    return () => clearInterval(id);
+  }, []);
+
+  void tick;
+
   if (assets === null) {
     return <div className="font-mono text-xs text-foreground/55 p-4">loading…</div>;
   }
@@ -422,27 +447,30 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport }: {
       )}
       <div className="grid grid-cols-3 gap-4">
         {assets.map(asset => {
-          const displayWidth = Math.min(asset.width, 9) as 9;
-          const pixelCount = displayWidth * 34;
-          const pixels = btoa(String.fromCharCode(...base64ToUint8(asset.firstFrame, pixelCount)));
+          const frameIdx = animRef.current[asset.name]?.frameIdx ?? 0;
+          const pixels = asset.frames[frameIdx] ?? asset.firstFrame;
           const active = currentWidget?.widget === 'image' && currentWidget.file === asset.name;
+          const label = asset.name.replace('.dmx.json', '');
           return (
             <button
               key={asset.name}
               type="button"
-              aria-label={asset.name.replace('.dmx.json', '')}
+              aria-label={label}
               aria-pressed={active}
-              className="group relative flex flex-col gap-2 items-center rounded-sm p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
+              className={`group relative flex flex-col gap-2 items-center rounded-sm p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]${asset.width === 18 ? ' col-span-2' : ''}`}
               onClick={() => onPick({ widget: 'image', file: asset.name })}
             >
               <CornerBrackets active={active} />
-              <MatrixPreview
-                width={displayWidth}
-                pixels={pixels}
-              />
-              <span className="font-mono text-xs text-foreground/55 truncate max-w-full">
-                {asset.name.replace('.dmx.json', '')}
-              </span>
+              <MatrixPreview width={asset.width} pixels={pixels} />
+              <span className="font-mono text-xs text-foreground/55 truncate max-w-full">{label}</span>
+              <button
+                type="button"
+                aria-label={`Delete ${label}`}
+                className="absolute top-1 right-1 font-mono text-xs text-foreground/40 hover:text-red-400 opacity-0 group-hover:opacity-100 z-10 leading-none p-0.5"
+                onClick={e => { e.stopPropagation(); onDelete(asset.name); }}
+              >
+                ×
+              </button>
             </button>
           );
         })}
@@ -559,6 +587,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
   // Image assets
   const [assets, setAssets] = useState<AssetMeta[] | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ name: string; presetCount: number } | null>(null);
   const mountedRef = useRef(true);
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
@@ -576,6 +605,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
   function handleCategorySelect(cat: string) {
     setActiveCategory(cat);
     setView('grid');
+    setDeleteConfirm(null);
   }
 
   function handleBack() {
@@ -604,6 +634,32 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
       setView(widgetHasSettings(widget) ? 'settings' : 'grid');
     }
   }, [widget]);
+
+  function refreshAssets() {
+    fetch('/api/assets')
+      .then(r => r.json() as Promise<{ ok: boolean; assets: AssetMeta[] }>)
+      .then(d => { if (mountedRef.current) setAssets(d.assets ?? []); })
+      .catch(() => {});
+  }
+
+  function doDeleteAsset(name: string) {
+    fetch(`/api/assets/${encodeURIComponent(name)}`, { method: 'DELETE' })
+      .then(() => { setDeleteConfirm(null); refreshAssets(); })
+      .catch(() => { setDeleteConfirm(null); });
+  }
+
+  function handleDeleteAsset(name: string) {
+    const presets = designerStore.getState().hudPresets;
+    const presetCount = presets.filter(p =>
+      (p.left?.widget === 'image' && p.left.file === name) ||
+      (p.right?.widget === 'image' && p.right.file === name)
+    ).length;
+    if (presetCount > 0) {
+      setDeleteConfirm({ name, presetCount });
+      return;
+    }
+    doDeleteAsset(name);
+  }
 
   function handlePick(w: HudWidget) {
     onChange(w);
@@ -673,11 +729,35 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
                   {isPaired && (
                     <p className="font-mono text-xs text-foreground/55 mb-3">← paired with opposite side</p>
                   )}
+                  {deleteConfirm && (
+                    <div className="font-mono text-xs mb-3 px-2 py-2 border border-foreground/20 flex flex-col gap-2">
+                      <span className="text-foreground/70">
+                        used in {deleteConfirm.presetCount} preset{deleteConfirm.presetCount !== 1 ? 's' : ''}
+                      </span>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          className="font-mono text-xs text-red-400 hover:text-red-300"
+                          onClick={() => doDeleteAsset(deleteConfirm.name)}
+                        >
+                          delete anyway
+                        </button>
+                        <button
+                          type="button"
+                          className="font-mono text-xs text-foreground/55 hover:text-foreground"
+                          onClick={() => setDeleteConfirm(null)}
+                        >
+                          cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   <ImageGrid
                     currentWidget={widget}
                     assets={assets}
                     onPick={handlePick}
                     onShowImport={() => setShowImport(true)}
+                    onDelete={handleDeleteAsset}
                   />
                 </>
               )}

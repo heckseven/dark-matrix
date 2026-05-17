@@ -56,10 +56,12 @@ if (import.meta.hot) {
 }
 
 type AudioFrames = Partial<Record<AudioStyle, { left: string; right: string }>>;
+type ImageAnimState = { frameIdx: number; elapsed: number; lastTick: number | null };
 
-function extractHalfB64(asset: AssetMeta, side: 'left' | 'right'): string {
+function extractHalfB64(asset: AssetMeta, side: 'left' | 'right', frameIdx = 0): string {
   const totalBytes = asset.width * ROWS;
-  const full = b64ToUint8(asset.firstFrame, totalBytes);
+  const srcB64 = asset.frames[frameIdx] ?? asset.firstFrame;
+  const full = b64ToUint8(srcB64, totalBytes);
   if (asset.width === 9) return btoa(String.fromCharCode(...full));
   const colOffset = side === 'right' ? COLS : 0;
   const out = new Uint8Array(COLS * ROWS);
@@ -71,7 +73,7 @@ function extractHalfB64(asset: AssetMeta, side: 'left' | 'right'): string {
   return btoa(String.fromCharCode(...out));
 }
 
-function renderWidgetToB64(widget: HudWidget | null, side: 'left' | 'right', audioCtx: RenderCtx, audioFrames?: AudioFrames, assetList?: AssetMeta[] | null): string {
+function renderWidgetToB64(widget: HudWidget | null, side: 'left' | 'right', audioCtx: RenderCtx, audioFrames?: AudioFrames, assetList?: AssetMeta[] | null, imageAnim?: Record<string, ImageAnimState>): string {
   const empty = btoa(String.fromCharCode(...new Uint8Array(COLS * ROWS)));
   if (!widget) return empty;
   try {
@@ -101,7 +103,8 @@ function renderWidgetToB64(widget: HudWidget | null, side: 'left' | 'right', aud
     } else if (widget.widget === 'image') {
       const asset = assetList?.find(a => a.name === widget.file);
       if (!asset) return empty;
-      return extractHalfB64(asset, side);
+      const frameIdx = imageAnim?.[widget.file]?.frameIdx ?? 0;
+      return extractHalfB64(asset, side, frameIdx);
     } else {
       const style: DataStyle = widget.style ?? 'line';
       if (!_dataCache[style]) _dataCache[style] = createDataRenderer({ style });
@@ -392,11 +395,14 @@ export function PresetList({
   const [dropTarget, setDropTarget] = useState<number | null>(null);
   const assetList = useDesignerStore(s => s.assetList);
 
-  const audioCtxRef  = useRef(audioCtx);
-  const presetsRef   = useRef(presets);
-  audioCtxRef.current  = audioCtx;
-  presetsRef.current   = presets;
+  const audioCtxRef   = useRef(audioCtx);
+  const presetsRef    = useRef(presets);
+  const assetListRef  = useRef(assetList);
+  audioCtxRef.current   = audioCtx;
+  presetsRef.current    = presets;
+  assetListRef.current  = assetList;
   const audioFramesRef = useRef<AudioFrames>({});
+  const imageAnimRef   = useRef<Record<string, ImageAnimState>>({});
 
   // Load assets if any preset uses an image widget
   useEffect(() => {
@@ -424,6 +430,29 @@ export function PresetList({
         frames[style] = { left: btoa(String.fromCharCode(...bw)), right: btoa(String.fromCharCode(...mirrorFrame(bw))) };
       }
       audioFramesRef.current = frames;
+
+      // Advance image animations
+      const nowMs = Date.now();
+      const imageAnim = imageAnimRef.current;
+      const al = assetListRef.current;
+      const usedAssets = new Set<string>();
+      for (const p of ps) {
+        if (p.left?.widget === 'image' && p.left.file) usedAssets.add(p.left.file);
+        if (p.right?.widget === 'image' && p.right.file) usedAssets.add(p.right.file);
+      }
+      for (const name of usedAssets) {
+        const asset = al?.find(a => a.name === name);
+        if (!asset || asset.frames.length <= 1) continue;
+        if (!imageAnim[name]) imageAnim[name] = { frameIdx: 0, elapsed: 0, lastTick: null };
+        const s = imageAnim[name]!;
+        if (s.lastTick !== null) s.elapsed += nowMs - s.lastTick;
+        s.lastTick = nowMs;
+        while (s.elapsed >= (asset.delays[s.frameIdx] ?? 100)) {
+          s.elapsed -= asset.delays[s.frameIdx] ?? 100;
+          s.frameIdx = s.frameIdx < asset.frames.length - 1 ? s.frameIdx + 1 : 0;
+        }
+      }
+
       setTick(t => t + 1);
     }, 100);
     return () => clearInterval(id);
@@ -447,8 +476,9 @@ export function PresetList({
         )}
         {presets.map((preset, idx) => {
           const af = audioFramesRef.current;
-          const leftPx  = renderWidgetToB64(preset.left,  'left',  audioCtx, af, assetList);
-          const rightPx = renderWidgetToB64(preset.right, 'right', audioCtx, af, assetList);
+          const ia = imageAnimRef.current;
+          const leftPx  = renderWidgetToB64(preset.left,  'left',  audioCtx, af, assetList, ia);
+          const rightPx = renderWidgetToB64(preset.right, 'right', audioCtx, af, assetList, ia);
           const pixels  = combinePixels(leftPx, rightPx);
           return (
             <Fragment key={preset.name}>
