@@ -101,6 +101,9 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, 
       const out = new Uint8Array(COLS * ROWS);
       for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
       return out;
+    } else if (widget.widget === 'image') {
+      // TODO: render image widget
+      return empty;
     } else {
       const style = widget.style ?? 'line';
       const frame = getDataRenderer(style).render();

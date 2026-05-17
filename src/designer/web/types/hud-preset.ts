@@ -6,7 +6,8 @@ export type HudWidget =
   | { widget: 'clock'; face?: ClockFace }
   | { widget: 'data'; style?: DataStyle; top_left?: DataMetric; top_right?: DataMetric; bottom_left?: DataMetric; bottom_right?: DataMetric }
   | { widget: 'heatmap' }
-  | { widget: 'audio'; style?: AudioStyle };
+  | { widget: 'audio'; style?: AudioStyle }
+  | { widget: 'image'; file: string; speed?: number; loop?: boolean };
 
 export type HudTrigger =
   | { type: 'time'; from: string; to: string }

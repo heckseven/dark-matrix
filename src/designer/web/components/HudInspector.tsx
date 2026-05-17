@@ -54,6 +54,7 @@ function categoryOfWidget(w: HudWidget): string {
   if (w.widget === 'clock')   return 'clocks';
   if (w.widget === 'heatmap') return 'ai';
   if (w.widget === 'audio')   return 'audio';
+  if (w.widget === 'image')   return 'image';
   return 'data';
 }
 

@@ -75,6 +75,9 @@ function renderWidgetToB64(widget: HudWidget | null, side: 'left' | 'right', aud
       const out = new Uint8Array(COLS * ROWS);
       for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
       return btoa(String.fromCharCode(...out));
+    } else if (widget.widget === 'image') {
+      // TODO: render image widget
+      return empty;
     } else {
       const style: DataStyle = widget.style ?? 'line';
       if (!_dataCache[style]) _dataCache[style] = createDataRenderer({ style });
