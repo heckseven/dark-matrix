@@ -109,6 +109,13 @@ export function createPresetTriggerEngine(opts: TriggerEngineOpts): TriggerEngin
         } else if (trigger.type === 'vm') {
           const state = vmState.get(trigger.name) ?? 'stopped';
           triggerMatch = state === (trigger.state ?? 'running');
+        } else if (trigger.type === 'day') {
+          const DOW_MAP: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+          const today = new Date().getDay();
+          triggerMatch = trigger.days.some(d => DOW_MAP[d] === today);
+        } else if (trigger.type === 'date') {
+          const now = new Date();
+          triggerMatch = now.getMonth() + 1 === trigger.month && now.getDate() === trigger.day;
         }
 
         if (triggerMatch) {

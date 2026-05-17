@@ -20,6 +20,8 @@ const HudTriggerSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('threshold'), metric: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']), above: z.number().min(0).optional(), below: z.number().min(0).optional() }),
   z.object({ type: z.literal('interface'), name: z.string(), state: z.enum(['up', 'down']) }),
   z.object({ type: z.literal('vm'), name: z.string(), state: z.enum(['running', 'stopped']).optional() }),
+  z.object({ type: z.literal('day'), days: z.array(z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])) }),
+  z.object({ type: z.literal('date'), month: z.number().int().min(1).max(12), day: z.number().int().min(1).max(31) }),
 ]);
 
 const HudPresetSchema = z.object({
