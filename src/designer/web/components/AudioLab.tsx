@@ -107,7 +107,7 @@ function LabCell({ cell, audioCtx, onClone, onRemove, onChange }: {
 // ── lab root ───────────────────────────────────────────────────────────────
 
 type AudioSource = 'monitor' | 'mic';
-const INITIAL_STYLES: AudioStyle[] = ['life-erode-4', 'life-erode-4b', 'life-erode-4c', 'life-erode-4e'];
+const INITIAL_STYLES: AudioStyle[] = ['life-erode-4'];
 
 export function AudioLab() {
   const [cells, setCells] = useState<CellState[]>(() =>
