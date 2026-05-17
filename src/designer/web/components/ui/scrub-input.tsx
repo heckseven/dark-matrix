@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Input } from './input.js';
 
 export interface ScrubInputProps {
@@ -17,6 +17,8 @@ export interface ScrubInputProps {
   'aria-label'?: string;
   /** Text appended after the input (e.g. "ms"). */
   suffix?: string;
+  /** Renders a <label> to the left of the bracket. Wires htmlFor automatically. */
+  label?: string;
 }
 
 export function ScrubInput({
@@ -30,10 +32,12 @@ export function ScrubInput({
   disabled,
   'aria-label': ariaLabel,
   suffix,
+  label,
 }: ScrubInputProps) {
   const [editing, setEditing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const drag = useRef<{ x: number; v: number; moved: boolean } | null>(null);
+  const generatedId = useId();
 
   useEffect(() => {
     if (editing) { inputRef.current?.focus(); inputRef.current?.select(); }
@@ -59,7 +63,7 @@ export function ScrubInput({
     drag.current = null;
   }
 
-  return (
+  const dragDiv = (
     <div
       style={{ display: 'inline-flex', cursor: editing || disabled ? 'default' : 'ew-resize' }}
       onPointerDown={onPointerDown}
@@ -68,6 +72,7 @@ export function ScrubInput({
     >
       <Input
         ref={inputRef}
+        id={generatedId}
         type="number"
         min={min}
         max={max}
@@ -98,5 +103,13 @@ export function ScrubInput({
         style={{ pointerEvents: editing ? 'auto' : 'none', cursor: editing ? 'text' : 'ew-resize' }}
       />
     </div>
+  );
+
+  if (!label) return dragDiv;
+  return (
+    <span className="inline-flex items-center gap-2">
+      <label htmlFor={generatedId} className="font-mono text-xs text-foreground/55 whitespace-nowrap select-none">{label}</label>
+      {dragDiv}
+    </span>
   );
 }

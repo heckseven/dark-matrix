@@ -67,8 +67,8 @@ function fmtHHMM(h: number, m: number): string {
 function TimePair({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   const [h, m] = parseHHMM(value);
   return (
-    <div className="flex flex-col gap-1">
-      <span className="font-mono text-xs text-foreground/55">{label}</span>
+    <div className="flex items-center gap-2">
+      <span className="font-mono text-xs text-foreground/55 whitespace-nowrap">{label}</span>
       <div className="flex items-center gap-1">
         <ScrubInput aria-label={`${label} hours`}   value={h} min={0} max={23} onChange={v => onChange(fmtHHMM(v, m))} className="w-8 text-center" />
         <span aria-hidden="true" className="font-mono text-xs text-foreground/40">:</span>
@@ -81,7 +81,7 @@ function TimePair({ label, value, onChange }: { label: string; value: string; on
 function TimeFields({ trigger, onChange }: FieldProps) {
   if (trigger.type !== 'time') return null;
   return (
-    <div className="flex items-end gap-4 flex-wrap">
+    <div className="flex items-center gap-4 flex-wrap">
       <TimePair label="from" value={trigger.from} onChange={v => onChange({ ...trigger, from: v })} />
       <TimePair label="to"   value={trigger.to}   onChange={v => onChange({ ...trigger, to: v })} />
     </div>
@@ -107,7 +107,7 @@ function ThresholdFields({ trigger, onChange }: FieldProps) {
 
   return (
     <div className="flex items-center gap-4 flex-wrap">
-      <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
         <label className="font-mono text-xs text-foreground/55">metric</label>
         <Select
           aria-label="Metric"
@@ -158,7 +158,7 @@ function ThresholdFields({ trigger, onChange }: FieldProps) {
         )}
       </div>
       {conflict && (
-        <span role="alert" className="font-mono text-xs text-yellow-400">above ≥ below — never matches</span>
+        <span role="alert" className="font-mono text-xs text-yellow-400">above &ge; below — never matches</span>
       )}
     </div>
   );
@@ -181,43 +181,43 @@ function InterfaceFields({ trigger, onChange }: FieldProps) {
   const isOther = useSelect && !detected.includes(trigger.name);
 
   return (
-    <div className="flex items-end gap-4 flex-wrap">
-      <div className="flex flex-col gap-1">
-        <label className="font-mono text-xs text-foreground/55">name</label>
-        <div className="flex items-center gap-2">
-          {useSelect && (
-            <Select
-              aria-label="Interface name"
-              value={isOther ? '__other__' : trigger.name}
-              onChange={e => onChange({ ...trigger, name: e.target.value === '__other__' ? '' : e.target.value })}
-            >
-              {detected.map(iface => (
-                <option key={iface} value={iface}>{iface}</option>
-              ))}
-              <option value="__other__">other…</option>
-            </Select>
-          )}
-          {(!useSelect || isOther) && (
-            <Input
-              type="text"
-              aria-label="Custom interface name"
-              placeholder="eth0"
-              value={trigger.name}
-              onChange={e => onChange({ ...trigger, name: e.target.value })}
-              className="w-32"
-              expandedClassName="w-32"
-            />
-          )}
-        </div>
+    <div className="flex items-center gap-4 flex-wrap">
+      <div className="flex items-center gap-2">
+        <span className="font-mono text-xs text-foreground/55">name</span>
+        {useSelect && (
+          <Select
+            aria-label="Interface name"
+            value={isOther ? '__other__' : trigger.name}
+            onChange={e => onChange({ ...trigger, name: e.target.value === '__other__' ? '' : e.target.value })}
+          >
+            {detected.map(iface => (
+              <option key={iface} value={iface}>{iface}</option>
+            ))}
+            <option value="__other__">other…</option>
+          </Select>
+        )}
+        {(!useSelect || isOther) && (
+          <Input
+            type="text"
+            aria-label="Custom interface name"
+            placeholder="eth0"
+            value={trigger.name}
+            onChange={e => onChange({ ...trigger, name: e.target.value })}
+            className="w-32"
+            expandedClassName="w-32"
+          />
+        )}
       </div>
-      <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
         <span className="font-mono text-xs text-foreground/55">state</span>
-        <Tabs
-          options={['up', 'down']}
-          value={trigger.state}
-          onChange={v => { if (v === 'up' || v === 'down') onChange({ ...trigger, state: v }); }}
+        <Select
           aria-label="Interface state"
-        />
+          value={trigger.state}
+          onChange={e => { const v = e.target.value; if (v === 'up' || v === 'down') onChange({ ...trigger, state: v }); }}
+        >
+          <option value="up">up</option>
+          <option value="down">down</option>
+        </Select>
       </div>
     </div>
   );
@@ -231,27 +231,28 @@ function VmFields({ trigger, onChange }: FieldProps) {
     else onChange({ type: 'vm', name });
   }
   return (
-    <div className="flex items-end gap-4 flex-wrap">
-      <div className="flex flex-col gap-1">
-        <label className="font-mono text-xs text-foreground/55">name</label>
-        <Input
-          type="text"
-          aria-label="VM name"
-          placeholder="vm-name"
-          value={trigger.name}
-          onChange={e => update(e.target.value, stateValue)}
-          className="w-32"
-          expandedClassName="w-32"
-        />
-      </div>
-      <div className="flex flex-col gap-1">
+    <div className="flex items-center gap-4 flex-wrap">
+      <Input
+        type="text"
+        label="name"
+        aria-label="VM name"
+        placeholder="vm-name"
+        value={trigger.name}
+        onChange={e => update(e.target.value, stateValue)}
+        className="w-32"
+        expandedClassName="w-32"
+      />
+      <div className="flex items-center gap-2">
         <span className="font-mono text-xs text-foreground/55">state</span>
-        <Tabs
-          options={['any', 'running', 'stopped']}
-          value={stateValue}
-          onChange={v => update(trigger.name, v)}
+        <Select
           aria-label="VM state"
-        />
+          value={stateValue}
+          onChange={e => update(trigger.name, e.target.value)}
+        >
+          <option value="any">any</option>
+          <option value="running">running</option>
+          <option value="stopped">stopped</option>
+        </Select>
       </div>
     </div>
   );
@@ -291,8 +292,8 @@ function DateFields({ trigger, onChange }: FieldProps) {
   const uid = useId();
   if (trigger.type !== 'date') return null;
   return (
-    <div className="flex items-end gap-4 flex-wrap">
-      <div className="flex flex-col gap-1">
+    <div className="flex items-center gap-4 flex-wrap">
+      <div className="flex items-center gap-2">
         <label htmlFor={`${uid}-month`} className="font-mono text-xs text-foreground/55">month</label>
         <Select
           id={`${uid}-month`}
@@ -305,17 +306,15 @@ function DateFields({ trigger, onChange }: FieldProps) {
           ))}
         </Select>
       </div>
-      <div className="flex flex-col gap-1">
-        <label className="font-mono text-xs text-foreground/55">day</label>
-        <ScrubInput
-          aria-label="Day of month"
-          value={trigger.day}
-          min={1}
-          max={31}
-          onChange={v => onChange({ ...trigger, day: v })}
-          className={FW}
-        />
-      </div>
+      <ScrubInput
+        label="day"
+        aria-label="Day of month"
+        value={trigger.day}
+        min={1}
+        max={31}
+        onChange={v => onChange({ ...trigger, day: v })}
+        className={FW}
+      />
     </div>
   );
 }
@@ -329,8 +328,8 @@ function TriggerRow({ trigger, onUpdate, onDelete }: {
 }) {
   return (
     <div className="flex items-start gap-4 py-4 border-b border-foreground/10 last:border-b-0">
-      <span className="font-mono text-xs text-foreground/60 border border-foreground/30 px-1.5 py-0.5 shrink-0 min-w-[5rem] text-center mt-0.5">
-        {trigger.type}
+      <span className="font-mono text-xs font-bold text-foreground/60 shrink-0 mt-0.5">
+        {trigger.type}:
       </span>
       <div className="flex-1 min-w-0">
         {trigger.type === 'time'      && <TimeFields      trigger={trigger} onChange={onUpdate} />}
@@ -339,13 +338,16 @@ function TriggerRow({ trigger, onUpdate, onDelete }: {
         {trigger.type === 'threshold' && <ThresholdFields trigger={trigger} onChange={onUpdate} />}
         {trigger.type === 'interface' && <InterfaceFields trigger={trigger} onChange={onUpdate} />}
         {trigger.type === 'vm'        && <VmFields        trigger={trigger} onChange={onUpdate} />}
+        {(trigger.type === 'idle' || trigger.type === 'active') && (
+          <p className="font-mono text-xs text-foreground/40">{TRIGGER_DESCRIPTIONS[trigger.type]}</p>
+        )}
       </div>
       <Button
         variant="ghost"
         aria-label={`Delete ${trigger.type} trigger`}
         onClick={onDelete}
       >
-        ×
+        &times;
       </Button>
     </div>
   );
