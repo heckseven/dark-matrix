@@ -879,8 +879,14 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               const source: AudioSource = m.source === 'mic' ? 'mic' : 'monitor';
               socket.write(JSON.stringify({ ok: true }) + '\n');
               if (hudAudioStreaming) {
-                // HUD loop owns the audio stream — subscribe to its bands directly
-                // so we don't spawn a competing pw-record process
+                // If the requested source differs from the current HUD source,
+                // switch sources and restart the HUD loop (mirrors watchMic behaviour)
+                if (source !== hudAudioSource) {
+                  hudAudioSource = source;
+                  stopAnim();
+                  stopCurrentAnim = runHudOnModules();
+                }
+                // Subscribe to the shared HUD band stream — no second pw-record
                 const key = Symbol();
                 hudAudioListeners.set(key, (ctx) => {
                   if (!socket.destroyed) socket.write(JSON.stringify({ type: 'audio-bands', ...ctx }) + '\n');
