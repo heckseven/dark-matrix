@@ -6,6 +6,7 @@ import { createHeatmapState, bumpTool, renderHeatmap } from '../../../animations
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
+import { designerStore } from '../store.js';
 
 // ── layout constants — match PixelCanvas at zoom=1 ────────────────────────
 
@@ -62,6 +63,25 @@ function mirrorFrame(frame: Uint8Array): Uint8Array {
   return out;
 }
 
+function b64ToUint8(b64: string, expectedBytes: number): Uint8Array {
+  const bin = atob(b64);
+  const arr = new Uint8Array(expectedBytes);
+  for (let i = 0; i < expectedBytes; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
+
+// Extract one 9-col half from an 18-wide pixel buffer (col-major, 34 rows)
+function extractHalf(full: Uint8Array, side: 'left' | 'right'): Uint8Array {
+  const out = new Uint8Array(COLS * ROWS);
+  const colOffset = side === 'right' ? COLS : 0;
+  for (let col = 0; col < COLS; col++) {
+    for (let row = 0; row < ROWS; row++) {
+      out[col * ROWS + row] = full[(col + colOffset) * ROWS + row] ?? 0;
+    }
+  }
+  return out;
+}
+
 // Seeded heatmap preview state — static demo for the dual-preview canvas
 const _heatmapPreview = (() => {
   const s = createHeatmapState();
@@ -79,7 +99,9 @@ if (import.meta.hot) {
   });
 }
 
-function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, audioCtx: RenderCtx): Uint8Array {
+type ImagePixelsCache = Record<string, { w9: Uint8Array; w18: Uint8Array } | undefined>;
+
+function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, audioCtx: RenderCtx, imageCache: ImagePixelsCache): Uint8Array {
   const empty = new Uint8Array(COLS * ROWS);
   if (!widget) return empty;
   try {
@@ -102,8 +124,14 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, 
       for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
       return out;
     } else if (widget.widget === 'image') {
-      // TODO: render image widget
-      return empty;
+      const cached = imageCache[widget.file];
+      if (!cached) return empty;
+      // 18-wide asset: left gets cols 0–8, right gets cols 9–17
+      if (cached.w18.length === 18 * ROWS) {
+        return extractHalf(cached.w18, side);
+      }
+      // 9-wide asset: same pixels on both sides
+      return cached.w9;
     } else {
       const style = widget.style ?? 'line';
       const frame = getDataRenderer(style).render();
@@ -171,6 +199,28 @@ export function HudDualPreview({
   audioCtxRef.current = audioCtx;
   const clockNowRef = useRef<Date | undefined>(clockNow);
   clockNowRef.current = clockNow;
+  const imageCacheRef = useRef<ImagePixelsCache>({});
+
+  // Load assets when an image widget is present
+  const leftFile  = leftWidget?.widget  === 'image' ? leftWidget.file  : null;
+  const rightFile = rightWidget?.widget === 'image' ? rightWidget.file : null;
+  useEffect(() => {
+    if (!leftFile && !rightFile) return;
+    void designerStore.getState().loadAssets().then(() => {
+      const { assetList } = designerStore.getState();
+      if (!assetList) return;
+      for (const asset of assetList) {
+        if (imageCacheRef.current[asset.name]) continue;
+        const bytesPerFrame = asset.width * ROWS;
+        const full = b64ToUint8(asset.firstFrame, bytesPerFrame);
+        if (asset.width === 18) {
+          imageCacheRef.current[asset.name] = { w18: full, w9: extractHalf(full, 'left') };
+        } else {
+          imageCacheRef.current[asset.name] = { w9: full, w18: full };
+        }
+      }
+    });
+  }, [leftFile, rightFile]);
 
   // Size canvas on mount (DPR-aware)
   useEffect(() => {
@@ -191,8 +241,9 @@ export function HudDualPreview({
     if (!ctx) return;
     const now = clockNowRef.current ?? new Date();
     const audioCtx = audioCtxRef.current;
-    drawModule(ctx, getPixels(leftWidget,  'left',  now, audioCtx), 0);
-    drawModule(ctx, getPixels(rightWidget, 'right', now, audioCtx), RIGHT_X);
+    const imageCache = imageCacheRef.current;
+    drawModule(ctx, getPixels(leftWidget,  'left',  now, audioCtx, imageCache), 0);
+    drawModule(ctx, getPixels(rightWidget, 'right', now, audioCtx, imageCache), RIGHT_X);
     // Bracket around the selected side
     if (selectedSide === 'left') {
       drawBrackets(ctx, 0.5, 0.5, HALF_W - 0.5, CANVAS_H - 0.5);
