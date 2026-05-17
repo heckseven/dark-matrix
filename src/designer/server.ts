@@ -9,6 +9,7 @@ import { z } from 'zod';
 import sharp from 'sharp';
 import { parseProject, frameToBase64 } from './format.js';
 import type { DmxProject } from './format.js';
+import type { AssetMeta } from '../lib/asset-meta.js';
 import { sendToDaemon, PersistentDaemonClient, daemonSocketPath } from '../lib/daemon-client.js';
 import { loadConfig, ConfigSchema } from '../lib/config.js';
 import { AUDIO_STYLES } from '../animations/audio-renderers.js';
@@ -64,6 +65,11 @@ function configFilePath(configDir?: string): string {
 function libraryDir(configDir?: string): string {
   const dir = configDir ?? path.join(os.homedir(), '.config', 'dark-matrix');
   return path.join(dir, 'library');
+}
+
+function assetsDir(configDir?: string): string {
+  const dir = configDir ?? path.join(os.homedir(), '.config', 'dark-matrix');
+  return path.join(dir, 'assets');
 }
 
 function safeLibraryPath(name: string, configDir?: string): string | null {
@@ -727,6 +733,64 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
       } catch {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ left: false, right: false }));
+      }
+      return;
+    }
+
+    // Assets list
+    if (url === '/api/assets' && method === 'GET') {
+      const dir = assetsDir(configDir);
+      await fs.mkdir(dir, { recursive: true });
+      const assets: AssetMeta[] = [];
+      try {
+        const entries = await fs.readdir(dir);
+        for (const name of entries.filter(e => /\.dmx\.json$/i.test(e))) {
+          try {
+            const raw = await fs.readFile(path.join(dir, name), 'utf8');
+            const project = parseProject(raw);
+            assets.push({
+              name,
+              width: project.width,
+              frameCount: project.frames.length,
+              firstFrame: project.frames[0]!.pixels,
+            });
+          } catch { /* skip invalid files silently */ }
+        }
+      } catch { /* readdir failed — return empty list */ }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, assets }));
+      return;
+    }
+
+    // Assets delete
+    const assetDeleteMatch = url.match(/^\/api\/assets\/([^/]+)$/);
+    if (assetDeleteMatch && method === 'DELETE') {
+      const filename = decodeURIComponent(assetDeleteMatch[1]!);
+      if (!/^[a-zA-Z0-9_\-]+\.dmx\.json$/.test(filename)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'invalid filename' }));
+        return;
+      }
+      const dir = assetsDir(configDir);
+      const resolved = path.resolve(dir, filename);
+      if (!resolved.startsWith(dir + path.sep)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'invalid filename' }));
+        return;
+      }
+      try {
+        await fs.unlink(resolved);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (err: unknown) {
+        const code = (err as NodeJS.ErrnoException).code;
+        if (code === 'ENOENT') {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'not found' }));
+        } else {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'delete failed' }));
+        }
       }
       return;
     }
