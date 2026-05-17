@@ -75,6 +75,7 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange }:
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const needsAudioRef = useRef(needsAudio);
   const audioSourceRef = useRef(audioSource);
+  const sentInitialHudConfigRef = useRef(false);
   needsAudioRef.current = needsAudio;
   audioSourceRef.current = audioSource;
 
@@ -106,12 +107,16 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange }:
     _moduleWs = ws;
 
     ws.addEventListener('open', () => {
+      sentInitialHudConfigRef.current = false;
       ws.send(JSON.stringify({ type: 'hud-mode-start' }));
       // Apply the in-memory selected preset immediately — don't wait for hud-presets-get
       // round-trip, which reads disk and may return stale data if a save hasn't flushed yet.
       const storeState = designerStore.getState();
       const immediatePreset = storeState.hudPresets.find(p => p.name === storeState.selectedPresetName);
-      if (immediatePreset) ws.send(JSON.stringify(buildPresetConfigPayload(immediatePreset)));
+      if (immediatePreset) {
+        ws.send(JSON.stringify(buildPresetConfigPayload(immediatePreset)));
+        sentInitialHudConfigRef.current = true;
+      }
       ws.send(JSON.stringify({ type: 'hud-presets-get' }));
       ws.send(JSON.stringify({ type: 'data-stats-start' }));
       // Subscribe to audio bands now if needed — the needsAudio effect may have fired
@@ -126,8 +131,18 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange }:
         const msg = JSON.parse(e.data) as { type: string; bands?: number[]; fftSize?: number; gain?: number } & Partial<DataStats> & Partial<{ presets: HudPresetClient[]; activeName: string | null; name: string | null }>;
         if (msg.type === 'hud-presets') {
           designerStore.getState().loadPresets(msg.presets ?? [], msg.activeName ?? null);
-          // hud-config already sent in the open handler from in-memory state; don't
-          // re-send here from server disk data, which may be behind unsaved changes.
+          // If open handler couldn't send hud-config (hudPresets was empty at connect time),
+          // send it now from the disk data. Safe because empty hudPresets means no unsaved changes.
+          if (!sentInitialHudConfigRef.current) {
+            const state = designerStore.getState();
+            const preset = state.hudPresets.find(p => p.name === state.selectedPresetName);
+            if (preset) {
+              sendWs(buildPresetConfigPayload(preset));
+              sentInitialHudConfigRef.current = true;
+            }
+          }
+          // hud-config already sent (above or from open handler); don't re-send from
+          // disk data if we already applied in-memory state — disk may be stale.
         } else if (msg.type === 'hud-preset-activated') {
           designerStore.getState().setActivePreset(msg.name ?? null);
         } else if (msg.type === 'data-stats') {
