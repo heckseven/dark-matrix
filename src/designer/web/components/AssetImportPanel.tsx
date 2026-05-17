@@ -1,7 +1,44 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { MatrixPreview } from './MatrixPreview.js';
 import { Slider } from './ui/slider.js';
 import { Button } from './ui/button.js';
+
+const AnimatedPreview = memo(function AnimatedPreview({
+  frames,
+  delays,
+  width,
+}: {
+  frames: string[];
+  delays: number[];
+  width: 9 | 18;
+}) {
+  const [frameIdx, setFrameIdx] = useState(0);
+  const [playing, setPlaying] = useState(true);
+  const isAnimated = frames.length > 1;
+
+  useEffect(() => {
+    if (!playing || !isAnimated) return;
+    const delay = delays[frameIdx] ?? 100;
+    const t = setTimeout(() => setFrameIdx(i => (i + 1) % frames.length), delay);
+    return () => clearTimeout(t);
+  }, [playing, isAnimated, frames, delays, frameIdx]);
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <MatrixPreview pixels={frames[frameIdx] ?? ''} width={width} />
+      {isAnimated && (
+        <button
+          type="button"
+          aria-label={playing ? 'pause animation' : 'play animation'}
+          className="font-mono text-xs text-foreground/55 hover:text-foreground"
+          onClick={() => setPlaying(p => !p)}
+        >
+          {playing ? '⏸' : '▶'}
+        </button>
+      )}
+    </div>
+  );
+});
 
 export interface AssetImportPanelProps {
   onSaved: (filename: string) => void;
@@ -41,8 +78,6 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
   const [contrast, setContrast] = useState(1);
   const [filename, setFilename] = useState('');
   const [preview, setPreview] = useState<{ frames: string[]; delays: number[]; width: 9 | 18 } | null>(null);
-  const [frameIdx, setFrameIdx] = useState(0);
-  const [playing, setPlaying] = useState(true);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +114,6 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
       }
       const data = await res.json() as { ok: boolean; frames: string[]; delays: number[]; width: 9 | 18 };
       setPreview({ frames: data.frames, delays: data.delays, width: data.width });
-      setFrameIdx(0);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'preview failed');
     } finally {
@@ -91,14 +125,6 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => fetchPreview(f, opts), 300);
   }, [fetchPreview]);
-
-  // Advance animation frame
-  useEffect(() => {
-    if (!playing || !preview || preview.frames.length <= 1) return;
-    const delay = preview.delays[frameIdx] ?? 100;
-    const t = setTimeout(() => setFrameIdx(i => (i + 1) % preview.frames.length), delay);
-    return () => clearTimeout(t);
-  }, [playing, preview, frameIdx]);
 
   // Re-run preview whenever any control changes (file already set)
   useEffect(() => {
@@ -163,10 +189,6 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
     }
   }
 
-  const previewWidth = preview?.width ?? width;
-  const previewPixels = preview?.frames[frameIdx] ?? null;
-  const isAnimated = (preview?.frames.length ?? 0) > 1;
-
   return (
     <div className="flex flex-col gap-4 p-2">
       {/* Drop zone */}
@@ -200,28 +222,20 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
       {file && (
         <>
           {/* Preview */}
-          <div className="flex flex-col items-center gap-2" aria-live="polite" aria-label="image preview">
+          <div className="flex justify-center" aria-live="polite" aria-label="image preview">
             {previewLoading && (
               <span className="font-mono text-xs text-foreground/55">loading…</span>
             )}
-            {!previewLoading && previewPixels && (
-              <MatrixPreview
-                pixels={previewPixels}
-                width={previewWidth}
+            {!previewLoading && preview && (
+              <AnimatedPreview
+                key={preview.frames[0]}
+                frames={preview.frames}
+                delays={preview.delays}
+                width={preview.width}
               />
             )}
-            {!previewLoading && !previewPixels && (
+            {!previewLoading && !preview && (
               <span className="font-mono text-xs text-foreground/55">no preview yet</span>
-            )}
-            {!previewLoading && isAnimated && (
-              <button
-                type="button"
-                aria-label={playing ? 'pause animation' : 'play animation'}
-                className="font-mono text-xs text-foreground/55 hover:text-foreground"
-                onClick={() => setPlaying(p => !p)}
-              >
-                {playing ? '⏸' : '▶'}
-              </button>
             )}
           </div>
 
