@@ -681,14 +681,23 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
 
   const backLabel = view === 'settings' ? `‹ ${activeCategory ?? 'back'}` : '‹ categories';
   const backAriaLabel = view === 'settings' ? `Back to ${activeCategory ?? 'grid'}` : 'Back to categories';
+  const showImportHeader = showImport && activeCategory === 'image';
 
   // ── Layer 2 + Layer 3 header
   const header = (
     <div className="relative flex items-center shrink-0 px-2 py-1">
-      <Button variant="ghost" className="text-foreground/60 text-xs" aria-label={backAriaLabel} onClick={handleBack}>
-        <span aria-hidden="true">{backLabel}</span>
-      </Button>
-      <span className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">{activeCategory ?? ''}</span>
+      {showImportHeader ? (
+        <Button variant="ghost" className="text-foreground/60 text-xs" aria-label="Cancel import" onClick={() => setShowImport(false)}>
+          <span aria-hidden="true">‹</span>
+        </Button>
+      ) : (
+        <Button variant="ghost" className="text-foreground/60 text-xs" aria-label={backAriaLabel} onClick={handleBack}>
+          <span aria-hidden="true">{backLabel}</span>
+        </Button>
+      )}
+      <span className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
+        {showImportHeader ? 'import image' : (activeCategory ?? '')}
+      </span>
     </div>
   );
 
@@ -714,7 +723,6 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
                   .then(d => { if (mountedRef.current) setAssets(d.assets ?? []); })
                   .catch(() => {});
               }}
-              onCancel={() => setShowImport(false)}
             />
           </div>
         ) : (
