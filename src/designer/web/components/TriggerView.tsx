@@ -108,13 +108,16 @@ function ThresholdFields({ trigger, onChange }: FieldProps) {
   return (
     <div className="flex items-center gap-4 flex-wrap">
       <div className="flex flex-col gap-1">
-        <span className="font-mono text-xs text-foreground/55">metric</span>
-        <Tabs
-          options={(['cpu', 'ram', 'net_rx', 'net_tx'] as const).map(m => ({ value: m, label: m }))}
-          value={t.metric}
-          onChange={v => { if (v === 'cpu' || v === 'ram' || v === 'net_rx' || v === 'net_tx') update({ metric: v }); }}
+        <label className="font-mono text-xs text-foreground/55">metric</label>
+        <Select
           aria-label="Metric"
-        />
+          value={t.metric}
+          onChange={e => update({ metric: e.target.value as 'cpu' | 'ram' | 'net_rx' | 'net_tx' })}
+        >
+          {(['cpu', 'ram', 'net_rx', 'net_tx'] as const).map(m => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </Select>
       </div>
       <div className="flex items-center gap-2">
         <Checkbox
