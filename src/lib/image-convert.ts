@@ -4,6 +4,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { createFrame } from './frame.js';
 import type { Frame } from './frame.js';
+import type { DmxProject } from '../designer/format.js';
 
 export type ImageFit = 'fill' | 'contain' | 'cover';
 export type ImageMode = 'bw' | 'gray';
@@ -47,6 +48,56 @@ export async function convertImage(imagePath: string, opts?: ConvertOptions): Pr
     }
   }
   return frame;
+}
+
+const GIF_MAX_FRAMES = 240;
+
+export async function convertGifToDmx(buf: Buffer, opts: {
+  width: 9 | 18;
+  mode: 'bw' | 'gray';
+  fit: 'contain' | 'cover' | 'fill';
+  brightness: number;
+  contrast: number;
+}): Promise<DmxProject> {
+  const { width, mode, fit, brightness, contrast } = opts;
+  const FRAME_H = 34;
+
+  const meta = await sharp(buf, { animated: true }).metadata();
+  const totalPages = meta.pages ?? 1;
+  const pages = Math.min(totalPages, GIF_MAX_FRAMES);
+  const delays: number[] = (meta.delay ?? Array.from({ length: totalPages }, () => 100)).slice(0, pages);
+
+  const stacked = await sharp(buf, { animated: true })
+    .resize(width, FRAME_H, { fit, background: { r: 0, g: 0, b: 0 } })
+    .grayscale()
+    .modulate({ brightness: 1 + brightness })
+    .linear(contrast, 0)
+    .raw()
+    .toBuffer();
+
+  const bytesPerFrame = width * FRAME_H;
+  const frames = [];
+  for (let i = 0; i < pages; i++) {
+    const slice = stacked.subarray(i * bytesPerFrame, (i + 1) * bytesPerFrame);
+    const pixels = new Uint8Array(bytesPerFrame);
+    for (let col = 0; col < width; col++) {
+      for (let row = 0; row < FRAME_H; row++) {
+        const v = slice[row * width + col] ?? 0;
+        pixels[col * FRAME_H + row] = mode === 'bw' ? (v >= 128 ? 255 : 0) : v;
+      }
+    }
+    frames.push({ delayMs: delays[i] ?? 100, pixels: Buffer.from(pixels).toString('base64') });
+  }
+
+  return {
+    format: 'dark-matrix',
+    version: 1,
+    width,
+    height: 34,
+    mode,
+    loop: false,
+    frames,
+  };
 }
 
 // Render a Frame as a unicode half-block string for terminal preview.
