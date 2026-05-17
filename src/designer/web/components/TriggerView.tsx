@@ -4,6 +4,7 @@ import { Select } from './ui/select.js';
 import { Button } from './ui/button.js';
 import { Input } from './ui/input.js';
 import { ScrubInput } from './ui/scrub-input.js';
+import { TimeInput } from './ui/time-input.js';
 import { Checkbox } from './ui/checkbox.js';
 import { Menu, MenuTrigger, MenuContent, MenuItem } from './ui/menu.js';
 
@@ -54,35 +55,12 @@ function defaultTrigger(type: TriggerType): HudTrigger {
 
 type FieldProps = { trigger: HudTrigger; onChange: (t: HudTrigger) => void };
 
-function parseHHMM(hhmm: string): [number, number] {
-  const [h, m] = hhmm.split(':').map(Number);
-  return [h ?? 0, m ?? 0];
-}
-
-function fmtHHMM(h: number, m: number): string {
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-
-function TimePair({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  const [h, m] = parseHHMM(value);
-  return (
-    <div className="flex items-center gap-2">
-      <span className="font-mono text-xs text-foreground/55 whitespace-nowrap">{label}</span>
-      <div className="flex items-center gap-1">
-        <ScrubInput aria-label={`${label} hours`}   value={h} min={0} max={23} onChange={v => onChange(fmtHHMM(v, m))} className="w-8 text-center" />
-        <span aria-hidden="true" className="font-mono text-xs text-foreground/40">:</span>
-        <ScrubInput aria-label={`${label} minutes`} value={m} min={0} max={59} onChange={v => onChange(fmtHHMM(h, v))} className="w-8 text-center" />
-      </div>
-    </div>
-  );
-}
-
 function TimeFields({ trigger, onChange }: FieldProps) {
   if (trigger.type !== 'time') return null;
   return (
     <div className="flex items-center gap-4 flex-wrap">
-      <TimePair label="from" value={trigger.from} onChange={v => onChange({ ...trigger, from: v })} />
-      <TimePair label="to"   value={trigger.to}   onChange={v => onChange({ ...trigger, to: v })} />
+      <TimeInput label="from" value={trigger.from} onChange={v => onChange({ ...trigger, from: v })} />
+      <TimeInput label="to"   value={trigger.to}   onChange={v => onChange({ ...trigger, to: v })} />
     </div>
   );
 }
