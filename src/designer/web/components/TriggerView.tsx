@@ -4,6 +4,7 @@ import { Select } from './ui/select.js';
 import { Tabs } from './ui/tabs.js';
 import { Button } from './ui/button.js';
 import { Input } from './ui/input.js';
+import { Menu, MenuTrigger, MenuContent, MenuItem } from './ui/menu.js';
 
 // ── constants ──────────────────────────────────────────────────────────────
 
@@ -15,6 +16,17 @@ const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 type Weekday = typeof DAYS[number];
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+
+const TRIGGER_DESCRIPTIONS: Record<TriggerType, string> = {
+  time:      'Active between two clock times each day. Wraps midnight when "from" is later than "to".',
+  idle:      'Active when no keyboard or mouse input has been detected for the configured idle timeout (daemon → idle_after_ms).',
+  active:    'Active while the user is present — any input within the idle timeout window.',
+  day:       'Active on selected days of the week.',
+  date:      'Active on a specific month and day each year.',
+  threshold: 'Active when a system metric (CPU, RAM, network) crosses a numeric boundary.',
+  interface: 'Active when a named network interface is in a specific state (up or down).',
+  vm:        'Active when a named virtual machine is in a specific state (running or stopped).',
+};
 
 const FW = 'w-24';
 
@@ -327,7 +339,8 @@ export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
     triggerIdsRef.current = triggers.map(() => crypto.randomUUID());
   }
 
-  const [picking, setPicking] = useState(false);
+  const [highlighted, setHighlighted] = useState<TriggerType | null>(null);
+  const menuOpenRef = useRef(false);
 
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
@@ -336,7 +349,7 @@ export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') { e.preventDefault(); onDone(); }
+      if (e.key === 'Escape' && !menuOpenRef.current) { e.preventDefault(); onDone(); }
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -356,7 +369,6 @@ export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
   function addTrigger(type: TriggerType) {
     onChange([...triggers, defaultTrigger(type)]);
     triggerIdsRef.current = [...triggerIdsRef.current, crypto.randomUUID()];
-    setPicking(false);
   }
 
   return (
@@ -387,7 +399,7 @@ export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
             </div>
           )}
 
-          {triggers.length === 0 && !picking && (
+          {triggers.length === 0 && (
             <p className="font-mono text-xs text-foreground/40 py-4">
               no triggers — this preset is always active
             </p>
@@ -405,33 +417,37 @@ export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
           </div>
 
           <div className="mt-4">
-            {picking ? (
-              <div className="flex flex-wrap gap-2">
-                {TRIGGER_TYPES.map(type => (
-                  <button
-                    key={type}
-                    type="button"
-                    aria-label={`Add ${type} trigger`}
-                    className="font-mono text-xs border border-foreground/30 px-3 py-1 text-foreground/70 hover:text-foreground hover:border-foreground transition-colors"
-                    onClick={() => addTrigger(type)}
-                  >
-                    {type}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className="font-mono text-xs text-foreground/55 hover:text-foreground px-2"
-                  onClick={() => setPicking(false)}
-                  aria-label="cancel"
+            <Menu onOpenChange={open => { menuOpenRef.current = open; setHighlighted(open ? TRIGGER_TYPES[0]! : null); }}>
+              <MenuTrigger asChild>
+                <Button variant="ghost">+ add trigger</Button>
+              </MenuTrigger>
+              <MenuContent
+                align="start"
+                className="flex p-0 gap-0 overflow-hidden"
+              >
+                <div className="py-1.5">
+                  {TRIGGER_TYPES.map(type => (
+                    <MenuItem
+                      key={type}
+                      className="px-4"
+                      onMouseEnter={() => setHighlighted(type)}
+                      onFocus={() => setHighlighted(type)}
+                      onSelect={() => addTrigger(type)}
+                    >
+                      {type}
+                    </MenuItem>
+                  ))}
+                </div>
+                <div
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                  className="w-52 shrink-0 border-l border-foreground/15 px-4 py-3 text-foreground/50 leading-relaxed"
                 >
-                  ×
-                </button>
-              </div>
-            ) : (
-              <Button variant="ghost" onClick={() => setPicking(true)}>
-                + add trigger
-              </Button>
-            )}
+                  {highlighted ? TRIGGER_DESCRIPTIONS[highlighted] : ''}
+                </div>
+              </MenuContent>
+            </Menu>
           </div>
         </div>
       </div>
