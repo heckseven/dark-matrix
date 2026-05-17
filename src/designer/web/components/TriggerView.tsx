@@ -1,0 +1,365 @@
+import { useState, useEffect, useRef, useId } from 'react';
+import type { HudTrigger, HudPresetClient } from '../types/hud-preset.js';
+import { Select } from './ui/select.js';
+import { Tabs } from './ui/tabs.js';
+import { Button } from './ui/button.js';
+import { Input } from './ui/input.js';
+
+// ── constants ──────────────────────────────────────────────────────────────
+
+const TIME_RE = /^\d{2}:\d{2}$/;
+const TRIGGER_TYPES = ['time', 'idle', 'active', 'threshold', 'interface', 'vm'] as const;
+type TriggerType = typeof TRIGGER_TYPES[number];
+
+const FW = 'w-24';
+
+function defaultTrigger(type: TriggerType): HudTrigger {
+  switch (type) {
+    case 'time':      return { type: 'time', from: '00:00', to: '00:00' };
+    case 'idle':      return { type: 'idle' };
+    case 'active':    return { type: 'active' };
+    case 'threshold': return { type: 'threshold', metric: 'cpu' };
+    case 'interface': return { type: 'interface', name: '', state: 'up' };
+    case 'vm':        return { type: 'vm', name: '' };
+  }
+}
+
+// ── field editors ──────────────────────────────────────────────────────────
+
+type FieldProps = { trigger: HudTrigger; onChange: (t: HudTrigger) => void };
+
+function TimeFields({ trigger, onChange }: FieldProps) {
+  const [fromErr, setFromErr] = useState(false);
+  const [toErr, setToErr] = useState(false);
+  const uid = useId();
+  if (trigger.type !== 'time') return null;
+  return (
+    <div className="flex items-end gap-4 flex-wrap">
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`${uid}-from`} className="font-mono text-xs text-foreground/55">from</label>
+        <Input
+          id={`${uid}-from`}
+          type="text"
+          aria-invalid={fromErr}
+          defaultValue={trigger.from}
+          placeholder="HH:MM"
+          onBlur={e => {
+            const v = e.target.value.trim();
+            if (!TIME_RE.test(v)) { setFromErr(true); return; }
+            setFromErr(false);
+            onChange({ ...trigger, from: v });
+          }}
+          onChange={() => setFromErr(false)}
+          className={FW}
+          expandedClassName={FW}
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`${uid}-to`} className="font-mono text-xs text-foreground/55">to</label>
+        <Input
+          id={`${uid}-to`}
+          type="text"
+          aria-invalid={toErr}
+          defaultValue={trigger.to}
+          placeholder="HH:MM"
+          onBlur={e => {
+            const v = e.target.value.trim();
+            if (!TIME_RE.test(v)) { setToErr(true); return; }
+            setToErr(false);
+            onChange({ ...trigger, to: v });
+          }}
+          onChange={() => setToErr(false)}
+          className={FW}
+          expandedClassName={FW}
+        />
+      </div>
+      {(fromErr || toErr) && (
+        <span role="alert" className="font-mono text-xs text-yellow-400 self-center">HH:MM</span>
+      )}
+    </div>
+  );
+}
+
+function ThresholdFields({ trigger, onChange }: FieldProps) {
+  const uid = useId();
+  if (trigger.type !== 'threshold') return null;
+  const t = trigger;
+  const conflict = t.above !== undefined && t.below !== undefined && t.above >= t.below;
+
+  function update(patch: { metric?: 'cpu' | 'ram' | 'net_rx' | 'net_tx'; above?: number; below?: number; clearAbove?: true; clearBelow?: true }) {
+    type T = { type: 'threshold'; metric: 'cpu' | 'ram' | 'net_rx' | 'net_tx'; above?: number; below?: number };
+    const base: T = { type: 'threshold', metric: patch.metric ?? t.metric };
+    const above = patch.clearAbove ? undefined : (patch.above !== undefined ? patch.above : t.above);
+    const below = patch.clearBelow ? undefined : (patch.below !== undefined ? patch.below : t.below);
+    if (above !== undefined) base.above = above;
+    if (below !== undefined) base.below = below;
+    onChange(base);
+  }
+
+  return (
+    <div className="flex items-end gap-4 flex-wrap">
+      <div className="flex flex-col gap-1">
+        <label className="font-mono text-xs text-foreground/55">metric</label>
+        <Select
+          aria-label="Metric"
+          value={t.metric}
+          onChange={e => update({ metric: e.target.value as 'cpu' | 'ram' | 'net_rx' | 'net_tx' })}
+        >
+          {(['cpu', 'ram', 'net_rx', 'net_tx'] as const).map(m => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </Select>
+      </div>
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`${uid}-above`} className="font-mono text-xs text-foreground/55">above</label>
+        <Input
+          id={`${uid}-above`}
+          type="number"
+          value={t.above ?? ''}
+          onChange={e => e.target.value === '' ? update({ clearAbove: true }) : update({ above: Number(e.target.value) })}
+          className={FW}
+          expandedClassName={FW}
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`${uid}-below`} className="font-mono text-xs text-foreground/55">below</label>
+        <Input
+          id={`${uid}-below`}
+          type="number"
+          value={t.below ?? ''}
+          onChange={e => e.target.value === '' ? update({ clearBelow: true }) : update({ below: Number(e.target.value) })}
+          className={FW}
+          expandedClassName={FW}
+        />
+      </div>
+      {conflict && (
+        <span role="alert" className="font-mono text-xs text-yellow-400 self-center">above ≥ below — never matches</span>
+      )}
+    </div>
+  );
+}
+
+function InterfaceFields({ trigger, onChange }: FieldProps) {
+  if (trigger.type !== 'interface') return null;
+  return (
+    <div className="flex items-end gap-4 flex-wrap">
+      <div className="flex flex-col gap-1">
+        <label className="font-mono text-xs text-foreground/55">name</label>
+        <Input
+          type="text"
+          aria-label="Interface name"
+          placeholder="eth0"
+          value={trigger.name}
+          onChange={e => onChange({ ...trigger, name: e.target.value })}
+          className="w-32"
+          expandedClassName="w-32"
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="font-mono text-xs text-foreground/55">state</label>
+        <Select
+          aria-label="Interface state"
+          value={trigger.state}
+          onChange={e => onChange({ ...trigger, state: e.target.value as 'up' | 'down' })}
+        >
+          <option value="up">up</option>
+          <option value="down">down</option>
+        </Select>
+      </div>
+    </div>
+  );
+}
+
+function VmFields({ trigger, onChange }: FieldProps) {
+  if (trigger.type !== 'vm') return null;
+  const stateValue = trigger.state ?? 'any';
+  function update(name: string, state: string) {
+    if (state === 'running' || state === 'stopped') onChange({ type: 'vm', name, state });
+    else onChange({ type: 'vm', name });
+  }
+  return (
+    <div className="flex items-end gap-4 flex-wrap">
+      <div className="flex flex-col gap-1">
+        <label className="font-mono text-xs text-foreground/55">name</label>
+        <Input
+          type="text"
+          aria-label="VM name"
+          placeholder="vm-name"
+          value={trigger.name}
+          onChange={e => update(e.target.value, stateValue)}
+          className="w-32"
+          expandedClassName="w-32"
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="font-mono text-xs text-foreground/55">state</label>
+        <Select
+          aria-label="VM state"
+          value={stateValue}
+          onChange={e => update(trigger.name, e.target.value)}
+        >
+          <option value="any">any</option>
+          <option value="running">running</option>
+          <option value="stopped">stopped</option>
+        </Select>
+      </div>
+    </div>
+  );
+}
+
+// ── trigger row ────────────────────────────────────────────────────────────
+
+function TriggerRow({ trigger, onUpdate, onDelete }: {
+  trigger: HudTrigger;
+  onUpdate: (t: HudTrigger) => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="flex items-start gap-4 py-4 border-b border-foreground/10 last:border-b-0">
+      <span className="font-mono text-xs text-foreground/60 border border-foreground/30 px-1.5 py-0.5 shrink-0 min-w-[5rem] text-center mt-0.5">
+        {trigger.type}
+      </span>
+      <div className="flex-1 min-w-0">
+        {trigger.type === 'time'      && <TimeFields      trigger={trigger} onChange={onUpdate} />}
+        {trigger.type === 'threshold' && <ThresholdFields trigger={trigger} onChange={onUpdate} />}
+        {trigger.type === 'interface' && <InterfaceFields trigger={trigger} onChange={onUpdate} />}
+        {trigger.type === 'vm'        && <VmFields        trigger={trigger} onChange={onUpdate} />}
+      </div>
+      <Button
+        variant="ghost"
+        aria-label={`Delete ${trigger.type} trigger`}
+        onClick={onDelete}
+      >
+        ×
+      </Button>
+    </div>
+  );
+}
+
+// ── main ───────────────────────────────────────────────────────────────────
+
+export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
+  preset: HudPresetClient;
+  onDone: () => void;
+  onChange: (triggers: HudTrigger[]) => void;
+  onMatchChange?: (match: 'all' | 'any') => void;
+}) {
+  const triggers = preset.triggers ?? [];
+  const match = preset.match ?? 'all';
+
+  const triggerIdsRef = useRef<string[]>(triggers.map(() => crypto.randomUUID()));
+  if (triggerIdsRef.current.length !== triggers.length) {
+    triggerIdsRef.current = triggers.map(() => crypto.randomUUID());
+  }
+
+  const [picking, setPicking] = useState(false);
+
+  useEffect(() => {
+    const prev = document.activeElement as HTMLElement | null;
+    return () => { prev?.focus(); };
+  }, []);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') { e.preventDefault(); onDone(); }
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onDone]);
+
+  function updateTrigger(idx: number, t: HudTrigger) {
+    const next = [...triggers];
+    next[idx] = t;
+    onChange(next);
+  }
+
+  function deleteTrigger(idx: number) {
+    onChange(triggers.filter((_, i) => i !== idx));
+    triggerIdsRef.current = triggerIdsRef.current.filter((_, i) => i !== idx);
+  }
+
+  function addTrigger(type: TriggerType) {
+    onChange([...triggers, defaultTrigger(type)]);
+    triggerIdsRef.current = [...triggerIdsRef.current, crypto.randomUUID()];
+    setPicking(false);
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-label={`Triggers — ${preset.name}`}
+      aria-modal="true"
+      className="fixed inset-0 z-50 bg-background text-foreground font-mono flex flex-col"
+    >
+      <header className="relative flex items-center pl-7 pr-5 py-4 border-b border-foreground/10 shrink-0">
+        <span className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
+          {preset.name}
+        </span>
+        <Button variant="default" size="sm" className="ml-auto" onClick={onDone}>done</Button>
+      </header>
+
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-2xl mx-auto px-8 py-6">
+          {triggers.length >= 2 && onMatchChange && (
+            <div className="flex items-center gap-3 mb-6">
+              <span className="font-mono text-xs text-foreground/55">match</span>
+              <Tabs
+                options={['all', 'any']}
+                value={match}
+                onChange={v => { if (v === 'all' || v === 'any') onMatchChange(v); }}
+                aria-label="match mode"
+              />
+            </div>
+          )}
+
+          {triggers.length === 0 && !picking && (
+            <p className="font-mono text-xs text-foreground/40 py-4">
+              no triggers — this preset is always active
+            </p>
+          )}
+
+          <div>
+            {triggers.map((t, i) => (
+              <TriggerRow
+                key={triggerIdsRef.current[i] ?? String(i)}
+                trigger={t}
+                onUpdate={u => updateTrigger(i, u)}
+                onDelete={() => deleteTrigger(i)}
+              />
+            ))}
+          </div>
+
+          <div className="mt-4">
+            {picking ? (
+              <div className="flex flex-wrap gap-2">
+                {TRIGGER_TYPES.map(type => (
+                  <button
+                    key={type}
+                    type="button"
+                    aria-label={`Add ${type} trigger`}
+                    className="font-mono text-xs border border-foreground/30 px-3 py-1 text-foreground/70 hover:text-foreground hover:border-foreground transition-colors"
+                    onClick={() => addTrigger(type)}
+                  >
+                    {type}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="font-mono text-xs text-foreground/55 hover:text-foreground px-2"
+                  onClick={() => setPicking(false)}
+                  aria-label="cancel"
+                >
+                  ×
+                </button>
+              </div>
+            ) : (
+              <Button variant="ghost" onClick={() => setPicking(true)}>
+                + add trigger
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

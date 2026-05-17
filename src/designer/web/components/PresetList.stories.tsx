@@ -43,6 +43,7 @@ const meta = {
     onDuplicate: fn(),
     onRename: fn(),
     onMove: fn(),
+    onEditTriggers: fn(),
   },
 } satisfies Meta<typeof PresetList>;
 
