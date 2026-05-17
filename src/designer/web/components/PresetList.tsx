@@ -46,7 +46,9 @@ if (import.meta.hot) {
   });
 }
 
-function renderWidgetToB64(widget: HudWidget | null, side: 'left' | 'right', audioCtx: RenderCtx): string {
+type AudioFrames = Partial<Record<AudioStyle, { left: string; right: string }>>;
+
+function renderWidgetToB64(widget: HudWidget | null, side: 'left' | 'right', audioCtx: RenderCtx, audioFrames?: AudioFrames): string {
   const empty = btoa(String.fromCharCode(...new Uint8Array(COLS * ROWS)));
   if (!widget) return empty;
   try {
@@ -59,6 +61,8 @@ function renderWidgetToB64(widget: HudWidget | null, side: 'left' | 'right', aud
       return btoa(String.fromCharCode(...out));
     } else if (widget.widget === 'audio') {
       const style = widget.style ?? AUDIO_STYLES[0]!.id;
+      const cached = audioFrames?.[style]?.[side];
+      if (cached) return cached;
       if (!_audioCache[style]) _audioCache[style] = createAudioRenderer(style);
       const frame = _audioCache[style]!(audioCtx);
       const out = new Uint8Array(COLS * ROWS);
@@ -348,12 +352,36 @@ export function PresetList({
   const [tick, setTick] = useState(0);
   const [dropTarget, setDropTarget] = useState<number | null>(null);
 
-  const refresh = useCallback(() => setTick(t => t + 1), []);
+  const audioCtxRef  = useRef(audioCtx);
+  const presetsRef   = useRef(presets);
+  audioCtxRef.current  = audioCtx;
+  presetsRef.current   = presets;
+  const audioFramesRef = useRef<AudioFrames>({});
 
   useEffect(() => {
-    const id = setInterval(refresh, 100);
+    const id = setInterval(() => {
+      const ctx = audioCtxRef.current;
+      const ps  = presetsRef.current;
+      // Collect needed styles from current presets
+      const needed = new Set<AudioStyle>();
+      for (const p of ps) {
+        if (p.left?.widget  === 'audio') needed.add(p.left.style  ?? AUDIO_STYLES[0]!.id);
+        if (p.right?.widget === 'audio') needed.add(p.right.style ?? AUDIO_STYLES[0]!.id);
+      }
+      // Render each needed style exactly once per tick
+      const frames: AudioFrames = {};
+      for (const style of needed) {
+        if (!_audioCache[style]) _audioCache[style] = createAudioRenderer(style);
+        const raw = _audioCache[style]!(ctx);
+        const bw = new Uint8Array(COLS * ROWS);
+        for (let i = 0; i < raw.length; i++) bw[i] = (raw[i] ?? 0) > 127 ? 255 : 0;
+        frames[style] = { left: btoa(String.fromCharCode(...bw)), right: btoa(String.fromCharCode(...mirrorFrame(bw))) };
+      }
+      audioFramesRef.current = frames;
+      setTick(t => t + 1);
+    }, 100);
     return () => clearInterval(id);
-  }, [refresh]);
+  }, []);
 
   void tick;
 
@@ -372,8 +400,9 @@ export function PresetList({
           <li aria-hidden="true" className="-my-[19px] h-0.5 bg-green-500 rounded-full pointer-events-none" />
         )}
         {presets.map((preset, idx) => {
-          const leftPx  = renderWidgetToB64(preset.left,  'left',  audioCtx);
-          const rightPx = renderWidgetToB64(preset.right, 'right', audioCtx);
+          const af = audioFramesRef.current;
+          const leftPx  = renderWidgetToB64(preset.left,  'left',  audioCtx, af);
+          const rightPx = renderWidgetToB64(preset.right, 'right', audioCtx, af);
           const pixels  = combinePixels(leftPx, rightPx);
           return (
             <Fragment key={preset.name}>
