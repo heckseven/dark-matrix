@@ -407,7 +407,7 @@ export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
     >
       <header className="relative flex items-center px-5 py-4 shrink-0 gap-3">
         <span className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
-          {preset.name} — triggers
+          {preset.name} — trigger config
         </span>
         <div className="ml-auto flex items-center gap-3">
           {triggers.length >= 2 && onMatchChange && (
