@@ -40,7 +40,9 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
   const [brightness, setBrightness] = useState(0);
   const [contrast, setContrast] = useState(1);
   const [filename, setFilename] = useState('');
-  const [preview, setPreview] = useState<{ frames: string[]; width: 9 | 18 } | null>(null);
+  const [preview, setPreview] = useState<{ frames: string[]; delays: number[]; width: 9 | 18 } | null>(null);
+  const [frameIdx, setFrameIdx] = useState(0);
+  const [playing, setPlaying] = useState(true);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,8 +77,9 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
         setError(text);
         return;
       }
-      const data = await res.json() as { ok: boolean; frames: string[]; width: 9 | 18 };
-      setPreview({ frames: data.frames, width: data.width });
+      const data = await res.json() as { ok: boolean; frames: string[]; delays: number[]; width: 9 | 18 };
+      setPreview({ frames: data.frames, delays: data.delays, width: data.width });
+      setFrameIdx(0);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'preview failed');
     } finally {
@@ -88,6 +91,14 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => fetchPreview(f, opts), 300);
   }, [fetchPreview]);
+
+  // Advance animation frame
+  useEffect(() => {
+    if (!playing || !preview || preview.frames.length <= 1) return;
+    const delay = preview.delays[frameIdx] ?? 100;
+    const t = setTimeout(() => setFrameIdx(i => (i + 1) % preview.frames.length), delay);
+    return () => clearTimeout(t);
+  }, [playing, preview, frameIdx]);
 
   // Re-run preview whenever any control changes (file already set)
   useEffect(() => {
@@ -153,7 +164,8 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
   }
 
   const previewWidth = preview?.width ?? width;
-  const previewPixels = preview?.frames[0] ?? null;
+  const previewPixels = preview?.frames[frameIdx] ?? null;
+  const isAnimated = (preview?.frames.length ?? 0) > 1;
 
   return (
     <div className="flex flex-col gap-4 p-2">
@@ -188,7 +200,7 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
       {file && (
         <>
           {/* Preview */}
-          <div className="flex justify-center" aria-live="polite" aria-label="image preview">
+          <div className="flex flex-col items-center gap-2" aria-live="polite" aria-label="image preview">
             {previewLoading && (
               <span className="font-mono text-xs text-foreground/55">loading…</span>
             )}
@@ -200,6 +212,16 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
             )}
             {!previewLoading && !previewPixels && (
               <span className="font-mono text-xs text-foreground/55">no preview yet</span>
+            )}
+            {!previewLoading && isAnimated && (
+              <button
+                type="button"
+                aria-label={playing ? 'pause animation' : 'play animation'}
+                className="font-mono text-xs text-foreground/55 hover:text-foreground"
+                onClick={() => setPlaying(p => !p)}
+              >
+                {playing ? '⏸' : '▶'}
+              </button>
             )}
           </div>
 

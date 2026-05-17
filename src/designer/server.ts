@@ -688,10 +688,11 @@ async function handleAssetsPreview(
   try {
     const sourceBuf = Buffer.from(p['sourceBase64'] as string, 'base64');
     const project = await convertSourceToProject(sourceBuf, width, mode, fit, brightness, contrast);
-    const frames = project.frames.slice(0, 10).map(f => f.pixels);
+    const frames = project.frames.map(f => f.pixels);
+    const delays = project.frames.map(f => f.delayMs);
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, frames, width: project.width, frameCount: project.frames.length }));
+    res.end(JSON.stringify({ ok: true, frames, delays, width: project.width, frameCount: project.frames.length }));
   } catch (err) {
     console.error('[assets preview] conversion failed:', err);
     res.writeHead(400, { 'Content-Type': 'application/json' });

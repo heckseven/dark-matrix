@@ -9,7 +9,7 @@ function patchFetch() {
   globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
     if (url.includes('/api/assets/preview')) {
-      return new Response(JSON.stringify({ ok: true, frames: [BLANK_FRAME], width: 9 }), {
+      return new Response(JSON.stringify({ ok: true, frames: [BLANK_FRAME], delays: [100], width: 9 }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
