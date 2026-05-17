@@ -3,6 +3,7 @@ import { MatrixPreview } from './MatrixPreview.js';
 import { Tabs } from './ui/tabs.js';
 import { Select } from './ui/select.js';
 import { Button } from './ui/button.js';
+import { AssetImportPanel } from './AssetImportPanel.js';
 import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
 import { DATA_STYLES, createDataRenderer } from '../../../animations/data-renderers.js';
@@ -11,6 +12,7 @@ import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../an
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { createHeatmapState, bumpTool, tickHeatmap, renderHeatmap } from '../../../animations/heatmap.js';
 import type { HudWidget } from '../types/hud-preset.js';
+import type { AssetMeta } from '../../../lib/asset-meta.js';
 
 const COLS = 9;
 const ROWS = 34;
@@ -105,7 +107,7 @@ const CATEGORIES = [
   { id: 'data',      label: 'data',      disabled: false },
   { id: 'ai',        label: 'ai',        disabled: false },
   { id: 'audio',     label: 'audio',     disabled: false },
-  { id: 'image',     label: 'image',     disabled: true  },
+  { id: 'image',     label: 'image',     disabled: false },
   { id: 'animation', label: 'animation', disabled: true  },
 ] as const;
 
@@ -394,6 +396,68 @@ function AudioGrid({ currentWidget, audioCtx, side, onPick, onMount, onUnmount }
   );
 }
 
+// ── Layer 2: Image grid ───────────────────────────────────────────────────
+
+function base64ToUint8(b64: string, n: number): Uint8Array {
+  const bin = atob(b64);
+  const out = new Uint8Array(n);
+  for (let i = 0; i < n && i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function ImageGrid({ currentWidget, assets, onPick, onShowImport }: {
+  currentWidget: HudWidget | null;
+  assets: AssetMeta[] | null;
+  onPick: (w: HudWidget) => void;
+  onShowImport: () => void;
+}) {
+  if (assets === null) {
+    return <div className="font-mono text-xs text-foreground/55 p-4">loading…</div>;
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {assets.length === 0 && (
+        <p className="font-mono text-xs text-foreground/55">no assets — import one to get started</p>
+      )}
+      <div className="grid grid-cols-3 gap-4">
+        {assets.map(asset => {
+          const displayWidth = Math.min(asset.width, 9) as 9;
+          const pixelCount = displayWidth * 34;
+          const pixels = btoa(String.fromCharCode(...base64ToUint8(asset.firstFrame, pixelCount)));
+          const active = currentWidget?.widget === 'image' && currentWidget.file === asset.name;
+          return (
+            <button
+              key={asset.name}
+              type="button"
+              aria-label={asset.name.replace('.dmx.json', '')}
+              aria-pressed={active}
+              className="group relative flex flex-col gap-2 items-center rounded-sm p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
+              onClick={() => onPick({ widget: 'image', file: asset.name })}
+            >
+              <CornerBrackets active={active} />
+              <MatrixPreview
+                width={displayWidth}
+                pixels={pixels}
+              />
+              <span className="font-mono text-xs text-foreground/55 truncate max-w-full">
+                {asset.name.replace('.dmx.json', '')}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        className="font-mono text-xs text-foreground/55 hover:text-foreground border border-foreground/20 hover:border-foreground/50 px-3 py-1.5 mt-1 self-start"
+        onClick={onShowImport}
+      >
+        + import
+      </button>
+    </div>
+  );
+}
+
 // ── Layer 3: Data settings ────────────────────────────────────────────────
 
 const DATA_METRICS: { id: DataMetric | 'none'; label: string }[] = [
@@ -475,11 +539,12 @@ export type HudInspectorProps = {
   onNeedsAudio?: (needs: boolean) => void;
   onClocksVisible?: (visible: boolean) => void;
   onChange: (widget: HudWidget) => void;
+  oppositeWidget?: HudWidget;
 };
 
 type View = 'categories' | 'grid' | 'settings';
 
-export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX, onNeedsAudio, onClocksVisible, onChange }: HudInspectorProps) {
+export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX, onNeedsAudio, onClocksVisible, onChange, oppositeWidget }: HudInspectorProps) {
   const uid = useId();
 
   const [view, setView] = useState<View>(() => {
@@ -490,6 +555,21 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
   const [activeCategory, setActiveCategory] = useState<string | null>(() =>
     widget ? categoryOfWidget(widget) : null
   );
+
+  // Image assets
+  const [assets, setAssets] = useState<AssetMeta[] | null>(null);
+  const [showImport, setShowImport] = useState(false);
+
+  // Fetch assets when image category is active
+  useEffect(() => {
+    if (activeCategory !== 'image') return;
+    let cancelled = false;
+    fetch('/api/assets')
+      .then(r => r.json() as Promise<{ ok: boolean; assets: AssetMeta[] }>)
+      .then(d => { if (!cancelled) setAssets(d.assets ?? []); })
+      .catch(() => { if (!cancelled) setAssets([]); });
+    return () => { cancelled = true; };
+  }, [activeCategory]);
 
   function handleCategorySelect(cat: string) {
     setActiveCategory(cat);
@@ -556,6 +636,12 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
 
   // ── Layer 2
   if (view === 'grid') {
+    // 18-wide paired indicator
+    const isPaired = oppositeWidget?.widget === 'image'
+      && widget?.widget === 'image'
+      && oppositeWidget.file === widget.file
+      && (assets ?? []).find(a => a.name === widget.file)?.width === 18;
+
     return (
       <div className="flex flex-col h-full overflow-hidden">
         {header}
@@ -565,6 +651,35 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
             {activeCategory === 'data'   && <DataGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} />}
             {activeCategory === 'ai'     && <AiGrid    currentWidget={widget} onPick={handlePick} />}
             {activeCategory === 'audio'  && <AudioGrid currentWidget={widget} audioCtx={audioCtx} side={side} onPick={handlePick} onMount={handleAudioMount} onUnmount={handleAudioUnmount} />}
+            {activeCategory === 'image'  && (
+              showImport ? (
+                <AssetImportPanel
+                  onSaved={(savedFilename) => {
+                    // Refresh assets
+                    fetch('/api/assets')
+                      .then(r => r.json() as Promise<{ ok: boolean; assets: AssetMeta[] }>)
+                      .then(d => setAssets(d.assets ?? []))
+                      .catch(() => {});
+                    setShowImport(false);
+                    // Auto-select the saved asset
+                    handlePick({ widget: 'image', file: savedFilename });
+                  }}
+                  onCancel={() => setShowImport(false)}
+                />
+              ) : (
+                <>
+                  {isPaired && (
+                    <p className="font-mono text-xs text-foreground/40 mb-3">← paired with opposite side</p>
+                  )}
+                  <ImageGrid
+                    currentWidget={widget}
+                    assets={assets}
+                    onPick={handlePick}
+                    onShowImport={() => setShowImport(true)}
+                  />
+                </>
+              )
+            )}
           </div>
         </div>
       </div>

@@ -274,13 +274,31 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
               ? (hudSelectedSide === 'left' ? selectedPreset.left : selectedPreset.right)
               : null
             }
+            {...(selectedPreset ? { oppositeWidget: hudSelectedSide === 'left' ? selectedPreset.right : selectedPreset.left } : {})}
             side={hudSelectedSide}
             audioCtx={audioCtx}
             onNeedsAudio={setInspectorNeedsAudio}
             onClocksVisible={setInspectorClocksVisible}
-            onChange={(widget) => {
+            onChange={async (widget) => {
               if (!selectedPreset) return;
               designerStore.getState().updatePresetWidget(selectedPreset.name, hudSelectedSide, widget);
+              // 18-wide auto-fill: if an image widget is picked and the asset spans both sides,
+              // auto-assign the same file to the opposite side.
+              if (widget.widget === 'image') {
+                try {
+                  const res = await fetch('/api/assets');
+                  const data = await res.json() as { ok: boolean; assets: Array<{ name: string; width: 9 | 18 }> };
+                  const meta = data.assets?.find((a: { name: string }) => a.name === widget.file);
+                  if (meta?.width === 18) {
+                    const oppSide = hudSelectedSide === 'left' ? 'right' : 'left';
+                    const oppWidget = hudSelectedSide === 'left' ? selectedPreset.right : selectedPreset.left;
+                    const alreadySet = oppWidget?.widget === 'image' && oppWidget.file === widget.file;
+                    if (!alreadySet) {
+                      designerStore.getState().updatePresetWidget(selectedPreset.name, oppSide, { widget: 'image', file: widget.file });
+                    }
+                  }
+                } catch { /* ignore — best effort */ }
+              }
               sendHudConfig();
               debouncedSave();
             }}

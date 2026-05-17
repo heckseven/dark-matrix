@@ -175,13 +175,13 @@ export function TimeInput({
       )}
     >
       <span aria-hidden={true} className="text-foreground select-none">{'['}&nbsp;</span>
-      <Seg value={h} disabled={disabled} ariaLabel={`${prefix ? prefix + ' ' : ''}hours`}   onChange={v => update(v, m, s)} />
+      <Seg value={h} {...(disabled ? { disabled } : {})} ariaLabel={`${prefix ? prefix + ' ' : ''}hours`}   onChange={v => update(v, m, s)} />
       <span aria-hidden={true} className="text-foreground/40 select-none px-px">:</span>
-      <Seg value={m} disabled={disabled} ariaLabel={`${prefix ? prefix + ' ' : ''}minutes`} onChange={v => update(h, v, s)} />
+      <Seg value={m} {...(disabled ? { disabled } : {})} ariaLabel={`${prefix ? prefix + ' ' : ''}minutes`} onChange={v => update(h, v, s)} />
       {showSeconds && (
         <>
           <span aria-hidden={true} className="text-foreground/40 select-none px-px">:</span>
-          <Seg value={s} disabled={disabled} ariaLabel={`${prefix ? prefix + ' ' : ''}seconds`} onChange={v => update(h, m, v)} />
+          <Seg value={s} {...(disabled ? { disabled } : {})} ariaLabel={`${prefix ? prefix + ' ' : ''}seconds`} onChange={v => update(h, m, v)} />
         </>
       )}
       <span aria-hidden={true} className="text-foreground select-none">&nbsp;{']'}</span>

@@ -74,6 +74,7 @@ export const WithLabel: Story = {
 
 /** `from` / `to` pair as used in the time trigger. */
 export const FromToPair: Story = {
+  args: { value: '09:00' },
   render: () => {
     const [from, setFrom] = useState('09:00');
     const [to, setTo] = useState('17:30');
