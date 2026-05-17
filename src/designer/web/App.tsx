@@ -535,7 +535,7 @@ export function App() {
 
         {activeMode === 'hud' ? (
           <div className="h-full flex">
-            <HudPanel dualModule={dualModule} topPad={headerHeight} />
+            <HudPanel dualModule={dualModule} topPad={headerHeight} onNeedsAudioChange={setHudNeedsAudio} />
           </div>
         ) : activeMode === 'audio' ? (
           <div className="h-full flex">
