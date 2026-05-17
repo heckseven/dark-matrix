@@ -73,6 +73,10 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange }:
 
   const wsRef = useRef<WebSocket | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const needsAudioRef = useRef(needsAudio);
+  const audioSourceRef = useRef(audioSource);
+  needsAudioRef.current = needsAudio;
+  audioSourceRef.current = audioSource;
 
   // ── WebSocket helpers ────────────────────────────────────────────────
 
@@ -103,8 +107,18 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange }:
 
     ws.addEventListener('open', () => {
       ws.send(JSON.stringify({ type: 'hud-mode-start' }));
+      // Apply the in-memory selected preset immediately — don't wait for hud-presets-get
+      // round-trip, which reads disk and may return stale data if a save hasn't flushed yet.
+      const storeState = designerStore.getState();
+      const immediatePreset = storeState.hudPresets.find(p => p.name === storeState.selectedPresetName);
+      if (immediatePreset) ws.send(JSON.stringify(buildPresetConfigPayload(immediatePreset)));
       ws.send(JSON.stringify({ type: 'hud-presets-get' }));
       ws.send(JSON.stringify({ type: 'data-stats-start' }));
+      // Subscribe to audio bands now if needed — the needsAudio effect may have fired
+      // before the WS was open and returned early, so re-apply here.
+      if (needsAudioRef.current) {
+        ws.send(JSON.stringify({ type: 'hud-audio-bands-subscribe', source: audioSourceRef.current }));
+      }
     });
 
     ws.addEventListener('message', (e: MessageEvent<string>) => {
@@ -112,9 +126,8 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange }:
         const msg = JSON.parse(e.data) as { type: string; bands?: number[]; fftSize?: number; gain?: number } & Partial<DataStats> & Partial<{ presets: HudPresetClient[]; activeName: string | null; name: string | null }>;
         if (msg.type === 'hud-presets') {
           designerStore.getState().loadPresets(msg.presets ?? [], msg.activeName ?? null);
-          const { hudPresets, selectedPresetName } = designerStore.getState();
-          const sel = hudPresets.find(p => p.name === selectedPresetName);
-          if (sel) ws.send(JSON.stringify(buildPresetConfigPayload(sel)));
+          // hud-config already sent in the open handler from in-memory state; don't
+          // re-send here from server disk data, which may be behind unsaved changes.
         } else if (msg.type === 'hud-preset-activated') {
           designerStore.getState().setActivePreset(msg.name ?? null);
         } else if (msg.type === 'data-stats') {
@@ -134,6 +147,12 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange }:
 
     return () => {
       if (ws.readyState === WebSocket.OPEN) {
+        // Flush any pending debounced save so the next hud-presets-get reads current data.
+        if (saveTimerRef.current) {
+          clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = null;
+          ws.send(JSON.stringify({ type: 'hud-preset-save', presets: designerStore.getState().hudPresets }));
+        }
         ws.send(JSON.stringify({ type: 'data-stats-stop' }));
       }
       ws.close();
