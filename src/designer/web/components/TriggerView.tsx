@@ -322,7 +322,7 @@ function TriggerRow({ trigger, onUpdate, onDelete }: {
   onDelete: () => void;
 }) {
   return (
-    <div className="flex items-center gap-4 py-4 border-b border-foreground/10 last:border-b-0">
+    <div className="flex items-center gap-4 py-3">
       <span className="font-mono text-xs font-bold text-foreground/60 shrink-0">
         {trigger.type}:
       </span>
@@ -340,9 +340,10 @@ function TriggerRow({ trigger, onUpdate, onDelete }: {
       <Button
         variant="ghost"
         aria-label={`Delete ${trigger.type} trigger`}
+        tooltip="Remove trigger"
         onClick={onDelete}
       >
-        &times;
+        del
       </Button>
     </div>
   );
