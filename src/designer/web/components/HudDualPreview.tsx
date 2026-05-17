@@ -99,7 +99,28 @@ if (import.meta.hot) {
   });
 }
 
-type ImagePixelsCache = Record<string, { pixels: Uint8Array; width: 9 | 18 } | undefined>;
+type ImageEntry = {
+  frames: Uint8Array[];
+  delays: number[];
+  width: 9 | 18;
+  frameIdx: number;
+  elapsed: number;
+  lastTick: number | null;
+};
+type ImagePixelsCache = Record<string, ImageEntry | undefined>;
+
+function advanceImages(imageCache: ImagePixelsCache, now: Date): void {
+  const nowMs = now.getTime();
+  for (const entry of Object.values(imageCache)) {
+    if (!entry || entry.frames.length <= 1) continue;
+    if (entry.lastTick !== null) entry.elapsed += nowMs - entry.lastTick;
+    entry.lastTick = nowMs;
+    while (entry.elapsed >= (entry.delays[entry.frameIdx] ?? 100)) {
+      entry.elapsed -= entry.delays[entry.frameIdx] ?? 100;
+      entry.frameIdx = entry.frameIdx < entry.frames.length - 1 ? entry.frameIdx + 1 : 0;
+    }
+  }
+}
 
 function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, audioCtx: RenderCtx, imageCache: ImagePixelsCache): Uint8Array {
   const empty = new Uint8Array(COLS * ROWS);
@@ -125,11 +146,10 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, 
       return out;
     } else if (widget.widget === 'image') {
       const cached = imageCache[widget.file];
-      if (!cached) return empty;
-      if (cached.width === 18) {
-        return extractHalf(cached.pixels, side);
-      }
-      return cached.pixels;
+      if (!cached || !cached.frames.length) return empty;
+      const frame = cached.frames[cached.frameIdx] ?? cached.frames[0]!;
+      if (cached.width === 18) return extractHalf(frame, side);
+      return frame;
     } else {
       const style = widget.style ?? 'line';
       const frame = getDataRenderer(style).render();
@@ -212,8 +232,14 @@ export function HudDualPreview({
       for (const asset of assetList) {
         if (imageCacheRef.current[asset.name]) continue;
         const bytesPerFrame = asset.width * ROWS;
-        const pixels = b64ToUint8(asset.firstFrame, bytesPerFrame);
-        imageCacheRef.current[asset.name] = { pixels, width: asset.width };
+        imageCacheRef.current[asset.name] = {
+          frames: asset.frames.map(f => b64ToUint8(f, bytesPerFrame)),
+          delays: asset.delays,
+          width: asset.width,
+          frameIdx: 0,
+          elapsed: 0,
+          lastTick: null,
+        };
       }
     }).catch(() => {});
     return () => { cancelled = true; };
@@ -239,6 +265,7 @@ export function HudDualPreview({
     const now = clockNowRef.current ?? new Date();
     const audioCtx = audioCtxRef.current;
     const imageCache = imageCacheRef.current;
+    advanceImages(imageCache, now);
     drawModule(ctx, getPixels(leftWidget,  'left',  now, audioCtx, imageCache), 0);
     drawModule(ctx, getPixels(rightWidget, 'right', now, audioCtx, imageCache), RIGHT_X);
     // Bracket around the selected side

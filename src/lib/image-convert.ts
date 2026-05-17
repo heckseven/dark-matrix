@@ -95,7 +95,7 @@ export async function convertGifToDmx(buf: Buffer, opts: {
     width,
     height: 34,
     mode,
-    loop: false,
+    loop: true,
     frames,
   };
 }

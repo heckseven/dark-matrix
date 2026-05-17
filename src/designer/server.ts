@@ -1001,6 +1001,8 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
               width: project.width,
               frameCount: project.frames.length,
               firstFrame: project.frames[0]!.pixels,
+              frames: project.frames.map(f => f.pixels),
+              delays: project.frames.map(f => f.delayMs),
             });
           } catch { /* skip invalid files silently */ }
         }

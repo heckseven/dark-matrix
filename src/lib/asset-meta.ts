@@ -4,4 +4,6 @@ export type AssetMeta = {
   width: 9 | 18;
   frameCount: number;
   firstFrame: string; // base64 pixels of first frame
+  frames: string[];   // base64 pixels for all frames
+  delays: number[];   // per-frame delay in ms
 };
