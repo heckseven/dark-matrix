@@ -4,7 +4,7 @@ import { updateAllDataRenderers } from '../data-renderer-pool.js';
 import type { DataStats } from '../../../animations/data-renderers.js';
 import { AUDIO_STYLES } from '../../../animations/audio-renderers.js';
 import type { RenderCtx } from '../../../animations/audio-renderers.js';
-import type { HudWidget, HudPresetClient } from '../types/hud-preset.js';
+import type { HudPresetClient } from '../types/hud-preset.js';
 import { PresetList } from './PresetList.js';
 import { HudDualPreview } from './HudDualPreview.js';
 import { HudInspector } from './HudInspector.js';
@@ -48,19 +48,6 @@ function buildPresetConfigPayload(preset: HudPresetClient) {
   };
 }
 
-function buildHudConfigPayload(widget: HudWidget, side: 'left' | 'right') {
-  const store = designerStore.getState();
-  const leftWidget  = side === 'left'  ? (widget.widget) : store.hudLeftWidget;
-  const rightWidget = side === 'right' ? (widget.widget) : store.hudRightWidget;
-  const leftFace    = side === 'left'  && widget.widget === 'clock' ? (widget.face ?? store.hudLeftFace)  : store.hudLeftFace;
-  const rightFace   = side === 'right' && widget.widget === 'clock' ? (widget.face ?? store.hudRightFace) : store.hudRightFace;
-  const leftDataStyle  = side === 'left'  && widget.widget === 'data'  ? (widget.style ?? store.hudLeftDataStyle)  : store.hudLeftDataStyle;
-  const rightDataStyle = side === 'right' && widget.widget === 'data'  ? (widget.style ?? store.hudRightDataStyle) : store.hudRightDataStyle;
-  const leftAudioStyle  = side === 'left'  && widget.widget === 'audio' ? widget.style : undefined;
-  const rightAudioStyle = side === 'right' && widget.widget === 'audio' ? widget.style : undefined;
-  return { type: 'hud-config' as const, leftWidget, leftFace, leftDataStyle, leftAudioStyle, rightWidget, rightFace, rightDataStyle, rightAudioStyle };
-}
-
 // ── main component ────────────────────────────────────────────────────────
 
 const MOCK_AUDIO_CTX: RenderCtx = { bands: [200, 150, 100, 70, 40, 20, 10, 5, 2], fftSize: 2048, gain: 1.5 };
@@ -102,8 +89,9 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange }:
     }, 800);
   }, []);
 
-  function sendHudConfig(widget: HudWidget) {
-    sendWs(buildHudConfigPayload(widget, hudSelectedSide));
+  function sendHudConfig() {
+    const preset = designerStore.getState().hudPresets.find(p => p.name === selectedPresetName);
+    if (preset) sendWs(buildPresetConfigPayload(preset));
   }
 
   // ── WebSocket lifecycle ──────────────────────────────────────────────
@@ -260,7 +248,7 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange }:
             onChange={(widget) => {
               if (!selectedPreset) return;
               designerStore.getState().updatePresetWidget(selectedPreset.name, hudSelectedSide, widget);
-              sendHudConfig(widget);
+              sendHudConfig();
               debouncedSave();
             }}
           />
