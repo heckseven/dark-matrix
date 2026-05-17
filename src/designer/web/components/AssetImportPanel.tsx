@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { MatrixPreview } from './MatrixPreview.js';
 import { Slider } from './ui/slider.js';
 import { Button } from './ui/button.js';
-import { Toggle } from './ui/toggle.js';
+import { Checkbox } from './ui/checkbox.js';
 import { Select } from './ui/select.js';
 import { Input } from './ui/input.js';
 
@@ -82,7 +82,6 @@ const AnimatedPreview = memo(function AnimatedPreview({
 
 export interface AssetImportPanelProps {
   onSaved: (filename: string) => void;
-  onCancel?: () => void;
 }
 
 const ALLOWED_FILENAME_RE = /^[a-zA-Z0-9_\-]+$/;
@@ -109,9 +108,9 @@ async function fileToBase64(file: File): Promise<string> {
   });
 }
 
-export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
+export function AssetImportPanel({ onSaved }: AssetImportPanelProps) {
   const [file, setFile] = useState<File | null>(null);
-  const [width, setWidth] = useState<9 | 18>(9);
+  const [width, setWidth] = useState<9 | 18>(18);
   const [fit, setFit] = useState<'contain' | 'cover' | 'fill'>('contain');
   const [brightness, setBrightness] = useState(0);
   const [contrast, setContrast] = useState(1);
@@ -266,11 +265,6 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
           <span className="font-mono text-xs text-foreground/55">.png .jpg .gif .dmx.json</span>
         </label>
         {error && <span role="alert" className="font-mono text-xs text-red-400">{error}</span>}
-        {onCancel && (
-          <Button variant="ghost" className="font-mono text-xs text-foreground/55 self-start" onClick={onCancel}>
-            cancel
-          </Button>
-        )}
       </div>
     );
   }
@@ -298,20 +292,18 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
       </div>
 
       {/* Width */}
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-xs text-foreground/50">wide</span>
-        <Toggle
-          pressed={width === 18}
-          onPressedChange={p => setWidth(p ? 18 : 9)}
+      <div className="flex items-center gap-3">
+        <span className="font-mono text-xs text-foreground/50 w-20 shrink-0">wide</span>
+        <Checkbox
+          checked={width === 18}
           aria-label="Use 18-column width"
-        >
-          wide
-        </Toggle>
+          onChange={e => setWidth(e.target.checked ? 18 : 9)}
+        />
       </div>
 
       {/* Fit */}
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-xs text-foreground/50">fit</span>
+      <div className="flex items-center gap-3">
+        <span className="font-mono text-xs text-foreground/50 w-20 shrink-0">fit</span>
         <Select
           value={fit}
           aria-label="Fit mode"
@@ -324,8 +316,8 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
       </div>
 
       {/* Brightness */}
-      <div className="flex flex-col gap-1">
-        <span className="font-mono text-xs text-foreground/50">brightness</span>
+      <div className="flex items-center gap-3">
+        <span className="font-mono text-xs text-foreground/50 w-20 shrink-0">brightness</span>
         <Slider
           aria-label="brightness"
           variant="value"
@@ -337,8 +329,8 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
       </div>
 
       {/* Contrast */}
-      <div className="flex flex-col gap-1">
-        <span className="font-mono text-xs text-foreground/50">contrast</span>
+      <div className="flex items-center gap-3">
+        <span className="font-mono text-xs text-foreground/50 w-20 shrink-0">contrast</span>
         <Slider
           aria-label="contrast"
           variant="value"
@@ -350,8 +342,8 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
       </div>
 
       {/* Filename */}
-      <div className="flex flex-col gap-1">
-        <span className="font-mono text-xs text-foreground/50">filename</span>
+      <div className="flex items-center gap-3">
+        <span className="font-mono text-xs text-foreground/50 w-20 shrink-0">filename</span>
         <Input
           type="text"
           value={filename}
@@ -373,11 +365,6 @@ export function AssetImportPanel({ onSaved, onCancel }: AssetImportPanelProps) {
         >
           {saving ? 'saving…' : 'save'}
         </Button>
-        {onCancel && (
-          <Button variant="ghost" className="font-mono text-xs text-foreground/55" onClick={onCancel}>
-            cancel
-          </Button>
-        )}
       </div>
     </div>
   );
