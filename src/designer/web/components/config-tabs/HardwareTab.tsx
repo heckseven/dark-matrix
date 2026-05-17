@@ -110,7 +110,7 @@ export function HardwareTab({ value, onChange }: HardwareTabProps) {
         )}
       </div>
 
-      <div className="font-mono text-xs text-foreground/40 flex flex-col gap-1 border-t border-foreground/10 pt-4">
+      <div className="font-mono text-xs text-foreground/55 flex flex-col gap-1 border-t border-foreground/10 pt-4">
         <p className="text-foreground/60 mb-1">finding the path manually</p>
         <p>prefer <span className="text-foreground/70">by-path</span> — it survives reboots:</p>
         <pre className="bg-foreground/5 px-2 py-1 rounded-sm mt-1">ls /dev/serial/by-path/</pre>
