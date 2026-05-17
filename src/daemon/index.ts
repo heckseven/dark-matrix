@@ -366,11 +366,20 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       }
       case 'image': {
         const assetsDir = path.join(os.homedir(), '.config', 'dark-matrix', 'assets');
-        const filePath = path.join(assetsDir, widget.file);
-        const project = parseProject(readFileSync(filePath, 'utf-8'));
+        const resolved = path.resolve(assetsDir, widget.file);
+        if (!resolved.startsWith(assetsDir + path.sep)) {
+          throw new Error(`invalid asset path: ${widget.file}`);
+        }
+        let project: DmxProject;
+        try {
+          project = parseProject(readFileSync(resolved, 'utf-8'));
+        } catch (err) {
+          console.error(`[image renderer] failed to load ${widget.file}:`, err);
+          const empty = new Uint8Array(FRAME_COLS * FRAME_ROWS) as unknown as Frame;
+          return { render: () => empty, stop() {} };
+        }
         const width = project.width;
-        const height = 34;
-        const bytesPerFrame = width * height;
+        const bytesPerFrame = width * FRAME_ROWS;
         const frames: Uint8Array[] = project.frames.map(f => base64ToFrame(f.pixels, bytesPerFrame));
         const speed = widget.speed ?? 1;
         const delays = project.frames.map(f => Math.round(f.delayMs / speed));
@@ -399,11 +408,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
             const raw = frames[frameIdx]!;
 
             if (width === 18) {
-              const half = new Uint8Array(9 * 34);
-              const colOffset = side === 'left' ? 0 : 9;
-              for (let col = 0; col < 9; col++) {
-                for (let row = 0; row < 34; row++) {
-                  half[col * 34 + row] = raw[(col + colOffset) * 34 + row] ?? 0;
+              const half = new Uint8Array(FRAME_COLS * FRAME_ROWS);
+              const colOffset = side === 'left' ? 0 : FRAME_COLS;
+              for (let col = 0; col < FRAME_COLS; col++) {
+                for (let row = 0; row < FRAME_ROWS; row++) {
+                  half[col * FRAME_ROWS + row] = raw[(col + colOffset) * FRAME_ROWS + row] ?? 0;
                 }
               }
               return half as unknown as Frame;

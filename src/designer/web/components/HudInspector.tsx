@@ -559,6 +559,8 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
   // Image assets
   const [assets, setAssets] = useState<AssetMeta[] | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const mountedRef = useRef(true);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   // Fetch assets when image category is active
   useEffect(() => {
@@ -655,21 +657,20 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
               showImport ? (
                 <AssetImportPanel
                   onSaved={(savedFilename) => {
-                    // Refresh assets
+                    setShowImport(false);
+                    handlePick({ widget: 'image', file: savedFilename });
+                    // Refresh assets list
                     fetch('/api/assets')
                       .then(r => r.json() as Promise<{ ok: boolean; assets: AssetMeta[] }>)
-                      .then(d => setAssets(d.assets ?? []))
+                      .then(d => { if (mountedRef.current) setAssets(d.assets ?? []); })
                       .catch(() => {});
-                    setShowImport(false);
-                    // Auto-select the saved asset
-                    handlePick({ widget: 'image', file: savedFilename });
                   }}
                   onCancel={() => setShowImport(false)}
                 />
               ) : (
                 <>
                   {isPaired && (
-                    <p className="font-mono text-xs text-foreground/40 mb-3">← paired with opposite side</p>
+                    <p className="font-mono text-xs text-foreground/55 mb-3">← paired with opposite side</p>
                   )}
                   <ImageGrid
                     currentWidget={widget}

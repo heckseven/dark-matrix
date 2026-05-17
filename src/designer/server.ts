@@ -113,16 +113,16 @@ async function savePrefs(prefs: DesignerPrefs, configDir?: string): Promise<void
 
 const MAX_JSON_BODY = 1 * 1024 * 1024; // 1 MB
 
-function readBody(req: http.IncomingMessage): Promise<string> {
+function readBody(req: http.IncomingMessage, maxBytes = MAX_JSON_BODY): Promise<string> {
   return new Promise((resolve, reject) => {
-    let data = '';
+    const chunks: Buffer[] = [];
     let total = 0;
     req.on('data', (chunk: Buffer) => {
       total += chunk.length;
-      if (total > MAX_JSON_BODY) { req.destroy(); reject(new Error('payload too large')); return; }
-      data += chunk.toString();
+      if (total > maxBytes) { req.destroy(); reject(new Error('payload too large')); return; }
+      chunks.push(chunk);
     });
-    req.on('end', () => resolve(data));
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
     req.on('error', reject);
   });
 }
@@ -456,20 +456,6 @@ async function handleExportPng(req: http.IncomingMessage, res: http.ServerRespon
 
 const MAX_ASSETS_BODY = 10 * 1024 * 1024; // 10 MB
 
-function readBodyLarge(req: http.IncomingMessage): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let data = '';
-    let total = 0;
-    req.on('data', (chunk: Buffer) => {
-      total += chunk.length;
-      if (total > MAX_ASSETS_BODY) { req.destroy(); reject(new Error('payload too large')); return; }
-      data += chunk.toString();
-    });
-    req.on('end', () => resolve(data));
-    req.on('error', reject);
-  });
-}
-
 function clamp(v: number, min: number, max: number): number {
   return v < min ? min : v > max ? max : v;
 }
@@ -536,7 +522,7 @@ async function handleAssetsImport(
 ): Promise<void> {
   let body: string;
   try {
-    body = await readBodyLarge(req);
+    body = await readBody(req, MAX_ASSETS_BODY);
   } catch {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: false, error: 'payload too large' }));
@@ -552,6 +538,11 @@ async function handleAssetsImport(
     return;
   }
 
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'expected json object' }));
+    return;
+  }
   const p = parsed as Record<string, unknown>;
 
   // Validate filename
@@ -629,8 +620,9 @@ async function handleAssetsImport(
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true, filename: filename + '.dmx.json' }));
   } catch (err) {
+    console.error('[assets import] conversion failed:', err);
     res.writeHead(400, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: false, error: String(err) }));
+    res.end(JSON.stringify({ ok: false, error: 'conversion failed' }));
   }
 }
 
@@ -640,7 +632,7 @@ async function handleAssetsPreview(
 ): Promise<void> {
   let body: string;
   try {
-    body = await readBodyLarge(req);
+    body = await readBody(req, MAX_ASSETS_BODY);
   } catch {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: false, error: 'payload too large' }));
@@ -656,6 +648,11 @@ async function handleAssetsPreview(
     return;
   }
 
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'expected json object' }));
+    return;
+  }
   const p = parsed as Record<string, unknown>;
 
   if (typeof p['sourceBase64'] !== 'string') {
@@ -696,8 +693,9 @@ async function handleAssetsPreview(
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true, frames, width: project.width, frameCount: project.frames.length }));
   } catch (err) {
+    console.error('[assets preview] conversion failed:', err);
     res.writeHead(400, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: false, error: String(err) }));
+    res.end(JSON.stringify({ ok: false, error: 'conversion failed' }));
   }
 }
 
@@ -996,6 +994,7 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
           try {
             const raw = await fs.readFile(path.join(dir, name), 'utf8');
             const project = parseProject(raw);
+            if (!project.frames.length) continue;
             assets.push({
               name,
               width: project.width,
