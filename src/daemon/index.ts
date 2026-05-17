@@ -1,5 +1,7 @@
 import net from 'node:net';
 import fs from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import os from 'node:os';
 import process from 'node:process';
 import { spawn } from 'node:child_process';
@@ -363,10 +365,53 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         };
       }
       case 'image': {
-        // TODO: implement image widget (Wave 2)
+        const assetsDir = path.join(os.homedir(), '.config', 'dark-matrix', 'assets');
+        const filePath = path.join(assetsDir, widget.file);
+        const project = parseProject(readFileSync(filePath, 'utf-8'));
+        const width = project.width;
+        const height = 34;
+        const bytesPerFrame = width * height;
+        const frames: Uint8Array[] = project.frames.map(f => base64ToFrame(f.pixels, bytesPerFrame));
+        const speed = widget.speed ?? 1;
+        const delays = project.frames.map(f => Math.round(f.delayMs / speed));
+        const loop = widget.loop ?? project.loop;
+
+        let frameIdx = 0;
+        let elapsed = 0;
+        let lastTick: number | null = null;
+
         return {
-          render(_now, _audioCtx) { return new Uint8Array(FRAME_COLS * FRAME_ROWS) as Frame; },
-          stop() { /* no cleanup needed */ },
+          render(now, _audioCtx) {
+            const nowMs = now.getTime();
+            if (lastTick !== null) elapsed += nowMs - lastTick;
+            lastTick = nowMs;
+
+            while (elapsed >= (delays[frameIdx] ?? 100)) {
+              elapsed -= delays[frameIdx] ?? 100;
+              if (frameIdx < frames.length - 1) {
+                frameIdx++;
+              } else if (loop) {
+                frameIdx = 0;
+              }
+              // if !loop, stay on last frame
+            }
+
+            const raw = frames[frameIdx]!;
+
+            if (width === 18) {
+              const half = new Uint8Array(9 * 34);
+              const colOffset = side === 'left' ? 0 : 9;
+              for (let col = 0; col < 9; col++) {
+                for (let row = 0; row < 34; row++) {
+                  half[col * 34 + row] = raw[(col + colOffset) * 34 + row] ?? 0;
+                }
+              }
+              return half as unknown as Frame;
+            }
+
+            return raw as unknown as Frame;
+          },
+          stop() { /* nothing to clean up */ },
         };
       }
       default: {
