@@ -41,6 +41,7 @@ const meta = {
     },
     label: { control: 'text', description: 'Label rendered to the left of the bracket.' },
     disabled: { control: 'boolean', description: 'Disables all segments.' },
+    'aria-label': { control: 'text', description: 'Accessible group label when no visible label is present.' },
   },
   args: { onChange: fn() },
 } satisfies Meta<typeof TimeInput>;
@@ -50,7 +51,7 @@ type Story = StoryObj<typeof meta>;
 
 function Controlled(props: Parameters<typeof TimeInput>[0]) {
   const [v, setV] = useState(props.value);
-  return <TimeInput {...props} value={v} onChange={setV} />;
+  return <TimeInput {...props} value={v} onChange={val => { setV(val); props.onChange?.(val); }} />;
 }
 
 /** Drag any segment to scrub; click to type, then blur or Enter to commit. */
@@ -92,11 +93,10 @@ export const FromToPair: Story = {
  */
 export const TimerMode: Story = {
   render: args => <Controlled {...args} />,
-  args: { value: '02:30:00', showSeconds: true, maxHours: undefined },
+  args: { value: '02:30:00', showSeconds: true, maxHours: 99 },
 };
 
 /** All segments are non-interactive and rendered at reduced opacity. */
 export const Disabled: Story = {
-  render: args => <Controlled {...args} />,
   args: { value: '12:00', disabled: true },
 };

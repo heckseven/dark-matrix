@@ -23,14 +23,14 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           primary ? 'focus-within:ring-green-400/30' : 'focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background',
         )}
       >
-        <span aria-hidden className={cn('select-none', chrome)}>{'['}&nbsp;</span>
+        <span aria-hidden={true} className={cn('select-none', chrome)}>{'['}&nbsp;</span>
         <select
           ref={ref}
           className={cn(base, chrome, className)}
           style={primary ? { textShadow: '0 0 8px rgba(74,222,128,0.6)' } : undefined}
           {...props}
         >{children}</select>
-        <span aria-hidden className={cn('select-none', chrome)}>{' ▾]'}</span>
+        <span aria-hidden={true} className={cn('select-none', chrome)}>{' ▾]'}</span>
       </span>
     );
   }

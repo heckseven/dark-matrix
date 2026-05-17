@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { cn } from '@/lib/utils.js';
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -57,7 +57,7 @@ function Seg({ value, onChange, disabled, ariaLabel }: SegProps) {
       inputRef.current?.focus();
       inputRef.current?.select();
     }
-  }, [editing]);
+  }, [editing, value]);
 
   function onPointerDown(e: React.PointerEvent) {
     if (editing || disabled) return;
@@ -73,7 +73,10 @@ function Seg({ value, onChange, disabled, ariaLabel }: SegProps) {
   }
 
   function onPointerUp() {
-    if (drag.current && !drag.current.moved) setEditing(true);
+    if (drag.current && !drag.current.moved) {
+      setDraft(pad2(value));
+      setEditing(true);
+    }
     drag.current = null;
   }
 
@@ -94,7 +97,7 @@ function Seg({ value, onChange, disabled, ariaLabel }: SegProps) {
         aria-label={ariaLabel}
         disabled={disabled}
         readOnly={!editing}
-        onChange={e => setDraft(e.target.value.replace(/\D/g, '').slice(0, 4))}
+        onChange={e => setDraft(e.target.value.replace(/\D/g, '').slice(0, 2))}
         onBlur={() => {
           const parsed = parseInt(draft, 10);
           if (!isNaN(parsed)) onChange(parsed);
@@ -105,7 +108,7 @@ function Seg({ value, onChange, disabled, ariaLabel }: SegProps) {
             if (e.key === 'Enter') inputRef.current?.blur();
             else if (e.key === 'Escape') { setDraft(pad2(value)); setEditing(false); }
           } else {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditing(true); }
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDraft(pad2(value)); setEditing(true); }
             else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
               e.preventDefault();
               onChange(value + (e.key === 'ArrowUp' ? (e.shiftKey ? 10 : 1) : (e.shiftKey ? -10 : -1)));
@@ -153,6 +156,8 @@ export function TimeInput({
   'aria-label': ariaLabel,
 }: TimeInputProps) {
   const [h, m, s] = parse(value);
+  const labelId = useId();
+  const prefix = label ?? '';
 
   function update(newH: number, newM: number, newS: number) {
     const carried = applyCarry(newH, newM, newS, maxHours);
@@ -161,30 +166,32 @@ export function TimeInput({
 
   const bracket = (
     <span
+      role="group"
+      aria-labelledby={label ? labelId : undefined}
+      aria-label={!label ? ariaLabel : undefined}
       className={cn(
         'font-mono text-xs inline-flex items-center p-1 focus-within:ring-1 focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background',
         disabled && 'opacity-40',
       )}
-      aria-label={ariaLabel}
     >
-      <span aria-hidden className="text-foreground select-none">{'['}&nbsp;</span>
-      <Seg value={h} disabled={disabled} ariaLabel="hours"   onChange={v => update(v, m, s)} />
-      <span aria-hidden className="text-foreground/40 select-none px-px">:</span>
-      <Seg value={m} disabled={disabled} ariaLabel="minutes" onChange={v => update(h, v, s)} />
+      <span aria-hidden={true} className="text-foreground select-none">{'['}&nbsp;</span>
+      <Seg value={h} disabled={disabled} ariaLabel={`${prefix ? prefix + ' ' : ''}hours`}   onChange={v => update(v, m, s)} />
+      <span aria-hidden={true} className="text-foreground/40 select-none px-px">:</span>
+      <Seg value={m} disabled={disabled} ariaLabel={`${prefix ? prefix + ' ' : ''}minutes`} onChange={v => update(h, v, s)} />
       {showSeconds && (
         <>
-          <span aria-hidden className="text-foreground/40 select-none px-px">:</span>
-          <Seg value={s} disabled={disabled} ariaLabel="seconds" onChange={v => update(h, m, v)} />
+          <span aria-hidden={true} className="text-foreground/40 select-none px-px">:</span>
+          <Seg value={s} disabled={disabled} ariaLabel={`${prefix ? prefix + ' ' : ''}seconds`} onChange={v => update(h, m, v)} />
         </>
       )}
-      <span aria-hidden className="text-foreground select-none">&nbsp;{']'}</span>
+      <span aria-hidden={true} className="text-foreground select-none">&nbsp;{']'}</span>
     </span>
   );
 
   if (!label) return bracket;
   return (
     <span className="inline-flex items-center gap-2">
-      <span className="font-mono text-xs text-foreground/55 whitespace-nowrap select-none">{label}</span>
+      <span id={labelId} className="font-mono text-xs text-foreground/55 whitespace-nowrap select-none">{label}</span>
       {bracket}
     </span>
   );
