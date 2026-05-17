@@ -687,7 +687,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
   const header = (
     <div className="relative flex items-center shrink-0 px-2 py-1">
       {showImportHeader ? (
-        <Button variant="ghost" className="text-foreground/60 text-xs" aria-label="Cancel import" onClick={() => setShowImport(false)}>
+        <Button variant="ghost" className="text-foreground/60 text-xs" aria-label="Cancel import" tooltip="Cancel import" onClick={() => setShowImport(false)}>
           <span aria-hidden="true">‹</span>
         </Button>
       ) : (
