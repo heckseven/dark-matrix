@@ -1,7 +1,9 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useDesignerStore, designerStore } from '../store.js';
 import { updateAllDataRenderers } from '../data-renderer-pool.js';
 import type { DataStats } from '../../../animations/data-renderers.js';
+import { AUDIO_STYLES } from '../../../animations/audio-renderers.js';
+import type { RenderCtx } from '../../../animations/audio-renderers.js';
 import type { HudWidget, HudPresetClient } from '../types/hud-preset.js';
 import { PresetList } from './PresetList.js';
 import { HudDualPreview } from './HudDualPreview.js';
@@ -61,13 +63,26 @@ function buildHudConfigPayload(widget: HudWidget, side: 'left' | 'right') {
 
 // ── main component ────────────────────────────────────────────────────────
 
-export function HudPanel({ dualModule = false, topPad = 0 }: { dualModule?: boolean; topPad?: number }) {
-  const hudPresets       = useDesignerStore(s => s.hudPresets);
-  const activePresetName = useDesignerStore(s => s.activePresetName);
+const MOCK_AUDIO_CTX: RenderCtx = { bands: [200, 150, 100, 70, 40, 20, 10, 5, 2], fftSize: 2048, gain: 1.5 };
+
+export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange }: {
+  dualModule?: boolean;
+  topPad?: number;
+  onNeedsAudioChange?: (needs: boolean) => void;
+}) {
+  const hudPresets         = useDesignerStore(s => s.hudPresets);
+  const activePresetName   = useDesignerStore(s => s.activePresetName);
   const selectedPresetName = useDesignerStore(s => s.selectedPresetName);
-  const hudSelectedSide  = useDesignerStore(s => s.hudSelectedSide);
+  const hudSelectedSide    = useDesignerStore(s => s.hudSelectedSide);
+  const audioSource        = useDesignerStore(s => s.audioSource);
 
   const selectedPreset = hudPresets.find(p => p.name === selectedPresetName) ?? null;
+
+  const [audioCtx, setAudioCtx] = useState<RenderCtx>(MOCK_AUDIO_CTX);
+  const [inspectorNeedsAudio, setInspectorNeedsAudio] = useState(false);
+
+  const previewHasAudio = selectedPreset?.left?.widget === 'audio' || selectedPreset?.right?.widget === 'audio';
+  const needsAudio = previewHasAudio || inspectorNeedsAudio;
 
   const wsRef = useRef<WebSocket | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -106,7 +121,7 @@ export function HudPanel({ dualModule = false, topPad = 0 }: { dualModule?: bool
 
     ws.addEventListener('message', (e: MessageEvent<string>) => {
       try {
-        const msg = JSON.parse(e.data) as { type: string } & Partial<DataStats> & Partial<{ presets: HudPresetClient[]; activeName: string | null; name: string | null }>;
+        const msg = JSON.parse(e.data) as { type: string; bands?: number[]; fftSize?: number; gain?: number } & Partial<DataStats> & Partial<{ presets: HudPresetClient[]; activeName: string | null; name: string | null }>;
         if (msg.type === 'hud-presets') {
           designerStore.getState().loadPresets(msg.presets ?? [], msg.activeName ?? null);
           const { hudPresets, selectedPresetName } = designerStore.getState();
@@ -123,6 +138,8 @@ export function HudPanel({ dualModule = false, topPad = 0 }: { dualModule?: bool
             ...(Array.isArray(msg.cpuCores) ? { cpuCores: msg.cpuCores as number[] } : {}),
           };
           updateAllDataRenderers(stats);
+        } else if (msg.type === 'audio-bands' && msg.bands) {
+          setAudioCtx({ bands: msg.bands, fftSize: msg.fftSize ?? 2048, gain: msg.gain ?? 1.0 });
         }
       } catch { /* ignore */ }
     });
@@ -136,6 +153,23 @@ export function HudPanel({ dualModule = false, topPad = 0 }: { dualModule?: bool
       _moduleWs = null;
     };
   }, []);
+
+  // Subscribe/unsubscribe to FFT bands without affecting hardware
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (needsAudio) {
+      ws.send(JSON.stringify({ type: 'hud-audio-bands-subscribe', source: audioSource }));
+    } else {
+      ws.send(JSON.stringify({ type: 'hud-audio-bands-unsubscribe' }));
+      setAudioCtx(MOCK_AUDIO_CTX);
+    }
+  }, [needsAudio, audioSource]);
+
+  // Tell App whether to show the mic toggle
+  useEffect(() => {
+    onNeedsAudioChange?.(needsAudio);
+  }, [needsAudio, onNeedsAudioChange]);
 
   // ── render ───────────────────────────────────────────────────────────
 
@@ -193,6 +227,7 @@ export function HudPanel({ dualModule = false, topPad = 0 }: { dualModule?: bool
             rightWidget={selectedPreset?.right ?? null}
             selectedSide={hudSelectedSide}
             onSelectSide={(side) => designerStore.getState().selectSide(side)}
+            audioCtx={audioCtx}
           />
           <TriggerEditor
             triggers={selectedPreset?.triggers ?? []}
@@ -220,6 +255,8 @@ export function HudPanel({ dualModule = false, topPad = 0 }: { dualModule?: bool
               ? (hudSelectedSide === 'left' ? selectedPreset.left : selectedPreset.right)
               : null
             }
+            audioCtx={audioCtx}
+            onNeedsAudio={setInspectorNeedsAudio}
             onChange={(widget) => {
               if (!selectedPreset) return;
               designerStore.getState().updatePresetWidget(selectedPreset.name, hudSelectedSide, widget);

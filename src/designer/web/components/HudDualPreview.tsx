@@ -6,7 +6,6 @@ import { createHeatmapState, bumpTool, renderHeatmap } from '../../../animations
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
-import { designerStore } from '../store.js';
 
 // ── layout constants — match PixelCanvas at zoom=1 ────────────────────────
 
@@ -140,6 +139,7 @@ export type HudDualPreviewProps = {
   rightWidget:   HudWidget | null;
   selectedSide:  'left' | 'right';
   onSelectSide:  (side: 'left' | 'right') => void;
+  audioCtx?:     RenderCtx;
 };
 
 export function HudDualPreview({
@@ -147,37 +147,11 @@ export function HudDualPreview({
   rightWidget,
   selectedSide,
   onSelectSide,
+  audioCtx = MOCK_AUDIO_CTX,
 }: HudDualPreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const audioCtxRef = useRef<RenderCtx>(MOCK_AUDIO_CTX);
-  const wsRef = useRef<WebSocket | null>(null);
-
-  const hasAudio = leftWidget?.widget === 'audio' || rightWidget?.widget === 'audio';
-
-  useEffect(() => {
-    if (!hasAudio) return;
-    const ws = new WebSocket(`ws://${location.host}/ws`);
-    wsRef.current = ws;
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'audio-viz', style: AUDIO_STYLES[0]!.id, source: designerStore.getState().audioSource }));
-    };
-    ws.onmessage = (e: MessageEvent) => {
-      try {
-        const msg = JSON.parse(e.data as string) as { type: string; bands?: number[]; fftSize?: number; gain?: number };
-        if (msg.type === 'audio-bands' && msg.bands) {
-          audioCtxRef.current = { bands: msg.bands, fftSize: msg.fftSize ?? 2048, gain: msg.gain ?? 1.0 };
-        }
-      } catch { /* ignore */ }
-    };
-    return () => {
-      const w = wsRef.current;
-      wsRef.current = null;
-      if (w && w.readyState === WebSocket.OPEN) {
-        w.send(JSON.stringify({ type: 'audio-viz-stop' }));
-        w.close();
-      }
-    };
-  }, [hasAudio]);
+  const audioCtxRef = useRef<RenderCtx>(audioCtx);
+  audioCtxRef.current = audioCtx;
 
   // Size canvas on mount (DPR-aware)
   useEffect(() => {

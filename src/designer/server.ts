@@ -910,30 +910,44 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
           audioOwnerWs = null;
           sendToDaemon({ cmd: 'audio-hardware-stop' }).catch(() => {});
         }
+      } else if (type === 'hud-audio-bands-subscribe') {
+        // Stream FFT bands to browser without affecting hardware (HUD manages audio internally)
+        const source = msg['source'] === 'mic' ? 'mic' : 'monitor';
+        audioStream?.destroy();
+        audioStream = openAudioStream(source, (ctx) => {
+          if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'audio-bands', ...ctx }));
+        });
+      } else if (type === 'hud-audio-bands-unsubscribe') {
+        audioStream?.destroy();
+        audioStream = null;
       } else if (type === 'data-stats-start') {
         if (!dataStatsActive) { dataStatsActive = true; startDataStats(ws); }
       } else if (type === 'data-stats-stop') {
         if (dataStatsActive) { dataStatsActive = false; stopDataStats(ws); }
       } else if (type === 'hud-mode-start') {
         hudOwnerWs = ws;
-        const leftFace       = typeof msg['leftFace']       === 'string' ? msg['leftFace']       : undefined;
-        const leftWidget     = typeof msg['leftWidget']     === 'string' ? msg['leftWidget']     : undefined;
-        const leftDataStyle  = typeof msg['leftDataStyle']  === 'string' ? msg['leftDataStyle']  : undefined;
-        const rightFace      = typeof msg['rightFace']      === 'string' ? msg['rightFace']      : undefined;
-        const rightWidget    = typeof msg['rightWidget']    === 'string' ? msg['rightWidget']    : undefined;
-        const rightDataStyle = typeof msg['rightDataStyle'] === 'string' ? msg['rightDataStyle'] : undefined;
+        const leftFace        = typeof msg['leftFace']        === 'string' ? msg['leftFace']        : undefined;
+        const leftWidget      = typeof msg['leftWidget']      === 'string' ? msg['leftWidget']      : undefined;
+        const leftDataStyle   = typeof msg['leftDataStyle']   === 'string' ? msg['leftDataStyle']   : undefined;
+        const leftAudioStyle  = typeof msg['leftAudioStyle']  === 'string' ? msg['leftAudioStyle']  : undefined;
+        const rightFace       = typeof msg['rightFace']       === 'string' ? msg['rightFace']       : undefined;
+        const rightWidget     = typeof msg['rightWidget']     === 'string' ? msg['rightWidget']     : undefined;
+        const rightDataStyle  = typeof msg['rightDataStyle']  === 'string' ? msg['rightDataStyle']  : undefined;
+        const rightAudioStyle = typeof msg['rightAudioStyle'] === 'string' ? msg['rightAudioStyle'] : undefined;
         if (leftFace || leftWidget || rightFace || rightWidget) {
-          sendToDaemon({ cmd: 'hud-config', leftFace, leftWidget, leftDataStyle, rightFace, rightWidget, rightDataStyle }).catch(() => {});
+          sendToDaemon({ cmd: 'hud-config', leftFace, leftWidget, leftDataStyle, leftAudioStyle, rightFace, rightWidget, rightDataStyle, rightAudioStyle }).catch(() => {});
         }
         sendToDaemon({ cmd: 'hud-hardware-start' }).catch(() => {});
       } else if (type === 'hud-config') {
-        const leftFace       = typeof msg['leftFace']       === 'string' ? msg['leftFace']       : undefined;
-        const leftWidget     = typeof msg['leftWidget']     === 'string' ? msg['leftWidget']     : undefined;
-        const leftDataStyle  = typeof msg['leftDataStyle']  === 'string' ? msg['leftDataStyle']  : undefined;
-        const rightFace      = typeof msg['rightFace']      === 'string' ? msg['rightFace']      : undefined;
-        const rightWidget    = typeof msg['rightWidget']    === 'string' ? msg['rightWidget']    : undefined;
-        const rightDataStyle = typeof msg['rightDataStyle'] === 'string' ? msg['rightDataStyle'] : undefined;
-        sendToDaemon({ cmd: 'hud-config', leftFace, leftWidget, leftDataStyle, rightFace, rightWidget, rightDataStyle }).catch(() => {});
+        const leftFace        = typeof msg['leftFace']        === 'string' ? msg['leftFace']        : undefined;
+        const leftWidget      = typeof msg['leftWidget']      === 'string' ? msg['leftWidget']      : undefined;
+        const leftDataStyle   = typeof msg['leftDataStyle']   === 'string' ? msg['leftDataStyle']   : undefined;
+        const leftAudioStyle  = typeof msg['leftAudioStyle']  === 'string' ? msg['leftAudioStyle']  : undefined;
+        const rightFace       = typeof msg['rightFace']       === 'string' ? msg['rightFace']       : undefined;
+        const rightWidget     = typeof msg['rightWidget']     === 'string' ? msg['rightWidget']     : undefined;
+        const rightDataStyle  = typeof msg['rightDataStyle']  === 'string' ? msg['rightDataStyle']  : undefined;
+        const rightAudioStyle = typeof msg['rightAudioStyle'] === 'string' ? msg['rightAudioStyle'] : undefined;
+        sendToDaemon({ cmd: 'hud-config', leftFace, leftWidget, leftDataStyle, leftAudioStyle, rightFace, rightWidget, rightDataStyle, rightAudioStyle }).catch(() => {});
       } else if (type === 'hud-presets-get') {
         void (async () => {
           try {

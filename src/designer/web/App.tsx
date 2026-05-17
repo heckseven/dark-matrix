@@ -207,6 +207,7 @@ export function App() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [hasMic, setHasMic] = useState(false);
+  const [hudNeedsAudio, setHudNeedsAudio] = useState(false);
   const [livePreviewOn, setLivePreviewOn] = useState(false);
   const bridge = usePreviewBridge();
   const hudSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -395,6 +396,18 @@ export function App() {
                   )}
                 </div>
               </div>
+              {hasMic && hudNeedsAudio && (
+                <div className="ml-auto flex items-center gap-2">
+                  <Toggle
+                    pressed={audioSource === 'mic'}
+                    onPressedChange={(on) => designerStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
+                    title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                    aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                  >
+                    <span aria-hidden="true">mic</span>
+                  </Toggle>
+                </div>
+              )}
             </>
           ) : activeMode === 'config' ? (
             <>
