@@ -3,6 +3,7 @@ import { MatrixPreview } from './MatrixPreview.js';
 import { Tabs } from './ui/tabs.js';
 import { Select } from './ui/select.js';
 import { Button } from './ui/button.js';
+import { Popover, PopoverTrigger, PopoverContent, PopoverClose } from './ui/popover.js';
 import { AssetImportPanel } from './AssetImportPanel.js';
 import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
@@ -411,7 +412,6 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, getP
   const assetsRef = useRef(assets);
   assetsRef.current = assets;
   const [tick, setTick] = useState(0);
-  const [confirmFor, setConfirmFor] = useState<{ name: string; presetCount: number } | null>(null);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -438,15 +438,6 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, getP
 
   void tick;
 
-  function handleDeleteClick(name: string) {
-    const count = getPresetCount(name);
-    if (count === 0) {
-      onDelete(name);
-    } else {
-      setConfirmFor({ name, presetCount: count });
-    }
-  }
-
   if (assets === null) {
     return <div className="font-mono text-xs text-foreground/55 p-4">loading…</div>;
   }
@@ -462,7 +453,7 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, getP
           const pixels = asset.frames[frameIdx] ?? asset.firstFrame;
           const active = currentWidget?.widget === 'image' && currentWidget.file === asset.name;
           const label = asset.name.replace('.dmx.json', '');
-          const isConfirming = confirmFor?.name === asset.name;
+          const presetCount = getPresetCount(asset.name);
           return (
             <div
               key={asset.name}
@@ -479,31 +470,42 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, getP
                 <MatrixPreview width={asset.width} pixels={pixels} />
                 <span className="font-mono text-xs text-foreground/55 truncate max-w-full">{label}</span>
               </button>
-              <Button
-                variant="ghost"
-                aria-label={`Delete ${label}`}
-                tooltip={`Delete ${label}`}
-                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 z-10 text-foreground/40 hover:text-red-400 leading-none p-0.5 h-auto min-w-0"
-                onClick={() => handleDeleteClick(asset.name)}
-              >×</Button>
-              {isConfirming && (
-                <div className="absolute top-6 right-0 z-20 bg-background border border-foreground/20 p-2 flex flex-col gap-2 w-40">
-                  <span className="font-mono text-xs text-foreground/70">
-                    used in {confirmFor.presetCount} preset{confirmFor.presetCount !== 1 ? 's' : ''}
-                  </span>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="destructive"
-                      className="font-mono text-xs"
-                      onClick={() => { onDelete(asset.name); setConfirmFor(null); }}
-                    >delete</Button>
+              {presetCount === 0 ? (
+                <Button
+                  variant="ghost"
+                  aria-label={`Delete ${label}`}
+                  tooltip={`Delete ${label}`}
+                  className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 z-10 text-foreground/40 hover:text-red-400"
+                  onClick={() => onDelete(asset.name)}
+                >×</Button>
+              ) : (
+                <Popover>
+                  <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
-                      className="font-mono text-xs"
-                      onClick={() => setConfirmFor(null)}
-                    >cancel</Button>
-                  </div>
-                </div>
+                      aria-label={`Delete ${label}`}
+                      tooltip={`Delete ${label}`}
+                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 z-10 text-foreground/40 hover:text-red-400"
+                    >×</Button>
+                  </PopoverTrigger>
+                  <PopoverContent variant="destructive" side="bottom" align="end" className="flex flex-col gap-3">
+                    <p className="text-foreground">
+                      This image is used in {presetCount} preset{presetCount !== 1 ? 's' : ''}.
+                    </p>
+                    <div className="flex gap-2">
+                      <PopoverClose asChild>
+                        <Button variant="ghost" className="font-mono text-xs">cancel</Button>
+                      </PopoverClose>
+                      <PopoverClose asChild>
+                        <Button
+                          variant="destructive"
+                          className="font-mono text-xs"
+                          onClick={() => onDelete(asset.name)}
+                        >delete</Button>
+                      </PopoverClose>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               )}
             </div>
           );
