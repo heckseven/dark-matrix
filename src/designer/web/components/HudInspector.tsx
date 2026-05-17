@@ -3,7 +3,7 @@ import { MatrixPreview } from './MatrixPreview.js';
 import { Tabs } from './ui/tabs.js';
 import { Select } from './ui/select.js';
 import { Button } from './ui/button.js';
-import { Popover, PopoverTrigger, PopoverContent, PopoverClose } from './ui/popover.js';
+import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogClose } from './ui/dialog.js';
 import { AssetImportPanel } from './AssetImportPanel.js';
 import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
@@ -461,7 +461,7 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, getP
             >
               <button
                 type="button"
-                aria-label={label}
+                aria-label={active ? `${label}, selected` : label}
                 aria-pressed={active}
                 className="relative flex flex-col gap-2 items-center rounded-sm p-2 w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
                 onClick={() => onPick({ widget: 'image', file: asset.name })}
@@ -475,37 +475,39 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, getP
                   variant="ghost"
                   aria-label={`Delete ${label}`}
                   tooltip={`Delete ${label}`}
-                  className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 z-10 text-foreground/40 hover:text-red-400"
+                  className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 z-10 text-foreground/40 hover:text-red-400"
                   onClick={() => onDelete(asset.name)}
                 >×</Button>
               ) : (
-                <Popover>
-                  <PopoverTrigger asChild>
+                <Dialog>
+                  <DialogTrigger asChild>
                     <Button
                       variant="ghost"
                       aria-label={`Delete ${label}`}
                       tooltip={`Delete ${label}`}
-                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100 data-[state=open]:text-foreground z-10 text-foreground/40 hover:text-red-400"
+                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 data-[state=open]:text-foreground z-10 text-foreground/40 hover:text-red-400"
                     >×</Button>
-                  </PopoverTrigger>
-                  <PopoverContent variant="destructive" side="bottom" align="end" className="flex flex-col gap-3">
-                    <p className="text-foreground">
+                  </DialogTrigger>
+                  <DialogContent className="flex flex-col gap-3 w-64">
+                    <DialogTitle className="sr-only">Delete {label}</DialogTitle>
+                    <DialogDescription>
                       This image is used in {presetCount} preset{presetCount !== 1 ? 's' : ''}.
-                    </p>
+                    </DialogDescription>
                     <div className="flex gap-2">
-                      <PopoverClose asChild>
-                        <Button variant="ghost" className="font-mono text-xs">cancel</Button>
-                      </PopoverClose>
-                      <PopoverClose asChild>
+                      <DialogClose asChild>
+                        <Button variant="ghost" className="font-mono text-xs" aria-label={`Cancel delete ${label}`} autoFocus>cancel</Button>
+                      </DialogClose>
+                      <DialogClose asChild>
                         <Button
                           variant="destructive"
                           className="font-mono text-xs"
+                          aria-label={`Confirm delete ${label}`}
                           onClick={() => onDelete(asset.name)}
                         >delete</Button>
-                      </PopoverClose>
+                      </DialogClose>
                     </div>
-                  </PopoverContent>
-                </Popover>
+                  </DialogContent>
+                </Dialog>
               )}
             </div>
           );
@@ -513,6 +515,7 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, getP
       </div>
       <Button
         variant={assets.length === 0 ? 'primary' : 'default'}
+        aria-label="Import image"
         className="font-mono text-xs mt-1 self-start"
         onClick={onShowImport}
       >+ import</Button>
@@ -738,10 +741,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
               onSaved={(savedFilename) => {
                 setShowImport(false);
                 handlePick({ widget: 'image', file: savedFilename });
-                fetch('/api/assets')
-                  .then(r => r.json() as Promise<{ ok: boolean; assets: AssetMeta[] }>)
-                  .then(d => { if (mountedRef.current) setAssets(d.assets ?? []); })
-                  .catch(() => {});
+                refreshAssets();
               }}
             />
           </div>
