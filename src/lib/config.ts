@@ -11,6 +11,7 @@ const HudWidgetSchema = z.discriminatedUnion('widget', [
   z.object({ widget: z.literal('data'), style: z.enum(['line', 'fill', 'scroll', 'cores']).optional(), top_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), top_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional() }),
   z.object({ widget: z.literal('heatmap') }),
   z.object({ widget: z.literal('audio'), style: z.enum(['vu-glitch', 'circuit', 'spirits', 'scope-dual', 'kick-d', 'waterfall', 'sparks', 'hex', 'specter', 'heat', 'dark-matter', 'spectrum-fall', 'neo', 'cipher', 'wake', 'rhythm', 'drop', 'life-erode-4', 'glitch-sort-b', 'spiral-d', 'strobe', 'glitch-corrupt']).optional() }),
+  z.object({ widget: z.literal('image'), file: z.string().regex(/^[a-zA-Z0-9_\-]+\.dmx\.json$/i).max(73), speed: z.number().min(0.25).max(8).optional(), loop: z.boolean().optional() }),
 ]);
 
 const HudTriggerSchema = z.discriminatedUnion('type', [

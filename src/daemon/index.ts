@@ -362,6 +362,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         } else if (leftWidgetType === 'data' && leftDataRenderer) {
           lf = leftDataRenderer.render();
           ditherBW(lf, FRAME_COLS, FRAME_ROWS);
+        } else if (leftWidgetType === 'image') {
+          // TODO: render image widget
+          lf = new Uint8Array(FRAME_COLS * FRAME_ROWS) as Frame;
         } else {
           const base = audioCtx ? { now, ...audioCtx } : { now };
           lf = leftClockRenderer({ ...base, side: 'left' });
@@ -385,6 +388,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         } else if (rightWidgetType === 'data' && rightDataRenderer) {
           rf = rightDataRenderer.render();
           ditherBW(rf, FRAME_COLS, FRAME_ROWS);
+        } else if (rightWidgetType === 'image') {
+          // TODO: render image widget
+          rf = new Uint8Array(FRAME_COLS * FRAME_ROWS) as Frame;
         } else {
           const base = audioCtx ? { now, ...audioCtx } : { now };
           rf = rightClockRenderer({ ...base, side: 'right' });
