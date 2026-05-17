@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { MatrixPreview } from './MatrixPreview.js';
 import { Slider } from './ui/slider.js';
 import { Button } from './ui/button.js';
-import { Checkbox } from './ui/checkbox.js';
 import { Select } from './ui/select.js';
 import { Input } from './ui/input.js';
 
@@ -294,7 +293,8 @@ export function AssetImportPanel({ onSaved }: AssetImportPanelProps) {
       {/* Width */}
       <label className="flex items-center gap-3 cursor-pointer">
         <span className="font-mono text-xs text-foreground/50 w-20 shrink-0">wide</span>
-        <Checkbox
+        <input
+          type="checkbox"
           checked={width === 18}
           onChange={e => setWidth(e.target.checked ? 18 : 9)}
         />
