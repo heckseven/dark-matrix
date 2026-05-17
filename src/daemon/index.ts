@@ -1048,7 +1048,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               break;
             }
             case 'hud-config': {
-              const m = msg as { cmd: string; leftFace?: string; leftWidget?: string; leftDataStyle?: string; leftAudioStyle?: string; rightFace?: string; rightWidget?: string; rightDataStyle?: string; rightAudioStyle?: string };
+              const m = msg as { cmd: string; leftFace?: string; leftWidget?: string; leftDataStyle?: string; leftAudioStyle?: string; leftFile?: string; rightFace?: string; rightWidget?: string; rightDataStyle?: string; rightAudioStyle?: string; rightFile?: string };
               const newHud = { ...currentConfig.hud };
               if (m.leftWidget === 'heatmap') {
                 newHud.left = { widget: 'heatmap' };
@@ -1058,6 +1058,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               } else if (m.leftWidget === 'data') {
                 const style = DATA_STYLES.find(s => s.id === m.leftDataStyle)?.id;
                 newHud.left = { widget: 'data', ...(style ? { style } : {}) };
+              } else if (m.leftWidget === 'image' && typeof m.leftFile === 'string') {
+                newHud.left = { widget: 'image', file: m.leftFile };
               } else if (typeof m.leftFace === 'string') {
                 const face = isClockFace(m.leftFace) ? m.leftFace : 'elegant';
                 newHud.left = { widget: 'clock', face };
@@ -1070,6 +1072,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               } else if (m.rightWidget === 'data') {
                 const style = DATA_STYLES.find(s => s.id === m.rightDataStyle)?.id;
                 newHud.right = { widget: 'data', ...(style ? { style } : {}) };
+              } else if (m.rightWidget === 'image' && typeof m.rightFile === 'string') {
+                newHud.right = { widget: 'image', file: m.rightFile };
               } else if (typeof m.rightFace === 'string') {
                 const face = isClockFace(m.rightFace) ? m.rightFace : 'elegant';
                 newHud.right = { widget: 'clock', face };

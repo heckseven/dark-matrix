@@ -1278,11 +1278,13 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
         const leftWidget      = typeof msg['leftWidget']      === 'string' ? msg['leftWidget']      : undefined;
         const leftDataStyle   = typeof msg['leftDataStyle']   === 'string' ? msg['leftDataStyle']   : undefined;
         const leftAudioStyle  = typeof msg['leftAudioStyle']  === 'string' ? msg['leftAudioStyle']  : undefined;
+        const leftFile        = typeof msg['leftFile']        === 'string' ? msg['leftFile']        : undefined;
         const rightFace       = typeof msg['rightFace']       === 'string' ? msg['rightFace']       : undefined;
         const rightWidget     = typeof msg['rightWidget']     === 'string' ? msg['rightWidget']     : undefined;
         const rightDataStyle  = typeof msg['rightDataStyle']  === 'string' ? msg['rightDataStyle']  : undefined;
         const rightAudioStyle = typeof msg['rightAudioStyle'] === 'string' ? msg['rightAudioStyle'] : undefined;
-        sendToDaemon({ cmd: 'hud-config', leftFace, leftWidget, leftDataStyle, leftAudioStyle, rightFace, rightWidget, rightDataStyle, rightAudioStyle }).catch(() => {});
+        const rightFile       = typeof msg['rightFile']       === 'string' ? msg['rightFile']       : undefined;
+        sendToDaemon({ cmd: 'hud-config', leftFace, leftWidget, leftDataStyle, leftAudioStyle, leftFile, rightFace, rightWidget, rightDataStyle, rightAudioStyle, rightFile }).catch(() => {});
       } else if (type === 'hud-presets-get') {
         void (async () => {
           try {

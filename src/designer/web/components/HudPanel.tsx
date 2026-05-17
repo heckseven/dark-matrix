@@ -41,10 +41,12 @@ function buildPresetConfigPayload(preset: HudPresetClient) {
     leftFace: l.widget === 'clock' ? l.face : undefined,
     leftDataStyle: l.widget === 'data' ? l.style : undefined,
     leftAudioStyle: l.widget === 'audio' ? l.style : undefined,
+    leftFile: l.widget === 'image' ? l.file : undefined,
     rightWidget: r.widget,
     rightFace: r.widget === 'clock' ? r.face : undefined,
     rightDataStyle: r.widget === 'data' ? r.style : undefined,
     rightAudioStyle: r.widget === 'audio' ? r.style : undefined,
+    rightFile: r.widget === 'image' ? r.file : undefined,
   };
 }
 
