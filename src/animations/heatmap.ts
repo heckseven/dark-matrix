@@ -5,9 +5,9 @@ const TOTAL_COLS = FRAME_COLS * 2; // 18 columns across both modules
 const ROWS = FRAME_ROWS;           // 34 rows
 
 const BUMP = 10;              // score added per call (4 calls fills a bar)
-const DECAY = 0.993;          // per-frame multiplier (~40s half-life at 15fps)
-const PEAK_HOLD_FRAMES = 45;  // hold peak for 3s before falling (at 15fps)
-const PEAK_FALL_FRAMES = 15;  // 1 pixel per second fall rate
+const DECAY = 0.9995;         // per-frame multiplier (~14min to zero at 10fps)
+const PEAK_HOLD_FRAMES = 45;  // 3s at 15fps (idle), 4.5s at 10fps (HUD)
+const PEAK_FALL_FRAMES = 15;  // 1px/s at 15fps, 1.5px/s at 10fps
 
 // Left module (cols 0-8): core coding tools
 // Right module (cols 9-17): meta/orchestration tools
