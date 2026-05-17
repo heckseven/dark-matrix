@@ -1,7 +1,7 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'vu-glitch' | 'circuit' | 'spirits' | 'scope-dual' | 'kick-d' | 'waterfall' | 'sparks' | 'hex' | 'specter' | 'heat' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'rhythm' | 'drop' | 'life-erode-4' | 'glitch-sort-b' | 'spiral-d' | 'strobe' | 'glitch-corrupt';
+export type AudioStyle = 'vu-glitch' | 'circuit' | 'spirits' | 'scope-dual' | 'kick-d' | 'waterfall' | 'sparks' | 'hex' | 'specter' | 'heat' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'rhythm' | 'drop' | 'life-erode-4' | 'life-erode-4b' | 'life-erode-4c' | 'life-erode-4e' | 'glitch-sort-b' | 'spiral-d' | 'strobe' | 'glitch-corrupt';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'dark-matter',         label: 'dark matter' },
@@ -15,6 +15,9 @@ export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'waterfall',           label: 'waterfall' },
   { id: 'hex',                 label: 'hex' },
   { id: 'life-erode-4',        label: 'replicants' },
+  { id: 'life-erode-4b',       label: 'replicants b' },
+  { id: 'life-erode-4c',       label: 'replicants c' },
+  { id: 'life-erode-4e',       label: 'replicants e' },
   { id: 'wake',                label: 'wake' },
   { id: 'drop',                label: 'drop' },
   { id: 'spirits',             label: 'spirits' },
@@ -861,7 +864,12 @@ function makeDripLine(innerTrailWidth: number, trailDecay: number, ringWidth = 1
 }
 function dripB(): Renderer { return makeDripLine(5, 0.88); }
 
-type LifeOpts = { seedRate: number; threshold: number; decay: number; survive: (n: number) => boolean; born: (n: number) => boolean; transientWipe?: number; transientCull?: number; continuousCull?: number };
+type LifeRevival =
+  | { mode: 'stochastic'; birthRate: number }
+  | { mode: 'blinker' }
+  | { mode: 'threshold-dip'; dipRate: number };
+
+type LifeOpts = { seedRate: number; threshold: number; decay: number; survive: (n: number) => boolean; born: (n: number) => boolean; transientWipe?: number; transientCull?: number; continuousCull?: number; revival?: LifeRevival };
 
 function makeLife(opts: LifeOpts): Renderer {
   const cells = new Float32Array(BAND_COUNT * ROWS);
@@ -870,6 +878,8 @@ function makeLife(opts: LifeOpts): Renderer {
   }
   let smoothed = 0;
   let cooldown = 0;
+  let thresholdMult = 1.0;
+  let blinkerActive = false;
   return ({ bands, gain, fftSize }) => {
     const ref = fftSize / 2;
     const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
@@ -903,8 +913,9 @@ function makeLife(opts: LifeOpts): Renderer {
         }
       }
     }
+    const effectiveThreshold = opts.revival?.mode === 'threshold-dip' ? opts.threshold * thresholdMult : opts.threshold;
     const alive = new Uint8Array(BAND_COUNT * ROWS);
-    for (let i = 0; i < alive.length; i++) alive[i] = (cells[i] ?? 0) > opts.threshold ? 1 : 0;
+    for (let i = 0; i < alive.length; i++) alive[i] = (cells[i] ?? 0) > effectiveThreshold ? 1 : 0;
     const next = new Float32Array(cells.length);
     for (let col = 0; col < BAND_COUNT; col++) {
       for (let row = 0; row < ROWS; row++) {
@@ -924,6 +935,35 @@ function makeLife(opts: LifeOpts): Renderer {
       }
     }
     for (let i = 0; i < cells.length; i++) cells[i] = next[i] ?? 0;
+    const revival = opts.revival;
+    if (revival) {
+      let aliveCount = 0;
+      for (let i = 0; i < alive.length; i++) aliveCount += alive[i] ?? 0;
+      if (revival.mode === 'stochastic') {
+        if (aliveCount === 0) {
+          for (let i = 0; i < cells.length; i++) {
+            if (Math.random() < revival.birthRate) cells[i] = 1.0;
+          }
+        }
+      } else if (revival.mode === 'blinker') {
+        if (aliveCount > 0) {
+          blinkerActive = false;
+        } else if (!blinkerActive) {
+          const col = 1 + Math.floor(Math.random() * (BAND_COUNT - 3));
+          const row = 1 + Math.floor(Math.random() * (ROWS - 2));
+          cells[col * ROWS + row] = 1.0;
+          cells[(col + 1) * ROWS + row] = 1.0;
+          cells[(col + 2) * ROWS + row] = 1.0;
+          blinkerActive = true;
+        }
+      } else if (revival.mode === 'threshold-dip') {
+        if (aliveCount === 0) {
+          thresholdMult = Math.max(0.01, thresholdMult * revival.dipRate);
+        } else {
+          thresholdMult = Math.min(1.0, thresholdMult / revival.dipRate);
+        }
+      }
+    }
     const frame = createFrame();
     for (let i = 0; i < cells.length; i++) frame[i] = Math.round((cells[i] ?? 0) * 255);
     return frame;
@@ -933,6 +973,15 @@ function makeLife(opts: LifeOpts): Renderer {
 // Per-column continuous kill proportional to band energy — loud bands erode their columns every frame
 function lifeErode4(): Renderer {
   return makeLife({ seedRate: 0.15, threshold: 0.4, decay: 0.75, survive: n => n === 2 || n === 3, born: n => n === 3, continuousCull: 0.70 });
+}
+function lifeErode4B(): Renderer {
+  return makeLife({ seedRate: 0.15, threshold: 0.4, decay: 0.75, survive: n => n === 2 || n === 3, born: n => n === 3, continuousCull: 0.70, revival: { mode: 'stochastic', birthRate: 0.015 } });
+}
+function lifeErode4C(): Renderer {
+  return makeLife({ seedRate: 0.15, threshold: 0.4, decay: 0.75, survive: n => n === 2 || n === 3, born: n => n === 3, continuousCull: 0.70, revival: { mode: 'blinker' } });
+}
+function lifeErode4E(): Renderer {
+  return makeLife({ seedRate: 0.15, threshold: 0.4, decay: 0.75, survive: n => n === 2 || n === 3, born: n => n === 3, continuousCull: 0.70, revival: { mode: 'threshold-dip', dipRate: 0.7 } });
 }
 
 function glitchCorrupt(): Renderer {
@@ -985,6 +1034,9 @@ const FACTORIES: Record<AudioStyle, () => Renderer> = {
   'rhythm':              dripB,
   'drop':                dripE,
   'life-erode-4':        lifeErode4,
+  'life-erode-4b':       lifeErode4B,
+  'life-erode-4c':       lifeErode4C,
+  'life-erode-4e':       lifeErode4E,
   'kick-d':              kickD,
   'waterfall':           waterfall,
   'sparks':              sparks,
