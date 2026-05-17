@@ -36,6 +36,20 @@ export function MatrixPreview({ pixels, width, className }: MatrixPreviewProps) 
   const wide = width === 18;
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Only resize the canvas when dimensions change. Setting canvas.width on every
+  // paint (even to the same value) resets the pixel buffer and can trigger layout
+  // reflow, which interferes with range inputs in the same layout context.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio ?? 1;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(CANVAS_H * dpr);
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${CANVAS_H}px`;
+  }, [w]);
+
+  // Redraw pixels without touching canvas dimensions.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -50,10 +64,6 @@ export function MatrixPreview({ pixels, width, className }: MatrixPreviewProps) 
     const dpr = window.devicePixelRatio ?? 1;
     const physW = Math.round(w * dpr);
     const physH = Math.round(CANVAS_H * dpr);
-    canvas.width = physW;
-    canvas.height = physH;
-    canvas.style.width = `${w}px`;
-    canvas.style.height = `${CANVAS_H}px`;
 
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, physW, physH);

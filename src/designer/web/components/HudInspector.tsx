@@ -647,27 +647,28 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
     return (
       <div className="flex flex-col h-full overflow-hidden">
         {header}
-        <div className="flex-1 overflow-y-auto">
-          <div className="py-4 px-2">
-            {activeCategory === 'clocks' && <ClockGrid currentWidget={widget} onPick={handlePick} />}
-            {activeCategory === 'data'   && <DataGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} />}
-            {activeCategory === 'ai'     && <AiGrid    currentWidget={widget} onPick={handlePick} />}
-            {activeCategory === 'audio'  && <AudioGrid currentWidget={widget} audioCtx={audioCtx} side={side} onPick={handlePick} onMount={handleAudioMount} onUnmount={handleAudioUnmount} />}
-            {activeCategory === 'image'  && (
-              showImport ? (
-                <AssetImportPanel
-                  onSaved={(savedFilename) => {
-                    setShowImport(false);
-                    handlePick({ widget: 'image', file: savedFilename });
-                    // Refresh assets list
-                    fetch('/api/assets')
-                      .then(r => r.json() as Promise<{ ok: boolean; assets: AssetMeta[] }>)
-                      .then(d => { if (mountedRef.current) setAssets(d.assets ?? []); })
-                      .catch(() => {});
-                  }}
-                  onCancel={() => setShowImport(false)}
-                />
-              ) : (
+        {showImport && activeCategory === 'image' ? (
+          <div className="flex-1 overflow-y-auto">
+            <AssetImportPanel
+              onSaved={(savedFilename) => {
+                setShowImport(false);
+                handlePick({ widget: 'image', file: savedFilename });
+                fetch('/api/assets')
+                  .then(r => r.json() as Promise<{ ok: boolean; assets: AssetMeta[] }>)
+                  .then(d => { if (mountedRef.current) setAssets(d.assets ?? []); })
+                  .catch(() => {});
+              }}
+              onCancel={() => setShowImport(false)}
+            />
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto">
+            <div className="py-4 px-2">
+              {activeCategory === 'clocks' && <ClockGrid currentWidget={widget} onPick={handlePick} />}
+              {activeCategory === 'data'   && <DataGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} />}
+              {activeCategory === 'ai'     && <AiGrid    currentWidget={widget} onPick={handlePick} />}
+              {activeCategory === 'audio'  && <AudioGrid currentWidget={widget} audioCtx={audioCtx} side={side} onPick={handlePick} onMount={handleAudioMount} onUnmount={handleAudioUnmount} />}
+              {activeCategory === 'image'  && (
                 <>
                   {isPaired && (
                     <p className="font-mono text-xs text-foreground/55 mb-3">← paired with opposite side</p>
@@ -679,10 +680,10 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
                     onShowImport={() => setShowImport(true)}
                   />
                 </>
-              )
-            )}
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     );
   }
