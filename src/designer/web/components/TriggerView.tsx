@@ -8,8 +8,13 @@ import { Input } from './ui/input.js';
 // ── constants ──────────────────────────────────────────────────────────────
 
 const TIME_RE = /^\d{2}:\d{2}$/;
-const TRIGGER_TYPES = ['time', 'idle', 'active', 'threshold', 'interface', 'vm'] as const;
+const TRIGGER_TYPES = ['time', 'idle', 'active', 'day', 'date', 'threshold', 'interface', 'vm'] as const;
 type TriggerType = typeof TRIGGER_TYPES[number];
+
+const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+type Weekday = typeof DAYS[number];
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 
 const FW = 'w-24';
 
@@ -18,6 +23,8 @@ function defaultTrigger(type: TriggerType): HudTrigger {
     case 'time':      return { type: 'time', from: '00:00', to: '00:00' };
     case 'idle':      return { type: 'idle' };
     case 'active':    return { type: 'active' };
+    case 'day':       return { type: 'day', days: ['mon'] as Weekday[] };
+    case 'date':      return { type: 'date', month: 1, day: 1 };
     case 'threshold': return { type: 'threshold', metric: 'cpu' };
     case 'interface': return { type: 'interface', name: '', state: 'up' };
     case 'vm':        return { type: 'vm', name: '' };
@@ -207,6 +214,72 @@ function VmFields({ trigger, onChange }: FieldProps) {
   );
 }
 
+function DayFields({ trigger, onChange }: FieldProps) {
+  if (trigger.type !== 'day') return null;
+  function toggle(d: Weekday) {
+    if (trigger.type !== 'day') return;
+    const next = trigger.days.includes(d)
+      ? trigger.days.filter(x => x !== d)
+      : [...trigger.days, d];
+    onChange({ type: 'day', days: next as Weekday[] });
+  }
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      {DAYS.map(d => (
+        <button
+          key={d}
+          type="button"
+          aria-pressed={trigger.days.includes(d)}
+          className={`font-mono text-xs border px-2 py-0.5 transition-colors ${
+            trigger.days.includes(d)
+              ? 'border-foreground text-foreground'
+              : 'border-foreground/30 text-foreground/50 hover:text-foreground hover:border-foreground/60'
+          }`}
+          onClick={() => toggle(d)}
+        >
+          {d}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function DateFields({ trigger, onChange }: FieldProps) {
+  const uid = useId();
+  if (trigger.type !== 'date') return null;
+  return (
+    <div className="flex items-end gap-4 flex-wrap">
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`${uid}-month`} className="font-mono text-xs text-foreground/55">month</label>
+        <Select
+          id={`${uid}-month`}
+          aria-label="Month"
+          value={trigger.month}
+          onChange={e => onChange({ ...trigger, month: Number(e.target.value) })}
+        >
+          {MONTHS.map((m, i) => (
+            <option key={m} value={i + 1}>{m}</option>
+          ))}
+        </Select>
+      </div>
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`${uid}-day`} className="font-mono text-xs text-foreground/55">day</label>
+        <Input
+          id={`${uid}-day`}
+          type="number"
+          value={trigger.day}
+          onChange={e => {
+            const v = parseInt(e.target.value, 10);
+            if (!isNaN(v) && v >= 1 && v <= 31) onChange({ ...trigger, day: v });
+          }}
+          className={FW}
+          expandedClassName={FW}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ── trigger row ────────────────────────────────────────────────────────────
 
 function TriggerRow({ trigger, onUpdate, onDelete }: {
@@ -221,6 +294,8 @@ function TriggerRow({ trigger, onUpdate, onDelete }: {
       </span>
       <div className="flex-1 min-w-0">
         {trigger.type === 'time'      && <TimeFields      trigger={trigger} onChange={onUpdate} />}
+        {trigger.type === 'day'       && <DayFields       trigger={trigger} onChange={onUpdate} />}
+        {trigger.type === 'date'      && <DateFields      trigger={trigger} onChange={onUpdate} />}
         {trigger.type === 'threshold' && <ThresholdFields trigger={trigger} onChange={onUpdate} />}
         {trigger.type === 'interface' && <InterfaceFields trigger={trigger} onChange={onUpdate} />}
         {trigger.type === 'vm'        && <VmFields        trigger={trigger} onChange={onUpdate} />}
@@ -291,7 +366,7 @@ export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
       aria-modal="true"
       className="fixed inset-0 z-50 bg-background text-foreground font-mono flex flex-col"
     >
-      <header className="relative flex items-center pl-7 pr-5 py-4 border-b border-foreground/10 shrink-0">
+      <header className="relative flex items-center pl-7 pr-5 py-4 shrink-0">
         <span className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
           {preset.name}
         </span>

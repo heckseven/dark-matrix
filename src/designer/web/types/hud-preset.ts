@@ -14,7 +14,9 @@ export type HudTrigger =
   | { type: 'active' }
   | { type: 'threshold'; metric: 'cpu' | 'ram' | 'net_rx' | 'net_tx'; above?: number; below?: number }
   | { type: 'interface'; name: string; state: 'up' | 'down' }
-  | { type: 'vm'; name: string; state?: 'running' | 'stopped' };
+  | { type: 'vm'; name: string; state?: 'running' | 'stopped' }
+  | { type: 'day'; days: Array<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'> }
+  | { type: 'date'; month: number; day: number };
 
 export type HudPresetClient = {
   name: string;
