@@ -308,7 +308,7 @@ function PresetCard({
                 variant="primary"
                 aria-label="Default preset"
                 tooltip="Default preset"
-                disabled
+                onClick={e => e.stopPropagation()}
               >∗</Button>
             ) : (
               <Button
