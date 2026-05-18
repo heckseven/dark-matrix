@@ -58,7 +58,7 @@ function DestructiveDialog({ onConfirm, onCancel }: ConfirmArgs) {
 
 const meta = {
   title: 'Components/Dialog',
-  tags: ['autodocs'],
+
   parameters: { layout: 'centered' },
   argTypes: {
     onConfirm: { action: 'confirmed' },
