@@ -209,6 +209,7 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)', gap: '1rem', height: '100%', width: '100%' }}>
       {/* Left: preset list */}
       <aside aria-label="Preset list" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', paddingTop: topPad }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', maxWidth: 192, marginLeft: 'auto' }}>
         <PresetList
           presets={hudPresets}
           activeName={activePresetName}
@@ -251,6 +252,7 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
           }}
           onEditTriggers={(name) => setTriggerPresetName(name)}
         />
+        </div>
       </aside>
 
       {/* Center: dual preview + trigger editor */}
