@@ -479,7 +479,7 @@ export function PresetList({
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropTarget(null);
       }}
     >
-      <ul role="listbox" aria-label="Presets" className="flex flex-col gap-10 pb-2 pt-2" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+      <ul role="listbox" aria-label="Presets" className="flex flex-col gap-2 pb-2 pt-2" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
         {presets.length === 0 && (
           <li className="font-mono text-xs text-foreground/55 px-2 py-4">no presets</li>
         )}
@@ -516,7 +516,7 @@ export function PresetList({
                 />
               </li>
               {idx < presets.length - 1 && (
-                <li className="-my-5">
+                <li>
                   <GapZone
                     afterIdx={idx}
                     showDrop={dropTarget === idx + 1}
