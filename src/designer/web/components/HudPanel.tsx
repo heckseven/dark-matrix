@@ -245,6 +245,9 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
           audioCtx={audioCtx}
           onSelect={(name) => {
             designerStore.getState().selectPreset(name);
+          }}
+          onActivate={(name) => {
+            designerStore.getState().selectPreset(name);
             sendWs({ type: 'hud-preset-activate', name });
           }}
           onCreate={() => {

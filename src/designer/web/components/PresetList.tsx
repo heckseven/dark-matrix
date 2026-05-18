@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback, Fragment } from 'react';
 import { Button } from './ui/button.js';
+import { Toggle } from './ui/toggle.js';
+import { Tooltip } from './ui/tooltip.js';
 import { Stack } from './ui/stack.js';
 import { MatrixPreview } from './MatrixPreview.js';
 import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-renderers.js';
@@ -194,6 +196,7 @@ function PresetCard({
   pixels,
   dropTarget,
   onSelect,
+  onActivate,
   onDelete,
   onDuplicate,
   onRename,
@@ -211,6 +214,7 @@ function PresetCard({
   pixels: string;
   dropTarget: number | null;
   onSelect: () => void;
+  onActivate: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
   onRename: (newName: string) => void;
@@ -242,9 +246,9 @@ function PresetCard({
     <div
       role="option"
       aria-selected={highlighted}
-      aria-label={isActive ? `${preset.name} (active)` : preset.name}
+      aria-label={isActive ? `${preset.name} (default)` : preset.name}
       tabIndex={0}
-      className="group relative flex flex-row gap-3 p-1 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      className="group relative flex flex-col gap-1 p-1 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       onClick={onSelect}
       onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); }
@@ -267,97 +271,98 @@ function PresetCard({
         if (to !== from) onDrop(from, to);
       }}
     >
-      {/* Draggable thumbnail */}
-      <div
-        draggable
-        aria-hidden="true"
-        tabIndex={-1}
-        onDragStart={e => { setDragging(true); e.dataTransfer.setData('text/plain', String(idx)); e.dataTransfer.effectAllowed = 'move'; }}
-        onDragEnd={() => { setDragging(false); setDropTarget(null); }}
-        style={{ cursor: dragging ? 'grabbing' : 'grab', position: 'relative' }}
-      >
-        <CornerBrackets active={highlighted} />
-        <MatrixPreview pixels={pixels} width={18} />
-      </div>
+      {/* Top row: thumbnail (left) + button column (right) */}
+      <div className="flex flex-row gap-3">
+        {/* Draggable thumbnail */}
+        <div
+          draggable
+          aria-hidden="true"
+          tabIndex={-1}
+          onDragStart={e => { setDragging(true); e.dataTransfer.setData('text/plain', String(idx)); e.dataTransfer.effectAllowed = 'move'; }}
+          onDragEnd={() => { setDragging(false); setDropTarget(null); }}
+          style={{ cursor: dragging ? 'grabbing' : 'grab', position: 'relative' }}
+        >
+          <CornerBrackets active={highlighted} />
+          <MatrixPreview pixels={pixels} width={18} />
+        </div>
 
-      {/* Right: mirroring FrameCell's Stack justify="between" */}
-      <Stack justify="between" align="start" className="flex-1 min-w-0">
-        <Stack gap="xs" align="start">
-          <Button
-            variant="ghost"
-            aria-label="Move preset up"
-            tooltip="Move up"
-            disabled={idx === 0}
-            onClick={e => { e.stopPropagation(); onMoveUp(); }}
-          >
-            ↑
-          </Button>
-          <Button
-            variant="ghost"
-            aria-label="Move preset down"
-            tooltip="Move down"
-            disabled={idx === presetCount - 1}
-            onClick={e => { e.stopPropagation(); onMoveDown(); }}
-          >
-            ↓
-          </Button>
-        </Stack>
-        <Stack gap="xs" align="start">
-          <div className="flex">
+        {/* Button column: ↑↓ top-aligned, ∗/• if ⧉ × bottom-aligned */}
+        <Stack justify="between" align="start" className="flex-1 min-w-0">
+          <Stack direction="col" gap="none" align="start">
+            <Button
+              variant="ghost"
+              aria-label="Move preset up"
+              tooltip="Move up"
+              disabled={idx === 0}
+              onClick={e => { e.stopPropagation(); onMoveUp(); }}
+            >↑</Button>
+            <Button
+              variant="ghost"
+              aria-label="Move preset down"
+              tooltip="Move down"
+              disabled={idx === presetCount - 1}
+              onClick={e => { e.stopPropagation(); onMoveDown(); }}
+            >↓</Button>
+          </Stack>
+          <Stack direction="col" gap="none" align="start">
+            <Tooltip content="Set as default">
+              <Toggle
+                pressed={isActive}
+                pressedLabel="∗"
+                aria-label="Set as default"
+                disabled={isActive}
+                onPressedChange={p => { if (p) onActivate(); }}
+                onClick={e => e.stopPropagation()}
+              >•</Toggle>
+            </Tooltip>
             <Button
               variant="ghost"
               aria-label="Edit triggers"
               tooltip="Edit triggers"
               onClick={e => { e.stopPropagation(); onEditTriggers(); }}
-            >
-              if
-            </Button>
+            >if</Button>
             <Button
               variant="ghost"
               aria-label="Clone preset"
               tooltip="Clone preset"
               onClick={e => { e.stopPropagation(); onDuplicate(); }}
-            >
-              ⧉
-            </Button>
+            >⧉</Button>
             {presetCount > 1 && (
               <Button
                 variant="ghost"
                 aria-label="Delete preset"
                 tooltip="Delete preset"
                 onClick={e => { e.stopPropagation(); onDelete(); }}
-              >
-                ×
-              </Button>
+              >×</Button>
             )}
-          </div>
-          {/* Name — replaces the timing input */}
-          {editing ? (
-            <input
-              ref={inputRef}
-              aria-label={`Rename: ${preset.name}`}
-              className="font-mono text-xs bg-transparent border-b border-white text-foreground outline-none w-full"
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              onBlur={commitRename}
-              onKeyDown={e => {
-                e.stopPropagation();
-                if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
-                if (e.key === 'Escape') { setDraft(preset.name); setEditing(false); }
-              }}
-              onClick={e => e.stopPropagation()}
-            />
-          ) : (
-            <span
-              className="font-mono text-xs text-foreground pl-2 block truncate"
-              onDoubleClick={e => { e.stopPropagation(); setDraft(preset.name); setEditing(true); }}
-            >
-              {isActive && <span aria-hidden="true" className="inline-block w-1.5 h-1.5 rounded-full bg-white align-middle mr-1" />}
-              {preset.name}
-            </span>
-          )}
+          </Stack>
         </Stack>
-      </Stack>
+      </div>
+
+      {/* Name row — full width below thumbnail and buttons */}
+      {editing ? (
+        <input
+          ref={inputRef}
+          aria-label={`Rename: ${preset.name}`}
+          className="font-mono text-xs bg-transparent border-b border-white text-foreground outline-none w-full"
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={commitRename}
+          onKeyDown={e => {
+            e.stopPropagation();
+            if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
+            if (e.key === 'Escape') { setDraft(preset.name); setEditing(false); }
+          }}
+          onClick={e => e.stopPropagation()}
+        />
+      ) : (
+        <span
+          className="font-mono text-xs text-foreground/60 pl-1 block truncate"
+          onDoubleClick={e => { e.stopPropagation(); setDraft(preset.name); setEditing(true); }}
+        >
+          {preset.name}
+        </span>
+      )}
     </div>
   );
 }
@@ -370,6 +375,7 @@ export type PresetListProps = {
   selectedName: string | null;
   audioCtx?: RenderCtx;
   onSelect: (name: string) => void;
+  onActivate: (name: string) => void;
   onCreate: () => void;
   onInsert: (afterIdx: number) => void;
   onDelete: (name: string) => void;
@@ -385,6 +391,7 @@ export function PresetList({
   selectedName,
   audioCtx = MOCK_AUDIO_CTX,
   onSelect,
+  onActivate,
   onCreate,
   onInsert,
   onDelete,
@@ -494,6 +501,7 @@ export function PresetList({
                   pixels={pixels}
                   dropTarget={dropTarget}
                   onSelect={() => onSelect(preset.name)}
+                  onActivate={() => onActivate(preset.name)}
                   onDelete={() => onDelete(preset.name)}
                   onDuplicate={() => onDuplicate(preset.name)}
                   onRename={newName => onRename(preset.name, newName)}
