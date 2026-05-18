@@ -1336,8 +1336,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
             case 'hud-hardware-stop': {
               hudHardwareActive = false;
               hudAudioSource = 'monitor';
-              stopAnim();
-              startIdleTimer();
+              if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+              startIdleAnimation();
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             }
