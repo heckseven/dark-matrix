@@ -40,6 +40,7 @@ import { packBW, FRAME_SIZE, FRAME_COLS, FRAME_ROWS } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 import { composeFrames } from '../lib/compositor.js';
 import type { NotifyOverlay } from '../lib/compositor.js';
+import { loadNotificationAsset } from '../lib/notification-assets.js';
 
 const SCROLL_MAX_LEN = 120;
 
@@ -77,6 +78,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   const transport = new SerialTransport();
   const dispatcher = new Dispatcher();
   let stopCurrentAnim: (() => void) | null = null;
+  let stopCurrentOverlay: (() => void) | null = null;
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
   let hudHardwareActive = false;
   let hudAudioStreaming = false;
@@ -145,6 +147,21 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     } else {
       startIdleTimer();
     }
+  }
+
+  function stopOverlay(): void {
+    if (stopCurrentOverlay) { stopCurrentOverlay(); stopCurrentOverlay = null; }
+  }
+
+  function cropToBottomStrip(frame: Frame, stripRows: number): Frame {
+    const out = new Uint8Array(FRAME_SIZE) as unknown as Frame;
+    const startRow = FRAME_ROWS - stripRows;
+    for (let col = 0; col < FRAME_COLS; col++) {
+      for (let row = startRow; row < FRAME_ROWS; row++) {
+        out[col * FRAME_ROWS + row] = frame[col * FRAME_ROWS + row] ?? 0;
+      }
+    }
+    return out;
   }
 
   function runOnModules(anim: ReturnType<typeof createScrollAnimation> | null, singleAnim?: () => ReturnType<typeof createGolAnimation>, onComplete?: () => void) {
@@ -725,20 +742,276 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     runOnModules(null, () => createGolAnimation());
   }
 
-  function startNotificationAnimation(intent: DisplayIntent) {
-    stopAnim();
-    if (idleTimer) clearTimeout(idleTimer);
-
-    // Sanitize content: printable ASCII only, max SCROLL_MAX_LEN chars
-    const safe = intent.content
-      .replace(/[^\x20-\x7e]/g, '')
-      .slice(0, SCROLL_MAX_LEN);
+  function startTextNotification(intent: DisplayIntent, composite: 'replace' | 'overlay'): void {
+    const safe = intent.content.replace(/[^\x20-\x7e]/g, '').slice(0, SCROLL_MAX_LEN);
     const text = safe.length > 0 ? safe : '???';
+    const anim = createScrollAnimation({ text, loop: false });
 
-    runOnModules(createScrollAnimation({ text, loop: false }), undefined, () => {
-      const curr = dispatcher.current();
-      if (!curr || curr.id === intent.id) resumeAfterInterrupt();
+    if (composite === 'replace') {
+      stopAnim();
+      if (idleTimer) clearTimeout(idleTimer);
+      runOnModules(anim, undefined, () => {
+        const curr = dispatcher.current();
+        if (!curr || curr.id === intent.id) resumeAfterInterrupt();
+      });
+      return;
+    }
+
+    let stopped = false;
+    stopCurrentOverlay = () => { stopped = true; anim.stop(); setActiveOverlay(null); };
+    void (async () => {
+      const iter = anim[Symbol.asyncIterator]();
+      const frameMs = 1000 / 20;
+      let nextAt = Date.now();
+      while (!stopped) {
+        const result = await iter.next();
+        if (stopped || result.done) break;
+        const [lf, rf] = result.value;
+        setActiveOverlay({ left: cropToBottomStrip(lf, 8), right: cropToBottomStrip(rf, 8) });
+        nextAt += frameMs;
+        const wait = nextAt - Date.now();
+        if (wait > 0) await new Promise<void>(r => setTimeout(r, wait));
+      }
+      if (!stopped) {
+        setActiveOverlay(null);
+        stopCurrentOverlay = null;
+        const remaining = intent.expiresAt - Date.now();
+        setTimeout(() => dispatcher.gc(), Math.max(0, remaining));
+      }
+    })();
+  }
+
+  async function startImageNotification(intent: DisplayIntent, composite: 'replace' | 'overlay'): Promise<void> {
+    if (!intent.assetPath) { startTextNotification(intent, composite); return; }
+    let handle: Awaited<ReturnType<typeof loadNotificationAsset>>;
+    try {
+      handle = await loadNotificationAsset(intent.assetPath);
+    } catch {
+      startTextNotification(intent, composite);
+      return;
+    }
+    if (handle.kind !== 'image') { startTextNotification(intent, composite); return; }
+    const frame = handle.frame;
+    const { left: leftDev, right: rightDev } = currentConfig.modules;
+
+    if (composite === 'replace') {
+      stopAnim();
+      if (idleTimer) clearTimeout(idleTimer);
+      try { if (leftDev) await transport.frameGray(frame, leftDev); } catch { /* non-fatal */ }
+      try { if (rightDev) await transport.frameGray(frame, rightDev); } catch { /* non-fatal */ }
+      let done = false;
+      const timer = setTimeout(() => {
+        done = true;
+        stopCurrentAnim = null;
+        const curr = dispatcher.current();
+        if (!curr || curr.id === intent.id) resumeAfterInterrupt();
+      }, intent.durationMs);
+      stopCurrentAnim = () => { if (!done) { done = true; clearTimeout(timer); } };
+      return;
+    }
+
+    let stopped = false;
+    await new Promise<void>(r => {
+      const timer = setTimeout(r, intent.durationMs);
+      stopCurrentOverlay = () => { stopped = true; clearTimeout(timer); setActiveOverlay(null); r(); };
+      setActiveOverlay({ left: frame, right: frame });
     });
+    if (!stopped) {
+      setActiveOverlay(null);
+      stopCurrentOverlay = null;
+      const remaining = intent.expiresAt - Date.now();
+      setTimeout(() => dispatcher.gc(), Math.max(0, remaining));
+    }
+  }
+
+  async function startGifNotification(intent: DisplayIntent, composite: 'replace' | 'overlay'): Promise<void> {
+    if (!intent.assetPath) { startTextNotification(intent, composite); return; }
+    let handle: Awaited<ReturnType<typeof loadNotificationAsset>>;
+    try {
+      handle = await loadNotificationAsset(intent.assetPath);
+    } catch {
+      startTextNotification(intent, composite);
+      return;
+    }
+    if (handle.kind !== 'gif') { startTextNotification(intent, composite); return; }
+    const gifPath = handle.path;
+    const { left: leftDev, right: rightDev } = currentConfig.modules;
+
+    let stopped = false;
+    let gifAnim: GifAnimation | null = null;
+
+    if (composite === 'replace') {
+      stopAnim();
+      if (idleTimer) clearTimeout(idleTimer);
+      stopCurrentAnim = () => { stopped = true; gifAnim?.stop(); };
+    } else {
+      stopCurrentOverlay = () => { stopped = true; gifAnim?.stop(); setActiveOverlay(null); };
+    }
+
+    try {
+      gifAnim = await createGifAnimation({ path: gifPath, loop: true, dual: false, mode: 'gray' });
+    } catch {
+      if (!stopped) {
+        if (composite === 'replace') resumeAfterInterrupt();
+        else { setActiveOverlay(null); stopCurrentOverlay = null; }
+      }
+      return;
+    }
+    if (stopped) { gifAnim.stop(); return; }
+
+    if (composite === 'replace') {
+      stopCurrentAnim = () => { stopped = true; (gifAnim as GifAnimation).stop(); };
+    } else {
+      stopCurrentOverlay = () => { stopped = true; (gifAnim as GifAnimation).stop(); setActiveOverlay(null); };
+    }
+
+    const iter = gifAnim[Symbol.asyncIterator]();
+    const deadline = Date.now() + intent.durationMs;
+    let frameIdx = 0;
+
+    while (!stopped && Date.now() < deadline) {
+      const result = await iter.next();
+      if (stopped || result.done) break;
+      const gifFrame = result.value;
+      if (composite === 'replace') {
+        const [cl, cr] = composeFrames([gifFrame, gifFrame], activeOverlay);
+        try { if (leftDev) await transport.frameGray(cl, leftDev); } catch { /* non-fatal */ }
+        try { if (rightDev) await transport.frameGray(cr, rightDev); } catch { /* non-fatal */ }
+      } else {
+        setActiveOverlay({ left: gifFrame, right: gifFrame });
+      }
+      const delay = gifAnim.delays[frameIdx % gifAnim.delays.length] ?? 100;
+      frameIdx++;
+      if (delay > 0 && !stopped) await new Promise<void>(r => setTimeout(r, delay));
+    }
+
+    gifAnim.stop();
+    if (!stopped) {
+      if (composite === 'replace') {
+        stopCurrentAnim = null;
+        if (leftDev) await transport.release(leftDev).catch(() => {});
+        if (rightDev) await transport.release(rightDev).catch(() => {});
+        const curr = dispatcher.current();
+        if (!curr || curr.id === intent.id) resumeAfterInterrupt();
+      } else {
+        setActiveOverlay(null);
+        stopCurrentOverlay = null;
+        const remaining = intent.expiresAt - Date.now();
+        setTimeout(() => dispatcher.gc(), Math.max(0, remaining));
+      }
+    }
+  }
+
+  async function startDmxNotification(intent: DisplayIntent, composite: 'replace' | 'overlay'): Promise<void> {
+    if (!intent.assetPath) { startTextNotification(intent, composite); return; }
+    let handle: Awaited<ReturnType<typeof loadNotificationAsset>>;
+    try {
+      handle = await loadNotificationAsset(intent.assetPath);
+    } catch {
+      startTextNotification(intent, composite);
+      return;
+    }
+    if (handle.kind !== 'dmx') { startTextNotification(intent, composite); return; }
+    const dmxPath = handle.path;
+
+    let raw: string;
+    try { raw = await fs.readFile(dmxPath, 'utf-8'); } catch {
+      startTextNotification(intent, composite);
+      return;
+    }
+    let project: DmxProject;
+    try { project = parseProject(raw); } catch {
+      startTextNotification(intent, composite);
+      return;
+    }
+
+    const { left: leftDev, right: rightDev } = currentConfig.modules;
+    const { frames: dmxFrames, mode: dmxMode, width: dmxWidth, height: dmxHeight } = project;
+    const dual = dmxWidth === 18;
+    const deadline = Date.now() + intent.durationMs;
+    let stopped = false;
+
+    if (composite === 'replace') {
+      stopAnim();
+      if (idleTimer) clearTimeout(idleTimer);
+      stopCurrentAnim = () => { stopped = true; };
+    } else {
+      stopCurrentOverlay = () => { stopped = true; setActiveOverlay(null); };
+    }
+
+    outer: do {
+      for (const dmxFrame of dmxFrames) {
+        if (stopped || Date.now() >= deadline) break outer;
+        const pixels = base64ToFrame(dmxFrame.pixels, dmxWidth * dmxHeight);
+        if (dual) {
+          const leftBuf = new Uint8Array(FRAME_SIZE) as unknown as Frame;
+          const rightBuf = new Uint8Array(FRAME_SIZE) as unknown as Frame;
+          for (let col = 0; col < FRAME_COLS; col++) {
+            for (let row = 0; row < FRAME_ROWS; row++) {
+              leftBuf[col * FRAME_ROWS + row] = pixels[col * FRAME_ROWS + row] ?? 0;
+              rightBuf[col * FRAME_ROWS + row] = pixels[(col + FRAME_COLS) * FRAME_ROWS + row] ?? 0;
+            }
+          }
+          if (composite === 'replace') {
+            const [cl, cr] = composeFrames([leftBuf, rightBuf], activeOverlay);
+            if (dmxMode === 'bw') {
+              try { if (leftDev) await transport.frameBw(packBW(cl), leftDev); } catch { /* non-fatal */ }
+              try { if (rightDev) await transport.frameBw(packBW(cr), rightDev); } catch { /* non-fatal */ }
+            } else {
+              try { if (leftDev) await transport.frameGray(cl, leftDev); } catch { /* non-fatal */ }
+              try { if (rightDev) await transport.frameGray(cr, rightDev); } catch { /* non-fatal */ }
+            }
+          } else {
+            setActiveOverlay({ left: leftBuf, right: rightBuf });
+          }
+        } else {
+          const framePx = pixels as unknown as Frame;
+          if (composite === 'replace') {
+            const [cl2, cr2] = composeFrames([framePx, framePx], activeOverlay);
+            if (dmxMode === 'bw') {
+              try { if (leftDev) await transport.frameBw(packBW(cl2), leftDev); } catch { /* non-fatal */ }
+              try { if (rightDev) await transport.frameBw(packBW(cr2), rightDev); } catch { /* non-fatal */ }
+            } else {
+              try { if (leftDev) await transport.frameGray(cl2, leftDev); } catch { /* non-fatal */ }
+              try { if (rightDev) await transport.frameGray(cr2, rightDev); } catch { /* non-fatal */ }
+            }
+          } else {
+            setActiveOverlay({ left: framePx, right: framePx });
+          }
+        }
+        if (dmxFrame.delayMs > 0 && !stopped) await new Promise<void>(r => setTimeout(r, dmxFrame.delayMs));
+      }
+    } while (!stopped && Date.now() < deadline);
+
+    if (!stopped) {
+      if (composite === 'replace') {
+        stopCurrentAnim = null;
+        if (leftDev) await transport.release(leftDev).catch(() => {});
+        if (rightDev) await transport.release(rightDev).catch(() => {});
+        const curr = dispatcher.current();
+        if (!curr || curr.id === intent.id) resumeAfterInterrupt();
+      } else {
+        setActiveOverlay(null);
+        stopCurrentOverlay = null;
+        const remaining = intent.expiresAt - Date.now();
+        setTimeout(() => dispatcher.gc(), Math.max(0, remaining));
+      }
+    }
+  }
+
+  function startNotificationAnimation(intent: DisplayIntent): void {
+    stopOverlay();
+    const style = intent.style ?? 'text';
+    const composite = intent.composite ?? 'replace';
+    if (style === 'image') {
+      void startImageNotification(intent, composite);
+    } else if (style === 'gif') {
+      void startGifNotification(intent, composite);
+    } else if (style === 'dmx') {
+      void startDmxNotification(intent, composite);
+    } else {
+      startTextNotification(intent, composite);
+    }
   }
 
   let currentIntentId: string | null = null;
@@ -767,13 +1040,16 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   }, { intervalMs: 2000 }));
 
   disposeWatches.push(watchDesktopNotifications((n) => {
-    const intent = notificationIntent(n);
-    const route = routeNotification(intent, currentConfig.notification_rules ?? []);
+    const base = notificationIntent(n);
+    const route = routeNotification(base, currentConfig.notification_rules ?? []);
     if (route.action === 'none') return;
-    if (route.action === 'dmx' && route.assetPath) {
-      // TODO: load and dispatch dmx animation for notification
-      startDmxAnimation(route.assetPath, false);
-      return;
+    const intent: DisplayIntent = { ...base };
+    intent.style = route.action === 'scroll' ? 'text' : route.action;
+    intent.composite = route.composite;
+    if (route.assetPath !== undefined) intent.assetPath = route.assetPath;
+    if (route.durationMs !== undefined) {
+      intent.durationMs = route.durationMs;
+      intent.expiresAt = Date.now() + route.durationMs;
     }
     dispatcher.push(intent);
   }));
@@ -1113,14 +1389,18 @@ export async function startDaemon(): Promise<() => Promise<void>> {
             case 'notify-test': {
               const m = msg as { cmd: string; appName?: string; summary?: string; body?: string };
               const n = { appName: m.appName ?? 'test', summary: m.summary ?? 'test notification', body: m.body ?? '' };
-              const intent = notificationIntent(n);
-              const route = routeNotification(intent, currentConfig.notification_rules ?? []);
+              const base = notificationIntent(n);
+              const route = routeNotification(base, currentConfig.notification_rules ?? []);
               if (route.action !== 'none') {
-                if (route.action === 'dmx' && route.assetPath) {
-                  startDmxAnimation(route.assetPath, false);
-                } else {
-                  dispatcher.push(intent);
+                const intent: DisplayIntent = { ...base };
+                intent.style = route.action === 'scroll' ? 'text' : route.action;
+                intent.composite = route.composite;
+                if (route.assetPath !== undefined) intent.assetPath = route.assetPath;
+                if (route.durationMs !== undefined) {
+                  intent.durationMs = route.durationMs;
+                  intent.expiresAt = Date.now() + route.durationMs;
                 }
+                dispatcher.push(intent);
               }
               socket.write(JSON.stringify({ ok: true, action: route.action }) + '\n');
               break;
