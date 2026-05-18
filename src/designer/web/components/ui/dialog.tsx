@@ -23,10 +23,15 @@ export const DialogOverlay = React.forwardRef<
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
+export interface DialogContentProps
+  extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
+  variant?: 'default' | 'destructive';
+}
+
 export const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+  DialogContentProps
+>(({ className, variant = 'default', children, ...props }, ref) => (
   <DialogPrimitive.Portal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -34,7 +39,8 @@ export const DialogContent = React.forwardRef<
       className={cn(
         'fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
         'font-mono text-xs text-foreground bg-background',
-        'border border-foreground rounded p-4 outline-none',
+        'border rounded p-4 outline-none',
+        variant === 'destructive' ? 'border-destructive' : 'border-foreground',
         'data-[state=open]:animate-in data-[state=closed]:animate-out',
         'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
         'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
