@@ -271,6 +271,7 @@ function PresetCard({
         if (to !== from) onDrop(from, to);
       }}
     >
+      <CornerBrackets active={highlighted} />
       {/* Top row: thumbnail (left) + button column (right) */}
       <div className="flex flex-row gap-3">
         {/* Draggable thumbnail */}
@@ -280,9 +281,8 @@ function PresetCard({
           tabIndex={-1}
           onDragStart={e => { setDragging(true); e.dataTransfer.setData('text/plain', String(idx)); e.dataTransfer.effectAllowed = 'move'; }}
           onDragEnd={() => { setDragging(false); setDropTarget(null); }}
-          style={{ cursor: dragging ? 'grabbing' : 'grab', position: 'relative' }}
+          style={{ cursor: dragging ? 'grabbing' : 'grab' }}
         >
-          <CornerBrackets active={highlighted} />
           <MatrixPreview pixels={pixels} width={18} />
         </div>
 
