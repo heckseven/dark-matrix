@@ -289,6 +289,7 @@ function PresetCard({
           <Stack direction="col" gap="none" align="start">
             <Button
               variant="ghost"
+              className="w-8"
               aria-label="Move preset up"
               tooltip="Move up"
               disabled={idx === 0}
@@ -296,6 +297,7 @@ function PresetCard({
             >↑</Button>
             <Button
               variant="ghost"
+              className="w-8"
               aria-label="Move preset down"
               tooltip="Move down"
               disabled={idx === presetCount - 1}
@@ -306,6 +308,7 @@ function PresetCard({
             {isActive ? (
               <Button
                 variant="primary"
+                className="w-8"
                 aria-label="Default preset"
                 tooltip="Default preset"
                 onClick={e => e.stopPropagation()}
@@ -313,6 +316,7 @@ function PresetCard({
             ) : (
               <Button
                 variant="ghost"
+                className="w-8"
                 aria-label="Set as default"
                 tooltip="Set as default"
                 onClick={e => { e.stopPropagation(); onActivate(); }}
@@ -320,12 +324,14 @@ function PresetCard({
             )}
             <Button
               variant="ghost"
+              className="w-8"
               aria-label="Edit triggers"
               tooltip="Edit triggers"
               onClick={e => { e.stopPropagation(); onEditTriggers(); }}
             >if</Button>
             <Button
               variant="ghost"
+              className="w-8"
               aria-label="Clone preset"
               tooltip="Clone preset"
               onClick={e => { e.stopPropagation(); onDuplicate(); }}
@@ -333,6 +339,7 @@ function PresetCard({
             {presetCount > 1 && (
               <Button
                 variant="ghost"
+                className="w-8"
                 aria-label="Delete preset"
                 tooltip="Delete preset"
                 onClick={e => { e.stopPropagation(); onDelete(); }}
