@@ -808,8 +808,26 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
     if (url === '/api/test-notification' && method === 'POST') {
       try {
         const body = await readBody(req);
-        const { appName, summary, bodyText } = JSON.parse(body) as { appName?: string; summary?: string; bodyText?: string };
-        const reply = await sendToDaemon({ cmd: 'notify-test', appName, summary, body: bodyText }) as { ok: boolean; action?: string };
+        const parsed = JSON.parse(body) as {
+          appName?: string;
+          summary?: string;
+          bodyText?: string;
+          style?: string;
+          assetPath?: string;
+          composite?: string;
+          durationMsOverride?: number;
+        };
+        const cmd: Record<string, unknown> = {
+          cmd: 'notify-test',
+          appName: parsed.appName,
+          summary: parsed.summary,
+          body: parsed.bodyText,
+        };
+        if (parsed.style !== undefined) cmd['style'] = parsed.style;
+        if (parsed.assetPath !== undefined) cmd['assetPath'] = parsed.assetPath;
+        if (parsed.composite !== undefined) cmd['composite'] = parsed.composite;
+        if (parsed.durationMsOverride !== undefined) cmd['durationMsOverride'] = parsed.durationMsOverride;
+        const reply = await sendToDaemon(cmd) as { ok: boolean; action?: string };
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, action: reply.action }));
       } catch {
