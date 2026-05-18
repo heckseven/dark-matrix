@@ -488,7 +488,7 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, getP
                       className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 data-[state=open]:text-foreground z-10 text-foreground/40 hover:text-red-400"
                     >×</Button>
                   </DialogTrigger>
-                  <DialogContent className="flex flex-col gap-3 w-64">
+                  <DialogContent variant="destructive" className="flex flex-col gap-3 w-64">
                     <DialogTitle className="sr-only">Delete {label}</DialogTitle>
                     <DialogDescription>
                       This image is used in {presetCount} preset{presetCount !== 1 ? 's' : ''}.
