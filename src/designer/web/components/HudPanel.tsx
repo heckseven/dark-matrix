@@ -80,6 +80,7 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
   const mainRef    = useRef<HTMLElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const [presetTopPad, setPresetTopPad] = useState(0);
+  const [inspectorTopPad, setInspectorTopPad] = useState(0);
 
   const wsRef = useRef<WebSocket | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -215,6 +216,10 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
       // +4 compensates for the card's p-1 (4px) vs the preview's p-2 (8px) padding,
       // aligning the first preset's bracket top with the preview's bracket top.
       setPresetTopPad(Math.max(0, previewRect.top - mainRect.top - topPad + 4));
+      // Inspector bracket offset: header bar (py-1 div=8px + sm button=20px → 28px)
+      // + grid content py-4 (16px) = 44px above the first tile bracket.
+      // Subtract 44 then add back preview's p-2 (8px) → net -36.
+      setInspectorTopPad(Math.max(0, previewRect.top - mainRect.top - topPad - 36));
     };
     update();
     const ro = new ResizeObserver(update);
@@ -232,7 +237,7 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)', gap: '1rem', height: '100%', width: '100%' }}>
       {/* Left: preset list */}
       <aside aria-label="Preset list" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', paddingTop: topPad }}>
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', maxWidth: 192, marginLeft: 'auto', paddingTop: presetTopPad }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', maxWidth: 208, marginLeft: 'auto', marginRight: 16, paddingTop: presetTopPad }}>
         <PresetList
           presets={hudPresets}
           activeName={activePresetName}
@@ -294,7 +299,7 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
 
       {/* Right: widget inspector */}
       <aside aria-label="Widget inspector" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', paddingTop: topPad }}>
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingTop: inspectorTopPad }}>
           <HudInspector
             key={`${hudSelectedSide}-${selectedPresetName ?? 'none'}`}
             widget={selectedPreset
