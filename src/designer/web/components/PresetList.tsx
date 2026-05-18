@@ -1,7 +1,5 @@
 import { useState, useRef, useEffect, useCallback, Fragment } from 'react';
 import { Button } from './ui/button.js';
-import { Toggle } from './ui/toggle.js';
-import { Tooltip } from './ui/tooltip.js';
 import { Stack } from './ui/stack.js';
 import { MatrixPreview } from './MatrixPreview.js';
 import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-renderers.js';
@@ -305,16 +303,21 @@ function PresetCard({
             >↓</Button>
           </Stack>
           <Stack direction="col" gap="none" align="start">
-            <Tooltip content="Set as default">
-              <Toggle
-                pressed={isActive}
-                pressedLabel="∗"
+            {isActive ? (
+              <Button
+                variant="primary"
+                aria-label="Default preset"
+                tooltip="Default preset"
+                disabled
+              >∗</Button>
+            ) : (
+              <Button
+                variant="ghost"
                 aria-label="Set as default"
-                disabled={isActive}
-                onPressedChange={p => { if (p) onActivate(); }}
-                onClick={e => e.stopPropagation()}
-              >•</Toggle>
-            </Tooltip>
+                tooltip="Set as default"
+                onClick={e => { e.stopPropagation(); onActivate(); }}
+              >•</Button>
+            )}
             <Button
               variant="ghost"
               aria-label="Edit triggers"
