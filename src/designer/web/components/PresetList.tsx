@@ -292,6 +292,7 @@ function PresetCard({
               className="w-8"
               aria-label="Move preset up"
               tooltip="Move up"
+              tooltipSide="right"
               disabled={idx === 0}
               onClick={e => { e.stopPropagation(); onMoveUp(); }}
             >↑</Button>
@@ -300,6 +301,7 @@ function PresetCard({
               className="w-8"
               aria-label="Move preset down"
               tooltip="Move down"
+              tooltipSide="right"
               disabled={idx === presetCount - 1}
               onClick={e => { e.stopPropagation(); onMoveDown(); }}
             >↓</Button>
@@ -311,6 +313,7 @@ function PresetCard({
                 className="w-8"
                 aria-label="Default preset"
                 tooltip="Default preset"
+                tooltipSide="right"
                 onClick={e => e.stopPropagation()}
               >∗</Button>
             ) : (
@@ -319,6 +322,7 @@ function PresetCard({
                 className="w-8"
                 aria-label="Set as default"
                 tooltip="Set as default"
+                tooltipSide="right"
                 onClick={e => { e.stopPropagation(); onActivate(); }}
               >•</Button>
             )}
@@ -327,6 +331,7 @@ function PresetCard({
               className="w-8"
               aria-label="Edit triggers"
               tooltip="Edit triggers"
+              tooltipSide="right"
               onClick={e => { e.stopPropagation(); onEditTriggers(); }}
             >if</Button>
             <Button
@@ -334,6 +339,7 @@ function PresetCard({
               className="w-8"
               aria-label="Clone preset"
               tooltip="Clone preset"
+              tooltipSide="right"
               onClick={e => { e.stopPropagation(); onDuplicate(); }}
             >⧉</Button>
             {presetCount > 1 && (
@@ -342,6 +348,7 @@ function PresetCard({
                 className="w-8"
                 aria-label="Delete preset"
                 tooltip="Delete preset"
+              tooltipSide="right"
                 onClick={e => { e.stopPropagation(); onDelete(); }}
               >×</Button>
             )}

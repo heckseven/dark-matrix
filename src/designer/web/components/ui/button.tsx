@@ -31,15 +31,16 @@ export interface ButtonProps
     VariantProps<typeof buttonVariants> {
   /** Shows a tooltip on hover. Use whenever the visible label is a symbol or icon. */
   tooltip?: string;
+  tooltipSide?: 'top' | 'right' | 'bottom' | 'left';
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, tooltip, ...props }, ref) => {
+  ({ className, variant, size, tooltip, tooltipSide, ...props }, ref) => {
     const btn = (
       <button ref={ref} type="button" className={cn(buttonVariants({ variant, size }), className)} {...props} />
     );
     if (!tooltip) return btn;
-    return <Tooltip content={tooltip}>{btn}</Tooltip>;
+    return <Tooltip content={tooltip} {...(tooltipSide !== undefined ? { side: tooltipSide } : {})}>{btn}</Tooltip>;
   }
 );
 Button.displayName = 'Button';
