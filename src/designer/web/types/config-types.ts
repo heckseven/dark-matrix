@@ -22,9 +22,14 @@ export type HudPreset = {
 };
 
 export type NotificationRule = {
-  app_name_glob: string;
+  source?: 'ec-switch' | 'vm' | 'claude' | 'desktop-notification' | 'manual';
+  app_name_glob?: string;
   urgency?: 'low' | 'normal' | 'critical' | 'any';
-  animation: 'scroll' | 'dmx' | 'none';
+  content_glob?: string;
+  animation: 'scroll' | 'image' | 'gif' | 'dmx' | 'none';
+  asset_path?: string;
+  composite?: 'replace' | 'overlay';
+  duration_ms_override?: number;
   dmx_path?: string;
 };
 

@@ -21,8 +21,8 @@ type Story = StoryObj<typeof meta>;
 /** No rules configured — shows the "add rule" button and empty state. */
 export const Empty: Story = {};
 
-/** Two rules: Slack with urgency filter, system-daemon with no animation. */
-export const WithRules: Story = {
+/** Legacy rules — desktop-notification source with app_name_glob and urgency. */
+export const LegacyRules: Story = {
   args: {
     value: [
       { app_name_glob: 'Slack', urgency: 'normal', animation: 'scroll' },
@@ -31,11 +31,90 @@ export const WithRules: Story = {
   },
 };
 
-/** DMX rule — shows the dmx_path input field. */
-export const DmxRule: Story = {
+/** Desktop notification with scroll (replace) — existing default behavior. */
+export const ScrollReplace: Story = {
   args: {
     value: [
-      { app_name_glob: '*', animation: 'dmx', dmx_path: 'notification.dmx.json' },
+      { source: 'desktop-notification', app_name_glob: '*', animation: 'scroll' },
+    ] satisfies NotificationRule[],
+  },
+};
+
+/** Static image overlay — image displayed over HUD for 5 seconds. */
+export const ImageOverlay: Story = {
+  args: {
+    value: [
+      {
+        source: 'desktop-notification',
+        app_name_glob: 'Slack',
+        animation: 'image',
+        asset_path: 'slack-icon.png',
+        composite: 'overlay',
+        duration_ms_override: 5000,
+      },
+    ] satisfies NotificationRule[],
+  },
+};
+
+/** GIF animation (replace) — full-screen GIF for duration. */
+export const GifReplace: Story = {
+  args: {
+    value: [
+      {
+        source: 'desktop-notification',
+        app_name_glob: '*',
+        urgency: 'critical',
+        animation: 'gif',
+        asset_path: 'alert.gif',
+        duration_ms_override: 8000,
+      },
+    ] satisfies NotificationRule[],
+  },
+};
+
+/** DMX animation overlay — runs DMX over HUD. */
+export const DmxOverlay: Story = {
+  args: {
+    value: [
+      {
+        source: 'desktop-notification',
+        app_name_glob: 'Calendar',
+        animation: 'dmx',
+        asset_path: 'reminder.dmx.json',
+        composite: 'overlay',
+        duration_ms_override: 3000,
+      },
+    ] satisfies NotificationRule[],
+  },
+};
+
+/** EC switch source — mute/unmute events use scroll overlay. */
+export const EcSwitchSource: Story = {
+  args: {
+    value: [
+      { source: 'ec-switch', animation: 'scroll', composite: 'overlay' },
+    ] satisfies NotificationRule[],
+  },
+};
+
+/** VM source with content glob — matches specific VM events. */
+export const VmContentGlob: Story = {
+  args: {
+    value: [
+      { source: 'vm', content_glob: 'VM UP*', animation: 'gif', asset_path: 'vm-up.gif', duration_ms_override: 4000 },
+      { source: 'vm', content_glob: 'VM DN*', animation: 'none' },
+    ] satisfies NotificationRule[],
+  },
+};
+
+/** Mixed rules — multiple sources and styles. */
+export const Mixed: Story = {
+  args: {
+    value: [
+      { source: 'ec-switch', animation: 'scroll', composite: 'overlay' },
+      { source: 'desktop-notification', app_name_glob: 'Slack', urgency: 'critical', animation: 'gif', asset_path: 'alert.gif', duration_ms_override: 5000 },
+      { source: 'desktop-notification', app_name_glob: '*', animation: 'scroll' },
+      { source: 'vm', animation: 'none' },
     ] satisfies NotificationRule[],
   },
 };

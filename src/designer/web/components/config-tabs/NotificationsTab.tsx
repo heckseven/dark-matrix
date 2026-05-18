@@ -4,9 +4,14 @@ import { Input } from '../ui/input.js';
 import { Button } from '../ui/button.js';
 
 export type NotificationRule = {
-  app_name_glob: string;
+  source?: 'ec-switch' | 'vm' | 'claude' | 'desktop-notification' | 'manual';
+  app_name_glob?: string;
   urgency?: 'low' | 'normal' | 'critical' | 'any';
-  animation: 'scroll' | 'dmx' | 'none';
+  content_glob?: string;
+  animation: 'scroll' | 'image' | 'gif' | 'dmx' | 'none';
+  asset_path?: string;
+  composite?: 'replace' | 'overlay';
+  duration_ms_override?: number;
   dmx_path?: string;
 };
 
@@ -25,113 +30,174 @@ type RowProps = {
   onMoveDown: () => void;
 };
 
+type RulePatch = { [K in keyof NotificationRule]+?: NotificationRule[K] | undefined };
+
+function buildRule(base: NotificationRule, changes: RulePatch): NotificationRule {
+  const merged = { ...base, ...changes };
+  const src = merged.source;
+  const anim: NotificationRule['animation'] = merged.animation ?? base.animation;
+  const needsAsset = anim === 'image' || anim === 'gif' || anim === 'dmx';
+  const isDesktop = src === 'desktop-notification' || src === undefined;
+
+  const result: NotificationRule = { animation: anim };
+  if (src !== undefined) result.source = src;
+
+  if (isDesktop) {
+    if (merged.app_name_glob !== undefined && merged.app_name_glob !== '') result.app_name_glob = merged.app_name_glob;
+    if (merged.urgency !== undefined && merged.urgency !== 'any') result.urgency = merged.urgency;
+  } else {
+    if (merged.content_glob !== undefined && merged.content_glob !== '') result.content_glob = merged.content_glob;
+  }
+
+  if (needsAsset) {
+    const assetVal = merged.asset_path ?? merged.dmx_path;
+    if (assetVal !== undefined && assetVal !== '') result.asset_path = assetVal;
+  }
+
+  if (anim !== 'none' && merged.composite !== undefined && merged.composite !== 'replace') {
+    result.composite = merged.composite;
+  }
+
+  if (merged.duration_ms_override !== undefined && merged.duration_ms_override > 0) {
+    result.duration_ms_override = merged.duration_ms_override;
+  }
+
+  return result;
+}
+
 function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown }: RowProps) {
-  const urgencyValue = rule.urgency ?? 'any';
-
-  function handleUrgency(v: string) {
-    if (v === 'low' || v === 'normal' || v === 'critical') {
-      const updated: NotificationRule = {
-        app_name_glob: rule.app_name_glob,
-        animation: rule.animation,
-        urgency: v,
-        ...(rule.dmx_path !== undefined && rule.dmx_path !== '' ? { dmx_path: rule.dmx_path } : {}),
-      };
-      onUpdate(updated);
-    } else {
-      const updated: NotificationRule = {
-        app_name_glob: rule.app_name_glob,
-        animation: rule.animation,
-        ...(rule.dmx_path !== undefined && rule.dmx_path !== '' ? { dmx_path: rule.dmx_path } : {}),
-      };
-      onUpdate(updated);
-    }
-  }
-
-  function handleAnimation(v: string) {
-    if (v !== 'scroll' && v !== 'dmx' && v !== 'none') return;
-    const anim = v;
-    const updated: NotificationRule = {
-      app_name_glob: rule.app_name_glob,
-      animation: anim,
-      ...(urgencyValue !== 'any' ? { urgency: urgencyValue } : {}),
-      ...(rule.dmx_path !== undefined && rule.dmx_path !== '' ? { dmx_path: rule.dmx_path } : {}),
-    };
-    onUpdate(updated);
-  }
-
-  function handleDmxPath(v: string) {
-    const updated: NotificationRule = {
-      app_name_glob: rule.app_name_glob,
-      animation: rule.animation,
-      ...(urgencyValue !== 'any' ? { urgency: urgencyValue } : {}),
-      ...(v !== '' ? { dmx_path: v } : {}),
-    };
-    onUpdate(updated);
-  }
-
-  function handleGlob(v: string) {
-    const updated: NotificationRule = {
-      app_name_glob: v,
-      animation: rule.animation,
-      ...(urgencyValue !== 'any' ? { urgency: urgencyValue } : {}),
-      ...(rule.dmx_path !== undefined && rule.dmx_path !== '' ? { dmx_path: rule.dmx_path } : {}),
-    };
-    onUpdate(updated);
-  }
+  const src = rule.source;
+  const isDesktop = src === 'desktop-notification' || src === undefined;
+  const needsAsset = rule.animation === 'image' || rule.animation === 'gif' || rule.animation === 'dmx';
+  const assetDisplay = rule.asset_path ?? rule.dmx_path ?? '';
+  const durationDisplay = rule.duration_ms_override !== undefined ? String(rule.duration_ms_override) : '';
 
   return (
-    <div role="group" aria-label={`Rule ${idx + 1}: ${rule.app_name_glob}`} className="flex items-center gap-2 flex-wrap py-1.5 border-b border-foreground/10 last:border-b-0">
+    <div role="group" aria-label={`Rule ${idx + 1}`} className="flex items-center gap-2 flex-wrap py-1.5 border-b border-foreground/10 last:border-b-0">
       {/* reorder */}
       <div className="flex flex-col shrink-0">
         <Button variant="ghost" aria-label="Move rule up" disabled={idx === 0} className="px-1 py-0 leading-none" onClick={onMoveUp}>↑</Button>
         <Button variant="ghost" aria-label="Move rule down" disabled={idx === total - 1} className="px-1 py-0 leading-none" onClick={onMoveDown}>↓</Button>
       </div>
 
-      {/* glob */}
-      <Input
-        aria-label="App name glob"
-        placeholder="*"
-        value={rule.app_name_glob}
-        onChange={e => handleGlob(e.target.value)}
-        spellCheck={false}
-      />
-
-      {/* urgency */}
+      {/* source */}
       <Select
-        aria-label="Urgency"
-        value={urgencyValue}
-        onChange={e => handleUrgency(e.target.value)}
+        aria-label="Source"
+        value={src ?? ''}
+        onChange={e => {
+          const v = e.target.value;
+          const newSrc = v === '' ? undefined : v as NotificationRule['source'];
+          onUpdate(buildRule(rule, { source: newSrc }));
+        }}
       >
-        <option value="any">any (default)</option>
-        <option value="low">low</option>
-        <option value="normal">normal</option>
-        <option value="critical">critical</option>
+        <option value="">any source</option>
+        <option value="desktop-notification">desktop-notification</option>
+        <option value="ec-switch">ec-switch</option>
+        <option value="vm">vm</option>
+        <option value="claude">claude</option>
+        <option value="manual">manual</option>
       </Select>
+
+      {/* desktop-notification fields */}
+      {isDesktop && (
+        <>
+          <Input
+            aria-label="App name glob"
+            placeholder="app name glob (*)"
+            value={rule.app_name_glob ?? ''}
+            onChange={e => onUpdate(buildRule(rule, { app_name_glob: e.target.value }))}
+            spellCheck={false}
+          />
+          <Select
+            aria-label="Urgency"
+            value={rule.urgency ?? 'any'}
+            onChange={e => {
+              const v = e.target.value;
+              onUpdate(buildRule(rule, {
+                urgency: (v === 'low' || v === 'normal' || v === 'critical') ? v : 'any',
+              }));
+            }}
+          >
+            <option value="any">any urgency</option>
+            <option value="low">low</option>
+            <option value="normal">normal</option>
+            <option value="critical">critical</option>
+          </Select>
+        </>
+      )}
+
+      {/* non-desktop content glob */}
+      {!isDesktop && (
+        <Input
+          aria-label="Content glob"
+          placeholder="content glob (*)"
+          value={rule.content_glob ?? ''}
+          onChange={e => onUpdate(buildRule(rule, { content_glob: e.target.value }))}
+          spellCheck={false}
+        />
+      )}
 
       {/* animation */}
       <Select
         aria-label="Animation"
         value={rule.animation}
-        onChange={e => handleAnimation(e.target.value)}
+        onChange={e => {
+          const v = e.target.value;
+          if (v === 'scroll' || v === 'image' || v === 'gif' || v === 'dmx' || v === 'none') {
+            onUpdate(buildRule(rule, { animation: v }));
+          }
+        }}
       >
         <option value="scroll">scroll</option>
+        <option value="image">image</option>
+        <option value="gif">gif</option>
         <option value="dmx">dmx</option>
         <option value="none">none</option>
       </Select>
 
-      {/* dmx_path — only shown when animation === 'dmx' */}
-      {rule.animation === 'dmx' && (
+      {/* asset path — for image/gif/dmx */}
+      {needsAsset && (
         <Input
-          aria-label="DMX path"
-          placeholder="path/to/file.dmx.json"
-          value={rule.dmx_path ?? ''}
-          onChange={e => handleDmxPath(e.target.value)}
+          aria-label="Asset path"
+          placeholder="filename.ext"
+          value={assetDisplay}
+          onChange={e => onUpdate(buildRule(rule, { asset_path: e.target.value }))}
           spellCheck={false}
         />
       )}
 
+      {/* composite — for non-none animations */}
+      {rule.animation !== 'none' && (
+        <Select
+          aria-label="Composite"
+          value={rule.composite ?? 'replace'}
+          onChange={e => {
+            const v = e.target.value;
+            onUpdate(buildRule(rule, { composite: v === 'overlay' ? 'overlay' : 'replace' }));
+          }}
+        >
+          <option value="replace">replace</option>
+          <option value="overlay">overlay</option>
+        </Select>
+      )}
+
+      {/* duration override */}
+      <Input
+        aria-label="Duration override ms"
+        placeholder="duration ms"
+        type="number"
+        min="100"
+        value={durationDisplay}
+        onChange={e => {
+          const n = parseInt(e.target.value, 10);
+          onUpdate(buildRule(rule, { duration_ms_override: isNaN(n) || n <= 0 ? undefined : n }));
+        }}
+        style={{ width: '7rem' }}
+        spellCheck={false}
+      />
+
       {/* delete */}
-      <Button variant="ghost" aria-label={`Delete rule for ${rule.app_name_glob}`} className="ml-auto shrink-0 px-1" onClick={onDelete}>×</Button>
+      <Button variant="ghost" aria-label={`Delete rule ${idx + 1}`} className="ml-auto shrink-0 px-1" onClick={onDelete}>×</Button>
     </div>
   );
 }
@@ -140,7 +206,7 @@ export function NotificationsTab({ value, onChange }: NotificationsTabProps) {
   const idsRef = useRef<string[]>(value.map(() => crypto.randomUUID()));
 
   function addRule() {
-    onChange([...value, { app_name_glob: '*', animation: 'scroll' }]);
+    onChange([...value, { animation: 'scroll' as const }]);
     idsRef.current = [...idsRef.current, crypto.randomUUID()];
   }
 
@@ -170,7 +236,7 @@ export function NotificationsTab({ value, onChange }: NotificationsTabProps) {
   return (
     <div className="flex flex-col p-2">
       <p className="font-mono text-xs text-white/55 mb-2">
-        first match wins — default when no rules match: scroll
+        first match wins — default when no rules match: scroll (replace)
       </p>
 
       <div className="flex flex-col">
@@ -193,18 +259,16 @@ export function NotificationsTab({ value, onChange }: NotificationsTabProps) {
       </Button>
 
       <div className="font-mono text-xs text-foreground/55 flex flex-col gap-1 border-t border-foreground/10 mt-4 pt-4">
-        <p className="text-foreground/60 mb-1">finding an app name</p>
+        <p className="text-foreground/60 mb-1">assets</p>
+        <p>place asset files in <span className="text-foreground/70">~/.config/dark-matrix/assets/</span></p>
+        <p className="mt-1">supported: <span className="text-foreground/70">.png .jpg .bmp</span> (image), <span className="text-foreground/70">.gif</span> (gif), <span className="text-foreground/70">.dmx.json</span> (dmx)</p>
+        <p className="mt-1">asset path is the filename only — e.g. <span className="text-foreground/70">alert.gif</span></p>
+
+        <p className="text-foreground/60 mt-3 mb-1">finding a desktop app name</p>
         <p>sniff the next real notification from any app:</p>
         <pre className="bg-foreground/5 px-2 py-1 rounded-sm mt-1 whitespace-pre-wrap">{'dbus-monitor --session "interface=\'org.freedesktop.Notifications\',member=\'Notify\'"'}</pre>
-        <p className="mt-1">the first string argument on each <span className="text-foreground/70">Notify</span> call is the app name.</p>
-        <p className="mt-2">or fire a synthetic one to test a specific name:</p>
+        <p className="mt-1">or fire a synthetic one to test a specific name:</p>
         <pre className="bg-foreground/5 px-2 py-1 rounded-sm mt-1">{'notify-send --app-name="Slack" "hello"'}</pre>
-
-        <p className="text-foreground/60 mt-3 mb-1">glob patterns</p>
-        <p><span className="text-foreground/70">*</span> matches any sequence — <span className="text-foreground/70">Slack*</span> matches Slack, SlackBot, etc.</p>
-        <p className="mt-1"><span className="text-foreground/70">?</span> matches exactly one character — <span className="text-foreground/70">app?</span> matches app1, appX, etc.</p>
-        <p className="mt-1">an exact string matches only that name — case-sensitive.</p>
-        <p className="mt-1"><span className="text-foreground/70">*</span> alone matches everything and acts as a catch-all.</p>
       </div>
 
       <TestNotification rules={value} />
@@ -236,7 +300,7 @@ function TestNotification({ rules }: { rules: NotificationRule[] }) {
   }
 
   const matchedRule = rules.find(r => {
-    const glob = r.app_name_glob;
+    const glob = r.app_name_glob ?? '*';
     const name = appName || '*';
     if (glob === '*') return true;
     if (glob === name) return true;
@@ -265,7 +329,7 @@ function TestNotification({ rules }: { rules: NotificationRule[] }) {
       </div>
       {appName && matchedRule && !result && (
         <span className="font-mono text-xs text-foreground/55">
-          matches rule: {matchedRule.app_name_glob} → {matchedRule.animation}
+          matches rule: {matchedRule.app_name_glob ?? matchedRule.content_glob ?? '*'} → {matchedRule.animation}
         </span>
       )}
     </div>
