@@ -37,6 +37,7 @@ const meta = {
     activeName: 'clock duo',
     selectedName: 'stats left',
     onSelect: fn(),
+    onActivate: fn(),
     onCreate: fn(),
     onInsert: fn(),
     onDelete: fn(),
