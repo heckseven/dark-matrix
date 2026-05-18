@@ -1,5 +1,5 @@
 import type { NotificationRule } from './config.js';
-import type { DesktopNotification } from './dbus-notifications.js';
+import type { DisplayIntent } from './dispatcher.js';
 
 export function matchesGlob(pattern: string, str: string): boolean {
   // Inline glob: * matches any sequence, ? matches one char.
@@ -34,22 +34,42 @@ export function matchesGlob(pattern: string, str: string): boolean {
 }
 
 export function routeNotification(
-  n: DesktopNotification,
+  intent: DisplayIntent,
   rules: NotificationRule[],
-): { action: 'scroll' | 'dmx' | 'none'; dmx_path?: string } {
+): { action: 'scroll' | 'image' | 'gif' | 'dmx' | 'none'; assetPath?: string; composite: 'replace' | 'overlay'; durationMs?: number } {
   // TODO: populate urgency from dbus hints in dbus-notifications.ts (parseDbusMonitorLine
   // skips the hints array). Until then urgency-filtered rules never fire.
   const urgency = undefined as 'low' | 'normal' | 'critical' | undefined;
 
   for (const rule of rules) {
-    if (!matchesGlob(rule.app_name_glob, n.appName)) continue;
-    if (rule.urgency && rule.urgency !== 'any' && rule.urgency !== urgency) continue;
+    // Filter by source if specified
+    if (rule.source !== undefined && rule.source !== intent.source) continue;
 
-    if (rule.animation === 'dmx' && rule.dmx_path) {
-      return { action: 'dmx', dmx_path: rule.dmx_path };
+    // app_name_glob only applies to desktop-notification intents.
+    // For desktop-notification, we match against intent.content (which is n.summary || n.appName).
+    if (rule.app_name_glob !== undefined) {
+      if (intent.source !== 'desktop-notification') continue;
+      if (!matchesGlob(rule.app_name_glob, intent.content)) continue;
     }
-    return { action: rule.animation };
+
+    // urgency only applies to desktop-notification intents
+    if (rule.urgency !== undefined) {
+      if (intent.source !== 'desktop-notification') continue;
+      if (rule.urgency !== 'any' && rule.urgency !== urgency) continue;
+    }
+
+    // content_glob matched against intent.content
+    if (rule.content_glob !== undefined && !matchesGlob(rule.content_glob, intent.content)) continue;
+
+    // All applicable checks passed — first match wins
+    const result: { action: 'scroll' | 'image' | 'gif' | 'dmx' | 'none'; assetPath?: string; composite: 'replace' | 'overlay'; durationMs?: number } = {
+      action: rule.animation,
+      composite: rule.composite ?? 'replace',
+    };
+    if (rule.asset_path !== undefined) result.assetPath = rule.asset_path;
+    if (rule.duration_ms_override !== undefined) result.durationMs = rule.duration_ms_override;
+    return result;
   }
 
-  return { action: 'scroll' };
+  return { action: 'scroll', composite: 'replace' };
 }
