@@ -755,14 +755,15 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   }, { intervalMs: 2000 }));
 
   disposeWatches.push(watchDesktopNotifications((n) => {
-    const route = routeNotification(n, currentConfig.notification_rules ?? []);
+    const intent = notificationIntent(n);
+    const route = routeNotification(intent, currentConfig.notification_rules ?? []);
     if (route.action === 'none') return;
-    if (route.action === 'dmx' && route.dmx_path) {
+    if (route.action === 'dmx' && route.assetPath) {
       // TODO: load and dispatch dmx animation for notification
-      startDmxAnimation(route.dmx_path, false);
+      startDmxAnimation(route.assetPath, false);
       return;
     }
-    dispatcher.push(notificationIntent(n));
+    dispatcher.push(intent);
   }));
 
   let micAnimActive = false;
@@ -1100,12 +1101,13 @@ export async function startDaemon(): Promise<() => Promise<void>> {
             case 'notify-test': {
               const m = msg as { cmd: string; appName?: string; summary?: string; body?: string };
               const n = { appName: m.appName ?? 'test', summary: m.summary ?? 'test notification', body: m.body ?? '' };
-              const route = routeNotification(n, currentConfig.notification_rules ?? []);
+              const intent = notificationIntent(n);
+              const route = routeNotification(intent, currentConfig.notification_rules ?? []);
               if (route.action !== 'none') {
-                if (route.action === 'dmx' && route.dmx_path) {
-                  startDmxAnimation(route.dmx_path, false);
+                if (route.action === 'dmx' && route.assetPath) {
+                  startDmxAnimation(route.assetPath, false);
                 } else {
-                  dispatcher.push(notificationIntent(n));
+                  dispatcher.push(intent);
                 }
               }
               socket.write(JSON.stringify({ ok: true, action: route.action }) + '\n');
