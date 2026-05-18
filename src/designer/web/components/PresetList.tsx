@@ -486,7 +486,7 @@ export function PresetList({
 
   return (
     <div
-      className="flex flex-col overflow-y-auto flex-1 min-h-0 pr-2"
+      className="flex flex-col overflow-y-auto flex-1 min-h-0 pr-2 [scrollbar-gutter:stable]"
       onDragLeave={e => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropTarget(null);
       }}
