@@ -493,7 +493,7 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, getP
                     <DialogDescription>
                       This image is used in {presetCount} preset{presetCount !== 1 ? 's' : ''}.
                     </DialogDescription>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 justify-end">
                       <DialogClose asChild>
                         <Button variant="ghost" className="font-mono text-xs" aria-label={`Cancel delete ${label}`} autoFocus>cancel</Button>
                       </DialogClose>
