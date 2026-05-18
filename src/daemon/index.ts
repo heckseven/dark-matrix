@@ -1387,22 +1387,34 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               break;
             }
             case 'notify-test': {
-              const m = msg as { cmd: string; appName?: string; summary?: string; body?: string };
+              const m = msg as {
+                cmd: string;
+                appName?: string;
+                summary?: string;
+                body?: string;
+                style?: 'text' | 'image' | 'gif' | 'dmx';
+                assetPath?: string;
+                composite?: 'replace' | 'overlay';
+                durationMsOverride?: number;
+              };
               const n = { appName: m.appName ?? 'test', summary: m.summary ?? 'test notification', body: m.body ?? '' };
               const base = notificationIntent(n);
               const route = routeNotification(base, currentConfig.notification_rules ?? []);
-              if (route.action !== 'none') {
+              const effectiveAction = m.style === 'text' ? 'scroll' : (m.style ?? route.action);
+              if (effectiveAction !== 'none') {
                 const intent: DisplayIntent = { ...base };
-                intent.style = route.action === 'scroll' ? 'text' : route.action;
-                intent.composite = route.composite;
-                if (route.assetPath !== undefined) intent.assetPath = route.assetPath;
-                if (route.durationMs !== undefined) {
-                  intent.durationMs = route.durationMs;
-                  intent.expiresAt = Date.now() + route.durationMs;
+                intent.style = effectiveAction === 'scroll' ? 'text' : effectiveAction;
+                intent.composite = m.composite ?? route.composite;
+                const assetPath = m.assetPath ?? route.assetPath;
+                if (assetPath !== undefined) intent.assetPath = assetPath;
+                const durMs = m.durationMsOverride ?? route.durationMs;
+                if (durMs !== undefined) {
+                  intent.durationMs = durMs;
+                  intent.expiresAt = Date.now() + durMs;
                 }
                 dispatcher.push(intent);
               }
-              socket.write(JSON.stringify({ ok: true, action: route.action }) + '\n');
+              socket.write(JSON.stringify({ ok: true, action: effectiveAction }) + '\n');
               break;
             }
             default:
