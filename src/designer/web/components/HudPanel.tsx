@@ -77,6 +77,10 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
   const previewHasAudio = selectedPreset?.left?.widget === 'audio' || selectedPreset?.right?.widget === 'audio';
   const needsAudio = previewHasAudio || inspectorNeedsAudio;
 
+  const mainRef    = useRef<HTMLElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [presetTopPad, setPresetTopPad] = useState(0);
+
   const wsRef = useRef<WebSocket | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const needsAudioRef = useRef(needsAudio);
@@ -199,6 +203,23 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
     onNeedsAudioChange?.(needsAudio);
   }, [needsAudio, onNeedsAudioChange]);
 
+  // Keep preset list top edge aligned with the preview top edge.
+  // The preview is flexbox-centered inside <main>; the gap above it changes with window height.
+  useEffect(() => {
+    const update = () => {
+      const main    = mainRef.current;
+      const preview = previewRef.current;
+      if (!main || !preview) return;
+      const mainRect    = main.getBoundingClientRect();
+      const previewRect = preview.getBoundingClientRect();
+      setPresetTopPad(Math.max(0, previewRect.top - mainRect.top - topPad));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    if (mainRef.current) ro.observe(mainRef.current);
+    return () => ro.disconnect();
+  }, [topPad]);
+
   useEffect(() => {
     onClocksVisibleChange?.(inspectorClocksVisible);
   }, [inspectorClocksVisible, onClocksVisibleChange]);
@@ -209,7 +230,7 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)', gap: '1rem', height: '100%', width: '100%' }}>
       {/* Left: preset list */}
       <aside aria-label="Preset list" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', paddingTop: topPad }}>
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', maxWidth: 192, marginLeft: 'auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', maxWidth: 192, marginLeft: 'auto', paddingTop: presetTopPad }}>
         <PresetList
           presets={hudPresets}
           activeName={activePresetName}
@@ -256,8 +277,8 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
       </aside>
 
       {/* Center: dual preview + trigger editor */}
-      <main style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <main ref={mainRef} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+        <div ref={previewRef} style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <HudDualPreview
             leftWidget={selectedPreset?.left ?? null}
             rightWidget={selectedPreset?.right ?? null}
