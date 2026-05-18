@@ -149,7 +149,7 @@ function GapZone({ afterIdx, showDrop, setDropTarget, presetCount, onInsert, onM
 }) {
   return (
     <div
-      className={`-my-10 h-10 flex items-center gap-1 px-1 transition-opacity ${showDrop ? '' : 'opacity-0 hover:opacity-100 focus-within:opacity-100'}`}
+      className={`h-10 flex items-center gap-1 px-1 transition-opacity ${showDrop ? '' : 'opacity-0 hover:opacity-100 focus-within:opacity-100'}`}
       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropTarget(afterIdx + 1); }}
       onDrop={e => {
         e.preventDefault();
@@ -516,7 +516,7 @@ export function PresetList({
                 />
               </li>
               {idx < presets.length - 1 && (
-                <li>
+                <li className="-my-5">
                   <GapZone
                     afterIdx={idx}
                     showDrop={dropTarget === idx + 1}
