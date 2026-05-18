@@ -139,12 +139,13 @@ function CornerBrackets({ active }: { active: boolean }) {
 
 // ── gap zone (drag drop target between cards) ─────────────────────────────
 
-function GapZone({ afterIdx, showDrop, setDropTarget, presetCount, onInsert }: {
+function GapZone({ afterIdx, showDrop, setDropTarget, presetCount, onInsert, onMove }: {
   afterIdx: number;
   showDrop: boolean;
   setDropTarget: (v: number | null) => void;
   presetCount: number;
   onInsert: () => void;
+  onMove: (from: number, to: number) => void;
 }) {
   return (
     <div
@@ -159,7 +160,7 @@ function GapZone({ afterIdx, showDrop, setDropTarget, presetCount, onInsert }: {
         if (!Number.isInteger(from) || from < 0 || from >= presetCount) return;
         const target = afterIdx + 1;
         const to = from < target ? target - 1 : target;
-        if (to !== from) setDropTarget(null);
+        if (to !== from) onMove(from, to);
       }}
     >
       {showDrop ? (
@@ -239,6 +240,8 @@ function PresetCard({
 
   return (
     <div
+      role="option"
+      aria-selected={highlighted}
       aria-label={isActive ? `${preset.name} (active)` : preset.name}
       tabIndex={0}
       className="group relative flex flex-row gap-3 p-1 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -466,7 +469,7 @@ export function PresetList({
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropTarget(null);
       }}
     >
-      <ul className="flex flex-col gap-10 pb-2 pt-2" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+      <ul role="listbox" aria-label="Presets" className="flex flex-col gap-10 pb-2 pt-2" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
         {presets.length === 0 && (
           <li className="font-mono text-xs text-foreground/55 px-2 py-4">no presets</li>
         )}
@@ -509,6 +512,7 @@ export function PresetList({
                     setDropTarget={setDropTarget}
                     presetCount={presets.length}
                     onInsert={() => onInsert(idx)}
+                    onMove={onMove}
                   />
                 </li>
               )}
