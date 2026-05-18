@@ -372,7 +372,7 @@ function PresetCard({
         />
       ) : (
         <span
-          className="font-mono text-xs text-foreground/60 pl-1 block truncate"
+          className="font-mono text-xs text-foreground pl-1 block truncate"
           onDoubleClick={e => { e.stopPropagation(); setDraft(preset.name); setEditing(true); }}
         >
           {preset.name}
