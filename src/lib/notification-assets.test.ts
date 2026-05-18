@@ -7,18 +7,18 @@ import { convertImage } from './image-convert.js';
 const SANDBOX = path.join(os.homedir(), '.config', 'dark-matrix', 'assets');
 const MOCK_FRAME = new Uint8Array(306);
 
-vi.mock('node:fs/promises', () => ({ access: vi.fn() }));
+vi.mock('node:fs/promises', () => ({ stat: vi.fn() }));
 vi.mock('./image-convert.js', () => ({ convertImage: vi.fn() }));
 
 import { loadNotificationAsset } from './notification-assets.js';
 
 function mockFileExists() {
-  vi.mocked(fs.access).mockResolvedValue(undefined);
+  vi.mocked(fs.stat).mockResolvedValue({ isFile: () => true } as never);
   vi.mocked(convertImage).mockResolvedValue(MOCK_FRAME as never);
 }
 
 function mockFileMissing() {
-  vi.mocked(fs.access).mockRejectedValue(new Error('ENOENT'));
+  vi.mocked(fs.stat).mockRejectedValue(new Error('ENOENT'));
 }
 
 describe('loadNotificationAsset — sandbox enforcement', () => {

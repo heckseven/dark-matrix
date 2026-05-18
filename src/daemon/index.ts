@@ -43,6 +43,7 @@ import type { NotifyOverlay } from '../lib/compositor.js';
 import { loadNotificationAsset } from '../lib/notification-assets.js';
 
 const SCROLL_MAX_LEN = 120;
+const MAX_NOTIFY_DURATION_MS = 30_000;
 
 let activeOverlay: NotifyOverlay | null = null;
 export function setActiveOverlay(o: NotifyOverlay | null): void { activeOverlay = o; }
@@ -859,10 +860,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     }
     if (stopped) { gifAnim.stop(); return; }
 
+    const resolvedAnim = gifAnim;
     if (composite === 'replace') {
-      stopCurrentAnim = () => { stopped = true; (gifAnim as GifAnimation).stop(); };
+      stopCurrentAnim = () => { stopped = true; resolvedAnim.stop(); };
     } else {
-      stopCurrentOverlay = () => { stopped = true; (gifAnim as GifAnimation).stop(); setActiveOverlay(null); };
+      stopCurrentOverlay = () => { stopped = true; resolvedAnim.stop(); setActiveOverlay(null); };
     }
 
     const iter = gifAnim[Symbol.asyncIterator]();
@@ -928,6 +930,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     const { left: leftDev, right: rightDev } = currentConfig.modules;
     const { frames: dmxFrames, mode: dmxMode, width: dmxWidth, height: dmxHeight } = project;
     const dual = dmxWidth === 18;
+
+    if (dmxFrames.length === 0) { startTextNotification(intent, composite); return; }
+
     const deadline = Date.now() + intent.durationMs;
     let stopped = false;
 
@@ -1407,7 +1412,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 intent.composite = m.composite ?? route.composite;
                 const assetPath = m.assetPath ?? route.assetPath;
                 if (assetPath !== undefined) intent.assetPath = assetPath;
-                const durMs = m.durationMsOverride ?? route.durationMs;
+                const rawDur = m.durationMsOverride;
+                const overrideDur = typeof rawDur === 'number' && Number.isFinite(rawDur) && rawDur > 0
+                  ? Math.min(rawDur, MAX_NOTIFY_DURATION_MS) : undefined;
+                const durMs = overrideDur ?? route.durationMs;
                 if (durMs !== undefined) {
                   intent.durationMs = durMs;
                   intent.expiresAt = Date.now() + durMs;

@@ -19,7 +19,8 @@ export async function loadNotificationAsset(assetPath: string): Promise<Notifica
   }
 
   try {
-    await fs.access(resolved);
+    const stat = await fs.stat(resolved);
+    if (!stat.isFile()) throw new Error('not a file');
   } catch {
     throw new Error(`asset not found: ${assetPath}`);
   }

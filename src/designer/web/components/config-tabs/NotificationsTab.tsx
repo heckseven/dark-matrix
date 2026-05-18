@@ -76,8 +76,8 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown }:
     <div role="group" aria-label={`Rule ${idx + 1}`} className="flex items-center gap-2 flex-wrap py-1.5 border-b border-foreground/10 last:border-b-0">
       {/* reorder */}
       <div className="flex flex-col shrink-0">
-        <Button variant="ghost" aria-label="Move rule up" disabled={idx === 0} className="px-1 py-0 leading-none" onClick={onMoveUp}>↑</Button>
-        <Button variant="ghost" aria-label="Move rule down" disabled={idx === total - 1} className="px-1 py-0 leading-none" onClick={onMoveDown}>↓</Button>
+        <Button variant="ghost" aria-label={`Move rule ${idx + 1} up`} disabled={idx === 0} className="px-1 py-0 leading-none" onClick={onMoveUp}>↑</Button>
+        <Button variant="ghost" aria-label={`Move rule ${idx + 1} down`} disabled={idx === total - 1} className="px-1 py-0 leading-none" onClick={onMoveDown}>↓</Button>
       </div>
 
       {/* source */}
@@ -318,20 +318,22 @@ function TestNotification({ rules }: { rules: NotificationRule[] }) {
           onChange={e => { setAppName(e.target.value); setResult(null); }}
           spellCheck={false}
         />
-        <Button variant="ghost" disabled={firing} onClick={() => void fire()}>
+        <Button aria-label="Fire test notification" variant="ghost" disabled={firing} onClick={() => void fire()}>
           {firing ? 'firing…' : 'fire'}
         </Button>
-        {result && (
-          'error' in result
-            ? <span className="font-mono text-xs text-red-400">{result.error}</span>
-            : <span className="font-mono text-xs text-foreground/60">→ {result.action}{result.action === 'none' ? ' (suppressed)' : ''}</span>
-        )}
-      </div>
-      {appName && matchedRule && !result && (
-        <span className="font-mono text-xs text-foreground/55">
-          matches rule: {matchedRule.app_name_glob ?? matchedRule.content_glob ?? '*'} → {matchedRule.animation}
+        <span aria-live="polite" className="font-mono text-xs">
+          {result && (
+            'error' in result
+              ? <span className="text-red-400">{result.error}</span>
+              : <span className="text-foreground/60">→ {result.action}{result.action === 'none' ? ' (suppressed)' : ''}</span>
+          )}
         </span>
-      )}
+      </div>
+      <span aria-live="polite" className="font-mono text-xs text-foreground/55">
+        {appName && matchedRule && !result && (
+          <>matches rule: {matchedRule.app_name_glob ?? matchedRule.content_glob ?? '*'} → {matchedRule.animation}</>
+        )}
+      </span>
     </div>
   );
 }

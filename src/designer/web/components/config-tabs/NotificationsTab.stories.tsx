@@ -4,7 +4,7 @@ import { NotificationsTab } from './NotificationsTab.js';
 import type { NotificationRule } from './NotificationsTab.js';
 
 const meta = {
-  title: 'App/Config/Notifications',
+  title: 'App/Notifications',
   component: NotificationsTab,
   parameters: {
     layout: 'padded',
