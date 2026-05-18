@@ -13,7 +13,7 @@ const meta = {
         component: [
           'Three-layer panel inspector for a single HUD module slot.',
           '',
-          '- **Layer 1 — categories**: text menu (clocks, data, ai, audio; image/animation dimmed as coming soon).',
+          '- **Layer 1 — categories**: text menu (audio, time, data, image, ai).',
           '- **Layer 2 — grid**: all options in the category, all animated continuously. Audio category has a monitor/mic toggle and connects to real FFT data (falls back to mock in Storybook).',
           '- **Layer 3 — settings**: data (line/fill) quadrant selectors. Back returns to Layer 2.',
           '',
@@ -34,7 +34,7 @@ type Story = StoryObj<typeof meta>;
 /** No widget assigned — shows category list. */
 export const NullState: Story = {};
 
-/** Category list with a clock assigned — 'clocks' row has active indicator. */
+/** Category list with a clock assigned — 'time' row has active indicator. */
 export const CategoriesWithClock: Story = {
   args: {
     widget: { widget: 'clock', face: 'elegant' } satisfies HudWidget,
@@ -42,7 +42,7 @@ export const CategoriesWithClock: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole('button', { name: 'Back to categories' }));
-    expect(canvas.getByRole('button', { name: 'clocks' })).toBeVisible();
+    expect(canvas.getByRole('button', { name: 'time' })).toBeVisible();
   },
 };
 

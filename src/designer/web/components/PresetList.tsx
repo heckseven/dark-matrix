@@ -242,8 +242,6 @@ function PresetCard({
 
   return (
     <div
-      role="option"
-      aria-selected={highlighted}
       aria-label={isActive ? `${preset.name} (default)` : preset.name}
       tabIndex={0}
       className="group relative flex flex-col gap-1 p-2 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -493,7 +491,7 @@ export function PresetList({
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropTarget(null);
       }}
     >
-      <ul role="listbox" aria-label="Presets" className="flex flex-col gap-2 pb-2 pt-2" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+      <ul aria-label="Presets" className="flex flex-col gap-2 pb-2 pt-2" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
         {presets.length === 0 && (
           <li className="font-mono text-xs text-foreground/55 px-2 py-4">no presets</li>
         )}
@@ -508,7 +506,7 @@ export function PresetList({
           const pixels  = combinePixels(leftPx, rightPx);
           return (
             <Fragment key={preset.name}>
-              <li>
+              <li {...(selectedName === preset.name ? { 'aria-current': 'true' as const } : {})}>
                 <PresetCard
                   preset={preset}
                   idx={idx}
