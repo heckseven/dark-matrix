@@ -213,9 +213,9 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
       if (!main || !preview) return;
       const mainRect    = main.getBoundingClientRect();
       const previewRect = preview.getBoundingClientRect();
-      // +4 compensates for the card's p-1 (4px) vs the preview's p-2 (8px) padding,
-      // aligning the first preset's bracket top with the preview's bracket top.
-      setPresetTopPad(Math.max(0, previewRect.top - mainRect.top - topPad + 4));
+      // +8 aligns the card's outer bracket edge with the preview's canvas bracket
+      // (preview canvas is inset p-2 = 8px inside its wrapper).
+      setPresetTopPad(Math.max(0, previewRect.top - mainRect.top - topPad + 8));
       // Inspector bracket offset: header bar (py-1 div=8px + sm button=20px → 28px)
       // + grid content py-4 (16px) = 44px above the first tile bracket.
       // Subtract 44 then add back preview's p-2 (8px) → net -36.

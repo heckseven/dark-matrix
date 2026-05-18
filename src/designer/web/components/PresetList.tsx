@@ -248,7 +248,7 @@ function PresetCard({
       aria-selected={highlighted}
       aria-label={isActive ? `${preset.name} (default)` : preset.name}
       tabIndex={0}
-      className="group relative flex flex-col gap-1 p-1 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      className="group relative flex flex-col gap-1 p-2 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       onClick={onSelect}
       onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); }
