@@ -55,7 +55,7 @@ function bayerToB64(frame: Uint8Array): string {
 // ── helpers ───────────────────────────────────────────────────────────────
 
 function categoryOfWidget(w: HudWidget): string {
-  if (w.widget === 'clock')   return 'clocks';
+  if (w.widget === 'clock')   return 'time';
   if (w.widget === 'heatmap') return 'ai';
   if (w.widget === 'audio')   return 'audio';
   if (w.widget === 'image')   return 'image';
@@ -105,12 +105,11 @@ function WidgetTile({ label, pixels, active, onClick }: {
 // ── Layer 1: Category list ────────────────────────────────────────────────
 
 const CATEGORIES = [
-  { id: 'clocks',    label: 'clocks',    disabled: false },
-  { id: 'data',      label: 'data',      disabled: false },
-  { id: 'ai',        label: 'ai',        disabled: false },
-  { id: 'audio',     label: 'audio',     disabled: false },
-  { id: 'image',     label: 'image',     disabled: false },
-  { id: 'animation', label: 'animation', disabled: true  },
+  { id: 'audio', label: 'audio' },
+  { id: 'time',  label: 'time'  },
+  { id: 'data',  label: 'data'  },
+  { id: 'image', label: 'image' },
+  { id: 'ai',    label: 'ai'    },
 ] as const;
 
 function CategoryList({ currentWidget, onSelect }: {
@@ -124,11 +123,9 @@ function CategoryList({ currentWidget, onSelect }: {
         <button
           key={cat.id}
           type="button"
-          disabled={cat.disabled}
-          aria-disabled={cat.disabled}
-          aria-label={cat.disabled ? `${cat.label} — coming soon` : cat.label}
-          className={`flex items-center justify-between px-2 py-2 rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px] ${cat.disabled ? 'opacity-25 cursor-not-allowed' : 'hover:bg-foreground/5'}`}
-          onClick={cat.disabled ? undefined : () => onSelect(cat.id)}
+          aria-label={cat.label}
+          className="flex items-center justify-between px-2 py-2 rounded-sm text-left hover:bg-foreground/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
+          onClick={() => onSelect(cat.id)}
         >
           <span className={`font-mono text-sm ${activeCategory === cat.id ? 'text-foreground' : 'text-foreground/60'}`}>
             {activeCategory === cat.id && (
@@ -136,10 +133,7 @@ function CategoryList({ currentWidget, onSelect }: {
             )}
             {cat.label}
           </span>
-          {cat.disabled
-            ? <span className="font-mono text-xs text-foreground/25">soon</span>
-            : <span aria-hidden="true" className="font-mono text-xs text-foreground/30">›</span>
-          }
+          <span aria-hidden="true" className="font-mono text-xs text-foreground/30">›</span>
         </button>
       ))}
     </div>
@@ -655,7 +649,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
   const handleAudioUnmount = useCallback(() => onNeedsAudio?.(false), [onNeedsAudio]);
 
   useEffect(() => {
-    onClocksVisible?.(view === 'grid' && activeCategory === 'clocks');
+    onClocksVisible?.(view === 'grid' && activeCategory === 'time');
   }, [view, activeCategory, onClocksVisible]);
 
   const viewRef = useRef(view);
@@ -748,7 +742,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
         ) : (
           <div className="flex-1 overflow-y-auto">
             <div className="py-4 px-2">
-              {activeCategory === 'clocks' && <ClockGrid currentWidget={widget} onPick={handlePick} />}
+              {activeCategory === 'time'   && <ClockGrid currentWidget={widget} onPick={handlePick} />}
               {activeCategory === 'data'   && <DataGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} />}
               {activeCategory === 'ai'     && <AiGrid    currentWidget={widget} onPick={handlePick} />}
               {activeCategory === 'audio'  && <AudioGrid currentWidget={widget} audioCtx={audioCtx} side={side} onPick={handlePick} onMount={handleAudioMount} onUnmount={handleAudioUnmount} />}
