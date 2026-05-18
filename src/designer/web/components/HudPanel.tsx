@@ -212,7 +212,9 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
       if (!main || !preview) return;
       const mainRect    = main.getBoundingClientRect();
       const previewRect = preview.getBoundingClientRect();
-      setPresetTopPad(Math.max(0, previewRect.top - mainRect.top - topPad));
+      // +4 compensates for the card's p-1 (4px) vs the preview's p-2 (8px) padding,
+      // aligning the first preset's bracket top with the preview's bracket top.
+      setPresetTopPad(Math.max(0, previewRect.top - mainRect.top - topPad + 4));
     };
     update();
     const ro = new ResizeObserver(update);

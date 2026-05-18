@@ -125,7 +125,7 @@ function combinePixels(left: string, right: string): string {
 // ── corner brackets ───────────────────────────────────────────────────────
 
 function CornerBrackets({ active }: { active: boolean }) {
-  const c = { position: 'absolute' as const, width: 10, height: 10, pointerEvents: 'none' as const };
+  const c = { position: 'absolute' as const, width: 16, height: 16, pointerEvents: 'none' as const };
   const b = `1px solid ${active ? 'white' : 'rgba(255,255,255,0.35)'}`;
   return (
     <div aria-hidden="true" className={`absolute inset-0 pointer-events-none transition-opacity ${active ? '' : 'opacity-0 group-hover:opacity-100'}`}>
@@ -264,8 +264,6 @@ function PresetCard({
         if (to !== from) onDrop(from, to);
       }}
     >
-      <CornerBrackets active={highlighted} />
-
       {/* Draggable thumbnail */}
       <div
         draggable
@@ -273,8 +271,9 @@ function PresetCard({
         tabIndex={-1}
         onDragStart={e => { setDragging(true); e.dataTransfer.setData('text/plain', String(idx)); e.dataTransfer.effectAllowed = 'move'; }}
         onDragEnd={() => { setDragging(false); setDropTarget(null); }}
-        style={{ cursor: dragging ? 'grabbing' : 'grab' }}
+        style={{ cursor: dragging ? 'grabbing' : 'grab', position: 'relative' }}
       >
+        <CornerBrackets active={highlighted} />
         <MatrixPreview pixels={pixels} width={18} />
       </div>
 
