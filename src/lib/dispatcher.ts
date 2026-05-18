@@ -12,6 +12,15 @@ export type DisplayIntent = {
   content: string;
   durationMs: number;
   expiresAt: number;
+  style?: 'text' | 'image' | 'gif' | 'dmx';
+  assetPath?: string;
+  composite?: 'replace' | 'overlay';
+};
+
+export type NotificationDisplayOptions = {
+  style?: 'text' | 'image' | 'gif' | 'dmx';
+  assetPath?: string;
+  composite?: 'replace' | 'overlay';
 };
 
 export const PRIORITY = {
@@ -67,10 +76,10 @@ export function claudeIntent(e: ClaudeActivityEvent): DisplayIntent | null {
   };
 }
 
-export function notificationIntent(n: DesktopNotification): DisplayIntent {
+export function notificationIntent(n: DesktopNotification, opts?: NotificationDisplayOptions): DisplayIntent {
   const content = n.summary || n.appName || 'notification';
   const durationMs = Math.max(5000, content.length * 120 + 2000);
-  return {
+  const base: DisplayIntent = {
     id: nextId(),
     source: 'desktop-notification',
     priority: PRIORITY.NORMAL,
@@ -78,6 +87,10 @@ export function notificationIntent(n: DesktopNotification): DisplayIntent {
     durationMs,
     expiresAt: Date.now() + durationMs,
   };
+  if (opts?.style !== undefined) base.style = opts.style;
+  if (opts?.assetPath !== undefined) base.assetPath = opts.assetPath;
+  if (opts?.composite !== undefined) base.composite = opts.composite;
+  return base;
 }
 
 export class Dispatcher {

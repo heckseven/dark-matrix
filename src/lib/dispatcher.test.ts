@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   Dispatcher, PRIORITY,
   ecSwitchIntent, vmIntent, claudeIntent, notificationIntent,
-  type DisplayIntent,
+  type DisplayIntent, type NotificationDisplayOptions,
 } from './dispatcher.js';
 
 function intent(overrides: Partial<DisplayIntent> = {}): DisplayIntent {
@@ -123,5 +123,31 @@ describe('intent factories', () => {
       raw: { tool_name: 'Agent', tool_input: {}, tool_response: {}, session_id: 'abc' },
     });
     expect(i).toBeNull();
+  });
+
+  it('notificationIntent: style fields present when opts provided', () => {
+    const opts: NotificationDisplayOptions = { style: 'image', assetPath: '/tmp/a.png', composite: 'overlay' };
+    const i = notificationIntent({ appName: 'app', summary: 'msg', body: '' }, opts);
+    expect(i.style).toBe('image');
+    expect(i.assetPath).toBe('/tmp/a.png');
+    expect(i.composite).toBe('overlay');
+  });
+
+  it('notificationIntent: style fields absent when opts not provided', () => {
+    const i = notificationIntent({ appName: 'app', summary: 'msg', body: '' });
+    expect('style' in i).toBe(false);
+    expect('assetPath' in i).toBe(false);
+    expect('composite' in i).toBe(false);
+  });
+
+  it('notificationIntent: round-trip through Dispatcher preserves style fields', () => {
+    const d = new Dispatcher();
+    const opts: NotificationDisplayOptions = { style: 'gif', composite: 'replace' };
+    const i = notificationIntent({ appName: 'app', summary: 'round-trip', body: '' }, opts);
+    d.push(i);
+    const curr = d.current();
+    expect(curr?.style).toBe('gif');
+    expect(curr?.composite).toBe('replace');
+    expect('assetPath' in (curr ?? {})).toBe(false);
   });
 });
