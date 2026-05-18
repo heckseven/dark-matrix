@@ -38,8 +38,13 @@ import type { GifAnimation } from '../animations/gif.js';
 import type { DisplayIntent } from '../lib/dispatcher.js';
 import { packBW, FRAME_SIZE, FRAME_COLS, FRAME_ROWS } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
+import { composeFrames } from '../lib/compositor.js';
+import type { NotifyOverlay } from '../lib/compositor.js';
 
 const SCROLL_MAX_LEN = 120;
+
+let activeOverlay: NotifyOverlay | null = null;
+export function setActiveOverlay(o: NotifyOverlay | null): void { activeOverlay = o; }
 
 export function socketPath(): string {
   return process.env['DARK_MATRIX_SOCKET']
@@ -171,8 +176,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         if (stopped) break;
         if (result.done) { natural = true; break; }
         const [leftFrame, rightFrame] = result.value;
-        try { if (left) await transport.frameBw(packBW(leftFrame), left); } catch { /* non-fatal */ }
-        try { if (right) await transport.frameBw(packBW(rightFrame), right); } catch { /* non-fatal */ }
+        const [cl, cr] = composeFrames([leftFrame, rightFrame], activeOverlay);
+        try { if (left) await transport.frameBw(packBW(cl), left); } catch { /* non-fatal */ }
+        try { if (right) await transport.frameBw(packBW(cr), right); } catch { /* non-fatal */ }
         nextAt += frameMs;
         const wait = nextAt - Date.now();
         if (wait > 0) await new Promise<void>(r => setTimeout(r, wait));
@@ -202,8 +208,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       while (!stopped) {
         tickHeatmap(heatmapState);
         const [leftFrame, rightFrame] = renderHeatmap(heatmapState);
-        try { if (left) await transport.frameBw(packBW(leftFrame), left); } catch { /* non-fatal */ }
-        try { if (right) await transport.frameBw(packBW(rightFrame), right); } catch { /* non-fatal */ }
+        const [hcl, hcr] = composeFrames([leftFrame, rightFrame] as [Frame, Frame], activeOverlay);
+        try { if (left) await transport.frameBw(packBW(hcl), left); } catch { /* non-fatal */ }
+        try { if (right) await transport.frameBw(packBW(hcr), right); } catch { /* non-fatal */ }
         nextAt += frameMs;
         const wait = nextAt - Date.now();
         if (wait > 0) await new Promise<void>(r => setTimeout(r, wait));
@@ -270,8 +277,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
             rightFrame[col * FRAME_ROWS + row] = leftFrame[(FRAME_COLS - 1 - col) * FRAME_ROWS + row] ?? 0;
           }
         }
-        try { if (left) await transport.frameBw(packBW(leftFrame), left); } catch { /* non-fatal */ }
-        try { if (right) await transport.frameBw(packBW(rightFrame), right); } catch { /* non-fatal */ }
+        const [acl, acr] = composeFrames([leftFrame, rightFrame], activeOverlay);
+        try { if (left) await transport.frameBw(packBW(acl), left); } catch { /* non-fatal */ }
+        try { if (right) await transport.frameBw(packBW(acr), right); } catch { /* non-fatal */ }
       }
     };
 
@@ -481,8 +489,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         const rf = rightRenderer.render(now, audioCtx);
         ditherBW(rf, FRAME_COLS, FRAME_ROWS);
 
-        try { if (left)  await transport.frameBw(packBW(lf), left);  } catch { /* non-fatal */ }
-        try { if (right) await transport.frameBw(packBW(rf), right); } catch { /* non-fatal */ }
+        const [hcl2, hcr2] = composeFrames([lf, rf], activeOverlay);
+        try { if (left)  await transport.frameBw(packBW(hcl2), left);  } catch { /* non-fatal */ }
+        try { if (right) await transport.frameBw(packBW(hcr2), right); } catch { /* non-fatal */ }
         await new Promise<void>(r => setTimeout(r, 100));
       }
     };
@@ -571,12 +580,14 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               rightFrame[col * FRAME_ROWS + row] = wide[(col + FRAME_COLS) * FRAME_ROWS + row] ?? 0;
             }
           }
-          try { if (left) await sendFrame(leftFrame, left); } catch { /* non-fatal */ }
-          try { if (right) await sendFrame(rightFrame, right); } catch { /* non-fatal */ }
+          const [gcl, gcr] = composeFrames([leftFrame, rightFrame], activeOverlay);
+          try { if (left) await sendFrame(gcl, left); } catch { /* non-fatal */ }
+          try { if (right) await sendFrame(gcr, right); } catch { /* non-fatal */ }
         } else {
           const frame = result.value;
-          try { if (left) await sendFrame(frame, left); } catch { /* non-fatal */ }
-          try { if (right) await sendFrame(frame, right); } catch { /* non-fatal */ }
+          const [gcl2, gcr2] = composeFrames([frame, frame], activeOverlay);
+          try { if (left) await sendFrame(gcl2, left); } catch { /* non-fatal */ }
+          try { if (right) await sendFrame(gcr2, right); } catch { /* non-fatal */ }
         }
 
         const delay = anim.delays[frameIdx % anim.delays.length] ?? 100;
@@ -629,22 +640,23 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 rightBuf[col * FRAME_ROWS + row] = pixels[(col + FRAME_COLS) * FRAME_ROWS + row] ?? 0;
               }
             }
+            const [dcl, dcr] = composeFrames([leftBuf, rightBuf], activeOverlay);
             if (mode === 'bw') {
-              try { if (left) await transport.frameBw(packBW(leftBuf), left); } catch { /* non-fatal */ }
-              try { if (right) await transport.frameBw(packBW(rightBuf), right); } catch { /* non-fatal */ }
+              try { if (left) await transport.frameBw(packBW(dcl), left); } catch { /* non-fatal */ }
+              try { if (right) await transport.frameBw(packBW(dcr), right); } catch { /* non-fatal */ }
             } else {
-              try { if (left) await transport.frameGray(leftBuf, left); } catch { /* non-fatal */ }
-              try { if (right) await transport.frameGray(rightBuf, right); } catch { /* non-fatal */ }
+              try { if (left) await transport.frameGray(dcl, left); } catch { /* non-fatal */ }
+              try { if (right) await transport.frameGray(dcr, right); } catch { /* non-fatal */ }
             }
           } else {
             const frame = pixels as unknown as Frame;
+            const [dcl2, dcr2] = composeFrames([frame, frame], activeOverlay);
             if (mode === 'bw') {
-              const packed = packBW(frame);
-              try { if (left) await transport.frameBw(packed, left); } catch { /* non-fatal */ }
-              try { if (right) await transport.frameBw(packed, right); } catch { /* non-fatal */ }
+              try { if (left) await transport.frameBw(packBW(dcl2), left); } catch { /* non-fatal */ }
+              try { if (right) await transport.frameBw(packBW(dcr2), right); } catch { /* non-fatal */ }
             } else {
-              try { if (left) await transport.frameGray(frame, left); } catch { /* non-fatal */ }
-              try { if (right) await transport.frameGray(frame, right); } catch { /* non-fatal */ }
+              try { if (left) await transport.frameGray(dcl2, left); } catch { /* non-fatal */ }
+              try { if (right) await transport.frameGray(dcr2, right); } catch { /* non-fatal */ }
             }
           }
           if (dmxFrame.delayMs > 0 && !stopped) {
