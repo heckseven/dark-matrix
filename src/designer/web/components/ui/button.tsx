@@ -11,7 +11,7 @@ const buttonVariants = cva(
         default: 'bg-transparent border-foreground text-foreground hover:bg-foreground hover:text-background',
         primary: 'bg-primary border-primary text-primary-foreground hover:bg-primary/90',
         ghost: 'border-transparent bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground',
-        destructive: 'border-transparent bg-transparent text-foreground hover:text-destructive',
+        destructive: 'border-transparent bg-transparent text-foreground hover:text-destructive focus-visible:ring-destructive focus-visible:text-destructive',
       },
       size: {
         sm: 'px-2 py-1',
