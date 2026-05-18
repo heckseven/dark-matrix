@@ -18,6 +18,7 @@ import { watchMic } from '../lib/mic-source.js';
 import { Dispatcher, ecSwitchIntent, vmIntent, notificationIntent } from '../lib/dispatcher.js';
 import { routeNotification } from '../lib/notification-routing.js';
 import { SerialTransport } from '../lib/transport.js';
+import { CompositorTransport, buildBorderFrame } from './compositor-transport-spike.js';
 import { runAnimation } from '../lib/animation.js';
 import { createStartupAnimation } from '../animations/startup.js';
 import { createScrollAnimation } from '../animations/scroll.js';
@@ -69,7 +70,12 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   }
 
   let currentBrightness = 0;
-  const transport = new SerialTransport();
+  const compositor = new CompositorTransport(
+    new SerialTransport(),
+    currentConfig.modules.left,
+    currentConfig.modules.right,
+  );
+  const transport = compositor;
   const dispatcher = new Dispatcher();
   let stopCurrentAnim: (() => void) | null = null;
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1111,6 +1117,15 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               socket.write(JSON.stringify({ ok: true, action: route.action }) + '\n');
               break;
             }
+            // spike: compositor test commands — remove before merging to main
+            case 'test-overlay':
+              compositor.setOverlay(buildBorderFrame());
+              socket.write(JSON.stringify({ ok: true, overlay: 'border' }) + '\n');
+              break;
+            case 'clear-overlay':
+              compositor.setOverlay(null);
+              socket.write(JSON.stringify({ ok: true, overlay: null }) + '\n');
+              break;
             default:
               socket.write(JSON.stringify({ ok: false, error: 'unknown command' }) + '\n');
           }
