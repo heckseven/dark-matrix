@@ -264,8 +264,15 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       proc.stdout?.on('data', (d: Buffer) => { out += d.toString(); });
       proc.on('close', () => {
         clearTimeout(timeout);
-        const m = /^id (\d+)/.exec(out);
-        resolve(m ? m[1] : undefined);
+        if (role === '@DEFAULT_AUDIO_SINK@') {
+          // Use node name + .monitor to capture playback; node names are stable
+          // across WirePlumber graph rebuilds, unlike numeric node IDs.
+          const m = /node\.name\s*=\s*"([^"]+)"/.exec(out);
+          resolve(m ? `${m[1]}.monitor` : undefined);
+        } else {
+          const m = /^id (\d+)/.exec(out);
+          resolve(m ? m[1] : undefined);
+        }
       });
       proc.on('error', () => { clearTimeout(timeout); resolve(undefined); });
     });
