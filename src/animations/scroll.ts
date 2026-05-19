@@ -16,6 +16,9 @@ export type ScrollOptions = {
   pixelsPerTick?: number;
   loop?: boolean;
   size?: ScrollSize;
+  startOffset?: number;
+  /** Constrain text to the bottom N rows of the frame (bottom-aligned within the strip). */
+  stripRows?: number;
 };
 
 // 5×7 bitmap font. Key = char code, value = 7 rows (one per row, MSB = leftmost pixel, 5 bits).
@@ -304,7 +307,7 @@ function scaleGlyph(px: boolean[][], scale: number): boolean[][] {
   return out;
 }
 
-function renderText(text: string, size: ScrollSize): { buf: Uint8Array; width: number } {
+function renderText(text: string, size: ScrollSize, stripRows?: number): { buf: Uint8Array; width: number } {
   const tiny = size === 'tiny';
   const scale = tiny ? 1 : SCALE_MAP[size];
   const baseH = tiny ? 5 : 7;
@@ -312,7 +315,9 @@ function renderText(text: string, size: ScrollSize): { buf: Uint8Array; width: n
   const scaledH = baseH * scale;
   const scaledW = baseW * scale;
   const step = scaledW + scale;
-  const top = Math.floor((LOGICAL_ROWS - scaledH) / 2);
+  const displayBase = stripRows !== undefined ? LOGICAL_ROWS - stripRows : 0;
+  const displayHeight = stripRows ?? LOGICAL_ROWS;
+  const top = displayBase + Math.floor((displayHeight - scaledH) / 2);
 
   const width = text.length * step;
   const buf = new Uint8Array(width * LOGICAL_ROWS);
@@ -356,13 +361,13 @@ function extractFrame(buf: Uint8Array, bufWidth: number, xOffset: number): Frame
 }
 
 export function createScrollAnimation(opts: ScrollOptions): ScrollAnimation {
-  const { text, fps = 20, pixelsPerTick = 1, loop = true, size = 'small' } = opts;
-  const { buf, width } = renderText(text, size);
+  const { text, fps = 20, pixelsPerTick = 1, loop = true, size = 'small', startOffset, stripRows } = opts;
+  const { buf, width } = renderText(text, size, stripRows);
   const LEAD = MODULE_COLS * 2; // blank columns before text enters from right
   const wrapAt = width + LEAD;  // reset when text has fully exited left + trailing blank
 
   let stopped = false;
-  let offset = -LEAD; // start off-screen right
+  let offset = startOffset ?? -LEAD; // default: start off-screen right
 
   function stop(): void {
     stopped = true;

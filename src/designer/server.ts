@@ -813,15 +813,22 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
           summary?: string;
           bodyText?: string;
           style?: string;
+          textSize?: string;
           assetPath?: string;
           composite?: string;
           durationMsOverride?: number;
         };
         const VALID_STYLES = ['text', 'image', 'gif', 'dmx'];
         const VALID_COMPOSITES = ['replace', 'overlay'];
+        const VALID_TEXT_SIZES = ['tiny', 'small', 'medium', 'large'];
         if (parsed.style !== undefined && !VALID_STYLES.includes(parsed.style)) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: false, error: 'invalid style' }));
+          return;
+        }
+        if (parsed.textSize !== undefined && !VALID_TEXT_SIZES.includes(parsed.textSize)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid textSize' }));
           return;
         }
         if (parsed.composite !== undefined && !VALID_COMPOSITES.includes(parsed.composite)) {
@@ -847,6 +854,7 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
           body: parsed.bodyText,
         };
         if (parsed.style !== undefined) cmd['style'] = parsed.style;
+        if (parsed.textSize !== undefined) cmd['textSize'] = parsed.textSize;
         if (parsed.assetPath !== undefined) cmd['assetPath'] = parsed.assetPath;
         if (parsed.composite !== undefined) cmd['composite'] = parsed.composite;
         if (parsed.durationMsOverride !== undefined) cmd['durationMsOverride'] = parsed.durationMsOverride;

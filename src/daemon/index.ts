@@ -777,7 +777,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   function startTextNotification(intent: DisplayIntent, composite: 'replace' | 'overlay'): void {
     const safe = intent.content.replace(/[^\x20-\x7e]/g, '').slice(0, SCROLL_MAX_LEN);
     const text = safe.length > 0 ? safe : '???';
-    const anim = createScrollAnimation({ text, loop: false });
+    const size = intent.textSize ?? 'small';
+    const anim = createScrollAnimation({ text, loop: false, size, ...(composite === 'overlay' ? { stripRows: 8 } : {}) });
 
     if (composite === 'replace') {
       stopAnim();
@@ -1439,6 +1440,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 summary?: string;
                 body?: string;
                 style?: 'text' | 'image' | 'gif' | 'dmx';
+                textSize?: 'tiny' | 'small' | 'medium' | 'large';
                 assetPath?: string;
                 composite?: 'replace' | 'overlay';
                 durationMsOverride?: number;
@@ -1451,6 +1453,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 const intent: DisplayIntent = { ...base };
                 intent.style = effectiveAction === 'scroll' ? 'text' : effectiveAction;
                 intent.composite = m.composite ?? route.composite;
+                if (m.textSize !== undefined) intent.textSize = m.textSize;
                 const assetPath = m.assetPath ?? route.assetPath;
                 if (assetPath !== undefined) intent.assetPath = assetPath;
                 const rawDur = m.durationMsOverride;

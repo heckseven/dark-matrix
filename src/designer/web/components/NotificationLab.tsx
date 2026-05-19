@@ -42,7 +42,7 @@ function ScrollPreview({ text, size }: { text: string; size: ScrollSize }) {
 
   useEffect(() => {
     let cancelled = false;
-    const anim = createScrollAnimation({ text: text || ' ', size, loop: true });
+    const anim = createScrollAnimation({ text: text || ' ', size, loop: true, startOffset: 0 });
     const iter = anim[Symbol.asyncIterator]();
     function tick() {
       void iter.next().then(result => {
@@ -99,6 +99,7 @@ function NotifCell({
         composite: cell.composite,
         durationMsOverride: cell.durationMs,
       };
+      if (cell.style === 'text') body['textSize'] = cell.textSize;
       if (cell.assetPath) body['assetPath'] = cell.assetPath;
       const res = await fetch('/api/test-notification', {
         method: 'POST',
@@ -168,6 +169,7 @@ function NotifCell({
           <option value="replace">replace</option>
           <option value="overlay">overlay</option>
         </Select>
+        <span className="text-xs text-foreground/25">hw</span>
       </div>
 
       <Input
@@ -178,7 +180,7 @@ function NotifCell({
         max={30000}
         step={500}
         onChange={e => update({ durationMs: Math.max(500, Number(e.target.value)) })}
-        suffix="ms"
+        suffix="ms · hw"
         className="w-14"
       />
 

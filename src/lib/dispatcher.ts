@@ -13,12 +13,14 @@ export type DisplayIntent = {
   durationMs: number;
   expiresAt: number;
   style?: 'text' | 'image' | 'gif' | 'dmx';
+  textSize?: 'tiny' | 'small' | 'medium' | 'large';
   assetPath?: string;
   composite?: 'replace' | 'overlay';
 };
 
 export type NotificationDisplayOptions = {
   style?: 'text' | 'image' | 'gif' | 'dmx';
+  textSize?: 'tiny' | 'small' | 'medium' | 'large';
   assetPath?: string;
   composite?: 'replace' | 'overlay';
 };
