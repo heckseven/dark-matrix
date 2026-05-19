@@ -17,8 +17,10 @@ export type ScrollOptions = {
   loop?: boolean;
   size?: ScrollSize;
   startOffset?: number;
-  /** Constrain text to the bottom N rows of the frame (bottom-aligned within the strip). */
+  /** Constrain text to N rows. Combined with stripStart to place the strip anywhere in the frame. */
   stripRows?: number;
+  /** First row of the strip window (0-based). Defaults to bottom of frame when stripRows is set. */
+  stripStart?: number;
 };
 
 // 5×7 bitmap font. Key = char code, value = 7 rows (one per row, MSB = leftmost pixel, 5 bits).
@@ -307,7 +309,7 @@ function scaleGlyph(px: boolean[][], scale: number): boolean[][] {
   return out;
 }
 
-function renderText(text: string, size: ScrollSize, stripRows?: number): { buf: Uint8Array; width: number } {
+function renderText(text: string, size: ScrollSize, stripRows?: number, stripStart?: number): { buf: Uint8Array; width: number } {
   const tiny = size === 'tiny';
   const scale = tiny ? 1 : SCALE_MAP[size];
   const baseH = tiny ? 5 : 7;
@@ -315,7 +317,8 @@ function renderText(text: string, size: ScrollSize, stripRows?: number): { buf: 
   const scaledH = baseH * scale;
   const scaledW = baseW * scale;
   const step = scaledW + scale;
-  const displayBase = stripRows !== undefined ? LOGICAL_ROWS - stripRows : 0;
+  const displayBase = stripStart !== undefined ? stripStart
+    : (stripRows !== undefined ? LOGICAL_ROWS - stripRows : 0);
   const displayHeight = stripRows ?? LOGICAL_ROWS;
   const top = displayBase + Math.floor((displayHeight - scaledH) / 2);
 
@@ -361,8 +364,8 @@ function extractFrame(buf: Uint8Array, bufWidth: number, xOffset: number): Frame
 }
 
 export function createScrollAnimation(opts: ScrollOptions): ScrollAnimation {
-  const { text, fps = 20, pixelsPerTick = 1, loop = true, size = 'small', startOffset, stripRows } = opts;
-  const { buf, width } = renderText(text, size, stripRows);
+  const { text, fps = 20, pixelsPerTick = 1, loop = true, size = 'small', startOffset, stripRows, stripStart } = opts;
+  const { buf, width } = renderText(text, size, stripRows, stripStart);
   const LEAD = MODULE_COLS * 2; // blank columns before text enters from right
   const wrapAt = width + LEAD;  // reset when text has fully exited left + trailing blank
 

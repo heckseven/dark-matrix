@@ -14,6 +14,7 @@ export type DisplayIntent = {
   expiresAt: number;
   style?: 'text' | 'image' | 'gif' | 'dmx';
   textSize?: 'tiny' | 'small' | 'medium' | 'large';
+  textPosition?: 'top' | 'middle' | 'bottom';
   assetPath?: string;
   composite?: 'replace' | 'overlay';
 };
@@ -21,6 +22,7 @@ export type DisplayIntent = {
 export type NotificationDisplayOptions = {
   style?: 'text' | 'image' | 'gif' | 'dmx';
   textSize?: 'tiny' | 'small' | 'medium' | 'large';
+  textPosition?: 'top' | 'middle' | 'bottom';
   assetPath?: string;
   composite?: 'replace' | 'overlay';
 };

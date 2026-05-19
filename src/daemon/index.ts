@@ -165,16 +165,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     if (stopCurrentOverlay) { stopCurrentOverlay(); stopCurrentOverlay = null; }
   }
 
-  function cropToBottomStrip(frame: Frame, stripRows: number): Frame {
-    const out = new Uint8Array(FRAME_SIZE) as unknown as Frame;
-    const startRow = FRAME_ROWS - stripRows;
-    for (let col = 0; col < FRAME_COLS; col++) {
-      for (let row = startRow; row < FRAME_ROWS; row++) {
-        out[col * FRAME_ROWS + row] = frame[col * FRAME_ROWS + row] ?? 0;
-      }
-    }
-    return out;
-  }
 
   function runOnModules(anim: ReturnType<typeof createScrollAnimation> | null, singleAnim?: () => ReturnType<typeof createGolAnimation>, onComplete?: () => void) {
     if (anim) {
@@ -778,7 +768,17 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     const safe = intent.content.replace(/[^\x20-\x7e]/g, '').slice(0, SCROLL_MAX_LEN);
     const text = safe.length > 0 ? safe : '???';
     const size = intent.textSize ?? 'small';
-    const anim = createScrollAnimation({ text, loop: false, size, ...(composite === 'overlay' ? { stripRows: 8 } : {}) });
+
+    const OVERLAY_STRIP_ROWS = 8;
+    const position = intent.textPosition ?? 'bottom';
+    const textStripStart = position === 'top' ? 0
+      : position === 'middle' ? Math.floor((FRAME_ROWS - OVERLAY_STRIP_ROWS) / 2)
+      : FRAME_ROWS - OVERLAY_STRIP_ROWS;
+
+    const anim = createScrollAnimation({
+      text, loop: false, size,
+      ...(composite === 'overlay' ? { stripRows: OVERLAY_STRIP_ROWS, stripStart: textStripStart } : {}),
+    });
 
     if (composite === 'replace') {
       stopAnim();
@@ -790,6 +790,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       return;
     }
 
+    const replaceStart = Math.max(0, textStripStart - 1);
+    const replaceEnd = Math.min(FRAME_ROWS, textStripStart + OVERLAY_STRIP_ROWS + 1);
+
     let stopped = false;
     stopCurrentOverlay = () => { stopped = true; anim.stop(); setActiveOverlay(null); };
     void (async () => {
@@ -800,7 +803,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         const result = await iter.next();
         if (stopped || result.done) break;
         const [lf, rf] = result.value;
-        setActiveOverlay({ left: cropToBottomStrip(lf, 8), right: cropToBottomStrip(rf, 8) });
+        setActiveOverlay({ left: lf, right: rf, mode: 'strip-replace', stripStart: replaceStart, stripEnd: replaceEnd });
         nextAt += frameMs;
         const wait = nextAt - Date.now();
         if (wait > 0) await new Promise<void>(r => setTimeout(r, wait));
@@ -1441,6 +1444,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 body?: string;
                 style?: 'text' | 'image' | 'gif' | 'dmx';
                 textSize?: 'tiny' | 'small' | 'medium' | 'large';
+                textPosition?: 'top' | 'middle' | 'bottom';
                 assetPath?: string;
                 composite?: 'replace' | 'overlay';
                 durationMsOverride?: number;
@@ -1454,6 +1458,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 intent.style = effectiveAction === 'scroll' ? 'text' : effectiveAction;
                 intent.composite = m.composite ?? route.composite;
                 if (m.textSize !== undefined) intent.textSize = m.textSize;
+                if (m.textPosition !== undefined) intent.textPosition = m.textPosition;
                 const assetPath = m.assetPath ?? route.assetPath;
                 if (assetPath !== undefined) intent.assetPath = assetPath;
                 const rawDur = m.durationMsOverride;

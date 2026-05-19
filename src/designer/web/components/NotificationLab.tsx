@@ -10,6 +10,7 @@ const FRAME_SIZE = 9 * 34;
 
 type NotifStyle = 'text' | 'image' | 'gif' | 'dmx';
 type Composite = 'replace' | 'overlay';
+type TextPosition = 'top' | 'middle' | 'bottom';
 type FireResult = { action: string } | { error: string };
 
 type CellState = {
@@ -17,6 +18,7 @@ type CellState = {
   style: NotifStyle;
   text: string;
   textSize: ScrollSize;
+  textPosition: TextPosition;
   assetPath: string;
   composite: Composite;
   durationMs: number;
@@ -33,7 +35,7 @@ function frameToB64(frame: Uint8Array): string {
 const BLANK = frameToB64(new Uint8Array(FRAME_SIZE));
 
 function defaultCell(): CellState {
-  return { id: uid(), style: 'text', text: 'test notification', textSize: 'small', assetPath: '', composite: 'replace', durationMs: 5000 };
+  return { id: uid(), style: 'text', text: 'test notification', textSize: 'small', textPosition: 'bottom', assetPath: '', composite: 'replace', durationMs: 5000 };
 }
 
 // Runs createScrollAnimation in the browser — scroll.ts has no node: imports.
@@ -100,6 +102,7 @@ function NotifCell({
         durationMsOverride: cell.durationMs,
       };
       if (cell.style === 'text') body['textSize'] = cell.textSize;
+      if (cell.style === 'text' && cell.composite === 'overlay') body['textPosition'] = cell.textPosition;
       if (cell.assetPath) body['assetPath'] = cell.assetPath;
       const res = await fetch('/api/test-notification', {
         method: 'POST',
@@ -151,6 +154,17 @@ function NotifCell({
             <option value="large">large</option>
           </Select>
         </div>
+        {cell.composite === 'overlay' && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-foreground/50">position</span>
+            <Select aria-label="Text position" value={cell.textPosition} onChange={e => update({ textPosition: e.target.value as TextPosition })}>
+              <option value="top">top</option>
+              <option value="middle">middle</option>
+              <option value="bottom">bottom</option>
+            </Select>
+            <span className="text-xs text-foreground/25">hw</span>
+          </div>
+        )}
       </>}
 
       {cell.style !== 'text' && (
