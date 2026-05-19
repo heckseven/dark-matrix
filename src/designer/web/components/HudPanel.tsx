@@ -319,20 +319,6 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
             onChange={(widget) => {
               if (!selectedPreset) return;
               designerStore.getState().updatePresetWidget(selectedPreset.name, hudSelectedSide, widget);
-              // 18-wide auto-fill: if an image widget is picked and the asset spans both sides,
-              // auto-assign the same file to the opposite side.
-              if (widget.widget === 'image') {
-                const assetList = designerStore.getState().assetList;
-                const meta = assetList?.find(a => a.name === widget.file);
-                if (meta?.width === 18) {
-                  const oppSide = hudSelectedSide === 'left' ? 'right' : 'left';
-                  const oppWidget = hudSelectedSide === 'left' ? selectedPreset.right : selectedPreset.left;
-                  const alreadySet = oppWidget?.widget === 'image' && oppWidget.file === widget.file;
-                  if (!alreadySet) {
-                    designerStore.getState().updatePresetWidget(selectedPreset.name, oppSide, { widget: 'image', file: widget.file });
-                  }
-                }
-              }
               sendHudConfig();
               debouncedSave();
             }}
