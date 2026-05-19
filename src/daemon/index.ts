@@ -151,6 +151,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   }
 
   function resumeAfterInterrupt() {
+    frameHeldLeft = false;
+    frameHeldRight = false;
     if (hudHardwareActive || currentConfig.hud) {
       stopCurrentAnim = runHudOnModules();
     } else {
@@ -256,12 +258,14 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     return new Promise((resolve) => {
       const proc = spawn('wpctl', ['inspect', role], { shell: false });
       let out = '';
+      const timeout = setTimeout(() => { proc.kill(); resolve(undefined); }, 2000);
       proc.stdout?.on('data', (d: Buffer) => { out += d.toString(); });
       proc.on('close', () => {
+        clearTimeout(timeout);
         const m = /^id (\d+)/.exec(out);
         resolve(m ? m[1] : undefined);
       });
-      proc.on('error', () => resolve(undefined));
+      proc.on('error', () => { clearTimeout(timeout); resolve(undefined); });
     });
   }
 
