@@ -1035,8 +1035,13 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       startNotificationAnimation(intent);
     } else {
       currentIntentId = null;
-      stopAnim();
-      resumeAfterInterrupt();
+      if (currentConfig.hud) {
+        if (!stopCurrentAnim) stopCurrentAnim = runHudOnModules();
+        // else HUD loop already running — leave it alone, don't bounce the audio stream
+      } else {
+        stopAnim();
+        startIdleAnimation();
+      }
     }
   });
 
