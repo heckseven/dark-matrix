@@ -1354,6 +1354,10 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
                 // Persist so daemon and UI survive restarts
                 const cfgPath = configFilePath(configDir);
                 const cfg = await loadConfig(cfgPath);
+                if (!cfg.hud_presets?.some(p => p.name === activeHudPresetName)) {
+                  ws.send(JSON.stringify({ type: 'error', error: 'preset not found' }));
+                  return;
+                }
                 const tmp = cfgPath + '.tmp';
                 await fs.writeFile(tmp, JSON.stringify({ ...cfg, active_hud_preset: activeHudPresetName }, null, 2) + '\n', { mode: 0o600 });
                 await fs.rename(tmp, cfgPath);

@@ -259,21 +259,27 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     return new Promise((resolve) => {
       const proc = spawn('wpctl', ['inspect', role], { shell: false });
       let out = '';
-      const timeout = setTimeout(() => { proc.kill(); resolve(undefined); }, 2000);
+      let settled = false;
+      const settle = (v: string | undefined) => { if (!settled) { settled = true; resolve(v); } };
+      const timeout = setTimeout(() => { proc.kill(); settle(undefined); }, 2000);
       proc.stdout?.on('data', (d: Buffer) => { out += d.toString(); });
       proc.on('close', () => {
         clearTimeout(timeout);
+        if (settled) return;
         if (role === '@DEFAULT_AUDIO_SINK@') {
           // Use node name + .monitor to capture playback; node names are stable
           // across WirePlumber graph rebuilds, unlike numeric node IDs.
           const m = /node\.name\s*=\s*"([^"]+)"/.exec(out);
-          resolve(m ? `${m[1]}.monitor` : undefined);
+          const name = m?.[1];
+          settle(name && /^[\w.\-]+$/.test(name) ? `${name}.monitor` : undefined);
         } else {
+          // Source IDs: numeric ID is stable enough — sinks are more aggressively
+          // reassigned by WirePlumber due to monitor stream teardown.
           const m = /^id (\d+)/.exec(out);
-          resolve(m ? m[1] : undefined);
+          settle(m ? m[1] : undefined);
         }
       });
-      proc.on('error', () => { clearTimeout(timeout); resolve(undefined); });
+      proc.on('error', () => { clearTimeout(timeout); settle(undefined); });
     });
   }
 
@@ -562,7 +568,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         stream = createAudioBandStream({ source, gain: source === 'monitor' ? 1.5 : 1.0, ...(target ? { target } : {}) });
         const iter = stream[Symbol.asyncIterator]();
         let gotData = false;
-        const startupWatchdog = setTimeout(() => { if (!gotData && !stopped) stream?.stop(); }, 3000);
+        const watchedStream = stream;
+        const startupWatchdog = setTimeout(() => { if (!gotData && !stopped) watchedStream?.stop(); }, 3000);
         while (!stopped) {
           const result = await iter.next();
           if (stopped || result.done) break;
@@ -1371,12 +1378,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               hudHardwareActive = false;
               hudAudioSource = 'monitor';
               if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
-              if (currentConfig.hud) {
-                // HUD loop is already running — leave it as-is so audio widgets
-                // don't drop their stream and go black during the transition.
-              } else {
-                startIdleAnimation();
-              }
+              if (!currentConfig.hud) startIdleAnimation();
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             }
