@@ -1155,6 +1155,7 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
 
   let audioOwnerWs: import('ws').WebSocket | null = null;
   let hudOwnerWs:   import('ws').WebSocket | null = null;
+  let activeHudPresetName: string | null = null;
 
   // Shared proc-stats broadcaster — starts on first subscriber, stops on last
   const dataStatsClients = new Set<import('ws').WebSocket>();
@@ -1307,9 +1308,9 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
         void (async () => {
           try {
             const config = await loadConfig(configFilePath(configDir));
-            ws.send(JSON.stringify({ type: 'hud-presets', presets: config.hud_presets ?? [], activeName: null }));
+            ws.send(JSON.stringify({ type: 'hud-presets', presets: config.hud_presets ?? [], activeName: activeHudPresetName }));
           } catch {
-            ws.send(JSON.stringify({ type: 'hud-presets', presets: [], activeName: null }));
+            ws.send(JSON.stringify({ type: 'hud-presets', presets: [], activeName: activeHudPresetName }));
           }
         })();
       } else if (type === 'hud-preset-save') {
@@ -1347,7 +1348,8 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
             try {
               const reply = await sendToDaemon({ cmd: 'hud-preset', name }) as { ok?: boolean; name?: string; error?: string };
               if (reply.ok) {
-                ws.send(JSON.stringify({ type: 'hud-preset-activated', name: reply.name ?? name }));
+                activeHudPresetName = reply.name ?? name;
+                ws.send(JSON.stringify({ type: 'hud-preset-activated', name: activeHudPresetName }));
               } else {
                 ws.send(JSON.stringify({ type: 'error', error: reply.error ?? 'activation failed' }));
               }
