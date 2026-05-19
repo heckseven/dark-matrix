@@ -143,7 +143,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   }
 
   function resumeAfterInterrupt() {
-    if (hudHardwareActive) {
+    if (hudHardwareActive || currentConfig.hud) {
       stopCurrentAnim = runHudOnModules();
     } else {
       startIdleAnimation();
@@ -1337,7 +1337,12 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               hudHardwareActive = false;
               hudAudioSource = 'monitor';
               if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
-              startIdleAnimation();
+              if (currentConfig.hud) {
+                stopAnim();
+                stopCurrentAnim = runHudOnModules();
+              } else {
+                startIdleAnimation();
+              }
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             }
@@ -1455,7 +1460,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     // any changed idle_animation / idle_gif_path / hud settings.
     if (!hudHardwareActive && !frameHeld && !dispatcher.current()) {
       stopAnim();
-      startIdleAnimation();
+      if (currentConfig.hud) {
+        stopCurrentAnim = runHudOnModules();
+      } else {
+        startIdleAnimation();
+      }
     }
   });
 
