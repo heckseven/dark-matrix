@@ -209,6 +209,7 @@ export function AudioLab() {
         </Select>
         <Button variant="default" size="sm" onClick={addCell}>+ add cell</Button>
         <span className="text-xs text-muted-foreground ml-auto">raw grayscale · hardware thresholds at 128</span>
+        <a href="?lab=notifications" className="text-xs text-muted-foreground hover:text-foreground transition-colors">notification lab →</a>
       </div>
 
       <div className="flex flex-wrap gap-3 items-start">
