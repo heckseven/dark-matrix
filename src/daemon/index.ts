@@ -155,6 +155,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     frameHeldRight = false;
     process.stderr.write(`[dbg] resumeAfterInterrupt: hudHardwareActive=${hudHardwareActive} hud=${!!currentConfig.hud}\n`);
     if (hudHardwareActive || currentConfig.hud) {
+      stopAnim();
       stopCurrentAnim = runHudOnModules();
     } else {
       startIdleAnimation();
@@ -503,9 +504,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     let audioCtx: AudioCtxData | null = null;
     const stopAudio = needsAudio
       ? streamAudioBands(hudAudioSource, (ctx) => {
+          if (audioCtx === null) process.stderr.write('[dbg] runHudOnModules: audioCtx became non-null\n');
           audioCtx = ctx;
           for (const cb of hudAudioListeners.values()) cb(ctx);
-        }, () => { audioCtx = null; })
+        }, () => { process.stderr.write('[dbg] runHudOnModules: onEnd — audioCtx reset to null\n'); audioCtx = null; })
       : null;
 
     const loop = async () => {
