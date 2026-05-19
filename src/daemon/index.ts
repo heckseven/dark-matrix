@@ -553,11 +553,15 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         if (stopped) break;
         stream = createAudioBandStream({ source, gain: source === 'monitor' ? 1.5 : 1.0, ...(target ? { target } : {}) });
         const iter = stream[Symbol.asyncIterator]();
+        let gotData = false;
+        const startupWatchdog = setTimeout(() => { if (!gotData && !stopped) stream?.stop(); }, 3000);
         while (!stopped) {
           const result = await iter.next();
           if (stopped || result.done) break;
+          if (!gotData) { gotData = true; clearTimeout(startupWatchdog); }
           onBands(result.value);
         }
+        clearTimeout(startupWatchdog);
         if (!stopped) {
           onEnd?.();
           await new Promise<void>(r => setTimeout(r, 2000));
