@@ -817,6 +817,29 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
           composite?: string;
           durationMsOverride?: number;
         };
+        const VALID_STYLES = ['text', 'image', 'gif', 'dmx'];
+        const VALID_COMPOSITES = ['replace', 'overlay'];
+        if (parsed.style !== undefined && !VALID_STYLES.includes(parsed.style)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid style' }));
+          return;
+        }
+        if (parsed.composite !== undefined && !VALID_COMPOSITES.includes(parsed.composite)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid composite' }));
+          return;
+        }
+        if (parsed.assetPath !== undefined && !/^[\w.\-]+$/.test(parsed.assetPath)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid asset path' }));
+          return;
+        }
+        if (parsed.durationMsOverride !== undefined &&
+            (typeof parsed.durationMsOverride !== 'number' || parsed.durationMsOverride <= 0 || !isFinite(parsed.durationMsOverride))) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid duration' }));
+          return;
+        }
         const cmd: Record<string, unknown> = {
           cmd: 'notify-test',
           appName: parsed.appName,
@@ -1350,7 +1373,6 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
               const reply = await sendToDaemon({ cmd: 'hud-preset', name }) as { ok?: boolean; name?: string; error?: string };
               if (reply.ok) {
                 activeHudPresetName = reply.name ?? name;
-                ws.send(JSON.stringify({ type: 'hud-preset-activated', name: activeHudPresetName }));
                 // Persist so daemon and UI survive restarts
                 const cfgPath = configFilePath(configDir);
                 const cfg = await loadConfig(cfgPath);
@@ -1358,6 +1380,7 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
                   ws.send(JSON.stringify({ type: 'error', error: 'preset not found' }));
                   return;
                 }
+                ws.send(JSON.stringify({ type: 'hud-preset-activated', name: activeHudPresetName }));
                 const tmp = cfgPath + '.tmp';
                 await fs.writeFile(tmp, JSON.stringify({ ...cfg, active_hud_preset: activeHudPresetName }, null, 2) + '\n', { mode: 0o600 });
                 await fs.rename(tmp, cfgPath);

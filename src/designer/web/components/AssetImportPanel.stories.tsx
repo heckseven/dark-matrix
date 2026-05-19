@@ -33,7 +33,7 @@ const meta = {
     layout: 'padded',
   },
   argTypes: {
-    onSaved: { action: 'saved', description: 'Called with the saved filename.' },
+    onSaved: { action: 'saved', description: 'Called with the saved filename.', control: false },
   },
   args: {
     onSaved: fn(),
@@ -45,9 +45,6 @@ type Story = StoryObj<typeof meta>;
 
 /** Playground — wire all props via Controls. */
 export const Playground: Story = {};
-
-/** No file selected — shows drop zone only. */
-export const Empty: Story = {};
 
 /** With file pre-loaded — shows all controls. */
 export const WithFile: Story = {

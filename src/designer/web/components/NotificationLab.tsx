@@ -22,11 +22,12 @@ type CellState = {
   durationMs: number;
 };
 
-let _uid = 0;
-function uid(): string { return String(++_uid); }
+function uid(): string { return crypto.randomUUID(); }
 
 function frameToB64(frame: Uint8Array): string {
-  return btoa(String.fromCharCode(...frame));
+  let s = '';
+  for (let i = 0; i < frame.length; i++) s += String.fromCharCode(frame[i]!);
+  return btoa(s);
 }
 
 const BLANK = frameToB64(new Uint8Array(FRAME_SIZE));
@@ -40,14 +41,18 @@ function ScrollPreview({ text, size }: { text: string; size: ScrollSize }) {
   const [pixels, setPixels] = useState(BLANK);
 
   useEffect(() => {
+    let cancelled = false;
     const anim = createScrollAnimation({ text: text || ' ', size, loop: true });
     const iter = anim[Symbol.asyncIterator]();
-    const id = setInterval(() => {
+    function tick() {
       void iter.next().then(result => {
-        if (!result.done) setPixels(frameToB64(result.value[0]));
+        if (cancelled || result.done) return;
+        setPixels(frameToB64(result.value[0]));
+        setTimeout(tick, 50);
       });
-    }, 50);
-    return () => { clearInterval(id); anim.stop(); };
+    }
+    tick();
+    return () => { cancelled = true; anim.stop(); };
   }, [text, size]);
 
   return <MatrixPreview pixels={pixels} width={9} />;
@@ -57,7 +62,7 @@ function ScrollPreview({ text, size }: { text: string; size: ScrollSize }) {
 // Dimensions match MatrixPreview canvas (43×168 CSS px).
 function HardwarePreview({ label }: { label: string }) {
   return (
-    <div className="flex items-center justify-center bg-black" style={{ width: 43, height: 168 }}>
+    <div aria-hidden="true" className="flex items-center justify-center bg-black" style={{ width: 43, height: 168 }}>
       <span className="font-mono text-center text-foreground/25 leading-tight break-all" style={{ fontSize: 7 }}>
         {label || '—'}
       </span>
@@ -112,14 +117,14 @@ function NotifCell({
   return (
     <div className="flex flex-col gap-2 p-3 border border-border rounded bg-background" style={{ minWidth: 180 }}>
       <div className="flex items-center gap-1">
-        <Select value={cell.style} onChange={e => update({ style: e.target.value as NotifStyle })} className="flex-1">
+        <Select aria-label="Notification style" value={cell.style} onChange={e => update({ style: e.target.value as NotifStyle })} className="flex-1">
           <option value="text">text</option>
           <option value="image">image</option>
           <option value="gif">gif</option>
           <option value="dmx">dmx</option>
         </Select>
-        <Button variant="ghost" size="sm" tooltip="Clone" onClick={onClone}>⎘</Button>
-        <Button variant="destructive" size="sm" tooltip="Remove" onClick={onRemove}>×</Button>
+        <Button variant="ghost" size="sm" aria-label="Clone" tooltip="Clone" onClick={onClone}>⎘</Button>
+        <Button variant="destructive" size="sm" aria-label="Remove cell" tooltip="Remove" onClick={onRemove}>×</Button>
       </div>
 
       <div className="flex justify-center">
@@ -138,7 +143,7 @@ function NotifCell({
         />
         <div className="flex items-center gap-2">
           <span className="text-xs text-foreground/50">size</span>
-          <Select value={cell.textSize} onChange={e => update({ textSize: e.target.value as ScrollSize })}>
+          <Select aria-label="Text size" value={cell.textSize} onChange={e => update({ textSize: e.target.value as ScrollSize })}>
             <option value="tiny">tiny</option>
             <option value="small">small</option>
             <option value="medium">medium</option>
@@ -159,7 +164,7 @@ function NotifCell({
 
       <div className="flex items-center gap-2">
         <span className="text-xs text-foreground/50">composite</span>
-        <Select value={cell.composite} onChange={e => update({ composite: e.target.value as Composite })}>
+        <Select aria-label="Composite mode" value={cell.composite} onChange={e => update({ composite: e.target.value as Composite })}>
           <option value="replace">replace</option>
           <option value="overlay">overlay</option>
         </Select>
@@ -181,14 +186,12 @@ function NotifCell({
         <Button disabled={firing} onClick={() => void fire()}>
           {firing ? 'firing…' : 'fire'}
         </Button>
-        {result && (
-          <span className="font-mono text-xs" aria-live="polite">
-            {'error' in result
-              ? <span className="text-red-400">{result.error}</span>
-              : <span className="text-foreground/50">→ {result.action}</span>
-            }
-          </span>
-        )}
+        <span className="font-mono text-xs" aria-live="polite" aria-atomic="true">
+          {result && ('error' in result
+            ? <span className="text-red-400">{result.error}</span>
+            : <span className="text-foreground/50">→ {result.action}</span>
+          )}
+        </span>
       </div>
     </div>
   );
@@ -217,9 +220,9 @@ export function NotificationLab() {
   return (
     <div className="min-h-screen bg-background text-foreground p-5 font-mono">
       <div className="flex items-center gap-4 mb-5">
-        <a href="?lab" className="text-xs text-foreground/50 hover:text-foreground transition-colors">← audio</a>
+        <a href="?lab" className="text-xs text-foreground/50 hover:text-foreground transition-colors">← back to audio lab</a>
         <span className="text-xs text-foreground/50">notification lab</span>
-        <Button variant="default" size="sm" onClick={addCell}>+ add cell</Button>
+        <Button variant="default" size="sm" aria-label="Add notification cell" onClick={addCell}>+ add cell</Button>
         <span className="text-xs text-foreground/50 ml-auto">text: live preview · image/gif/dmx: fire to hardware</span>
       </div>
 
