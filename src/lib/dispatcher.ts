@@ -15,6 +15,7 @@ export type DisplayIntent = {
   style?: 'text' | 'image' | 'gif' | 'dmx';
   textSize?: 'tiny' | 'small' | 'medium' | 'large';
   textPosition?: 'top' | 'middle' | 'bottom';
+  overlayMode?: 'or' | 'replace' | 'xor' | 'halo';
   assetPath?: string;
   composite?: 'replace' | 'overlay';
 };
@@ -23,6 +24,7 @@ export type NotificationDisplayOptions = {
   style?: 'text' | 'image' | 'gif' | 'dmx';
   textSize?: 'tiny' | 'small' | 'medium' | 'large';
   textPosition?: 'top' | 'middle' | 'bottom';
+  overlayMode?: 'or' | 'replace' | 'xor' | 'halo';
   assetPath?: string;
   composite?: 'replace' | 'overlay';
 };

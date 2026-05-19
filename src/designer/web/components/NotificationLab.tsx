@@ -11,6 +11,7 @@ const FRAME_SIZE = 9 * 34;
 type NotifStyle = 'text' | 'image' | 'gif' | 'dmx';
 type Composite = 'replace' | 'overlay';
 type TextPosition = 'top' | 'middle' | 'bottom';
+type OverlayMode = 'or' | 'replace' | 'xor' | 'halo';
 type FireResult = { action: string } | { error: string };
 
 type CellState = {
@@ -19,6 +20,7 @@ type CellState = {
   text: string;
   textSize: ScrollSize;
   textPosition: TextPosition;
+  overlayMode: OverlayMode;
   assetPath: string;
   composite: Composite;
   durationMs: number;
@@ -35,7 +37,7 @@ function frameToB64(frame: Uint8Array): string {
 const BLANK = frameToB64(new Uint8Array(FRAME_SIZE));
 
 function defaultCell(): CellState {
-  return { id: uid(), style: 'text', text: 'test notification', textSize: 'small', textPosition: 'bottom', assetPath: '', composite: 'replace', durationMs: 5000 };
+  return { id: uid(), style: 'text', text: 'test notification', textSize: 'small', textPosition: 'bottom', overlayMode: 'replace', assetPath: '', composite: 'replace', durationMs: 5000 };
 }
 
 // Runs createScrollAnimation in the browser — scroll.ts has no node: imports.
@@ -103,6 +105,7 @@ function NotifCell({
       };
       if (cell.style === 'text') body['textSize'] = cell.textSize;
       if (cell.style === 'text' && cell.composite === 'overlay') body['textPosition'] = cell.textPosition;
+      if (cell.composite === 'overlay') body['overlayMode'] = cell.overlayMode;
       if (cell.assetPath) body['assetPath'] = cell.assetPath;
       const res = await fetch('/api/test-notification', {
         method: 'POST',
@@ -185,6 +188,19 @@ function NotifCell({
         </Select>
         <span className="text-xs text-foreground/25">hw</span>
       </div>
+
+      {cell.composite === 'overlay' && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-foreground/50">blend</span>
+          <Select aria-label="Overlay blend mode" value={cell.overlayMode} onChange={e => update({ overlayMode: e.target.value as OverlayMode })}>
+            <option value="replace">replace (black bg)</option>
+            <option value="or">additive (HUD+text)</option>
+            <option value="xor">invert (XOR)</option>
+            <option value="halo">halo (black border)</option>
+          </Select>
+          <span className="text-xs text-foreground/25">hw</span>
+        </div>
+      )}
 
       <Input
         label="dur"

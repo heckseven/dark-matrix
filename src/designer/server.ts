@@ -815,6 +815,7 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
           style?: string;
           textSize?: string;
           textPosition?: string;
+          overlayMode?: string;
           assetPath?: string;
           composite?: string;
           durationMsOverride?: number;
@@ -823,6 +824,7 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
         const VALID_COMPOSITES = ['replace', 'overlay'];
         const VALID_TEXT_SIZES = ['tiny', 'small', 'medium', 'large'];
         const VALID_TEXT_POSITIONS = ['top', 'middle', 'bottom'];
+        const VALID_OVERLAY_MODES = ['or', 'replace', 'xor', 'halo'];
         if (parsed.style !== undefined && !VALID_STYLES.includes(parsed.style)) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: false, error: 'invalid style' }));
@@ -836,6 +838,11 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
         if (parsed.textPosition !== undefined && !VALID_TEXT_POSITIONS.includes(parsed.textPosition)) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: false, error: 'invalid textPosition' }));
+          return;
+        }
+        if (parsed.overlayMode !== undefined && !VALID_OVERLAY_MODES.includes(parsed.overlayMode)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid overlayMode' }));
           return;
         }
         if (parsed.composite !== undefined && !VALID_COMPOSITES.includes(parsed.composite)) {
@@ -863,6 +870,7 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
         if (parsed.style !== undefined) cmd['style'] = parsed.style;
         if (parsed.textSize !== undefined) cmd['textSize'] = parsed.textSize;
         if (parsed.textPosition !== undefined) cmd['textPosition'] = parsed.textPosition;
+        if (parsed.overlayMode !== undefined) cmd['overlayMode'] = parsed.overlayMode;
         if (parsed.assetPath !== undefined) cmd['assetPath'] = parsed.assetPath;
         if (parsed.composite !== undefined) cmd['composite'] = parsed.composite;
         if (parsed.durationMsOverride !== undefined) cmd['durationMsOverride'] = parsed.durationMsOverride;

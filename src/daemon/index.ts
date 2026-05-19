@@ -803,7 +803,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         const result = await iter.next();
         if (stopped || result.done) break;
         const [lf, rf] = result.value;
-        setActiveOverlay({ left: lf, right: rf, mode: 'strip-replace', stripStart: replaceStart, stripEnd: replaceEnd });
+        setActiveOverlay({ left: lf, right: rf, mode: intent.overlayMode ?? 'replace', stripStart: replaceStart, stripEnd: replaceEnd });
         nextAt += frameMs;
         const wait = nextAt - Date.now();
         if (wait > 0) await new Promise<void>(r => setTimeout(r, wait));
@@ -850,7 +850,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     await new Promise<void>(r => {
       const timer = setTimeout(r, intent.durationMs);
       stopCurrentOverlay = () => { stopped = true; clearTimeout(timer); setActiveOverlay(null); r(); };
-      setActiveOverlay({ left: frame, right: frame });
+      setActiveOverlay({ left: frame, right: frame, ...(intent.overlayMode !== undefined ? { mode: intent.overlayMode } : {}) });
     });
     if (!stopped) {
       setActiveOverlay(null);
@@ -915,7 +915,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         try { if (leftDev) await transport.frameGray(cl, leftDev); } catch { /* non-fatal */ }
         try { if (rightDev) await transport.frameGray(cr, rightDev); } catch { /* non-fatal */ }
       } else {
-        setActiveOverlay({ left: gifFrame, right: gifFrame });
+        setActiveOverlay({ left: gifFrame, right: gifFrame, ...(intent.overlayMode !== undefined ? { mode: intent.overlayMode } : {}) });
       }
       const delay = gifAnim.delays[frameIdx % gifAnim.delays.length] ?? 100;
       frameIdx++;
@@ -1002,7 +1002,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               try { if (rightDev) await transport.frameGray(cr, rightDev); } catch { /* non-fatal */ }
             }
           } else {
-            setActiveOverlay({ left: leftBuf, right: rightBuf });
+            setActiveOverlay({ left: leftBuf, right: rightBuf, ...(intent.overlayMode !== undefined ? { mode: intent.overlayMode } : {}) });
           }
         } else {
           const framePx = pixels as unknown as Frame;
@@ -1016,7 +1016,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               try { if (rightDev) await transport.frameGray(cr2, rightDev); } catch { /* non-fatal */ }
             }
           } else {
-            setActiveOverlay({ left: framePx, right: framePx });
+            setActiveOverlay({ left: framePx, right: framePx, ...(intent.overlayMode !== undefined ? { mode: intent.overlayMode } : {}) });
           }
         }
         if (dmxFrame.delayMs > 0 && !stopped) await new Promise<void>(r => setTimeout(r, dmxFrame.delayMs));
@@ -1445,6 +1445,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 style?: 'text' | 'image' | 'gif' | 'dmx';
                 textSize?: 'tiny' | 'small' | 'medium' | 'large';
                 textPosition?: 'top' | 'middle' | 'bottom';
+                overlayMode?: 'or' | 'replace' | 'xor' | 'halo';
                 assetPath?: string;
                 composite?: 'replace' | 'overlay';
                 durationMsOverride?: number;
@@ -1459,6 +1460,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 intent.composite = m.composite ?? route.composite;
                 if (m.textSize !== undefined) intent.textSize = m.textSize;
                 if (m.textPosition !== undefined) intent.textPosition = m.textPosition;
+                if (m.overlayMode !== undefined) intent.overlayMode = m.overlayMode;
                 const assetPath = m.assetPath ?? route.assetPath;
                 if (assetPath !== undefined) intent.assetPath = assetPath;
                 const rawDur = m.durationMsOverride;
