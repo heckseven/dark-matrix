@@ -75,6 +75,13 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     }
   }
 
+  // Pre-populate currentConfig.hud from active_hud_preset so runHudOnModules
+  // uses the right widgets even before the designer sends a hud-config message.
+  if (currentConfig.active_hud_preset) {
+    const activePreset = (currentConfig.hud_presets ?? []).find(p => p.name === currentConfig.active_hud_preset);
+    if (activePreset) currentConfig = { ...currentConfig, hud: { left: activePreset.left, right: activePreset.right } };
+  }
+
   let currentBrightness = 0;
   const transport = new SerialTransport();
   const dispatcher = new Dispatcher();

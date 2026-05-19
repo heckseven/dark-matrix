@@ -79,6 +79,7 @@ export const ConfigSchema = z.object({
     right: HudWidgetSchema.optional(),
   }).optional(),
   notification_rules: z.array(NotificationRuleSchema).optional(),
+  active_hud_preset: z.string().optional(),
   hud_presets: z.array(HudPresetSchema).optional().superRefine((presets, ctx) => {
     if (!presets) return;
     const names = presets.map(p => p.name);

@@ -1308,7 +1308,8 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
         void (async () => {
           try {
             const config = await loadConfig(configFilePath(configDir));
-            ws.send(JSON.stringify({ type: 'hud-presets', presets: config.hud_presets ?? [], activeName: activeHudPresetName }));
+            const activeName = activeHudPresetName ?? config.active_hud_preset ?? null;
+            ws.send(JSON.stringify({ type: 'hud-presets', presets: config.hud_presets ?? [], activeName }));
           } catch {
             ws.send(JSON.stringify({ type: 'hud-presets', presets: [], activeName: activeHudPresetName }));
           }
@@ -1350,6 +1351,12 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
               if (reply.ok) {
                 activeHudPresetName = reply.name ?? name;
                 ws.send(JSON.stringify({ type: 'hud-preset-activated', name: activeHudPresetName }));
+                // Persist so daemon and UI survive restarts
+                const cfgPath = configFilePath(configDir);
+                const cfg = await loadConfig(cfgPath);
+                const tmp = cfgPath + '.tmp';
+                await fs.writeFile(tmp, JSON.stringify({ ...cfg, active_hud_preset: activeHudPresetName }, null, 2) + '\n', { mode: 0o600 });
+                await fs.rename(tmp, cfgPath);
               } else {
                 ws.send(JSON.stringify({ type: 'error', error: reply.error ?? 'activation failed' }));
               }
