@@ -153,7 +153,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   function resumeAfterInterrupt() {
     frameHeldLeft = false;
     frameHeldRight = false;
-    process.stderr.write(`[dbg] resumeAfterInterrupt: hudHardwareActive=${hudHardwareActive} hud=${!!currentConfig.hud}\n`);
     if (hudHardwareActive || currentConfig.hud) {
       stopAnim();
       stopCurrentAnim = runHudOnModules();
@@ -511,10 +510,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     let audioCtx: AudioCtxData | null = null;
     const stopAudio = needsAudio
       ? streamAudioBands(hudAudioSource, (ctx) => {
-          if (audioCtx === null) process.stderr.write('[dbg] runHudOnModules: audioCtx became non-null\n');
           audioCtx = ctx;
           for (const cb of hudAudioListeners.values()) cb(ctx);
-        }, () => { process.stderr.write('[dbg] runHudOnModules: onEnd — audioCtx reset to null\n'); audioCtx = null; })
+        }, () => { audioCtx = null; })
       : null;
 
     const loop = async () => {
@@ -561,25 +559,18 @@ export async function startDaemon(): Promise<() => Promise<void>> {
           source === 'monitor' ? '@DEFAULT_AUDIO_SINK@' : '@DEFAULT_AUDIO_SOURCE@',
         );
         if (stopped) break;
-        process.stderr.write(`[dbg] streamAudioBands: spawning pw-record target=${target ?? 'none'}\n`);
         stream = createAudioBandStream({ source, gain: source === 'monitor' ? 1.5 : 1.0, ...(target ? { target } : {}) });
         const iter = stream[Symbol.asyncIterator]();
         let gotData = false;
-        const startupWatchdog = setTimeout(() => {
-          if (!gotData && !stopped) {
-            process.stderr.write('[dbg] streamAudioBands: startup watchdog fired — killing hung pw-record\n');
-            stream?.stop();
-          }
-        }, 3000);
+        const startupWatchdog = setTimeout(() => { if (!gotData && !stopped) stream?.stop(); }, 3000);
         while (!stopped) {
           const result = await iter.next();
           if (stopped || result.done) break;
-          if (!gotData) { gotData = true; clearTimeout(startupWatchdog); process.stderr.write('[dbg] streamAudioBands: got first band data\n'); }
+          if (!gotData) { gotData = true; clearTimeout(startupWatchdog); }
           onBands(result.value);
         }
         clearTimeout(startupWatchdog);
         if (!stopped) {
-          process.stderr.write('[dbg] streamAudioBands: stream ended, retrying in 2s\n');
           onEnd?.();
           await new Promise<void>(r => setTimeout(r, 2000));
         }
@@ -786,7 +777,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       if (idleTimer) clearTimeout(idleTimer);
       runOnModules(anim, undefined, () => {
         const curr = dispatcher.current();
-        process.stderr.write(`[dbg] scroll onComplete: curr=${curr?.id ?? 'null'} intent=${intent.id}\n`);
         if (!curr || curr.id === intent.id) resumeAfterInterrupt();
       });
       return;
