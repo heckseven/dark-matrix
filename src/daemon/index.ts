@@ -91,7 +91,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   let hudHardwareActive = false;
   let hudAudioStreaming = false;
   let hudAudioSource: 'monitor' | 'mic' = 'monitor';
-  let frameHeld = false;
+  let frameHeldLeft = false;
+  let frameHeldRight = false;
   // Shared band listeners: audio-viz sockets subscribe here when HUD loop owns audio
   const hudAudioListeners = new Map<symbol, (ctx: { bands: number[]; fftSize: number; gain: number }) => void>();
   const heatmapState = createHeatmapState();
@@ -515,8 +516,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         ditherBW(rf, FRAME_COLS, FRAME_ROWS);
 
         const [hcl2, hcr2] = composeFrames([lf, rf], activeOverlay);
-        try { if (left)  await transport.frameBw(packBW(hcl2), left);  } catch { /* non-fatal */ }
-        try { if (right) await transport.frameBw(packBW(hcr2), right); } catch { /* non-fatal */ }
+        try { if (left  && !frameHeldLeft)  await transport.frameBw(packBW(hcl2), left);  } catch { /* non-fatal */ }
+        try { if (right && !frameHeldRight) await transport.frameBw(packBW(hcr2), right); } catch { /* non-fatal */ }
         await new Promise<void>(r => setTimeout(r, 100));
       }
     };
@@ -1244,9 +1245,13 @@ export async function startDaemon(): Promise<() => Promise<void>> {
             case 'frame': {
               const m = msg as { cmd: string; left?: string; right?: string; mode?: string };
               const mode = m.mode === 'gray' ? 'gray' : 'bw';
-              stopAnim();
-              if (idleTimer) clearTimeout(idleTimer);
-              frameHeld = true;
+              if (m.left  !== undefined) frameHeldLeft  = true;
+              if (m.right !== undefined) frameHeldRight = true;
+              if (!currentConfig.hud) {
+                // No HUD running — stop any idle animation so it doesn't clobber the preview
+                stopAnim();
+                if (idleTimer) clearTimeout(idleTimer);
+              }
               const pairs: Array<[string | undefined, string | undefined]> = [
                 [m.left, currentConfig.modules.left],
                 [m.right, currentConfig.modules.right],
@@ -1276,8 +1281,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               break;
             }
             case 'frame-stop':
-              frameHeld = false;
-              startIdleTimer();
+              frameHeldLeft = false;
+              frameHeldRight = false;
+              if (!currentConfig.hud) startIdleTimer();
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             case 'audio-viz': {
@@ -1465,7 +1471,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     });
     // Restart the idle animation if it is currently running so it picks up
     // any changed idle_animation / idle_gif_path / hud settings.
-    if (!hudHardwareActive && !frameHeld && !dispatcher.current()) {
+    if (!hudHardwareActive && !frameHeldLeft && !frameHeldRight && !dispatcher.current()) {
       stopAnim();
       if (currentConfig.hud) {
         stopCurrentAnim = runHudOnModules();
