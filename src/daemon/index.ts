@@ -146,7 +146,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     if (hudHardwareActive) {
       stopCurrentAnim = runHudOnModules();
     } else {
-      startIdleTimer();
+      startIdleAnimation();
     }
   }
 
