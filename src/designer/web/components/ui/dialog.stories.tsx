@@ -71,7 +71,7 @@ const meta = {
 } satisfies Meta<ConfirmArgs>;
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<ConfirmArgs>;
 
 export const Default: Story = {
   render: (args) => <DefaultDialog {...args} />,

@@ -34,7 +34,6 @@ const meta = {
   },
   argTypes: {
     onSaved: { action: 'saved', description: 'Called with the saved filename.' },
-    onCancel: { action: 'cancelled', description: 'Called when cancel is clicked. Omit to hide cancel button.' },
   },
   args: {
     onSaved: fn(),
