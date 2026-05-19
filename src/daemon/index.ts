@@ -1345,8 +1345,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               hudAudioSource = 'monitor';
               if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
               if (currentConfig.hud) {
-                stopAnim();
-                stopCurrentAnim = runHudOnModules();
+                // HUD loop is already running — leave it as-is so audio widgets
+                // don't drop their stream and go black during the transition.
               } else {
                 startIdleAnimation();
               }
