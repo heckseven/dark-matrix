@@ -553,80 +553,77 @@ function O2f() {
 export const Option2fPreviewRail: Story = { name: '2f · persistent preview rail', render: () => <O2f /> };
 
 // ── option 2g ─────────────────────────────────────────────────────────────────
-// Hovering the action chip (animLabel) shows the live preview as a tooltip
-// floating above it. The source chip is also hoverable for completeness.
-// edit/delete appear on row hover as usual.
+// Hovering the action chip lifts preview state to the row level; the preview
+// panel is rendered to the left of the whole list so it never overlaps rows.
 
-function AnimChipWithPreview({ rule }: { rule: NotificationRule }) {
-  const [show, setShow] = useState(false);
+function AnimChipWithPreview({ rule, onHover }: { rule: NotificationRule; onHover: (active: boolean) => void }) {
   return (
-    // onMouseLeave won't fire while the pointer is over any child (including
-    // the floating preview div), so the preview stays open when the cursor
-    // moves from the chip text into the floating panel.
-    <span className="relative"
-      onMouseEnter={() => setShow(true)}
-      onMouseLeave={() => setShow(false)}>
+    <span className="inline-flex items-center"
+      onMouseEnter={() => onHover(true)}
+      onMouseLeave={() => onHover(false)}>
       <Chip dim={rule.animation === 'none'}>{animLabel(rule)}</Chip>
-      {show && (
-        <div
-          className="absolute bottom-full mb-2 left-0 z-50 flex flex-col items-center gap-1.5 p-2 border border-foreground/20 bg-background rounded shadow-lg pointer-events-none"
-        >
-          <RulePrev rule={rule} />
-          <span className="font-mono text-foreground/30 text-center" style={{ fontSize: 9 }}>
-            {animLabel(rule)}
-          </span>
-        </div>
-      )}
     </span>
   );
 }
 
 function O2g() {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   return (
-    <div className="max-w-xl">
-      <OptionHeader n="2g" title="hover chip to preview"
-        note="hovering 'skulltalkk', 'scroll', or 'suppress' shows the animation floating above the chip. no click required." />
-      <p className="font-mono text-xs text-foreground/35 mb-2">first match wins</p>
-      <div className="flex flex-col">
-        {RULES.map((rule, idx) => (
-          <div key={idx} className="group flex items-center gap-2 py-1.5 border-b border-foreground/10 last:border-0">
-            <span className="font-mono text-xs text-foreground/25 tabular-nums w-4 shrink-0">{idx + 1}</span>
-            {/* row chips — action chip has the hover preview */}
-            <div className="flex items-center gap-1.5 flex-1 min-w-0">
-              <Chip>{srcLabel(rule)}</Chip>
-              <span className="text-foreground/25 text-xs shrink-0">→</span>
-              <AnimChipWithPreview rule={rule} />
-              {rule.transition && <Chip dim>{rule.transition}</Chip>}
-              {rule.duration_ms_override !== undefined && <Chip dim>{rule.duration_ms_override}ms</Chip>}
-            </div>
-            <Popover open={openIdx === idx} onOpenChange={v => setOpenIdx(v ? idx : null)}>
-              <PopoverTrigger asChild>
-                <Button variant="ghost" size="sm"
-                  className={`transition-opacity ${openIdx === idx ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'}`}
-                  aria-label={`Edit rule ${idx + 1}`}>
-                  edit
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent side="left" className="w-64 flex flex-col gap-3">
-                <div className="flex flex-col gap-2">
-                  <RuleForm rule={rule} />
-                </div>
-                <SaveCancel onClose={() => setOpenIdx(null)} />
-              </PopoverContent>
-            </Popover>
-            <Button variant="ghost" size="sm"
-              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
-              tooltip="Delete rule"
-              aria-label={`Delete rule ${idx + 1}`}>
-              ×
-            </Button>
+    <div className="flex justify-center py-4">
+      <div className="relative">
+        {hoverIdx !== null && RULES[hoverIdx] !== undefined && (
+          <div className="absolute right-full mr-6 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1.5 p-2 border border-foreground/20 bg-background rounded shadow-lg pointer-events-none z-50">
+            <RulePrev rule={RULES[hoverIdx]!} />
+            <span className="font-mono text-foreground/30 text-center" style={{ fontSize: 9 }}>
+              {animLabel(RULES[hoverIdx]!)}
+            </span>
           </div>
-        ))}
+        )}
+        <div className="w-80">
+          <OptionHeader n="2g" title="hover chip to preview"
+            note="hovering 'skulltalkk', 'scroll', or 'suppress' shows the animation to the left of the list. no click required." />
+          <p className="font-mono text-xs text-foreground/35 mb-2">first match wins</p>
+          <div className="flex flex-col">
+            {RULES.map((rule, idx) => (
+              <div key={idx} className="group flex items-center gap-2 py-1.5 border-b border-foreground/10 last:border-0">
+                <span className="font-mono text-xs text-foreground/25 tabular-nums w-4 shrink-0">{idx + 1}</span>
+                <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                  <Chip>{srcLabel(rule)}</Chip>
+                  <span className="text-xs shrink-0">→</span>
+                  <AnimChipWithPreview rule={rule} onHover={v => setHoverIdx(v ? idx : null)} />
+                  {rule.transition && <Chip>{rule.transition}</Chip>}
+                  {rule.duration_ms_override !== undefined && <Chip>{rule.duration_ms_override}ms</Chip>}
+                </div>
+                <Popover open={openIdx === idx} onOpenChange={v => setOpenIdx(v ? idx : null)}>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" size="sm"
+                      className={`transition-opacity ${openIdx === idx ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'}`}
+                      aria-label={`Edit rule ${idx + 1}`}>
+                      edit
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent side="left" className="w-64 flex flex-col gap-3">
+                    <div className="flex flex-col gap-2">
+                      <RuleForm rule={rule} />
+                    </div>
+                    <SaveCancel onClose={() => setOpenIdx(null)} />
+                  </PopoverContent>
+                </Popover>
+                <Button variant="ghost" size="sm"
+                  className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                  tooltip="Delete rule"
+                  aria-label={`Delete rule ${idx + 1}`}>
+                  ×
+                </Button>
+              </div>
+            ))}
+          </div>
+          <Button variant="ghost" className="mt-2">+ add rule</Button>
+        </div>
       </div>
-      <Button variant="ghost" className="mt-2">+ add rule</Button>
     </div>
   );
 }
-/** Hovering the action chip ("skulltalkk", "scroll", "suppress") shows the live animation floating above it. edit opens a form-only popover. The preview is discoverable without adding permanent visual weight. */
+/** Hovering the action chip ("skulltalkk", "scroll", "suppress") shows the live animation to the left of the list. edit opens a form-only popover. */
 export const Option2gChipHoverPreview: Story = { name: '2g · hover chip to preview', render: () => <O2g /> };
