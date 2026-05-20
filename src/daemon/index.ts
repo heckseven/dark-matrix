@@ -1066,6 +1066,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     intent.style = route.action === 'scroll' ? 'text' : route.action;
     intent.composite = route.composite;
     if (route.assetPath !== undefined) intent.assetPath = route.assetPath;
+    if (route.overlayMode !== undefined) intent.overlayMode = route.overlayMode;
+    if (route.transition !== undefined) intent.transition = route.transition;
     if (route.durationMs !== undefined) {
       intent.durationMs = route.durationMs;
       intent.expiresAt = Date.now() + route.durationMs;

@@ -29,6 +29,8 @@ export type NotificationRule = {
   animation: 'scroll' | 'dmx' | 'none';
   asset_path?: string;
   composite?: 'replace' | 'overlay';
+  overlay_mode?: 'or' | 'replace' | 'xor' | 'halo';
+  transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash';
   duration_ms_override?: number;
   dmx_path?: string;
 };

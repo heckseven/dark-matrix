@@ -12,6 +12,8 @@ export type NotificationRule = {
   animation: 'scroll' | 'dmx' | 'none';
   asset_path?: string;
   composite?: 'replace' | 'overlay';
+  overlay_mode?: 'or' | 'replace' | 'xor' | 'halo';
+  transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash';
   duration_ms_override?: number;
   dmx_path?: string;
 };
@@ -57,6 +59,11 @@ function buildRule(base: NotificationRule, changes: RulePatch): NotificationRule
 
   if (anim !== 'none' && merged.composite !== undefined && merged.composite !== 'replace') {
     result.composite = merged.composite;
+  }
+
+  if (anim === 'dmx') {
+    if (merged.overlay_mode !== undefined) result.overlay_mode = merged.overlay_mode;
+    if (merged.transition !== undefined) result.transition = merged.transition;
   }
 
   if (merged.duration_ms_override !== undefined && merged.duration_ms_override > 0) {
@@ -202,7 +209,9 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown }:
         value={rule.animation}
         onChange={e => {
           const v = e.target.value;
-          if (v === 'scroll' || v === 'dmx' || v === 'none') {
+          if (v === 'dmx') {
+            onUpdate(buildRule(rule, { animation: 'dmx', transition: 'dissolve', overlay_mode: 'halo', composite: 'overlay' }));
+          } else if (v === 'scroll' || v === 'none') {
             onUpdate(buildRule(rule, { animation: v }));
           }
         }}
@@ -242,8 +251,48 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown }:
         </>
       )}
 
-      {/* composite — for non-none animations */}
-      {rule.animation !== 'none' && (
+      {/* blend — DMX only (collapses composite + overlay_mode) */}
+      {rule.animation === 'dmx' && (
+        <Select
+          aria-label="Blend"
+          value={rule.overlay_mode ?? (rule.composite === 'overlay' ? 'or' : 'replace')}
+          onChange={e => {
+            const v = e.target.value as 'replace' | 'or' | 'xor' | 'halo';
+            if (v === 'replace') {
+              onUpdate(buildRule(rule, { composite: 'replace', overlay_mode: undefined }));
+            } else {
+              onUpdate(buildRule(rule, { composite: 'overlay', overlay_mode: v }));
+            }
+          }}
+        >
+          <option value="replace">replace</option>
+          <option value="or">additive</option>
+          <option value="xor">xor</option>
+          <option value="halo">halo</option>
+        </Select>
+      )}
+
+      {/* transition — DMX only */}
+      {rule.animation === 'dmx' && (
+        <Select
+          aria-label="Transition"
+          value={rule.transition ?? 'none'}
+          onChange={e => {
+            const v = e.target.value;
+            onUpdate(buildRule(rule, { transition: v === 'none' ? undefined : v as NotificationRule['transition'] }));
+          }}
+        >
+          <option value="none">no transition</option>
+          <option value="wipe">wipe</option>
+          <option value="scan">scan</option>
+          <option value="slide">slide</option>
+          <option value="dissolve">dissolve</option>
+          <option value="flash">flash</option>
+        </Select>
+      )}
+
+      {/* composite — scroll only */}
+      {rule.animation === 'scroll' && (
         <Select
           aria-label="Composite"
           value={rule.composite ?? 'replace'}

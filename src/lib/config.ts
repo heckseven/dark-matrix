@@ -42,6 +42,8 @@ const NotificationRuleSchema = z.object({
   content_glob: z.string().optional(),
   asset_path: z.string().optional(),
   composite: z.enum(['replace', 'overlay']).optional(),
+  overlay_mode: z.enum(['or', 'replace', 'xor', 'halo']).optional(),
+  transition: z.enum(['wipe', 'scan', 'slide', 'dissolve', 'flash']).optional(),
   duration_ms_override: z.number().int().positive().optional(),
 });
 
