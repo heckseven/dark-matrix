@@ -1,4 +1,4 @@
-import { FRAME_COLS, FRAME_ROWS, FRAME_SIZE, createFrame } from '../lib/frame.js';
+import { FRAME_COLS, FRAME_ROWS, FRAME_SIZE, cloneFrame, createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
 export type TransitionType = 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash';
@@ -83,9 +83,9 @@ function dissolve(content: Frame, entering: boolean): TransitionFrame[] {
     const count = Math.ceil(lit.length * (step + 1) / STEPS);
     const f = createFrame();
     if (entering) {
-      for (let i = 0; i < count; i++) f[lit[i]!] = 255;
+      for (let i = 0; i < count; i++) f[lit[i]!] = content[lit[i]!] ?? 0;
     } else {
-      for (let i = count; i < lit.length; i++) f[lit[i]!] = 255;
+      for (let i = count; i < lit.length; i++) f[lit[i]!] = content[lit[i]!] ?? 0;
     }
     return { frame: f, delayMs: 50 };
   });
@@ -93,21 +93,20 @@ function dissolve(content: Frame, entering: boolean): TransitionFrame[] {
 
 // Flash: rapid strobe before (entry) / after (exit) content
 function flash(content: Frame, entering: boolean): TransitionFrame[] {
-  const BLACK = createFrame();
   if (entering) {
     return [
-      { frame: content, delayMs: 60 },
-      { frame: BLACK,   delayMs: 60 },
-      { frame: content, delayMs: 60 },
-      { frame: BLACK,   delayMs: 60 },
+      { frame: cloneFrame(content), delayMs: 60 },
+      { frame: createFrame(),       delayMs: 60 },
+      { frame: cloneFrame(content), delayMs: 60 },
+      { frame: createFrame(),       delayMs: 60 },
     ];
   }
   return [
-    { frame: BLACK,   delayMs: 60 },
-    { frame: content, delayMs: 60 },
-    { frame: BLACK,   delayMs: 60 },
-    { frame: content, delayMs: 60 },
-    { frame: BLACK,   delayMs: 60 },
+    { frame: createFrame(),       delayMs: 60 },
+    { frame: cloneFrame(content), delayMs: 60 },
+    { frame: createFrame(),       delayMs: 60 },
+    { frame: cloneFrame(content), delayMs: 60 },
+    { frame: createFrame(),       delayMs: 60 },
   ];
 }
 

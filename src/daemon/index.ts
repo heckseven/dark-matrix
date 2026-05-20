@@ -856,7 +856,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     type DualStep = { left: Frame | null; right: Frame | null; delayMs: number };
     let entrySteps: DualStep[] = [];
     let exitSteps:  DualStep[] = [];
-    if (tf && dmxFrames.length > 0) {
+    if (tf) {
       const fp = base64ToFrame(dmxFrames[0]!.pixels, dmxWidth * dmxHeight);
       let leftRef: Frame;
       let rightRef: Frame;
@@ -877,10 +877,12 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       const rightEntry = dual ? getTransitionFrames(rightRef, tf, true)  : leftEntry;
       const rightExit  = dual ? getTransitionFrames(rightRef, tf, false) : leftExit;
       const BLANK = createFrame();
-      const [leftPresent, rightPresent] = await Promise.all([
-        fs.access(leftDev).then(() => true).catch(() => false),
-        fs.access(rightDev).then(() => true).catch(() => false),
-      ]);
+      const [leftPresent, rightPresent] = (tf === 'wipe' && dual)
+        ? await Promise.all([
+            fs.access(leftDev).then(() => true).catch(() => false),
+            fs.access(rightDev).then(() => true).catch(() => false),
+          ])
+        : [false, false];
       // In overlay mode, idle side should pass null (HUD shows through). In replace mode,
       // send BLANK so the device goes dark while the other panel is transitioning.
       const idle = composite === 'overlay' ? null : BLANK;
