@@ -229,8 +229,16 @@ function NotifCell({
   );
 }
 
+function defaultImageCell(): CellState {
+  return { id: uid(), style: 'image', text: '', textSize: 'small', textPosition: 'bottom', overlayMode: 'replace', assetPath: '', composite: 'overlay', durationMs: 5000 };
+}
+
+function defaultGifCell(): CellState {
+  return { id: uid(), style: 'gif', text: '', textSize: 'small', textPosition: 'bottom', overlayMode: 'replace', assetPath: '', composite: 'overlay', durationMs: 5000 };
+}
+
 export function NotificationLab() {
-  const [cells, setCells] = useState<CellState[]>(() => [defaultCell()]);
+  const [cells, setCells] = useState<CellState[]>(() => [defaultCell(), defaultImageCell(), defaultGifCell()]);
 
   function addCell() { setCells(cs => [...cs, defaultCell()]); }
 
