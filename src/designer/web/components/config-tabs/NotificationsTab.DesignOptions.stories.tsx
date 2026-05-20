@@ -140,7 +140,7 @@ function RuleForm({ rule }: { rule: NotificationRule }) {
       </FormRow>
       {(rule.source === 'desktop-notification' || !rule.source) && (
         <FormRow label="app">
-          <Input aria-label="App glob" value={rule.app_name_glob ?? ''} placeholder="glob (*)" onChange={() => undefined} spellCheck={false} />
+          <Input className="w-full" aria-label="App glob" value={rule.app_name_glob ?? ''} placeholder="glob (*)" onChange={() => undefined} spellCheck={false} />
         </FormRow>
       )}
       {rule.source === 'ec-switch' && (
@@ -161,9 +161,9 @@ function RuleForm({ rule }: { rule: NotificationRule }) {
       {rule.animation === 'dmx' && (
         <>
           <FormRow label="asset">
-            <Button variant="ghost" className="font-mono text-xs truncate max-w-[10rem]">
+            <span className="font-mono text-xs border border-foreground/25 rounded-sm px-1.5 py-0.5 truncate block w-full cursor-pointer">
               {rule.asset_path?.replace('.dmx.json', '') ?? 'pick…'}
-            </Button>
+            </span>
           </FormRow>
           <FormRow label="blend">
             <Select aria-label="Blend" value={rule.overlay_mode ?? 'replace'} onChange={() => undefined}>
@@ -194,7 +194,7 @@ function RuleForm({ rule }: { rule: NotificationRule }) {
         </FormRow>
       )}
       <FormRow label="duration">
-        <Input type="number" value={rule.duration_ms_override ?? ''} placeholder="default" onChange={() => undefined} style={{ width: '5rem' }} suffix="ms" />
+        <Input className="w-full" type="number" value={rule.duration_ms_override ?? ''} placeholder="default" onChange={() => undefined} suffix="ms" />
       </FormRow>
     </>
   );
@@ -556,16 +556,6 @@ export const Option2fPreviewRail: Story = { name: '2f · persistent preview rail
 // Hovering the action chip lifts preview state to the row level; the preview
 // panel is rendered to the left of the whole list so it never overlaps rows.
 
-function AnimChipWithPreview({ rule, onHover }: { rule: NotificationRule; onHover: (active: boolean) => void }) {
-  return (
-    <span className="inline-flex items-center min-w-0"
-      onMouseEnter={() => onHover(true)}
-      onMouseLeave={() => onHover(false)}>
-      <Chip className="max-w-[10rem] overflow-hidden text-ellipsis inline-block">{animLabel(rule)}</Chip>
-    </span>
-  );
-}
-
 function O2g() {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -574,7 +564,7 @@ function O2g() {
   return (
     <div className="flex justify-center py-4">
       <div className="relative">
-        {hoverIdx !== null && hoverY !== null && RULES[hoverIdx] !== undefined && (
+        {hoverIdx !== null && hoverY !== null && openIdx !== hoverIdx && RULES[hoverIdx] !== undefined && (
           <div
             className="absolute right-full mr-6 -translate-y-1/2 flex flex-col items-center gap-1.5 p-2 border border-foreground/20 bg-background rounded shadow-lg pointer-events-none z-50"
             style={{ top: hoverY }}
@@ -586,8 +576,8 @@ function O2g() {
           </div>
         )}
         <div className="max-w-[800px] w-full">
-          <OptionHeader n="2g" title="hover chip to preview"
-            note="hovering 'skulltalkk', 'scroll', or 'suppress' shows the animation to the left of the list. no click required." />
+          <OptionHeader n="2g" title="hover row to preview"
+            note="hovering a row shows the animation to the left of the list. no click required." />
           <p className="font-mono text-xs text-foreground/35 mb-2">first match wins</p>
           <div className="flex flex-col">
             {RULES.map((rule, idx) => (
@@ -595,21 +585,18 @@ function O2g() {
                 key={idx}
                 ref={(el: HTMLDivElement | null) => { rowRefs.current[idx] = el; }}
                 className="group flex items-center gap-2 py-1.5 border-b border-foreground/10 last:border-0"
+                onMouseEnter={() => {
+                  const el = rowRefs.current[idx];
+                  setHoverY(el ? el.offsetTop + el.offsetHeight / 2 : null);
+                  setHoverIdx(idx);
+                }}
+                onMouseLeave={() => { setHoverIdx(null); setHoverY(null); }}
               >
                 <span className="font-mono text-xs text-foreground/25 tabular-nums w-4 shrink-0">{idx + 1}</span>
                 <div className="flex items-center gap-1.5 flex-1 min-w-0">
                   <Chip className="shrink-0">{srcLabel(rule)}</Chip>
                   <span className="text-xs shrink-0">→</span>
-                  <AnimChipWithPreview rule={rule} onHover={v => {
-                    if (v) {
-                      const el = rowRefs.current[idx];
-                      setHoverY(el ? el.offsetTop + el.offsetHeight / 2 : null);
-                      setHoverIdx(idx);
-                    } else {
-                      setHoverIdx(null);
-                      setHoverY(null);
-                    }
-                  }} />
+                  <Chip className="max-w-[10rem] overflow-hidden text-ellipsis inline-block shrink-0">{animLabel(rule)}</Chip>
                   {rule.transition && <Chip className="shrink-0">{rule.transition}</Chip>}
                   {rule.duration_ms_override !== undefined && <Chip className="shrink-0">{rule.duration_ms_override}ms</Chip>}
                 </div>
@@ -643,5 +630,5 @@ function O2g() {
     </div>
   );
 }
-/** Hovering the action chip ("skulltalkk", "scroll", "suppress") shows the live animation to the left of the list. edit opens a form-only popover. */
-export const Option2gChipHoverPreview: Story = { name: '2g · hover chip to preview', render: () => <O2g /> };
+/** Hovering any row shows the live animation to the left of the list. edit opens a form-only popover. */
+export const Option2gChipHoverPreview: Story = { name: '2g · hover row to preview', render: () => <O2g /> };
