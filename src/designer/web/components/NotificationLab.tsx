@@ -229,16 +229,16 @@ function NotifCell({
   );
 }
 
-function defaultImageCell(): CellState {
-  return { id: uid(), style: 'image', text: '', textSize: 'small', textPosition: 'bottom', overlayMode: 'replace', assetPath: '', composite: 'overlay', durationMs: 5000 };
+function defaultDmxCell(): CellState {
+  return { id: uid(), style: 'dmx', text: '', textSize: 'small', textPosition: 'bottom', overlayMode: 'replace', assetPath: 'skulltalkk.dmx.json', composite: 'replace', durationMs: 5000 };
 }
 
-function defaultGifCell(): CellState {
-  return { id: uid(), style: 'gif', text: '', textSize: 'small', textPosition: 'bottom', overlayMode: 'replace', assetPath: '', composite: 'overlay', durationMs: 5000 };
+function defaultDmxOverlayCell(): CellState {
+  return { id: uid(), style: 'dmx', text: '', textSize: 'small', textPosition: 'bottom', overlayMode: 'or', assetPath: 'skulltalkk.dmx.json', composite: 'overlay', durationMs: 5000 };
 }
 
 export function NotificationLab() {
-  const [cells, setCells] = useState<CellState[]>(() => [defaultCell(), defaultImageCell(), defaultGifCell()]);
+  const [cells, setCells] = useState<CellState[]>(() => [defaultCell(), defaultDmxCell(), defaultDmxOverlayCell()]);
 
   function addCell() { setCells(cs => [...cs, defaultCell()]); }
 
