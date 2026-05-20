@@ -66,6 +66,31 @@ function buildRule(base: NotificationRule, changes: RulePatch): NotificationRule
   return result;
 }
 
+// ec-switch events produce content strings like "MIC ON", "MIC OFF", "CAM ON", "CAM OFF".
+// The UI exposes these as "mic switch" and "cam switch" source options with an on/off/any state
+// select, rather than making the user type a content glob.
+
+type SwitchState = 'on' | 'off' | 'any';
+
+function virtualSource(rule: NotificationRule): string {
+  if (rule.source === 'ec-switch') {
+    return (rule.content_glob ?? '').startsWith('CAM') ? 'cam-switch' : 'mic-switch';
+  }
+  return rule.source ?? '';
+}
+
+function switchState(glob?: string): SwitchState {
+  if (glob?.endsWith(' ON')) return 'on';
+  if (glob?.endsWith(' OFF')) return 'off';
+  return 'any';
+}
+
+function toSwitchGlob(prefix: 'MIC' | 'CAM', state: SwitchState): string {
+  if (state === 'on') return `${prefix} ON`;
+  if (state === 'off') return `${prefix} OFF`;
+  return `${prefix}*`;
+}
+
 function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown }: RowProps) {
   const src = rule.source;
   const isDesktop = src === 'desktop-notification' || src === undefined;
@@ -73,6 +98,24 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown }:
   const assetDisplay = rule.asset_path ?? rule.dmx_path ?? '';
   const durationDisplay = rule.duration_ms_override !== undefined ? String(rule.duration_ms_override) : '';
   const [pickerOpen, setPickerOpen] = useState(false);
+  const vSrc = virtualSource(rule);
+  const isMicSwitch = vSrc === 'mic-switch';
+  const isCamSwitch = vSrc === 'cam-switch';
+
+  function handleSourceChange(newVirt: string) {
+    if (newVirt === 'mic-switch') {
+      const state = (isMicSwitch || isCamSwitch) ? switchState(rule.content_glob) : 'any';
+      onUpdate(buildRule(rule, { source: 'ec-switch', content_glob: toSwitchGlob('MIC', state) }));
+    } else if (newVirt === 'cam-switch') {
+      const state = (isMicSwitch || isCamSwitch) ? switchState(rule.content_glob) : 'any';
+      onUpdate(buildRule(rule, { source: 'ec-switch', content_glob: toSwitchGlob('CAM', state) }));
+    } else {
+      const newSrc = newVirt === '' ? undefined : newVirt as NotificationRule['source'];
+      const patch: RulePatch = { source: newSrc };
+      if (isMicSwitch || isCamSwitch) patch.content_glob = '';
+      onUpdate(buildRule(rule, patch));
+    }
+  }
 
   return (
     <div role="group" aria-label={`Rule ${idx + 1}`} className="flex items-center gap-2 flex-wrap py-1.5 border-b border-foreground/10 last:border-b-0">
@@ -85,16 +128,13 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown }:
       {/* source */}
       <Select
         aria-label="Source"
-        value={src ?? ''}
-        onChange={e => {
-          const v = e.target.value;
-          const newSrc = v === '' ? undefined : v as NotificationRule['source'];
-          onUpdate(buildRule(rule, { source: newSrc }));
-        }}
+        value={vSrc}
+        onChange={e => handleSourceChange(e.target.value)}
       >
         <option value="">any source</option>
         <option value="desktop-notification">desktop-notification</option>
-        <option value="ec-switch">ec-switch</option>
+        <option value="mic-switch">mic switch</option>
+        <option value="cam-switch">cam switch</option>
         <option value="vm">vm</option>
         <option value="claude">claude</option>
         <option value="manual">manual</option>
@@ -128,8 +168,25 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown }:
         </>
       )}
 
-      {/* non-desktop content glob */}
-      {!isDesktop && (
+      {/* switch state — mic or cam switch */}
+      {(isMicSwitch || isCamSwitch) && (
+        <Select
+          aria-label="Switch state"
+          value={switchState(rule.content_glob)}
+          onChange={e => {
+            const state = e.target.value as SwitchState;
+            const prefix = isMicSwitch ? 'MIC' : 'CAM';
+            onUpdate(buildRule(rule, { content_glob: toSwitchGlob(prefix, state) }));
+          }}
+        >
+          <option value="any">any</option>
+          <option value="on">on</option>
+          <option value="off">off</option>
+        </Select>
+      )}
+
+      {/* content glob — non-desktop sources other than mic/cam switch */}
+      {!isDesktop && !isMicSwitch && !isCamSwitch && (
         <Input
           aria-label="Content glob"
           placeholder="content glob (*)"
