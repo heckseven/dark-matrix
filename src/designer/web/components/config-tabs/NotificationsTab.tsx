@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Select } from '../ui/select.js';
 import { Input } from '../ui/input.js';
 import { Button } from '../ui/button.js';
+import { AssetPickerModal } from '../AssetPickerModal.js';
 
 export type NotificationRule = {
   source?: 'ec-switch' | 'vm' | 'claude' | 'desktop-notification' | 'manual';
@@ -71,6 +72,7 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown }:
   const needsAsset = rule.animation === 'dmx';
   const assetDisplay = rule.asset_path ?? rule.dmx_path ?? '';
   const durationDisplay = rule.duration_ms_override !== undefined ? String(rule.duration_ms_override) : '';
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   return (
     <div role="group" aria-label={`Rule ${idx + 1}`} className="flex items-center gap-2 flex-wrap py-1.5 border-b border-foreground/10 last:border-b-0">
@@ -153,15 +155,34 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown }:
         <option value="none">none</option>
       </Select>
 
-      {/* asset path — for dmx */}
+      {/* asset picker — for dmx */}
       {needsAsset && (
-        <Input
-          aria-label="Asset path"
-          placeholder="filename.ext"
-          value={assetDisplay}
-          onChange={e => onUpdate(buildRule(rule, { asset_path: e.target.value }))}
-          spellCheck={false}
-        />
+        <>
+          <Button
+            variant="ghost"
+            aria-label={assetDisplay ? `Asset: ${assetDisplay}, click to change` : 'Pick asset'}
+            className="font-mono text-xs max-w-[10rem] truncate"
+            onClick={() => setPickerOpen(true)}
+          >
+            {assetDisplay
+              ? <span className="truncate">{assetDisplay.replace('.dmx.json', '')}</span>
+              : <span className="text-foreground/40">pick asset…</span>}
+          </Button>
+          {assetDisplay && (
+            <Button
+              variant="ghost"
+              aria-label="Clear asset"
+              className="px-1 text-foreground/40 hover:text-foreground/70"
+              onClick={() => onUpdate(buildRule(rule, { asset_path: undefined }))}
+            >×</Button>
+          )}
+          <AssetPickerModal
+            open={pickerOpen}
+            onOpenChange={setPickerOpen}
+            {...(assetDisplay ? { current: assetDisplay } : {})}
+            onPick={filename => onUpdate(buildRule(rule, { asset_path: filename }))}
+          />
+        </>
       )}
 
       {/* composite — for non-none animations */}
@@ -258,9 +279,7 @@ export function NotificationsTab({ value, onChange }: NotificationsTabProps) {
 
       <div className="font-mono text-xs text-foreground/55 flex flex-col gap-1 border-t border-foreground/10 mt-4 pt-4">
         <p className="text-foreground/60 mb-1">assets</p>
-        <p>place asset files in <span className="text-foreground/70">~/.config/dark-matrix/assets/</span></p>
-        <p className="mt-1">supported: <span className="text-foreground/70">.dmx.json</span> — import images/GIFs to DMX first via the designer</p>
-        <p className="mt-1">asset path is the filename only — e.g. <span className="text-foreground/70">alert.dmx.json</span></p>
+        <p>assets live in <span className="text-foreground/70">~/.config/dark-matrix/assets/</span> — use the picker to browse or import images/GIFs as DMX</p>
 
         <p className="text-foreground/60 mt-3 mb-1">finding a desktop app name</p>
         <p>sniff the next real notification from any app:</p>
