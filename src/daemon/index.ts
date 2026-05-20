@@ -877,7 +877,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       const rightEntry = dual ? getTransitionFrames(rightRef, tf, true)  : leftEntry;
       const rightExit  = dual ? getTransitionFrames(rightRef, tf, false) : leftExit;
       const BLANK = createFrame();
-      const [leftPresent, rightPresent] = ((tf === 'wipe' || tf === 'slide') && dual)
+      const [leftPresent, rightPresent] = (tf === 'wipe' && dual)
         ? await Promise.all([
             fs.access(leftDev).then(() => true).catch(() => false),
             fs.access(rightDev).then(() => true).catch(() => false),
@@ -886,12 +886,49 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       // In overlay mode, idle side should pass null (HUD shows through). In replace mode,
       // send BLANK so the device goes dark while the other panel is transitioning.
       const idle = composite === 'overlay' ? null : BLANK;
-      if ((tf === 'wipe' || tf === 'slide') && dual && leftPresent && rightPresent) {
+      if (tf === 'wipe' && dual && leftPresent && rightPresent) {
         // Staggered: left panel transitions fully, then right panel transitions.
         for (const { frame: f, delayMs } of leftEntry)  entrySteps.push({ left: f,       right: idle,     delayMs });
         for (const { frame: f, delayMs } of rightEntry) entrySteps.push({ left: leftRef, right: f,        delayMs });
         for (const { frame: f, delayMs } of leftExit)   exitSteps.push({ left: f,        right: rightRef, delayMs });
         for (const { frame: f, delayMs } of rightExit)  exitSteps.push({ left: idle,     right: f,        delayMs });
+      } else if (tf === 'slide' && dual) {
+        // Full-width pan: the 18-wide image slides in from the left across both panels.
+        // Each step shifts the image one column right; both panels update simultaneously.
+        for (let s = 1; s <= dmxWidth; s++) {
+          const lf = createFrame();
+          const rf = createFrame();
+          for (let d = 0; d < FRAME_COLS; d++) {
+            const imgCol = d + dmxWidth - s;
+            if (imgCol < dmxWidth)
+              for (let row = 0; row < FRAME_ROWS; row++)
+                (lf as Uint8Array)[d * FRAME_ROWS + row] = fp[imgCol * FRAME_ROWS + row] ?? 0;
+          }
+          for (let d = 0; d < FRAME_COLS; d++) {
+            const imgCol = FRAME_COLS + d + dmxWidth - s;
+            if (imgCol < dmxWidth)
+              for (let row = 0; row < FRAME_ROWS; row++)
+                (rf as Uint8Array)[d * FRAME_ROWS + row] = fp[imgCol * FRAME_ROWS + row] ?? 0;
+          }
+          entrySteps.push({ left: lf, right: rf, delayMs: 30 });
+        }
+        for (let s = 1; s <= dmxWidth; s++) {
+          const lf = createFrame();
+          const rf = createFrame();
+          for (let d = 0; d < FRAME_COLS; d++) {
+            const imgCol = d - s;
+            if (imgCol >= 0)
+              for (let row = 0; row < FRAME_ROWS; row++)
+                (lf as Uint8Array)[d * FRAME_ROWS + row] = fp[imgCol * FRAME_ROWS + row] ?? 0;
+          }
+          for (let d = 0; d < FRAME_COLS; d++) {
+            const imgCol = FRAME_COLS + d - s;
+            if (imgCol >= 0)
+              for (let row = 0; row < FRAME_ROWS; row++)
+                (rf as Uint8Array)[d * FRAME_ROWS + row] = fp[imgCol * FRAME_ROWS + row] ?? 0;
+          }
+          exitSteps.push({ left: lf, right: rf, delayMs: 30 });
+        }
       } else {
         for (let i = 0; i < leftEntry.length; i++)
           entrySteps.push({ left: leftEntry[i]!.frame, right: rightEntry[i]!.frame, delayMs: leftEntry[i]!.delayMs });

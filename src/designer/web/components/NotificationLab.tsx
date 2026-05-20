@@ -39,7 +39,7 @@ function frameToB64(frame: Uint8Array): string {
 const BLANK = frameToB64(new Uint8Array(FRAME_SIZE));
 
 function defaultCell(): CellState {
-  return { id: uid(), style: 'text', text: 'test notification', textSize: 'small', textPosition: 'bottom', overlayMode: 'replace', transition: 'none', assetPath: '', composite: 'replace', durationMs: 5000 };
+  return { id: uid(), style: 'text', text: 'test notification', textSize: 'small', textPosition: 'bottom', overlayMode: 'replace', transition: 'none', assetPath: '', composite: 'replace', durationMs: 2000 };
 }
 
 // Runs createScrollAnimation in the browser — scroll.ts has no node: imports.
@@ -244,11 +244,11 @@ function NotifCell({
 }
 
 function defaultDmxCell(): CellState {
-  return { id: uid(), style: 'dmx', text: '', textSize: 'small', textPosition: 'bottom', overlayMode: 'replace', transition: 'wipe', assetPath: 'skulltalkk.dmx.json', composite: 'replace', durationMs: 5000 };
+  return { id: uid(), style: 'dmx', text: '', textSize: 'small', textPosition: 'bottom', overlayMode: 'halo', transition: 'wipe', assetPath: 'skulltalkk.dmx.json', composite: 'replace', durationMs: 2000 };
 }
 
 function defaultDmxOverlayCell(): CellState {
-  return { id: uid(), style: 'dmx', text: '', textSize: 'small', textPosition: 'bottom', overlayMode: 'or', transition: 'none', assetPath: 'skulltalkk.dmx.json', composite: 'overlay', durationMs: 5000 };
+  return { id: uid(), style: 'dmx', text: '', textSize: 'small', textPosition: 'bottom', overlayMode: 'halo', transition: 'none', assetPath: 'skulltalkk.dmx.json', composite: 'overlay', durationMs: 2000 };
 }
 
 export function NotificationLab() {
