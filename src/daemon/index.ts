@@ -1046,7 +1046,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       const rightEntry = dual ? getTransitionFrames(rightRef, tf, true)  : leftEntry;
       const rightExit  = dual ? getTransitionFrames(rightRef, tf, false) : leftExit;
       const BLANK = createFrame();
-      if (tf === 'wipe' && dual) {
+      const [leftPresent, rightPresent] = await Promise.all([
+        fs.access(leftDev).then(() => true).catch(() => false),
+        fs.access(rightDev).then(() => true).catch(() => false),
+      ]);
+      if (tf === 'wipe' && dual && leftPresent && rightPresent) {
         // Staggered: left panel transitions fully, then right panel transitions.
         for (const { frame: f, delayMs } of leftEntry)  entrySteps.push({ left: f,        right: BLANK,    delayMs });
         for (const { frame: f, delayMs } of rightEntry) entrySteps.push({ left: leftRef,  right: f,        delayMs });
