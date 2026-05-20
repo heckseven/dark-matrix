@@ -875,12 +875,32 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       return;
     }
 
+    const ovOpts = intent.overlayMode !== undefined ? { mode: intent.overlayMode } : {};
+    const imgTf = intent.transition;
+    const imgEntryTf: TransitionFrame[] = imgTf ? getTransitionFrames(frame, imgTf, true) : [];
+    const imgExitTf:  TransitionFrame[] = imgTf ? getTransitionFrames(frame, imgTf, false) : [];
+    const imgHoldMs = Math.max(0, intent.durationMs - transitionDuration(imgEntryTf) - transitionDuration(imgExitTf));
+
     let stopped = false;
-    await new Promise<void>(r => {
-      const timer = setTimeout(r, intent.durationMs);
-      stopCurrentOverlay = () => { stopped = true; clearTimeout(timer); setActiveOverlay(null); r(); };
-      setActiveOverlay({ left: frame, right: frame, ...(intent.overlayMode !== undefined ? { mode: intent.overlayMode } : {}) });
-    });
+    stopCurrentOverlay = () => { stopped = true; setActiveOverlay(null); };
+
+    for (const { frame: tf2, delayMs } of imgEntryTf) {
+      if (stopped) break;
+      setActiveOverlay({ left: tf2, right: tf2, ...ovOpts });
+      if (delayMs > 0 && !stopped) await new Promise<void>(r => setTimeout(r, delayMs));
+    }
+    if (!stopped) setActiveOverlay({ left: frame, right: frame, ...ovOpts });
+    if (!stopped && imgHoldMs > 0) {
+      await new Promise<void>(r => {
+        const t = setTimeout(r, imgHoldMs);
+        stopCurrentOverlay = () => { stopped = true; clearTimeout(t); setActiveOverlay(null); r(); };
+      });
+    }
+    for (const { frame: tf2, delayMs } of imgExitTf) {
+      if (stopped) break;
+      setActiveOverlay({ left: tf2, right: tf2, ...ovOpts });
+      if (delayMs > 0 && !stopped) await new Promise<void>(r => setTimeout(r, delayMs));
+    }
     if (!stopped) {
       setActiveOverlay(null);
       stopCurrentOverlay = null;
@@ -1001,7 +1021,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     let stopped = false;
 
     // Pre-compute transitions using the first DMX frame as reference
-    const tf = composite === 'replace' ? intent.transition : undefined;
+    const tf = intent.transition;
     let entryTf: TransitionFrame[] = [];
     let exitTf:  TransitionFrame[] = [];
     if (tf && dmxFrames.length > 0) {
@@ -1031,9 +1051,13 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     for (const { frame: tf2, delayMs } of entryTf) {
       if (stopped) break;
-      const packed = packBW(tf2);
-      try { if (leftDev) await transport.frameBw(packed, leftDev); } catch { /* non-fatal */ }
-      try { if (rightDev) await transport.frameBw(packed, rightDev); } catch { /* non-fatal */ }
+      if (composite === 'replace') {
+        const packed = packBW(tf2);
+        try { if (leftDev) await transport.frameBw(packed, leftDev); } catch { /* non-fatal */ }
+        try { if (rightDev) await transport.frameBw(packed, rightDev); } catch { /* non-fatal */ }
+      } else {
+        setActiveOverlay({ left: tf2, right: tf2, ...(intent.overlayMode !== undefined ? { mode: intent.overlayMode } : {}) });
+      }
       if (delayMs > 0 && !stopped) await new Promise<void>(r => setTimeout(r, delayMs));
     }
 
@@ -1083,9 +1107,13 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     for (const { frame: tf2, delayMs } of exitTf) {
       if (stopped) break;
-      const packed = packBW(tf2);
-      try { if (leftDev) await transport.frameBw(packed, leftDev); } catch { /* non-fatal */ }
-      try { if (rightDev) await transport.frameBw(packed, rightDev); } catch { /* non-fatal */ }
+      if (composite === 'replace') {
+        const packed = packBW(tf2);
+        try { if (leftDev) await transport.frameBw(packed, leftDev); } catch { /* non-fatal */ }
+        try { if (rightDev) await transport.frameBw(packed, rightDev); } catch { /* non-fatal */ }
+      } else {
+        setActiveOverlay({ left: tf2, right: tf2, ...(intent.overlayMode !== undefined ? { mode: intent.overlayMode } : {}) });
+      }
       if (delayMs > 0 && !stopped) await new Promise<void>(r => setTimeout(r, delayMs));
     }
 
