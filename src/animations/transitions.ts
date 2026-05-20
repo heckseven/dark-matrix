@@ -25,17 +25,17 @@ function wipe(content: Frame, entering: boolean): TransitionFrame[] {
   return out;
 }
 
-// Scan: rows reveal top→bottom (entry) / blank top→bottom (exit), 2 rows at a time
+// Scan: rows reveal bottom→top (entry) / blank bottom→top (exit), 2 rows at a time
 function scan(content: Frame, entering: boolean): TransitionFrame[] {
   const STEP = 2;
   const thresholds: number[] = [];
-  for (let t = STEP - 1; t < FRAME_ROWS - 1; t += STEP) thresholds.push(t);
-  thresholds.push(FRAME_ROWS - 1);
+  for (let t = FRAME_ROWS - STEP; t > 0; t -= STEP) thresholds.push(t);
+  thresholds.push(0);
 
   return thresholds.map(t => {
     const f = createFrame();
     for (let row = 0; row < FRAME_ROWS; row++) {
-      if (entering ? row <= t : row > t) {
+      if (entering ? row >= t : row < t) {
         for (let col = 0; col < FRAME_COLS; col++) {
           f[col * FRAME_ROWS + row] = content[col * FRAME_ROWS + row] ?? 0;
         }

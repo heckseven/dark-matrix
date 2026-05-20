@@ -877,7 +877,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       const rightEntry = dual ? getTransitionFrames(rightRef, tf, true)  : leftEntry;
       const rightExit  = dual ? getTransitionFrames(rightRef, tf, false) : leftExit;
       const BLANK = createFrame();
-      const [leftPresent, rightPresent] = (tf === 'wipe' && dual)
+      const [leftPresent, rightPresent] = ((tf === 'wipe' || tf === 'slide') && dual)
         ? await Promise.all([
             fs.access(leftDev).then(() => true).catch(() => false),
             fs.access(rightDev).then(() => true).catch(() => false),
@@ -886,7 +886,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       // In overlay mode, idle side should pass null (HUD shows through). In replace mode,
       // send BLANK so the device goes dark while the other panel is transitioning.
       const idle = composite === 'overlay' ? null : BLANK;
-      if (tf === 'wipe' && dual && leftPresent && rightPresent) {
+      if ((tf === 'wipe' || tf === 'slide') && dual && leftPresent && rightPresent) {
         // Staggered: left panel transitions fully, then right panel transitions.
         for (const { frame: f, delayMs } of leftEntry)  entrySteps.push({ left: f,       right: idle,     delayMs });
         for (const { frame: f, delayMs } of rightEntry) entrySteps.push({ left: leftRef, right: f,        delayMs });
