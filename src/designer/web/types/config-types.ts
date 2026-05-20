@@ -26,7 +26,7 @@ export type NotificationRule = {
   app_name_glob?: string;
   urgency?: 'low' | 'normal' | 'critical' | 'any';
   content_glob?: string;
-  animation: 'scroll' | 'image' | 'gif' | 'dmx' | 'none';
+  animation: 'scroll' | 'dmx' | 'none';
   asset_path?: string;
   composite?: 'replace' | 'overlay';
   duration_ms_override?: number;

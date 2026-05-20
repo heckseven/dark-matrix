@@ -36,7 +36,7 @@ export function matchesGlob(pattern: string, str: string): boolean {
 export function routeNotification(
   intent: DisplayIntent,
   rules: NotificationRule[],
-): { action: 'scroll' | 'image' | 'gif' | 'dmx' | 'none'; assetPath?: string; composite: 'replace' | 'overlay'; durationMs?: number } {
+): { action: 'scroll' | 'dmx' | 'none'; assetPath?: string; composite: 'replace' | 'overlay'; durationMs?: number } {
   // TODO: populate urgency from dbus hints in dbus-notifications.ts (parseDbusMonitorLine
   // skips the hints array). Until then urgency-filtered rules never fire.
   const urgency = undefined as 'low' | 'normal' | 'critical' | undefined;
@@ -62,7 +62,7 @@ export function routeNotification(
     if (rule.content_glob !== undefined && !matchesGlob(rule.content_glob, intent.content)) continue;
 
     // All applicable checks passed — first match wins
-    const result: { action: 'scroll' | 'image' | 'gif' | 'dmx' | 'none'; assetPath?: string; composite: 'replace' | 'overlay'; durationMs?: number } = {
+    const result: { action: 'scroll' | 'dmx' | 'none'; assetPath?: string; composite: 'replace' | 'overlay'; durationMs?: number } = {
       action: rule.animation,
       composite: rule.composite ?? 'replace',
     };

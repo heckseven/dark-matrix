@@ -126,10 +126,10 @@ describe('intent factories', () => {
   });
 
   it('notificationIntent: style fields present when opts provided', () => {
-    const opts: NotificationDisplayOptions = { style: 'image', assetPath: '/tmp/a.png', composite: 'overlay' };
+    const opts: NotificationDisplayOptions = { style: 'dmx', assetPath: 'alert.dmx.json', composite: 'overlay' };
     const i = notificationIntent({ appName: 'app', summary: 'msg', body: '' }, opts);
-    expect(i.style).toBe('image');
-    expect(i.assetPath).toBe('/tmp/a.png');
+    expect(i.style).toBe('dmx');
+    expect(i.assetPath).toBe('alert.dmx.json');
     expect(i.composite).toBe('overlay');
   });
 
@@ -142,11 +142,11 @@ describe('intent factories', () => {
 
   it('notificationIntent: round-trip through Dispatcher preserves style fields', () => {
     const d = new Dispatcher();
-    const opts: NotificationDisplayOptions = { style: 'gif', composite: 'replace' };
+    const opts: NotificationDisplayOptions = { style: 'dmx', composite: 'replace' };
     const i = notificationIntent({ appName: 'app', summary: 'round-trip', body: '' }, opts);
     d.push(i);
     const curr = d.current();
-    expect(curr?.style).toBe('gif');
+    expect(curr?.style).toBe('dmx');
     expect(curr?.composite).toBe('replace');
     expect('assetPath' in (curr ?? {})).toBe(false);
   });

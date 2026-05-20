@@ -229,12 +229,12 @@ describe('routeNotification', () => {
 
   it('ec-switch source routing', () => {
     const rules: NotificationRule[] = [
-      { source: 'ec-switch', content_glob: 'CAM*', animation: 'image', asset_path: '/assets/cam.dmx.json', composite: 'overlay', duration_ms_override: 3000 },
+      { source: 'ec-switch', content_glob: 'CAM*', animation: 'dmx', asset_path: 'cam.dmx.json', composite: 'overlay', duration_ms_override: 3000 },
       { source: 'ec-switch', animation: 'scroll' },
     ];
     expect(routeNotification(sourceIntent('ec-switch', 'CAM ON'), rules)).toEqual({
-      action: 'image',
-      assetPath: '/assets/cam.dmx.json',
+      action: 'dmx',
+      assetPath: 'cam.dmx.json',
       composite: 'overlay',
       durationMs: 3000,
     });

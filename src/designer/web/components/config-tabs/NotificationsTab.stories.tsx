@@ -40,33 +40,17 @@ export const ScrollReplace: Story = {
   },
 };
 
-/** Static image overlay — image displayed over HUD for 5 seconds. */
-export const ImageOverlay: Story = {
+/** DMX overlay — skulltalkk over HUD for 5 seconds. */
+export const DmxOverlaySlack: Story = {
   args: {
     value: [
       {
         source: 'desktop-notification',
         app_name_glob: 'Slack',
-        animation: 'image',
-        asset_path: 'slack-icon.png',
+        animation: 'dmx',
+        asset_path: 'skulltalkk.dmx.json',
         composite: 'overlay',
         duration_ms_override: 5000,
-      },
-    ] satisfies NotificationRule[],
-  },
-};
-
-/** GIF animation (replace) — full-screen GIF for duration. */
-export const GifReplace: Story = {
-  args: {
-    value: [
-      {
-        source: 'desktop-notification',
-        app_name_glob: '*',
-        urgency: 'critical',
-        animation: 'gif',
-        asset_path: 'alert.gif',
-        duration_ms_override: 8000,
       },
     ] satisfies NotificationRule[],
   },
@@ -101,7 +85,7 @@ export const EcSwitchSource: Story = {
 export const VmContentGlob: Story = {
   args: {
     value: [
-      { source: 'vm', content_glob: 'VM UP*', animation: 'gif', asset_path: 'vm-up.gif', duration_ms_override: 4000 },
+      { source: 'vm', content_glob: 'VM UP*', animation: 'dmx', asset_path: 'vm-up.dmx.json', duration_ms_override: 4000 },
       { source: 'vm', content_glob: 'VM DN*', animation: 'none' },
     ] satisfies NotificationRule[],
   },
@@ -112,7 +96,7 @@ export const Mixed: Story = {
   args: {
     value: [
       { source: 'ec-switch', animation: 'scroll', composite: 'overlay' },
-      { source: 'desktop-notification', app_name_glob: 'Slack', urgency: 'critical', animation: 'gif', asset_path: 'alert.gif', duration_ms_override: 5000 },
+      { source: 'desktop-notification', app_name_glob: 'Slack', urgency: 'critical', animation: 'dmx', asset_path: 'alert.dmx.json', duration_ms_override: 5000 },
       { source: 'desktop-notification', app_name_glob: '*', animation: 'scroll' },
       { source: 'vm', animation: 'none' },
     ] satisfies NotificationRule[],

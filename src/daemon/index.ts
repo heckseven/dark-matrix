@@ -819,175 +819,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     })();
   }
 
-  async function startImageNotification(intent: DisplayIntent, composite: 'replace' | 'overlay'): Promise<void> {
-    if (!intent.assetPath) { startTextNotification(intent, composite); return; }
-    let handle: Awaited<ReturnType<typeof loadNotificationAsset>>;
-    try {
-      handle = await loadNotificationAsset(intent.assetPath);
-    } catch {
-      startTextNotification(intent, composite);
-      return;
-    }
-    if (handle.kind !== 'image') { startTextNotification(intent, composite); return; }
-    const frame = handle.frame;
-    const { left: leftDev, right: rightDev } = currentConfig.modules;
-
-    if (composite === 'replace') {
-      stopAnim();
-      if (idleTimer) clearTimeout(idleTimer);
-      let stopped = false;
-      stopCurrentAnim = () => { stopped = true; };
-
-      const tf = intent.transition;
-      const entryTf: TransitionFrame[] = tf ? getTransitionFrames(frame, tf, true) : [];
-      const exitTf:  TransitionFrame[] = tf ? getTransitionFrames(frame, tf, false) : [];
-      const holdMs = Math.max(0, intent.durationMs - transitionDuration(entryTf) - transitionDuration(exitTf));
-
-      for (const { frame: tf2, delayMs } of entryTf) {
-        if (stopped) break;
-        const packed = packBW(tf2);
-        try { if (leftDev) await transport.frameBw(packed, leftDev); } catch { /* non-fatal */ }
-        try { if (rightDev) await transport.frameBw(packed, rightDev); } catch { /* non-fatal */ }
-        if (delayMs > 0 && !stopped) await new Promise<void>(r => setTimeout(r, delayMs));
-      }
-      if (!stopped) {
-        try { if (leftDev) await transport.frameGray(frame, leftDev); } catch { /* non-fatal */ }
-        try { if (rightDev) await transport.frameGray(frame, rightDev); } catch { /* non-fatal */ }
-      }
-      if (!stopped && holdMs > 0) {
-        await new Promise<void>(r => {
-          const t = setTimeout(r, holdMs);
-          stopCurrentAnim = () => { stopped = true; clearTimeout(t); r(); };
-        });
-      }
-      for (const { frame: tf2, delayMs } of exitTf) {
-        if (stopped) break;
-        const packed = packBW(tf2);
-        try { if (leftDev) await transport.frameBw(packed, leftDev); } catch { /* non-fatal */ }
-        try { if (rightDev) await transport.frameBw(packed, rightDev); } catch { /* non-fatal */ }
-        if (delayMs > 0 && !stopped) await new Promise<void>(r => setTimeout(r, delayMs));
-      }
-      if (!stopped) {
-        stopCurrentAnim = null;
-        const curr = dispatcher.current();
-        if (!curr || curr.id === intent.id) resumeAfterInterrupt();
-      }
-      return;
-    }
-
-    const ovOpts = intent.overlayMode !== undefined ? { mode: intent.overlayMode } : {};
-    const imgTf = intent.transition;
-    const imgEntryTf: TransitionFrame[] = imgTf ? getTransitionFrames(frame, imgTf, true) : [];
-    const imgExitTf:  TransitionFrame[] = imgTf ? getTransitionFrames(frame, imgTf, false) : [];
-    const imgHoldMs = Math.max(0, intent.durationMs - transitionDuration(imgEntryTf) - transitionDuration(imgExitTf));
-
-    let stopped = false;
-    stopCurrentOverlay = () => { stopped = true; setActiveOverlay(null); };
-
-    for (const { frame: tf2, delayMs } of imgEntryTf) {
-      if (stopped) break;
-      setActiveOverlay({ left: tf2, right: tf2, ...ovOpts });
-      if (delayMs > 0 && !stopped) await new Promise<void>(r => setTimeout(r, delayMs));
-    }
-    if (!stopped) setActiveOverlay({ left: frame, right: frame, ...ovOpts });
-    if (!stopped && imgHoldMs > 0) {
-      await new Promise<void>(r => {
-        const t = setTimeout(r, imgHoldMs);
-        stopCurrentOverlay = () => { stopped = true; clearTimeout(t); setActiveOverlay(null); r(); };
-      });
-    }
-    for (const { frame: tf2, delayMs } of imgExitTf) {
-      if (stopped) break;
-      setActiveOverlay({ left: tf2, right: tf2, ...ovOpts });
-      if (delayMs > 0 && !stopped) await new Promise<void>(r => setTimeout(r, delayMs));
-    }
-    if (!stopped) {
-      setActiveOverlay(null);
-      stopCurrentOverlay = null;
-      const remaining = intent.expiresAt - Date.now();
-      setTimeout(() => dispatcher.gc(), Math.max(0, remaining));
-    }
-  }
-
-  async function startGifNotification(intent: DisplayIntent, composite: 'replace' | 'overlay'): Promise<void> {
-    if (!intent.assetPath) { startTextNotification(intent, composite); return; }
-    let handle: Awaited<ReturnType<typeof loadNotificationAsset>>;
-    try {
-      handle = await loadNotificationAsset(intent.assetPath);
-    } catch {
-      startTextNotification(intent, composite);
-      return;
-    }
-    if (handle.kind !== 'gif') { startTextNotification(intent, composite); return; }
-    const gifPath = handle.path;
-    const { left: leftDev, right: rightDev } = currentConfig.modules;
-
-    let stopped = false;
-    let gifAnim: GifAnimation | null = null;
-
-    if (composite === 'replace') {
-      stopAnim();
-      if (idleTimer) clearTimeout(idleTimer);
-      stopCurrentAnim = () => { stopped = true; gifAnim?.stop(); };
-    } else {
-      stopCurrentOverlay = () => { stopped = true; gifAnim?.stop(); setActiveOverlay(null); };
-    }
-
-    try {
-      gifAnim = await createGifAnimation({ path: gifPath, loop: true, dual: false, mode: 'gray' });
-    } catch {
-      if (!stopped) {
-        if (composite === 'replace') resumeAfterInterrupt();
-        else { setActiveOverlay(null); stopCurrentOverlay = null; }
-      }
-      return;
-    }
-    if (stopped) { gifAnim.stop(); return; }
-
-    const resolvedAnim = gifAnim;
-    if (composite === 'replace') {
-      stopCurrentAnim = () => { stopped = true; resolvedAnim.stop(); };
-    } else {
-      stopCurrentOverlay = () => { stopped = true; resolvedAnim.stop(); setActiveOverlay(null); };
-    }
-
-    const iter = gifAnim[Symbol.asyncIterator]();
-    const deadline = Date.now() + intent.durationMs;
-    let frameIdx = 0;
-
-    while (!stopped && Date.now() < deadline) {
-      const result = await iter.next();
-      if (stopped || result.done) break;
-      const gifFrame = result.value;
-      if (composite === 'replace') {
-        const [cl, cr] = composeFrames([gifFrame, gifFrame], activeOverlay);
-        try { if (leftDev) await transport.frameGray(cl, leftDev); } catch { /* non-fatal */ }
-        try { if (rightDev) await transport.frameGray(cr, rightDev); } catch { /* non-fatal */ }
-      } else {
-        setActiveOverlay({ left: gifFrame, right: gifFrame, ...(intent.overlayMode !== undefined ? { mode: intent.overlayMode } : {}) });
-      }
-      const delay = gifAnim.delays[frameIdx % gifAnim.delays.length] ?? 100;
-      frameIdx++;
-      if (delay > 0 && !stopped) await new Promise<void>(r => setTimeout(r, delay));
-    }
-
-    gifAnim.stop();
-    if (!stopped) {
-      if (composite === 'replace') {
-        stopCurrentAnim = null;
-        if (leftDev) await transport.release(leftDev).catch(() => {});
-        if (rightDev) await transport.release(rightDev).catch(() => {});
-        const curr = dispatcher.current();
-        if (!curr || curr.id === intent.id) resumeAfterInterrupt();
-      } else {
-        setActiveOverlay(null);
-        stopCurrentOverlay = null;
-        const remaining = intent.expiresAt - Date.now();
-        setTimeout(() => dispatcher.gc(), Math.max(0, remaining));
-      }
-    }
-  }
-
   async function startDmxNotification(intent: DisplayIntent, composite: 'replace' | 'overlay'): Promise<void> {
     if (!intent.assetPath) { startTextNotification(intent, composite); return; }
     let handle: Awaited<ReturnType<typeof loadNotificationAsset>>;
@@ -1022,7 +853,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     // Pre-compute transitions using the first DMX frame as reference
     const tf = intent.transition;
-    type DualStep = { left: Frame; right: Frame; delayMs: number };
+    type DualStep = { left: Frame | null; right: Frame | null; delayMs: number };
     let entrySteps: DualStep[] = [];
     let exitSteps:  DualStep[] = [];
     if (tf && dmxFrames.length > 0) {
@@ -1050,12 +881,15 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         fs.access(leftDev).then(() => true).catch(() => false),
         fs.access(rightDev).then(() => true).catch(() => false),
       ]);
+      // In overlay mode, idle side should pass null (HUD shows through). In replace mode,
+      // send BLANK so the device goes dark while the other panel is transitioning.
+      const idle = composite === 'overlay' ? null : BLANK;
       if (tf === 'wipe' && dual && leftPresent && rightPresent) {
         // Staggered: left panel transitions fully, then right panel transitions.
-        for (const { frame: f, delayMs } of leftEntry)  entrySteps.push({ left: f,        right: BLANK,    delayMs });
-        for (const { frame: f, delayMs } of rightEntry) entrySteps.push({ left: leftRef,  right: f,        delayMs });
-        for (const { frame: f, delayMs } of leftExit)   exitSteps.push({ left: f,         right: rightRef, delayMs });
-        for (const { frame: f, delayMs } of rightExit)  exitSteps.push({ left: BLANK,     right: f,        delayMs });
+        for (const { frame: f, delayMs } of leftEntry)  entrySteps.push({ left: f,       right: idle,     delayMs });
+        for (const { frame: f, delayMs } of rightEntry) entrySteps.push({ left: leftRef, right: f,        delayMs });
+        for (const { frame: f, delayMs } of leftExit)   exitSteps.push({ left: f,        right: rightRef, delayMs });
+        for (const { frame: f, delayMs } of rightExit)  exitSteps.push({ left: idle,     right: f,        delayMs });
       } else {
         for (let i = 0; i < leftEntry.length; i++)
           entrySteps.push({ left: leftEntry[i]!.frame, right: rightEntry[i]!.frame, delayMs: leftEntry[i]!.delayMs });
@@ -1076,8 +910,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     for (const { left: lf, right: rf, delayMs } of entrySteps) {
       if (stopped) break;
       if (composite === 'replace') {
-        try { if (leftDev)  await transport.frameBw(packBW(lf), leftDev);  } catch { /* non-fatal */ }
-        try { if (rightDev) await transport.frameBw(packBW(rf), rightDev); } catch { /* non-fatal */ }
+        if (lf !== null) try { if (leftDev)  await transport.frameBw(packBW(lf), leftDev);  } catch { /* non-fatal */ }
+        if (rf !== null) try { if (rightDev) await transport.frameBw(packBW(rf), rightDev); } catch { /* non-fatal */ }
       } else {
         setActiveOverlay({ left: lf, right: rf, ...(intent.overlayMode !== undefined ? { mode: intent.overlayMode } : {}) });
       }
@@ -1131,8 +965,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     for (const { left: lf, right: rf, delayMs } of exitSteps) {
       if (stopped) break;
       if (composite === 'replace') {
-        try { if (leftDev)  await transport.frameBw(packBW(lf), leftDev);  } catch { /* non-fatal */ }
-        try { if (rightDev) await transport.frameBw(packBW(rf), rightDev); } catch { /* non-fatal */ }
+        if (lf !== null) try { if (leftDev)  await transport.frameBw(packBW(lf), leftDev);  } catch { /* non-fatal */ }
+        if (rf !== null) try { if (rightDev) await transport.frameBw(packBW(rf), rightDev); } catch { /* non-fatal */ }
       } else {
         setActiveOverlay({ left: lf, right: rf, ...(intent.overlayMode !== undefined ? { mode: intent.overlayMode } : {}) });
       }
@@ -1157,13 +991,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
   function startNotificationAnimation(intent: DisplayIntent): void {
     stopOverlay();
-    const style = intent.style ?? 'text';
     const composite = intent.composite ?? 'replace';
-    if (style === 'image') {
-      void startImageNotification(intent, composite);
-    } else if (style === 'gif') {
-      void startGifNotification(intent, composite);
-    } else if (style === 'dmx') {
+    if (intent.style === 'dmx') {
       void startDmxNotification(intent, composite);
     } else {
       startTextNotification(intent, composite);
@@ -1558,7 +1387,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 appName?: string;
                 summary?: string;
                 body?: string;
-                style?: 'text' | 'image' | 'gif' | 'dmx';
+                style?: 'text' | 'dmx';
                 textSize?: 'tiny' | 'small' | 'medium' | 'large';
                 textPosition?: 'top' | 'middle' | 'bottom';
                 overlayMode?: 'or' | 'replace' | 'xor' | 'halo';

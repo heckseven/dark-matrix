@@ -12,7 +12,7 @@ export type DisplayIntent = {
   content: string;
   durationMs: number;
   expiresAt: number;
-  style?: 'text' | 'image' | 'gif' | 'dmx';
+  style?: 'text' | 'dmx';
   textSize?: 'tiny' | 'small' | 'medium' | 'large';
   textPosition?: 'top' | 'middle' | 'bottom';
   overlayMode?: 'or' | 'replace' | 'xor' | 'halo';
@@ -22,7 +22,7 @@ export type DisplayIntent = {
 };
 
 export type NotificationDisplayOptions = {
-  style?: 'text' | 'image' | 'gif' | 'dmx';
+  style?: 'text' | 'dmx';
   textSize?: 'tiny' | 'small' | 'medium' | 'large';
   textPosition?: 'top' | 'middle' | 'bottom';
   overlayMode?: 'or' | 'replace' | 'xor' | 'halo';

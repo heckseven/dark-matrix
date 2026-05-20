@@ -8,7 +8,7 @@ import { Input } from './ui/input.js';
 
 const FRAME_SIZE = 9 * 34;
 
-type NotifStyle = 'text' | 'image' | 'gif' | 'dmx';
+type NotifStyle = 'text' | 'dmx';
 type Composite = 'replace' | 'overlay';
 type TextPosition = 'top' | 'middle' | 'bottom';
 type OverlayMode = 'or' | 'replace' | 'xor' | 'halo';
@@ -129,8 +129,6 @@ function NotifCell({
       <div className="flex items-center gap-1">
         <Select aria-label="Notification style" value={cell.style} onChange={e => update({ style: e.target.value as NotifStyle })} className="flex-1">
           <option value="text">text</option>
-          <option value="image">image</option>
-          <option value="gif">gif</option>
           <option value="dmx">dmx</option>
         </Select>
         <Button variant="ghost" size="sm" aria-label="Clone" tooltip="Clone" onClick={onClone}>⎘</Button>
@@ -279,7 +277,7 @@ export function NotificationLab() {
         <a href="?lab" className="text-xs text-foreground/50 hover:text-foreground transition-colors">← back to audio lab</a>
         <span className="text-xs text-foreground/50">notification lab</span>
         <Button variant="default" size="sm" aria-label="Add notification cell" onClick={addCell}>+ add cell</Button>
-        <span className="text-xs text-foreground/50 ml-auto">text: live preview · image/gif/dmx: fire to hardware</span>
+        <span className="text-xs text-foreground/50 ml-auto">text: live preview · dmx: fire to hardware</span>
       </div>
 
       <div className="flex flex-wrap gap-3 items-start">

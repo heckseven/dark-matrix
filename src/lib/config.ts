@@ -36,7 +36,7 @@ const HudPresetSchema = z.object({
 const NotificationRuleSchema = z.object({
   app_name_glob: z.string().optional(),
   urgency: z.enum(['low', 'normal', 'critical', 'any']).optional(),
-  animation: z.enum(['scroll', 'image', 'gif', 'dmx', 'none']),
+  animation: z.enum(['scroll', 'dmx', 'none']),
   dmx_path: z.string().regex(/\.dmx\.json$/i).optional(),
   source: z.enum(['ec-switch', 'vm', 'claude', 'desktop-notification', 'manual']).optional(),
   content_glob: z.string().optional(),

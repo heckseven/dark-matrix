@@ -821,7 +821,7 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
           composite?: string;
           durationMsOverride?: number;
         };
-        const VALID_STYLES = ['text', 'image', 'gif', 'dmx'];
+        const VALID_STYLES = ['text', 'dmx'];
         const VALID_COMPOSITES = ['replace', 'overlay'];
         const VALID_TEXT_SIZES = ['tiny', 'small', 'medium', 'large'];
         const VALID_TEXT_POSITIONS = ['top', 'middle', 'bottom'];

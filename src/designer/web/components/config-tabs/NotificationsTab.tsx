@@ -8,7 +8,7 @@ export type NotificationRule = {
   app_name_glob?: string;
   urgency?: 'low' | 'normal' | 'critical' | 'any';
   content_glob?: string;
-  animation: 'scroll' | 'image' | 'gif' | 'dmx' | 'none';
+  animation: 'scroll' | 'dmx' | 'none';
   asset_path?: string;
   composite?: 'replace' | 'overlay';
   duration_ms_override?: number;
@@ -36,7 +36,7 @@ function buildRule(base: NotificationRule, changes: RulePatch): NotificationRule
   const merged = { ...base, ...changes };
   const src = merged.source;
   const anim: NotificationRule['animation'] = merged.animation ?? base.animation;
-  const needsAsset = anim === 'image' || anim === 'gif' || anim === 'dmx';
+  const needsAsset = anim === 'dmx';
   const isDesktop = src === 'desktop-notification' || src === undefined;
 
   const result: NotificationRule = { animation: anim };
@@ -68,7 +68,7 @@ function buildRule(base: NotificationRule, changes: RulePatch): NotificationRule
 function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown }: RowProps) {
   const src = rule.source;
   const isDesktop = src === 'desktop-notification' || src === undefined;
-  const needsAsset = rule.animation === 'image' || rule.animation === 'gif' || rule.animation === 'dmx';
+  const needsAsset = rule.animation === 'dmx';
   const assetDisplay = rule.asset_path ?? rule.dmx_path ?? '';
   const durationDisplay = rule.duration_ms_override !== undefined ? String(rule.duration_ms_override) : '';
 
@@ -143,19 +143,17 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown }:
         value={rule.animation}
         onChange={e => {
           const v = e.target.value;
-          if (v === 'scroll' || v === 'image' || v === 'gif' || v === 'dmx' || v === 'none') {
+          if (v === 'scroll' || v === 'dmx' || v === 'none') {
             onUpdate(buildRule(rule, { animation: v }));
           }
         }}
       >
         <option value="scroll">scroll</option>
-        <option value="image">image</option>
-        <option value="gif">gif</option>
         <option value="dmx">dmx</option>
         <option value="none">none</option>
       </Select>
 
-      {/* asset path — for image/gif/dmx */}
+      {/* asset path — for dmx */}
       {needsAsset && (
         <Input
           aria-label="Asset path"
@@ -261,8 +259,8 @@ export function NotificationsTab({ value, onChange }: NotificationsTabProps) {
       <div className="font-mono text-xs text-foreground/55 flex flex-col gap-1 border-t border-foreground/10 mt-4 pt-4">
         <p className="text-foreground/60 mb-1">assets</p>
         <p>place asset files in <span className="text-foreground/70">~/.config/dark-matrix/assets/</span></p>
-        <p className="mt-1">supported: <span className="text-foreground/70">.png .jpg .bmp</span> (image), <span className="text-foreground/70">.gif</span> (gif), <span className="text-foreground/70">.dmx.json</span> (dmx)</p>
-        <p className="mt-1">asset path is the filename only — e.g. <span className="text-foreground/70">alert.gif</span></p>
+        <p className="mt-1">supported: <span className="text-foreground/70">.dmx.json</span> — import images/GIFs to DMX first via the designer</p>
+        <p className="mt-1">asset path is the filename only — e.g. <span className="text-foreground/70">alert.dmx.json</span></p>
 
         <p className="text-foreground/60 mt-3 mb-1">finding a desktop app name</p>
         <p>sniff the next real notification from any app:</p>
