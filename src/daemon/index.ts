@@ -1022,24 +1022,44 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     // Pre-compute transitions using the first DMX frame as reference
     const tf = intent.transition;
-    let entryTf: TransitionFrame[] = [];
-    let exitTf:  TransitionFrame[] = [];
+    type DualStep = { left: Frame; right: Frame; delayMs: number };
+    let entrySteps: DualStep[] = [];
+    let exitSteps:  DualStep[] = [];
     if (tf && dmxFrames.length > 0) {
       const fp = base64ToFrame(dmxFrames[0]!.pixels, dmxWidth * dmxHeight);
-      let refFrame: Frame;
+      let leftRef: Frame;
+      let rightRef: Frame;
       if (dual) {
-        const lb = new Uint8Array(FRAME_SIZE) as unknown as Frame;
+        leftRef  = new Uint8Array(FRAME_SIZE) as unknown as Frame;
+        rightRef = new Uint8Array(FRAME_SIZE) as unknown as Frame;
         for (let c = 0; c < FRAME_COLS; c++)
-          for (let r = 0; r < FRAME_ROWS; r++)
-            lb[c * FRAME_ROWS + r] = fp[c * FRAME_ROWS + r] ?? 0;
-        refFrame = lb;
+          for (let r = 0; r < FRAME_ROWS; r++) {
+            (leftRef  as Uint8Array)[c * FRAME_ROWS + r] = fp[c * FRAME_ROWS + r] ?? 0;
+            (rightRef as Uint8Array)[c * FRAME_ROWS + r] = fp[(c + FRAME_COLS) * FRAME_ROWS + r] ?? 0;
+          }
       } else {
-        refFrame = fp as unknown as Frame;
+        leftRef  = fp as unknown as Frame;
+        rightRef = fp as unknown as Frame;
       }
-      entryTf = getTransitionFrames(refFrame, tf, true);
-      exitTf  = getTransitionFrames(refFrame, tf, false);
+      const leftEntry  = getTransitionFrames(leftRef,  tf, true);
+      const leftExit   = getTransitionFrames(leftRef,  tf, false);
+      const rightEntry = dual ? getTransitionFrames(rightRef, tf, true)  : leftEntry;
+      const rightExit  = dual ? getTransitionFrames(rightRef, tf, false) : leftExit;
+      const BLANK = createFrame();
+      if (tf === 'wipe' && dual) {
+        // Staggered: left panel transitions fully, then right panel transitions.
+        for (const { frame: f, delayMs } of leftEntry)  entrySteps.push({ left: f,        right: BLANK,    delayMs });
+        for (const { frame: f, delayMs } of rightEntry) entrySteps.push({ left: leftRef,  right: f,        delayMs });
+        for (const { frame: f, delayMs } of leftExit)   exitSteps.push({ left: f,         right: rightRef, delayMs });
+        for (const { frame: f, delayMs } of rightExit)  exitSteps.push({ left: BLANK,     right: f,        delayMs });
+      } else {
+        for (let i = 0; i < leftEntry.length; i++)
+          entrySteps.push({ left: leftEntry[i]!.frame, right: rightEntry[i]!.frame, delayMs: leftEntry[i]!.delayMs });
+        for (let i = 0; i < leftExit.length; i++)
+          exitSteps.push({ left: leftExit[i]!.frame, right: rightExit[i]!.frame, delayMs: leftExit[i]!.delayMs });
+      }
     }
-    const adjDeadline = deadline - transitionDuration(exitTf);
+    const adjDeadline = deadline - exitSteps.reduce((s, step) => s + step.delayMs, 0);
 
     if (composite === 'replace') {
       stopAnim();
@@ -1049,14 +1069,13 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       stopCurrentOverlay = () => { stopped = true; setActiveOverlay(null); };
     }
 
-    for (const { frame: tf2, delayMs } of entryTf) {
+    for (const { left: lf, right: rf, delayMs } of entrySteps) {
       if (stopped) break;
       if (composite === 'replace') {
-        const packed = packBW(tf2);
-        try { if (leftDev) await transport.frameBw(packed, leftDev); } catch { /* non-fatal */ }
-        try { if (rightDev) await transport.frameBw(packed, rightDev); } catch { /* non-fatal */ }
+        try { if (leftDev)  await transport.frameBw(packBW(lf), leftDev);  } catch { /* non-fatal */ }
+        try { if (rightDev) await transport.frameBw(packBW(rf), rightDev); } catch { /* non-fatal */ }
       } else {
-        setActiveOverlay({ left: tf2, right: tf2, ...(intent.overlayMode !== undefined ? { mode: intent.overlayMode } : {}) });
+        setActiveOverlay({ left: lf, right: rf, ...(intent.overlayMode !== undefined ? { mode: intent.overlayMode } : {}) });
       }
       if (delayMs > 0 && !stopped) await new Promise<void>(r => setTimeout(r, delayMs));
     }
@@ -1105,14 +1124,13 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       }
     } while (!stopped && Date.now() < adjDeadline);
 
-    for (const { frame: tf2, delayMs } of exitTf) {
+    for (const { left: lf, right: rf, delayMs } of exitSteps) {
       if (stopped) break;
       if (composite === 'replace') {
-        const packed = packBW(tf2);
-        try { if (leftDev) await transport.frameBw(packed, leftDev); } catch { /* non-fatal */ }
-        try { if (rightDev) await transport.frameBw(packed, rightDev); } catch { /* non-fatal */ }
+        try { if (leftDev)  await transport.frameBw(packBW(lf), leftDev);  } catch { /* non-fatal */ }
+        try { if (rightDev) await transport.frameBw(packBW(rf), rightDev); } catch { /* non-fatal */ }
       } else {
-        setActiveOverlay({ left: tf2, right: tf2, ...(intent.overlayMode !== undefined ? { mode: intent.overlayMode } : {}) });
+        setActiveOverlay({ left: lf, right: rf, ...(intent.overlayMode !== undefined ? { mode: intent.overlayMode } : {}) });
       }
       if (delayMs > 0 && !stopped) await new Promise<void>(r => setTimeout(r, delayMs));
     }
