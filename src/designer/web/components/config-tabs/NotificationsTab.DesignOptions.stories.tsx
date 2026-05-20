@@ -5,7 +5,7 @@
  * Presentational mockups — controls are not wired to state.
  */
 import type { Meta, StoryObj } from '@storybook/tanstack-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createScrollAnimation } from '../../../../animations/scroll.js';
 import type { ScrollSize } from '../../../../animations/scroll.js';
 import { MatrixPreview } from '../MatrixPreview.js';
@@ -97,9 +97,9 @@ function animLabel(r: NotificationRule) {
   return r.composite === 'overlay' ? 'scroll·overlay' : 'scroll';
 }
 
-function Chip({ children, dim }: { children: React.ReactNode; dim?: boolean }) {
+function Chip({ children, dim, className }: { children: React.ReactNode; dim?: boolean; className?: string }) {
   return (
-    <span className={`font-mono text-xs px-1.5 py-0.5 rounded-sm border whitespace-nowrap ${dim ? 'border-foreground/10 text-foreground/35' : 'border-foreground/25 text-foreground/65'}`}>
+    <span className={`font-mono text-xs px-1.5 py-0.5 rounded-sm border whitespace-nowrap ${dim ? 'border-foreground/10 text-foreground/35' : 'border-foreground/25 text-foreground/65'}${className ? ` ${className}` : ''}`}>
       {children}
     </span>
   );
@@ -558,10 +558,10 @@ export const Option2fPreviewRail: Story = { name: '2f · persistent preview rail
 
 function AnimChipWithPreview({ rule, onHover }: { rule: NotificationRule; onHover: (active: boolean) => void }) {
   return (
-    <span className="inline-flex items-center"
+    <span className="inline-flex items-center min-w-0"
       onMouseEnter={() => onHover(true)}
       onMouseLeave={() => onHover(false)}>
-      <Chip dim={rule.animation === 'none'}>{animLabel(rule)}</Chip>
+      <Chip className="max-w-[10rem] overflow-hidden text-ellipsis inline-block">{animLabel(rule)}</Chip>
     </span>
   );
 }
@@ -569,31 +569,49 @@ function AnimChipWithPreview({ rule, onHover }: { rule: NotificationRule; onHove
 function O2g() {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [hoverY, setHoverY] = useState<number | null>(null);
+  const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
   return (
     <div className="flex justify-center py-4">
       <div className="relative">
-        {hoverIdx !== null && RULES[hoverIdx] !== undefined && (
-          <div className="absolute right-full mr-6 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1.5 p-2 border border-foreground/20 bg-background rounded shadow-lg pointer-events-none z-50">
+        {hoverIdx !== null && hoverY !== null && RULES[hoverIdx] !== undefined && (
+          <div
+            className="absolute right-full mr-6 -translate-y-1/2 flex flex-col items-center gap-1.5 p-2 border border-foreground/20 bg-background rounded shadow-lg pointer-events-none z-50"
+            style={{ top: hoverY }}
+          >
             <RulePrev rule={RULES[hoverIdx]!} />
             <span className="font-mono text-foreground/30 text-center" style={{ fontSize: 9 }}>
               {animLabel(RULES[hoverIdx]!)}
             </span>
           </div>
         )}
-        <div className="w-80">
+        <div className="max-w-[800px] w-full">
           <OptionHeader n="2g" title="hover chip to preview"
             note="hovering 'skulltalkk', 'scroll', or 'suppress' shows the animation to the left of the list. no click required." />
           <p className="font-mono text-xs text-foreground/35 mb-2">first match wins</p>
           <div className="flex flex-col">
             {RULES.map((rule, idx) => (
-              <div key={idx} className="group flex items-center gap-2 py-1.5 border-b border-foreground/10 last:border-0">
+              <div
+                key={idx}
+                ref={(el: HTMLDivElement | null) => { rowRefs.current[idx] = el; }}
+                className="group flex items-center gap-2 py-1.5 border-b border-foreground/10 last:border-0"
+              >
                 <span className="font-mono text-xs text-foreground/25 tabular-nums w-4 shrink-0">{idx + 1}</span>
                 <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                  <Chip>{srcLabel(rule)}</Chip>
+                  <Chip className="shrink-0">{srcLabel(rule)}</Chip>
                   <span className="text-xs shrink-0">→</span>
-                  <AnimChipWithPreview rule={rule} onHover={v => setHoverIdx(v ? idx : null)} />
-                  {rule.transition && <Chip>{rule.transition}</Chip>}
-                  {rule.duration_ms_override !== undefined && <Chip>{rule.duration_ms_override}ms</Chip>}
+                  <AnimChipWithPreview rule={rule} onHover={v => {
+                    if (v) {
+                      const el = rowRefs.current[idx];
+                      setHoverY(el ? el.offsetTop + el.offsetHeight / 2 : null);
+                      setHoverIdx(idx);
+                    } else {
+                      setHoverIdx(null);
+                      setHoverY(null);
+                    }
+                  }} />
+                  {rule.transition && <Chip className="shrink-0">{rule.transition}</Chip>}
+                  {rule.duration_ms_override !== undefined && <Chip className="shrink-0">{rule.duration_ms_override}ms</Chip>}
                 </div>
                 <Popover open={openIdx === idx} onOpenChange={v => setOpenIdx(v ? idx : null)}>
                   <PopoverTrigger asChild>
