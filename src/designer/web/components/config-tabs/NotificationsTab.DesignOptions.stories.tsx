@@ -121,7 +121,7 @@ function FormRow({ label, children }: { label: string; children: React.ReactNode
   return (
     <div className="flex items-center gap-2">
       <span className="font-mono text-xs text-foreground/45 w-20 shrink-0">{label}</span>
-      {children}
+      <div className="flex-1 min-w-0">{children}</div>
     </div>
   );
 }
