@@ -16,6 +16,7 @@ export type DisplayIntent = {
   textSize?: 'tiny' | 'small' | 'medium' | 'large';
   textPosition?: 'top' | 'middle' | 'bottom';
   overlayMode?: 'or' | 'replace' | 'xor' | 'halo';
+  transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash';
   assetPath?: string;
   composite?: 'replace' | 'overlay';
 };
@@ -25,6 +26,7 @@ export type NotificationDisplayOptions = {
   textSize?: 'tiny' | 'small' | 'medium' | 'large';
   textPosition?: 'top' | 'middle' | 'bottom';
   overlayMode?: 'or' | 'replace' | 'xor' | 'halo';
+  transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash';
   assetPath?: string;
   composite?: 'replace' | 'overlay';
 };

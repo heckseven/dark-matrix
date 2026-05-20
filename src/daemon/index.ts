@@ -36,8 +36,10 @@ import { createPresetTriggerEngine } from '../lib/preset-triggers.js';
 import { createGifAnimation } from '../animations/gif.js';
 import type { GifAnimation } from '../animations/gif.js';
 import type { DisplayIntent } from '../lib/dispatcher.js';
-import { packBW, FRAME_SIZE, FRAME_COLS, FRAME_ROWS } from '../lib/frame.js';
+import { packBW, FRAME_SIZE, FRAME_COLS, FRAME_ROWS, createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
+import { getTransitionFrames, transitionDuration } from '../animations/transitions.js';
+import type { TransitionFrame } from '../animations/transitions.js';
 import { composeFrames } from '../lib/compositor.js';
 import type { NotifyOverlay } from '../lib/compositor.js';
 import { loadNotificationAsset } from '../lib/notification-assets.js';
@@ -833,16 +835,43 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     if (composite === 'replace') {
       stopAnim();
       if (idleTimer) clearTimeout(idleTimer);
-      try { if (leftDev) await transport.frameGray(frame, leftDev); } catch { /* non-fatal */ }
-      try { if (rightDev) await transport.frameGray(frame, rightDev); } catch { /* non-fatal */ }
-      let done = false;
-      const timer = setTimeout(() => {
-        done = true;
+      let stopped = false;
+      stopCurrentAnim = () => { stopped = true; };
+
+      const tf = intent.transition;
+      const entryTf: TransitionFrame[] = tf ? getTransitionFrames(frame, tf, true) : [];
+      const exitTf:  TransitionFrame[] = tf ? getTransitionFrames(frame, tf, false) : [];
+      const holdMs = Math.max(0, intent.durationMs - transitionDuration(entryTf) - transitionDuration(exitTf));
+
+      for (const { frame: tf2, delayMs } of entryTf) {
+        if (stopped) break;
+        const packed = packBW(tf2);
+        try { if (leftDev) await transport.frameBw(packed, leftDev); } catch { /* non-fatal */ }
+        try { if (rightDev) await transport.frameBw(packed, rightDev); } catch { /* non-fatal */ }
+        if (delayMs > 0 && !stopped) await new Promise<void>(r => setTimeout(r, delayMs));
+      }
+      if (!stopped) {
+        try { if (leftDev) await transport.frameGray(frame, leftDev); } catch { /* non-fatal */ }
+        try { if (rightDev) await transport.frameGray(frame, rightDev); } catch { /* non-fatal */ }
+      }
+      if (!stopped && holdMs > 0) {
+        await new Promise<void>(r => {
+          const t = setTimeout(r, holdMs);
+          stopCurrentAnim = () => { stopped = true; clearTimeout(t); r(); };
+        });
+      }
+      for (const { frame: tf2, delayMs } of exitTf) {
+        if (stopped) break;
+        const packed = packBW(tf2);
+        try { if (leftDev) await transport.frameBw(packed, leftDev); } catch { /* non-fatal */ }
+        try { if (rightDev) await transport.frameBw(packed, rightDev); } catch { /* non-fatal */ }
+        if (delayMs > 0 && !stopped) await new Promise<void>(r => setTimeout(r, delayMs));
+      }
+      if (!stopped) {
         stopCurrentAnim = null;
         const curr = dispatcher.current();
         if (!curr || curr.id === intent.id) resumeAfterInterrupt();
-      }, intent.durationMs);
-      stopCurrentAnim = () => { if (!done) { done = true; clearTimeout(timer); } };
+      }
       return;
     }
 
@@ -971,6 +1000,27 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     const deadline = Date.now() + intent.durationMs;
     let stopped = false;
 
+    // Pre-compute transitions using the first DMX frame as reference
+    const tf = composite === 'replace' ? intent.transition : undefined;
+    let entryTf: TransitionFrame[] = [];
+    let exitTf:  TransitionFrame[] = [];
+    if (tf && dmxFrames.length > 0) {
+      const fp = base64ToFrame(dmxFrames[0]!.pixels, dmxWidth * dmxHeight);
+      let refFrame: Frame;
+      if (dual) {
+        const lb = new Uint8Array(FRAME_SIZE) as unknown as Frame;
+        for (let c = 0; c < FRAME_COLS; c++)
+          for (let r = 0; r < FRAME_ROWS; r++)
+            lb[c * FRAME_ROWS + r] = fp[c * FRAME_ROWS + r] ?? 0;
+        refFrame = lb;
+      } else {
+        refFrame = fp as unknown as Frame;
+      }
+      entryTf = getTransitionFrames(refFrame, tf, true);
+      exitTf  = getTransitionFrames(refFrame, tf, false);
+    }
+    const adjDeadline = deadline - transitionDuration(exitTf);
+
     if (composite === 'replace') {
       stopAnim();
       if (idleTimer) clearTimeout(idleTimer);
@@ -979,9 +1029,17 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       stopCurrentOverlay = () => { stopped = true; setActiveOverlay(null); };
     }
 
+    for (const { frame: tf2, delayMs } of entryTf) {
+      if (stopped) break;
+      const packed = packBW(tf2);
+      try { if (leftDev) await transport.frameBw(packed, leftDev); } catch { /* non-fatal */ }
+      try { if (rightDev) await transport.frameBw(packed, rightDev); } catch { /* non-fatal */ }
+      if (delayMs > 0 && !stopped) await new Promise<void>(r => setTimeout(r, delayMs));
+    }
+
     outer: do {
       for (const dmxFrame of dmxFrames) {
-        if (stopped || Date.now() >= deadline) break outer;
+        if (stopped || Date.now() >= adjDeadline) break outer;
         const pixels = base64ToFrame(dmxFrame.pixels, dmxWidth * dmxHeight);
         if (dual) {
           const leftBuf = new Uint8Array(FRAME_SIZE) as unknown as Frame;
@@ -1021,7 +1079,15 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         }
         if (dmxFrame.delayMs > 0 && !stopped) await new Promise<void>(r => setTimeout(r, dmxFrame.delayMs));
       }
-    } while (!stopped && Date.now() < deadline);
+    } while (!stopped && Date.now() < adjDeadline);
+
+    for (const { frame: tf2, delayMs } of exitTf) {
+      if (stopped) break;
+      const packed = packBW(tf2);
+      try { if (leftDev) await transport.frameBw(packed, leftDev); } catch { /* non-fatal */ }
+      try { if (rightDev) await transport.frameBw(packed, rightDev); } catch { /* non-fatal */ }
+      if (delayMs > 0 && !stopped) await new Promise<void>(r => setTimeout(r, delayMs));
+    }
 
     if (!stopped) {
       if (composite === 'replace') {
@@ -1446,6 +1512,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 textSize?: 'tiny' | 'small' | 'medium' | 'large';
                 textPosition?: 'top' | 'middle' | 'bottom';
                 overlayMode?: 'or' | 'replace' | 'xor' | 'halo';
+                transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash';
                 assetPath?: string;
                 composite?: 'replace' | 'overlay';
                 durationMsOverride?: number;
@@ -1461,6 +1528,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 if (m.textSize !== undefined) intent.textSize = m.textSize;
                 if (m.textPosition !== undefined) intent.textPosition = m.textPosition;
                 if (m.overlayMode !== undefined) intent.overlayMode = m.overlayMode;
+                if (m.transition !== undefined) intent.transition = m.transition;
                 const assetPath = m.assetPath ?? route.assetPath;
                 if (assetPath !== undefined) intent.assetPath = assetPath;
                 const rawDur = m.durationMsOverride;
