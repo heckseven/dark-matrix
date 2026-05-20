@@ -1059,17 +1059,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   // Notification source watchers
   const disposeWatches: Array<() => void> = [];
 
-  disposeWatches.push(watchSwitches((e) => {
-    dispatcher.push(ecSwitchIntent(e));
-  }, { intervalMs: 500 }));
-
-  disposeWatches.push(watchVms((e) => {
-    const intent = vmIntent(e);
-    dispatcher.push(intent);
-  }, { intervalMs: 2000 }));
-
-  disposeWatches.push(watchDesktopNotifications((n) => {
-    const base = notificationIntent(n);
+  function routeAndPush(base: DisplayIntent): void {
     const route = routeNotification(base, currentConfig.notification_rules ?? []);
     if (route.action === 'none') return;
     const intent: DisplayIntent = { ...base };
@@ -1081,6 +1071,18 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       intent.expiresAt = Date.now() + route.durationMs;
     }
     dispatcher.push(intent);
+  }
+
+  disposeWatches.push(watchSwitches((e) => {
+    routeAndPush(ecSwitchIntent(e));
+  }, { intervalMs: 500 }));
+
+  disposeWatches.push(watchVms((e) => {
+    routeAndPush(vmIntent(e));
+  }, { intervalMs: 2000 }));
+
+  disposeWatches.push(watchDesktopNotifications((n) => {
+    routeAndPush(notificationIntent(n));
   }));
 
   let micAnimActive = false;
