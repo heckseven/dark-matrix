@@ -255,7 +255,7 @@ function O2() {
               </PopoverContent>
             </Popover>
             <Button variant="ghost" size="sm"
-              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-foreground/40"
+              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
               tooltip="Delete rule"
               aria-label={`Delete rule ${idx + 1}`}>
               ×
@@ -301,7 +301,7 @@ function O2b() {
               </PopoverContent>
             </Popover>
             <Button variant="ghost" size="sm"
-              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-foreground/40"
+              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
               tooltip="Delete rule"
               aria-label={`Delete rule ${idx + 1}`}>
               ×
@@ -354,7 +354,7 @@ function O2c() {
               </PopoverContent>
             </Popover>
             <Button variant="ghost" size="sm"
-              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-foreground/40"
+              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
               tooltip="Delete rule"
               aria-label={`Delete rule ${idx + 1}`}>
               ×
@@ -404,7 +404,7 @@ function O2d() {
               </PopoverContent>
             </Popover>
             <Button variant="ghost" size="sm"
-              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-foreground/40"
+              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
               tooltip="Delete rule"
               aria-label={`Delete rule ${idx + 1}`}>
               ×
@@ -467,7 +467,7 @@ function O2e() {
             </Popover>
             <RuleChips rule={rule} />
             <Button variant="ghost" size="sm"
-              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-foreground/40"
+              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
               tooltip="Delete rule"
               aria-label={`Delete rule ${idx + 1}`}>
               ×
@@ -517,7 +517,7 @@ function O2f() {
               </PopoverContent>
             </Popover>
             <Button variant="ghost" size="sm"
-              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-foreground/40"
+              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
               tooltip="Delete rule"
               aria-label={`Delete rule ${idx + 1}`}>
               ×
@@ -616,7 +616,7 @@ function O2g() {
               </PopoverContent>
             </Popover>
             <Button variant="ghost" size="sm"
-              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-foreground/40"
+              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
               tooltip="Delete rule"
               aria-label={`Delete rule ${idx + 1}`}>
               ×
