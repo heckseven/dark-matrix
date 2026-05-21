@@ -3,7 +3,7 @@ import { Input } from '../ui/input.js';
 import { Radio } from '../ui/radio.js';
 import { Slider } from '../ui/slider.js';
 import { ScrubInput } from '../ui/scrub-input.js';
-import { TabFrame, TabField } from './tab-frame.js';
+import { TabFrame, TabRow } from './tab-frame.js';
 
 const SENSOR_PATH_RE = /^\/sys\/bus\/iio\/devices\/iio:device\d+\/in_illuminance_raw$/;
 
@@ -32,7 +32,7 @@ export function BrightnessTab({ value, onChange }: Props) {
   return (
     <TabFrame>
 
-      <TabField label="mode">
+      <TabRow label="mode">
         <div className="flex gap-5">
           {(['sensor', 'time', 'manual'] as const).map(m => (
             <label key={m} className="flex items-center gap-2 cursor-pointer">
@@ -46,31 +46,33 @@ export function BrightnessTab({ value, onChange }: Props) {
             </label>
           ))}
         </div>
-      </TabField>
+      </TabRow>
 
       {value.mode === 'sensor' && (
-        <TabField label="sensor path">
-          <Input
-            fluid
-            value={value.sensor_path}
-            onChange={e => onChange({ ...value, sensor_path: e.target.value })}
-            placeholder="/sys/bus/iio/devices/iio:device0/in_illuminance_raw"
-            aria-label="sensor path"
-            spellCheck={false}
-          />
-          {value.sensor_path.length > 0 && (
-            <span
-              role="status"
-              aria-label={sensorValid ? 'valid path' : 'path does not match expected pattern'}
-              className={sensorValid ? 'text-green-400' : 'text-red-400'}
-            >
-              {sensorValid ? '✓ valid path' : '✗ path does not match expected pattern'}
-            </span>
-          )}
-        </TabField>
+        <TabRow label="sensor path">
+          <div className="flex flex-col gap-1 w-full">
+            <Input
+              fluid
+              value={value.sensor_path}
+              onChange={e => onChange({ ...value, sensor_path: e.target.value })}
+              placeholder="/sys/bus/iio/devices/iio:device0/in_illuminance_raw"
+              aria-label="sensor path"
+              spellCheck={false}
+            />
+            {value.sensor_path.length > 0 && (
+              <span
+                role="status"
+                aria-label={sensorValid ? 'valid path' : 'path does not match expected pattern'}
+                className={sensorValid ? 'text-green-400' : 'text-red-400'}
+              >
+                {sensorValid ? '✓ valid path' : '✗ path does not match expected pattern'}
+              </span>
+            )}
+          </div>
+        </TabRow>
       )}
 
-      <TabField label="multiplier">
+      <TabRow label="multiplier">
         <Input
           fluid
           type="number"
@@ -81,9 +83,9 @@ export function BrightnessTab({ value, onChange }: Props) {
           onChange={e => onChange({ ...value, multiplier: Number(e.target.value) })}
           aria-label="brightness multiplier"
         />
-      </TabField>
+      </TabRow>
 
-      <TabField label="offset">
+      <TabRow label="offset">
         <Slider
           aria-label="brightness offset"
           min={0}
@@ -93,9 +95,9 @@ export function BrightnessTab({ value, onChange }: Props) {
           value={value.offset}
           onChange={e => onChange({ ...value, offset: Number(e.target.value) })}
         />
-      </TabField>
+      </TabRow>
 
-      <TabField label="min brightness">
+      <TabRow label="min brightness">
         <Slider
           aria-label="minimum brightness"
           aria-describedby={minMaxErrorId}
@@ -107,9 +109,9 @@ export function BrightnessTab({ value, onChange }: Props) {
           onChange={e => onChange({ ...value, min: Number(e.target.value) })}
         />
         {minMaxError && <span id={minMaxErrorId} role="alert" className="text-red-400">must be ≤ max</span>}
-      </TabField>
+      </TabRow>
 
-      <TabField label="max brightness">
+      <TabRow label="max brightness">
         <Slider
           aria-label="maximum brightness"
           aria-describedby={minMaxErrorId}
@@ -120,9 +122,9 @@ export function BrightnessTab({ value, onChange }: Props) {
           value={value.max}
           onChange={e => onChange({ ...value, max: Number(e.target.value) })}
         />
-      </TabField>
+      </TabRow>
 
-      <TabField label="hysteresis">
+      <TabRow label="hysteresis">
         <ScrubInput
           value={value.hysteresis}
           min={0}
@@ -132,10 +134,10 @@ export function BrightnessTab({ value, onChange }: Props) {
           className="w-10 text-center"
           expandedClassName="w-16"
         />
-      </TabField>
+      </TabRow>
 
       {value.mode === 'manual' && (
-        <TabField label="brightness">
+        <TabRow label="brightness">
           <Slider
             aria-label="manual brightness"
             min={0}
@@ -145,7 +147,7 @@ export function BrightnessTab({ value, onChange }: Props) {
             value={value.manual_value}
             onChange={e => onChange({ ...value, manual_value: Number(e.target.value) })}
           />
-        </TabField>
+        </TabRow>
       )}
 
     </TabFrame>
