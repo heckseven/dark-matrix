@@ -2,6 +2,7 @@ import * as React from 'react';
 import { Select } from '../ui/select.js';
 import { Input } from '../ui/input.js';
 import { Checkbox } from '../ui/checkbox.js';
+import { ScrubInput } from '../ui/scrub-input.js';
 
 type IdleAnimation = 'heatmap' | 'audio-eq' | 'gol-random' | 'scroll' | 'gif' | 'hud' | 'none';
 type GifMode = 'bw' | 'gray';
@@ -67,6 +68,7 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
       <div className="flex flex-col gap-1">
         <label className="font-mono text-xs text-muted-foreground">idle animation</label>
         <Select
+          fluid
           value={value.idle_animation}
           aria-label="idle animation"
           options={IDLE_ANIMATION_OPTIONS}
@@ -75,17 +77,17 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
       </div>
 
       <div className="flex flex-col gap-1">
-        <label className="font-mono text-xs text-muted-foreground">idle after (ms)</label>
-        <Input
-          type="number"
+        <label className="font-mono text-xs text-muted-foreground">idle after</label>
+        <ScrubInput
           value={value.idle_after_ms}
           min={0}
-          suffix="ms"
-          onChange={e => {
-            const n = parseInt(e.target.value, 10);
-            if (!isNaN(n)) onChange({ ...value, idle_after_ms: n });
-          }}
+          max={3600000}
+          pixelsPerUnit={0.01}
+          onChange={n => onChange({ ...value, idle_after_ms: n })}
           aria-label="idle after ms"
+          suffix="ms"
+          className="w-20 text-center"
+          expandedClassName="w-28"
         />
       </div>
 
@@ -120,6 +122,7 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
           <div className="flex flex-col gap-1">
             <label className="font-mono text-xs text-muted-foreground">gif mode</label>
             <Select
+              fluid
               value={value.idle_gif_mode ?? 'bw'}
               aria-label="gif mode"
               options={GIF_MODE_OPTIONS}
@@ -144,6 +147,7 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
         <div className="flex flex-col gap-1">
           <label className="font-mono text-xs text-muted-foreground">eq source</label>
           <Select
+            fluid
             value={value.idle_eq_source ?? 'monitor'}
             aria-label="eq source"
             options={EQ_SOURCE_OPTIONS}

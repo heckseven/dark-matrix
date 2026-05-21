@@ -29,9 +29,9 @@ function PortRow({
       <div className="flex items-center gap-2">
         <span className="font-mono text-xs text-muted-foreground w-10 shrink-0">{label}</span>
         <Input
+          fluid
           value={path}
           readOnly={!editing}
-          expandedClassName="w-80"
           onChange={e => onChange(e.target.value)}
           placeholder="not set"
           aria-label={`${label.charAt(0).toUpperCase() + label.slice(1)} module path`}

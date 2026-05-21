@@ -38,7 +38,7 @@ export function ConfigPanel({ dualModule, topPad }: { dualModule: boolean; topPa
         </div>
 
         <div className="mt-[4vh] pb-10 flex justify-center" aria-live="polite" aria-busy={!configData}>
-        <div className="w-full max-w-[500px]">
+        <div className="w-full">
         {configData ? (
           <>
             {activeTab === 'hardware' && (

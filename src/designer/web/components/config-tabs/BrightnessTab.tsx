@@ -2,6 +2,7 @@ import { useId } from 'react';
 import { Input } from '../ui/input.js';
 import { Radio } from '../ui/radio.js';
 import { Slider } from '../ui/slider.js';
+import { ScrubInput } from '../ui/scrub-input.js';
 
 const SENSOR_PATH_RE = /^\/sys\/bus\/iio\/devices\/iio:device\d+\/in_illuminance_raw$/;
 
@@ -24,8 +25,8 @@ type Props = {
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-4 py-1">
-      <span className="w-32 shrink-0 font-mono text-xs text-foreground/70">{label}</span>
-      <div className="flex items-center gap-2">{children}</div>
+      <span className="w-28 shrink-0 font-mono text-xs text-foreground/70">{label}</span>
+      <div className="flex items-center gap-2 flex-1 min-w-0">{children}</div>
     </div>
   );
 }
@@ -99,6 +100,7 @@ export function BrightnessTab({ value, onChange }: Props) {
           min={0}
           max={255}
           step={1}
+          size={40}
           value={value.offset}
           onChange={e => onChange({ ...value, offset: Number(e.target.value) })}
         />
@@ -112,6 +114,7 @@ export function BrightnessTab({ value, onChange }: Props) {
           min={0}
           max={255}
           step={1}
+          size={40}
           value={value.min}
           onChange={e => onChange({ ...value, min: Number(e.target.value) })}
         />
@@ -126,6 +129,7 @@ export function BrightnessTab({ value, onChange }: Props) {
           min={0}
           max={255}
           step={1}
+          size={40}
           value={value.max}
           onChange={e => onChange({ ...value, max: Number(e.target.value) })}
         />
@@ -133,13 +137,14 @@ export function BrightnessTab({ value, onChange }: Props) {
 
       {/* hysteresis */}
       <Row label="hysteresis">
-        <Input
-          type="number"
+        <ScrubInput
           value={value.hysteresis}
           min={0}
-          step={1}
-          onChange={e => onChange({ ...value, hysteresis: Number(e.target.value) })}
+          max={255}
+          onChange={n => onChange({ ...value, hysteresis: n })}
           aria-label="brightness hysteresis"
+          className="w-10 text-center"
+          expandedClassName="w-16"
         />
       </Row>
 
@@ -151,6 +156,7 @@ export function BrightnessTab({ value, onChange }: Props) {
             min={0}
             max={255}
             step={1}
+            size={40}
             value={value.manual_value}
             onChange={e => onChange({ ...value, manual_value: Number(e.target.value) })}
           />
