@@ -174,9 +174,13 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       return;
     }
     if (singleAnim) {
+      const devPaths = getModulePaths();
       const stops: Array<() => void> = [];
-      for (const dev of getModulePaths()) {
-        stops.push(runAnimation(singleAnim(), { transport, devicePath: dev, mode: 'bw' }));
+      let doneCount = 0;
+      for (const dev of devPaths) {
+        stops.push(runAnimation(singleAnim(), { transport, devicePath: dev, mode: 'bw' }, onComplete ? () => {
+          if (++doneCount === devPaths.length) onComplete();
+        } : undefined));
       }
       stopCurrentAnim = () => stops.forEach(f => f());
     }
@@ -640,7 +644,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     })();
   }
 
-  function startDmxAnimation(filePath: string, loop: boolean): void {
+  function startDmxAnimation(filePath: string, loop: boolean, onComplete?: () => void): void {
     stopAnim();
     let stopped = false;
     stopCurrentAnim = () => { stopped = true; };
@@ -709,6 +713,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       if (!stopped) {
         if (left) await transport.release(left).catch(() => {});
         if (right) await transport.release(right).catch(() => {});
+        onComplete?.();
       }
     })();
   }
@@ -1301,19 +1306,17 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               stopAnim();
               if (idleTimer) clearTimeout(idleTimer);
               const spCfg = currentConfig.startup;
+              const onDone = () => { if (!dispatcher.current()) resumeAfterInterrupt(); };
               if (spCfg.animation === 'gol-random') {
-                runOnModules(null, () => createGolAnimation({ frames: 420, loop: false }));
-                // 420 frames at 30 fps ≈ 14 s; resume after animation would naturally end
-                setTimeout(() => { if (!dispatcher.current()) resumeAfterInterrupt(); }, 16000);
+                runOnModules(null, () => createGolAnimation({ frames: 420, loop: false }), onDone);
               } else if (spCfg.animation === 'scroll') {
                 runOnModules(
                   createScrollAnimation({ text: spCfg.scroll_text || ' ', loop: false }),
                   undefined,
-                  resumeAfterInterrupt,
+                  onDone,
                 );
               } else if (spCfg.animation === 'dmx' && spCfg.dmx_path) {
-                startDmxAnimation(spCfg.dmx_path, false);
-                startIdleTimer();
+                startDmxAnimation(spCfg.dmx_path, false, onDone);
               }
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;

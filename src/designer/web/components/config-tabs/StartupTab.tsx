@@ -20,6 +20,7 @@ interface StartupValue {
 interface StartupTabProps {
   value: StartupValue;
   onChange: (v: StartupValue) => void;
+  dualModule?: boolean;
 }
 
 const ANIMATION_OPTIONS: { value: StartupAnimation; label: string }[] = [
@@ -29,7 +30,8 @@ const ANIMATION_OPTIONS: { value: StartupAnimation; label: string }[] = [
   { value: 'none',       label: 'none' },
 ];
 
-const FSIZE = 9 * 34;
+const ROWS = 34;
+const COLS = 9;
 
 function toB64(f: Uint8Array): string {
   let s = '';
@@ -37,70 +39,95 @@ function toB64(f: Uint8Array): string {
   return btoa(s);
 }
 
-const BLANK = toB64(new Uint8Array(FSIZE));
+function blankB64(cols: number) { return toB64(new Uint8Array(cols * ROWS)); }
 
-function ScrollPrev({ text }: { text: string }) {
-  const [px, setPx] = useState(BLANK);
+function mergeFrames(left: Uint8Array, right: Uint8Array): Uint8Array {
+  const out = new Uint8Array(18 * ROWS);
+  for (let c = 0; c < COLS; c++) {
+    for (let r = 0; r < ROWS; r++) {
+      out[c * ROWS + r]        = left[c * ROWS + r]  ?? 0;
+      out[(c + COLS) * ROWS + r] = right[c * ROWS + r] ?? 0;
+    }
+  }
+  return out;
+}
+
+function ScrollPrev({ text, dual }: { text: string; dual: boolean }) {
+  const [px, setPx] = useState(() => blankB64(dual ? 18 : 9));
   useEffect(() => {
+    setPx(blankB64(dual ? 18 : 9));
     let dead = false;
     const a = createScrollAnimation({ text: text || ' ', size: 'small', loop: true, startOffset: 0 });
     const it = a[Symbol.asyncIterator]();
     const tick = () => void it.next().then((r: IteratorResult<ScrollFrame>) => {
       if (dead || r.done) return;
-      setPx(toB64(r.value[0]));
+      setPx(dual ? toB64(mergeFrames(r.value[0], r.value[1])) : toB64(r.value[0]));
       setTimeout(tick, 50);
     });
     tick();
     return () => { dead = true; a.stop(); };
-  }, [text]);
-  return <MatrixPreview pixels={px} width={9} />;
+  }, [text, dual]);
+  return <MatrixPreview pixels={px} width={dual ? 18 : 9} />;
 }
 
-function GolPrev() {
-  const [px, setPx] = useState(BLANK);
+function GolPrev({ dual }: { dual: boolean }) {
+  const [px, setPx] = useState(() => blankB64(dual ? 18 : 9));
   useEffect(() => {
+    setPx(blankB64(dual ? 18 : 9));
     let dead = false;
-    const a = createGolAnimation({ loop: true });
-    const it = a[Symbol.asyncIterator]();
-    const tick = () => void it.next().then((r: IteratorResult<Frame>) => {
-      if (dead || r.done) return;
-      setPx(toB64(r.value));
+    const aL = createGolAnimation({ loop: true });
+    const aR = dual ? createGolAnimation({ loop: true }) : null;
+    const itL = aL[Symbol.asyncIterator]();
+    const itR = aR?.[Symbol.asyncIterator]();
+    const tick = async () => {
+      const rL = await itL.next();
+      if (dead || rL.done) return;
+      if (dual && itR) {
+        const rR = await itR.next();
+        if (dead || rR.done) return;
+        setPx(toB64(mergeFrames(rL.value, rR.value)));
+      } else {
+        setPx(toB64(rL.value));
+      }
       setTimeout(tick, 80);
-    });
-    tick();
-    return () => { dead = true; a.stop(); };
-  }, []);
-  return <MatrixPreview pixels={px} width={9} />;
+    };
+    void tick();
+    return () => { dead = true; aL.stop(); aR?.stop(); };
+  }, [dual]);
+  return <MatrixPreview pixels={px} width={dual ? 18 : 9} />;
 }
 
-function DmxPrev({ asset }: { asset?: string }) {
+function DmxPrev({ asset, dual }: { asset?: string; dual: boolean }) {
+  const label = asset?.replace('.dmx.json', '') ?? '—';
+  const w = dual ? 91 : 43;
   return (
-    <div aria-hidden="true" className="flex items-center justify-center bg-black shrink-0" style={{ width: 43, height: 168 }}>
+    <div aria-hidden="true" className="flex items-center justify-center bg-black shrink-0" style={{ width: w, height: 168 }}>
       <span className="font-mono text-center text-foreground/25 leading-tight break-all" style={{ fontSize: 7 }}>
-        {asset?.replace('.dmx.json', '') ?? '—'}
+        {label}
       </span>
     </div>
   );
 }
 
-function NonePrev() {
+function NonePrev({ dual }: { dual: boolean }) {
+  const w = dual ? 91 : 43;
   return (
-    <div aria-hidden="true" className="flex items-center justify-center bg-black shrink-0" style={{ width: 43, height: 168 }}>
+    <div aria-hidden="true" className="flex items-center justify-center bg-black shrink-0" style={{ width: w, height: 168 }}>
       <span className="font-mono text-foreground/15" style={{ fontSize: 8 }}>none</span>
     </div>
   );
 }
 
-function AnimPrev({ value }: { value: StartupValue }) {
-  if (value.animation === 'scroll') return <ScrollPrev text={value.scroll_text} />;
-  if (value.animation === 'gol-random') return <GolPrev />;
-  if (value.animation === 'dmx') return <DmxPrev {...(value.dmx_path !== undefined ? { asset: value.dmx_path } : {})} />;
-  return <NonePrev />;
+function AnimPrev({ value, dual }: { value: StartupValue; dual: boolean }) {
+  if (value.animation === 'scroll') return <ScrollPrev text={value.scroll_text} dual={dual} />;
+  if (value.animation === 'gol-random') return <GolPrev dual={dual} />;
+  if (value.animation === 'dmx') return <DmxPrev {...(value.dmx_path !== undefined ? { asset: value.dmx_path } : {})} dual={dual} />;
+  return <NonePrev dual={dual} />;
 }
 
 type PreviewState = 'idle' | 'firing' | 'ok' | 'error';
 
-export function StartupTab({ value, onChange }: StartupTabProps) {
+export function StartupTab({ value, onChange, dualModule = false }: StartupTabProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [previewState, setPreviewState] = useState<PreviewState>('idle');
   const assetDisplay = value.dmx_path ?? '';
@@ -121,7 +148,7 @@ export function StartupTab({ value, onChange }: StartupTabProps) {
 
       <div className="flex flex-col gap-1">
         <span className="font-mono text-xs text-muted-foreground">preview</span>
-        <AnimPrev value={value} />
+        <AnimPrev value={value} dual={dualModule} />
       </div>
 
       <div className="flex flex-col gap-1">

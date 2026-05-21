@@ -19,7 +19,7 @@ export type RunOptions = {
 // transport at the target fps. Frame timing is wall-clock anchored (not
 // chained) so late frames don't compound delay.
 // Returns a disposer that stops the animation. Port is released only on natural completion.
-export function runAnimation(anim: Animation, opts: RunOptions): () => void {
+export function runAnimation(anim: Animation, opts: RunOptions, onNaturalComplete?: () => void): () => void {
   const { transport, devicePath, mode = 'bw', fps = 30 } = opts;
   const frameMs = 1000 / fps;
   let stopped = false;
@@ -54,7 +54,10 @@ export function runAnimation(anim: Animation, opts: RunOptions): () => void {
 
     // Only release on natural completion — external stop means another
     // operation (e.g. live preview frame) is about to reuse the open port.
-    if (natural) await transport.release(devicePath).catch(() => {});
+    if (natural) {
+      await transport.release(devicePath).catch(() => {});
+      onNaturalComplete?.();
+    }
   };
 
   void loop();

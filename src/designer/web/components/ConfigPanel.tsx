@@ -12,7 +12,7 @@ import { AppearanceTab } from './config-tabs/AppearanceTab.js';
 const CONFIG_TABS = ['hardware', 'brightness', 'startup', 'daemon', 'notifications', 'appearance'] as const;
 type ConfigTab = typeof CONFIG_TABS[number];
 
-export function ConfigPanel({ dualModule: _dualModule, topPad }: { dualModule: boolean; topPad: number }) {
+export function ConfigPanel({ dualModule, topPad }: { dualModule: boolean; topPad: number }) {
   const configData = useDesignerStore(s => s.configData);
   const patchConfig = useDesignerStore(s => s.patchConfig);
   const [activeTab, setActiveTab] = useState<ConfigTab>('hardware');
@@ -56,6 +56,7 @@ export function ConfigPanel({ dualModule: _dualModule, topPad }: { dualModule: b
               <StartupTab
                 value={configData.startup}
                 onChange={v => patchConfig({ startup: v })}
+                dualModule={dualModule}
               />
             )}
             {activeTab === 'daemon' && (
