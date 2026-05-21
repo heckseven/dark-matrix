@@ -13,6 +13,7 @@ import type { AssetMeta } from '../lib/asset-meta.js';
 import { convertGifToDmx } from '../lib/image-convert.js';
 import { sendToDaemon, PersistentDaemonClient, daemonSocketPath } from '../lib/daemon-client.js';
 import { loadConfig, ConfigSchema } from '../lib/config.js';
+import { enumerateMatrixModules } from '../lib/modules.js';
 import { AUDIO_STYLES } from '../animations/audio-renderers.js';
 import { watchProcStats } from '../lib/proc-source.js';
 
@@ -1014,6 +1015,13 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
         }
         return;
       }
+    }
+
+    if (url === '/api/matrix-modules' && method === 'GET') {
+      const ports = (await enumerateMatrixModules().catch(() => [])).sort();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, ports }));
+      return;
     }
 
     // Module availability — proxies daemon status command

@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import process from 'node:process';
 import { spawn } from 'node:child_process';
-import { loadConfig, writeDefaultConfig, watchConfig } from '../lib/config.js';
+import { loadConfig, bootstrapConfig, watchConfig } from '../lib/config.js';
 import type { Config } from '../lib/config.js';
 import { startBrightnessLoop } from '../lib/brightness.js';
 import { watchSwitches } from '../lib/ec-switches.js';
@@ -70,7 +70,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     currentConfig = await loadConfig();
   } catch (err: unknown) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      await writeDefaultConfig();
+      await bootstrapConfig();
       currentConfig = await loadConfig();
     } else {
       throw err;

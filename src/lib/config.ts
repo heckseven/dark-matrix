@@ -2,6 +2,7 @@ import { z } from 'zod';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import { enumerateMatrixModules } from './modules.js';
 
 const BY_PATH_RE = /^\/dev\/(serial\/by-path\/[a-zA-Z0-9:._-]+|ttyACM\d+|ttyUSB\d+)$/;
 const SENSOR_PATH_RE = /^\/sys\/bus\/iio\/devices\/iio:device\d+\/in_illuminance_raw$/;
@@ -156,6 +157,16 @@ export async function writeDefaultConfig(p?: string): Promise<void> {
   const filePath = resolveConfigPath(p);
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, JSON.stringify(DEFAULT_CONFIG, null, 2), { mode: 0o600 });
+}
+
+export async function bootstrapConfig(p?: string): Promise<void> {
+  const found = (await enumerateMatrixModules().catch(() => [])).sort();
+  const modules = found.length === 2
+    ? { left: found[0]!, right: found[1]! }
+    : DEFAULT_CONFIG.modules;
+  const filePath = resolveConfigPath(p);
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, JSON.stringify({ ...DEFAULT_CONFIG, modules }, null, 2), { mode: 0o600 });
 }
 
 export function watchConfig(onReload: (c: Config) => void): () => void {
