@@ -1,7 +1,11 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createScrollAnimation } from '../../../../animations/scroll.js';
+import type { ScrollFrame, ScrollSize } from '../../../../animations/scroll.js';
+import { MatrixPreview } from '../MatrixPreview.js';
 import { Select } from '../ui/select.js';
 import { Input } from '../ui/input.js';
 import { Button } from '../ui/button.js';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.js';
 import { AssetPickerModal } from '../AssetPickerModal.js';
 
 export type NotificationRule = {
@@ -31,6 +35,11 @@ type RowProps = {
   onDelete: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
+  editOpen: boolean;
+  onEditOpenChange: (open: boolean) => void;
+  onHoverEnter: () => void;
+  onHoverLeave: () => void;
+  rowRef: (el: HTMLDivElement | null) => void;
 };
 
 type RulePatch = { [K in keyof NotificationRule]+?: NotificationRule[K] | undefined };
@@ -74,9 +83,6 @@ function buildRule(base: NotificationRule, changes: RulePatch): NotificationRule
 }
 
 // ec-switch events produce content strings like "MIC ON", "MIC OFF", "CAM ON", "CAM OFF".
-// The UI exposes these as "mic switch" and "cam switch" source options with an on/off/any state
-// select, rather than making the user type a content glob.
-
 type SwitchState = 'on' | 'off' | 'any';
 
 function virtualSource(rule: NotificationRule): string {
@@ -98,16 +104,92 @@ function toSwitchGlob(prefix: 'MIC' | 'CAM', state: SwitchState): string {
   return `${prefix}*`;
 }
 
-function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown }: RowProps) {
-  const src = rule.source;
-  const isDesktop = src === 'desktop-notification' || src === undefined;
-  const needsAsset = rule.animation === 'dmx';
+// ── chip summary helpers ──────────────────────────────────────────────────────
+
+function srcLabel(r: NotificationRule): string {
+  if (!r.source || r.source === 'desktop-notification') return r.app_name_glob || '*';
+  if (r.source === 'ec-switch') return r.content_glob?.startsWith('CAM') ? 'cam' : 'mic';
+  return r.source;
+}
+
+function animLabel(r: NotificationRule): string {
+  if (r.animation === 'none') return 'suppress';
+  if (r.animation === 'dmx') return r.asset_path?.replace('.dmx.json', '') ?? 'dmx';
+  return r.composite === 'overlay' ? 'scroll·overlay' : 'scroll';
+}
+
+function Chip({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <span className={`font-mono text-xs px-1.5 py-0.5 rounded-sm border border-foreground/25 text-foreground/65 whitespace-nowrap${className ? ` ${className}` : ''}`}>
+      {children}
+    </span>
+  );
+}
+
+// ── live preview ──────────────────────────────────────────────────────────────
+
+const FSIZE = 9 * 34;
+function toB64(f: Uint8Array): string {
+  let s = '';
+  for (let i = 0; i < f.length; i++) s += String.fromCharCode(f[i]!);
+  return btoa(s);
+}
+const BLANK = toB64(new Uint8Array(FSIZE));
+
+function ScrollPrev({ text, size = 'small' }: { text: string; size?: ScrollSize }) {
+  const [px, setPx] = useState(BLANK);
+  useEffect(() => {
+    let dead = false;
+    const a = createScrollAnimation({ text: text || ' ', size, loop: true, startOffset: 0 });
+    const it = a[Symbol.asyncIterator]();
+    const tick = () => void it.next().then((r: IteratorResult<ScrollFrame>) => { if (dead || r.done) return; setPx(toB64(r.value[0])); setTimeout(tick, 50); });
+    tick();
+    return () => { dead = true; a.stop(); };
+  }, [text, size]);
+  return <MatrixPreview pixels={px} width={9} />;
+}
+
+function DmxPrev({ asset }: { asset?: string }) {
+  return (
+    <div aria-hidden="true" className="flex items-center justify-center bg-black shrink-0" style={{ width: 43, height: 168 }}>
+      <span className="font-mono text-center text-foreground/25 leading-tight break-all" style={{ fontSize: 7 }}>
+        {asset?.replace('.dmx.json', '') ?? '—'}
+      </span>
+    </div>
+  );
+}
+
+function RulePrev({ rule }: { rule: NotificationRule }) {
+  if (rule.animation === 'scroll') return <ScrollPrev text="test notification" />;
+  if (rule.animation === 'dmx') return <DmxPrev {...(rule.asset_path !== undefined ? { asset: rule.asset_path } : {})} />;
+  return (
+    <div aria-hidden="true" className="flex items-center justify-center bg-black shrink-0" style={{ width: 43, height: 168 }}>
+      <span className="font-mono text-foreground/15" style={{ fontSize: 8 }}>none</span>
+    </div>
+  );
+}
+
+// ── form helpers ──────────────────────────────────────────────────────────────
+
+function FormRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="font-mono text-xs text-foreground/45 w-20 shrink-0">{label}</span>
+      <div className="flex-1 min-w-0">{children}</div>
+    </div>
+  );
+}
+
+// ── rule row ──────────────────────────────────────────────────────────────────
+
+function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, editOpen, onEditOpenChange, onHoverEnter, onHoverLeave, rowRef }: RowProps) {
+  const [pickerOpen, setPickerOpen] = useState(false);
   const assetDisplay = rule.asset_path ?? rule.dmx_path ?? '';
   const durationDisplay = rule.duration_ms_override !== undefined ? String(rule.duration_ms_override) : '';
-  const [pickerOpen, setPickerOpen] = useState(false);
   const vSrc = virtualSource(rule);
   const isMicSwitch = vSrc === 'mic-switch';
   const isCamSwitch = vSrc === 'cam-switch';
+  const isDesktop = rule.source === 'desktop-notification' || rule.source === undefined;
 
   function handleSourceChange(newVirt: string) {
     if (newVirt === 'mic-switch') {
@@ -125,210 +207,294 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown }:
   }
 
   return (
-    <div role="group" aria-label={`Rule ${idx + 1}`} className="flex items-center gap-2 flex-wrap py-1.5 border-b border-foreground/10 last:border-b-0">
-      {/* reorder */}
-      <div className="flex flex-col shrink-0">
-        <Button variant="ghost" aria-label={`Move rule ${idx + 1} up`} disabled={idx === 0} className="px-1 py-0 leading-none" onClick={onMoveUp}>↑</Button>
-        <Button variant="ghost" aria-label={`Move rule ${idx + 1} down`} disabled={idx === total - 1} className="px-1 py-0 leading-none" onClick={onMoveDown}>↓</Button>
+    <div
+      ref={rowRef}
+      role="group"
+      aria-label={`Rule ${idx + 1}`}
+      className="group flex items-center gap-2 py-1.5 border-b border-foreground/10 last:border-b-0"
+      onMouseEnter={onHoverEnter}
+      onMouseLeave={onHoverLeave}
+    >
+      <span className="font-mono text-xs text-foreground/25 tabular-nums w-4 shrink-0">{idx + 1}</span>
+
+      {/* chip summary */}
+      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+        <Chip className="shrink-0">{srcLabel(rule)}</Chip>
+        <span className="text-xs shrink-0">→</span>
+        <Chip className="max-w-[10rem] overflow-hidden text-ellipsis inline-block shrink-0">{animLabel(rule)}</Chip>
+        {rule.transition && <Chip className="shrink-0">{rule.transition}</Chip>}
+        {rule.duration_ms_override !== undefined && <Chip className="shrink-0">{rule.duration_ms_override}ms</Chip>}
       </div>
 
-      {/* source */}
-      <Select
-        aria-label="Source"
-        value={vSrc}
-        onChange={e => handleSourceChange(e.target.value)}
-      >
-        <option value="">any source</option>
-        <option value="desktop-notification">desktop-notification</option>
-        <option value="mic-switch">mic switch</option>
-        <option value="cam-switch">cam switch</option>
-        <option value="vm">vm</option>
-        <option value="claude">claude</option>
-        <option value="manual">manual</option>
-      </Select>
+      {/* reorder — hover visible */}
+      <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
+        <Button variant="ghost" size="sm" aria-label={`Move rule ${idx + 1} up`} disabled={idx === 0} onClick={onMoveUp}>↑</Button>
+        <Button variant="ghost" size="sm" aria-label={`Move rule ${idx + 1} down`} disabled={idx === total - 1} onClick={onMoveDown}>↓</Button>
+      </div>
 
-      {/* desktop-notification fields */}
-      {isDesktop && (
-        <>
-          <Input
-            aria-label="App name glob"
-            placeholder="app name glob (*)"
-            value={rule.app_name_glob ?? ''}
-            onChange={e => onUpdate(buildRule(rule, { app_name_glob: e.target.value }))}
-            spellCheck={false}
-          />
-          <Select
-            aria-label="Urgency"
-            value={rule.urgency ?? 'any'}
-            onChange={e => {
-              const v = e.target.value;
-              onUpdate(buildRule(rule, {
-                urgency: (v === 'low' || v === 'normal' || v === 'critical') ? v : 'any',
-              }));
-            }}
-          >
-            <option value="any">any urgency</option>
-            <option value="low">low</option>
-            <option value="normal">normal</option>
-            <option value="critical">critical</option>
-          </Select>
-        </>
-      )}
-
-      {/* switch state — mic or cam switch */}
-      {(isMicSwitch || isCamSwitch) && (
-        <Select
-          aria-label="Switch state"
-          value={switchState(rule.content_glob)}
-          onChange={e => {
-            const state = e.target.value as SwitchState;
-            const prefix = isMicSwitch ? 'MIC' : 'CAM';
-            onUpdate(buildRule(rule, { content_glob: toSwitchGlob(prefix, state) }));
-          }}
-        >
-          <option value="any">any</option>
-          <option value="on">on</option>
-          <option value="off">off</option>
-        </Select>
-      )}
-
-      {/* content glob — non-desktop sources other than mic/cam switch */}
-      {!isDesktop && !isMicSwitch && !isCamSwitch && (
-        <Input
-          aria-label="Content glob"
-          placeholder="content glob (*)"
-          value={rule.content_glob ?? ''}
-          onChange={e => onUpdate(buildRule(rule, { content_glob: e.target.value }))}
-          spellCheck={false}
-        />
-      )}
-
-      {/* animation */}
-      <Select
-        aria-label="Animation"
-        value={rule.animation}
-        onChange={e => {
-          const v = e.target.value;
-          if (v === 'dmx') {
-            onUpdate(buildRule(rule, { animation: 'dmx', transition: 'dissolve', overlay_mode: 'halo', composite: 'overlay' }));
-          } else if (v === 'scroll' || v === 'none') {
-            onUpdate(buildRule(rule, { animation: v }));
-          }
-        }}
-      >
-        <option value="scroll">scroll</option>
-        <option value="dmx">dmx</option>
-        <option value="none">none</option>
-      </Select>
-
-      {/* asset picker — for dmx */}
-      {needsAsset && (
-        <>
+      {/* edit popover */}
+      <Popover open={editOpen} onOpenChange={onEditOpenChange}>
+        <PopoverTrigger asChild>
           <Button
             variant="ghost"
-            aria-label={assetDisplay ? `Asset: ${assetDisplay}, click to change` : 'Pick asset'}
-            className="font-mono text-xs max-w-[10rem] truncate"
-            onClick={() => setPickerOpen(true)}
+            size="sm"
+            className={`transition-opacity ${editOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'}`}
+            aria-label={`Edit rule ${idx + 1}`}
           >
-            {assetDisplay
-              ? <span className="truncate">{assetDisplay.replace('.dmx.json', '')}</span>
-              : <span className="text-foreground/40">pick asset…</span>}
+            edit
           </Button>
-          {assetDisplay && (
-            <Button
-              variant="ghost"
-              aria-label="Clear asset"
-              className="px-1 text-foreground/40 hover:text-foreground/70"
-              onClick={() => onUpdate(buildRule(rule, { asset_path: undefined }))}
-            >×</Button>
-          )}
-          <AssetPickerModal
-            open={pickerOpen}
-            onOpenChange={setPickerOpen}
-            {...(assetDisplay ? { current: assetDisplay } : {})}
-            onPick={filename => onUpdate(buildRule(rule, { asset_path: filename }))}
-          />
-        </>
-      )}
+        </PopoverTrigger>
+        <PopoverContent side="left" className="w-[360px] flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
+            {/* source */}
+            <FormRow label="source">
+              <Select fluid aria-label="Source" value={vSrc} onChange={e => handleSourceChange(e.target.value)}>
+                <option value="">any source</option>
+                <option value="desktop-notification">desktop</option>
+                <option value="mic-switch">mic switch</option>
+                <option value="cam-switch">cam switch</option>
+                <option value="vm">vm</option>
+                <option value="claude">claude</option>
+                <option value="manual">manual</option>
+              </Select>
+            </FormRow>
 
-      {/* blend — DMX only (collapses composite + overlay_mode) */}
-      {rule.animation === 'dmx' && (
-        <Select
-          aria-label="Blend"
-          value={rule.overlay_mode ?? (rule.composite === 'overlay' ? 'or' : 'replace')}
-          onChange={e => {
-            const v = e.target.value as 'replace' | 'or' | 'xor' | 'halo';
-            if (v === 'replace') {
-              onUpdate(buildRule(rule, { composite: 'replace', overlay_mode: undefined }));
-            } else {
-              onUpdate(buildRule(rule, { composite: 'overlay', overlay_mode: v }));
-            }
-          }}
-        >
-          <option value="replace">replace</option>
-          <option value="or">additive</option>
-          <option value="xor">xor</option>
-          <option value="halo">halo</option>
-        </Select>
-      )}
+            {/* app glob */}
+            {isDesktop && (
+              <FormRow label="app">
+                <Input
+                  fluid
+                  aria-label="App name glob"
+                  placeholder="glob (*)"
+                  value={rule.app_name_glob ?? ''}
+                  onChange={e => onUpdate(buildRule(rule, { app_name_glob: e.target.value }))}
+                  spellCheck={false}
+                />
+              </FormRow>
+            )}
 
-      {/* transition — DMX only */}
-      {rule.animation === 'dmx' && (
-        <Select
-          aria-label="Transition"
-          value={rule.transition ?? 'none'}
-          onChange={e => {
-            const v = e.target.value;
-            onUpdate(buildRule(rule, { transition: v === 'none' ? undefined : v as NotificationRule['transition'] }));
-          }}
-        >
-          <option value="none">no transition</option>
-          <option value="wipe">wipe</option>
-          <option value="scan">scan</option>
-          <option value="slide">slide</option>
-          <option value="dissolve">dissolve</option>
-          <option value="flash">flash</option>
-        </Select>
-      )}
+            {/* urgency */}
+            {isDesktop && (
+              <FormRow label="urgency">
+                <Select
+                  fluid
+                  aria-label="Urgency"
+                  value={rule.urgency ?? 'any'}
+                  onChange={e => {
+                    const v = e.target.value;
+                    onUpdate(buildRule(rule, {
+                      urgency: (v === 'low' || v === 'normal' || v === 'critical') ? v : 'any',
+                    }));
+                  }}
+                >
+                  <option value="any">any</option>
+                  <option value="low">low</option>
+                  <option value="normal">normal</option>
+                  <option value="critical">critical</option>
+                </Select>
+              </FormRow>
+            )}
 
-      {/* composite — scroll only */}
-      {rule.animation === 'scroll' && (
-        <Select
-          aria-label="Composite"
-          value={rule.composite ?? 'replace'}
-          onChange={e => {
-            const v = e.target.value;
-            onUpdate(buildRule(rule, { composite: v === 'overlay' ? 'overlay' : 'replace' }));
-          }}
-        >
-          <option value="replace">replace</option>
-          <option value="overlay">overlay</option>
-        </Select>
-      )}
+            {/* switch state */}
+            {(isMicSwitch || isCamSwitch) && (
+              <FormRow label="state">
+                <Select
+                  fluid
+                  aria-label="Switch state"
+                  value={switchState(rule.content_glob)}
+                  onChange={e => {
+                    const state = e.target.value as SwitchState;
+                    const prefix = isMicSwitch ? 'MIC' : 'CAM';
+                    onUpdate(buildRule(rule, { content_glob: toSwitchGlob(prefix, state) }));
+                  }}
+                >
+                  <option value="any">any</option>
+                  <option value="on">on</option>
+                  <option value="off">off</option>
+                </Select>
+              </FormRow>
+            )}
 
-      {/* duration override */}
-      <Input
-        aria-label="Duration override ms"
-        placeholder="duration ms"
-        type="number"
-        min="100"
-        value={durationDisplay}
-        onChange={e => {
-          const n = parseInt(e.target.value, 10);
-          onUpdate(buildRule(rule, { duration_ms_override: isNaN(n) || n <= 0 ? undefined : n }));
-        }}
-        style={{ width: '7rem' }}
-        spellCheck={false}
-      />
+            {/* content glob — non-desktop, non-switch */}
+            {!isDesktop && !isMicSwitch && !isCamSwitch && (
+              <FormRow label="content">
+                <Input
+                  fluid
+                  aria-label="Content glob"
+                  placeholder="glob (*)"
+                  value={rule.content_glob ?? ''}
+                  onChange={e => onUpdate(buildRule(rule, { content_glob: e.target.value }))}
+                  spellCheck={false}
+                />
+              </FormRow>
+            )}
+
+            {/* animation */}
+            <FormRow label="animation">
+              <Select
+                fluid
+                aria-label="Animation"
+                value={rule.animation}
+                onChange={e => {
+                  const v = e.target.value;
+                  if (v === 'dmx') {
+                    onUpdate(buildRule(rule, { animation: 'dmx', transition: 'dissolve', overlay_mode: 'halo', composite: 'overlay' }));
+                  } else if (v === 'scroll' || v === 'none') {
+                    onUpdate(buildRule(rule, { animation: v }));
+                  }
+                }}
+              >
+                <option value="scroll">scroll</option>
+                <option value="dmx">dmx</option>
+                <option value="none">none</option>
+              </Select>
+            </FormRow>
+
+            {/* asset — dmx only */}
+            {rule.animation === 'dmx' && (
+              <FormRow label="asset">
+                <div className="flex items-center gap-1.5 w-full">
+                  <Input
+                    fluid
+                    readOnly
+                    value={assetDisplay ? assetDisplay.replace('.dmx.json', '') : ''}
+                    placeholder="none"
+                    aria-label="Selected asset"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0"
+                    aria-label={`Pick asset${assetDisplay ? ` (current: ${assetDisplay.replace('.dmx.json', '')})` : ''}`}
+                    onClick={() => setPickerOpen(true)}
+                  >
+                    pick
+                  </Button>
+                </div>
+              </FormRow>
+            )}
+
+            {/* blend — dmx only */}
+            {rule.animation === 'dmx' && (
+              <FormRow label="blend">
+                <Select
+                  fluid
+                  aria-label="Blend"
+                  value={rule.overlay_mode ?? (rule.composite === 'overlay' ? 'or' : 'replace')}
+                  onChange={e => {
+                    const v = e.target.value as 'replace' | 'or' | 'xor' | 'halo';
+                    if (v === 'replace') {
+                      onUpdate(buildRule(rule, { composite: 'replace', overlay_mode: undefined }));
+                    } else {
+                      onUpdate(buildRule(rule, { composite: 'overlay', overlay_mode: v }));
+                    }
+                  }}
+                >
+                  <option value="replace">replace</option>
+                  <option value="or">additive</option>
+                  <option value="xor">xor</option>
+                  <option value="halo">halo</option>
+                </Select>
+              </FormRow>
+            )}
+
+            {/* transition — dmx only */}
+            {rule.animation === 'dmx' && (
+              <FormRow label="transition">
+                <Select
+                  fluid
+                  aria-label="Transition"
+                  value={rule.transition ?? 'none'}
+                  onChange={e => {
+                    const v = e.target.value;
+                    onUpdate(buildRule(rule, { transition: v === 'none' ? undefined : v as NotificationRule['transition'] }));
+                  }}
+                >
+                  <option value="none">none</option>
+                  <option value="wipe">wipe</option>
+                  <option value="scan">scan</option>
+                  <option value="slide">slide</option>
+                  <option value="dissolve">dissolve</option>
+                  <option value="flash">flash</option>
+                </Select>
+              </FormRow>
+            )}
+
+            {/* composite — scroll only */}
+            {rule.animation === 'scroll' && (
+              <FormRow label="composite">
+                <Select
+                  fluid
+                  aria-label="Composite"
+                  value={rule.composite ?? 'replace'}
+                  onChange={e => {
+                    const v = e.target.value;
+                    onUpdate(buildRule(rule, { composite: v === 'overlay' ? 'overlay' : 'replace' }));
+                  }}
+                >
+                  <option value="replace">replace</option>
+                  <option value="overlay">overlay</option>
+                </Select>
+              </FormRow>
+            )}
+
+            {/* duration */}
+            <FormRow label="duration">
+              <Input
+                fluid
+                aria-label="Duration override ms"
+                type="number"
+                min="100"
+                placeholder="default"
+                value={durationDisplay}
+                suffix="ms"
+                onChange={e => {
+                  const n = parseInt(e.target.value, 10);
+                  onUpdate(buildRule(rule, { duration_ms_override: isNaN(n) || n <= 0 ? undefined : n }));
+                }}
+              />
+            </FormRow>
+          </div>
+
+          <div className="flex gap-2 pt-2 border-t border-foreground/10">
+            <Button size="sm" onClick={() => onEditOpenChange(false)}>done</Button>
+          </div>
+        </PopoverContent>
+      </Popover>
 
       {/* delete */}
-      <Button variant="ghost" aria-label={`Delete rule ${idx + 1}`} className="ml-auto shrink-0 px-1" onClick={onDelete}>×</Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+        tooltip="Delete rule"
+        aria-label={`Delete rule ${idx + 1}`}
+        onClick={onDelete}
+      >
+        ×
+      </Button>
+
+      {/* asset picker modal — portalled, no layout impact */}
+      {rule.animation === 'dmx' && (
+        <AssetPickerModal
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          {...(assetDisplay ? { current: assetDisplay } : {})}
+          onPick={filename => onUpdate(buildRule(rule, { asset_path: filename }))}
+        />
+      )}
     </div>
   );
 }
 
+// ── tab ───────────────────────────────────────────────────────────────────────
+
 export function NotificationsTab({ value, onChange }: NotificationsTabProps) {
   const idsRef = useRef<string[]>(value.map(() => crypto.randomUUID()));
+  const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [hoverY, setHoverY] = useState<number | null>(null);
+  const [editOpenIdx, setEditOpenIdx] = useState<number | null>(null);
 
   function addRule() {
     onChange([...value, { animation: 'scroll' as const }]);
@@ -364,24 +530,48 @@ export function NotificationsTab({ value, onChange }: NotificationsTabProps) {
         first match wins — default when no rules match: scroll (replace)
       </p>
 
-      <div className="flex flex-col">
-        {value.map((rule, idx) => (
-          <RuleRow
-            key={idsRef.current[idx] ?? String(idx)}
-            rule={rule}
-            idx={idx}
-            total={value.length}
-            onUpdate={r => updateRule(idx, r)}
-            onDelete={() => deleteRule(idx)}
-            onMoveUp={() => moveRule(idx, idx - 1)}
-            onMoveDown={() => moveRule(idx, idx + 1)}
-          />
-        ))}
-      </div>
+      <div className="relative">
+        {/* hover preview — floats left of the list */}
+        {hoverIdx !== null && hoverY !== null && editOpenIdx !== hoverIdx && value[hoverIdx] !== undefined && (
+          <div
+            className="absolute right-full mr-6 -translate-y-1/2 flex flex-col items-center gap-1.5 p-2 border border-foreground/20 bg-background rounded shadow-lg pointer-events-none z-50"
+            style={{ top: hoverY }}
+          >
+            <RulePrev rule={value[hoverIdx]!} />
+            <span className="font-mono text-foreground/30 text-center" style={{ fontSize: 9 }}>
+              {animLabel(value[hoverIdx]!)}
+            </span>
+          </div>
+        )}
 
-      <Button variant="ghost" className="mt-2 self-start" aria-label="Add rule" onClick={addRule}>
-        + add rule
-      </Button>
+        <div className="flex flex-col">
+          {value.map((rule, idx) => (
+            <RuleRow
+              key={idsRef.current[idx] ?? String(idx)}
+              rule={rule}
+              idx={idx}
+              total={value.length}
+              onUpdate={r => updateRule(idx, r)}
+              onDelete={() => deleteRule(idx)}
+              onMoveUp={() => moveRule(idx, idx - 1)}
+              onMoveDown={() => moveRule(idx, idx + 1)}
+              editOpen={editOpenIdx === idx}
+              onEditOpenChange={v => setEditOpenIdx(v ? idx : null)}
+              onHoverEnter={() => {
+                const el = rowRefs.current[idx];
+                setHoverY(el ? el.offsetTop + el.offsetHeight / 2 : null);
+                setHoverIdx(idx);
+              }}
+              onHoverLeave={() => { setHoverIdx(null); setHoverY(null); }}
+              rowRef={(el: HTMLDivElement | null) => { rowRefs.current[idx] = el; }}
+            />
+          ))}
+        </div>
+
+        <Button variant="ghost" className="mt-2 self-start" aria-label="Add rule" onClick={addRule}>
+          + add rule
+        </Button>
+      </div>
 
       <div className="font-mono text-xs text-foreground/55 flex flex-col gap-1 border-t border-foreground/10 mt-4 pt-4">
         <p className="text-foreground/60 mb-1">assets</p>
