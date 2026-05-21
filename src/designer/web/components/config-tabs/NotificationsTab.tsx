@@ -138,12 +138,12 @@ function toB64(f: Uint8Array): string {
   return btoa(s);
 }
 function blankB64(dual: boolean) { return toB64(new Uint8Array((dual ? 18 : 9) * ROWS)); }
-function expand9to18(frame: Uint8Array): Uint8Array {
+function mergeFrames(left: Uint8Array, right: Uint8Array): Uint8Array {
   const out = new Uint8Array(18 * ROWS);
   for (let c = 0; c < COLS; c++)
     for (let r = 0; r < ROWS; r++) {
-      out[c * ROWS + r]          = frame[c * ROWS + r] ?? 0;
-      out[(c + COLS) * ROWS + r] = frame[c * ROWS + r] ?? 0;
+      out[c * ROWS + r]          = left[c * ROWS + r]  ?? 0;
+      out[(c + COLS) * ROWS + r] = right[c * ROWS + r] ?? 0;
     }
   return out;
 }
@@ -157,7 +157,7 @@ function ScrollPrev({ text, size = 'small', dual = false }: { text: string; size
     const it = a[Symbol.asyncIterator]();
     const tick = () => void it.next().then((r: IteratorResult<ScrollFrame>) => {
       if (dead || r.done) return;
-      setPx(toB64(dual ? expand9to18(r.value[0]) : r.value[0]));
+      setPx(toB64(dual ? mergeFrames(r.value[0], r.value[1]) : r.value[0]));
       setTimeout(tick, 50);
     });
     tick();

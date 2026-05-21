@@ -45,12 +45,12 @@ function defaultCell(): CellState {
   return { id: uid(), style: 'text', text: 'test notification', textSize: 'small', textPosition: 'bottom', overlayMode: 'replace', transition: 'none', assetPath: '', composite: 'replace', durationMs: 2000 };
 }
 
-function expand9to18(frame: Uint8Array): Uint8Array {
+function mergeFrames(left: Uint8Array, right: Uint8Array): Uint8Array {
   const out = new Uint8Array(18 * ROWS);
   for (let c = 0; c < COLS; c++)
     for (let r = 0; r < ROWS; r++) {
-      out[c * ROWS + r]          = frame[c * ROWS + r] ?? 0;
-      out[(c + COLS) * ROWS + r] = frame[c * ROWS + r] ?? 0;
+      out[c * ROWS + r]          = left[c * ROWS + r]  ?? 0;
+      out[(c + COLS) * ROWS + r] = right[c * ROWS + r] ?? 0;
     }
   return out;
 }
@@ -67,7 +67,7 @@ function ScrollPreview({ text, size, dual = false }: { text: string; size: Scrol
     function tick() {
       void iter.next().then(result => {
         if (cancelled || result.done) return;
-        setPixels(frameToB64(dual ? expand9to18(result.value[0]) : result.value[0]));
+        setPixels(frameToB64(dual ? mergeFrames(result.value[0], result.value[1]) : result.value[0]));
         setTimeout(tick, 50);
       });
     }
