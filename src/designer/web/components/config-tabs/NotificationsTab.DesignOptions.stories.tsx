@@ -163,9 +163,8 @@ function RuleForm({ rule }: { rule: NotificationRule }) {
           <FormRow label="asset">
             <div className="flex items-center gap-1.5 w-full">
               <Input
+                fluid
                 readOnly
-                className="w-full"
-                expandedClassName=""
                 value={rule.asset_path?.replace('.dmx.json', '') ?? ''}
                 placeholder="none"
                 aria-label="Selected asset"
