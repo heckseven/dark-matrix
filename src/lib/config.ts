@@ -67,6 +67,9 @@ export const ConfigSchema = z.object({
     animation: z.enum(['gol-random', 'scroll', 'dmx', 'none']),
     scroll_text: z.string().max(100),
     dmx_path: z.string().regex(/\.dmx\.json$/i).optional(),
+    overlay_mode: z.enum(['or', 'replace', 'xor', 'halo']).optional(),
+    transition: z.enum(['wipe', 'scan', 'slide', 'dissolve', 'flash']).optional(),
+    dmx_duration_ms: z.number().int().positive().optional(),
   }),
   daemon: z.object({
     poll_interval_ms: z.number().int().min(100).max(60000),

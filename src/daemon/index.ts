@@ -1303,7 +1303,15 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               break;
             }
             case 'startup-preview': {
-              const sp = msg as { cmd: string; animation?: string; scroll_text?: string; dmx_path?: string };
+              const sp = msg as {
+                cmd: string;
+                animation?: string;
+                scroll_text?: string;
+                dmx_path?: string;
+                overlay_mode?: 'or' | 'replace' | 'xor' | 'halo';
+                transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash';
+                dmx_duration_ms?: number;
+              };
               const spAnim = sp.animation ?? currentConfig.startup.animation;
               stopAnim();
               if (idleTimer) clearTimeout(idleTimer);
@@ -1320,9 +1328,21 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               } else if (spAnim === 'dmx') {
                 const rawPath = sp.dmx_path ?? currentConfig.startup.dmx_path;
                 if (rawPath) {
-                  const assetsBase = path.join(os.homedir(), '.config', 'dark-matrix', 'assets');
-                  const dmxPath = path.resolve(assetsBase, rawPath);
-                  if (dmxPath.startsWith(assetsBase + path.sep)) startDmxAnimation(dmxPath, false, onDone);
+                  const durationMs = sp.dmx_duration_ms ?? 2000;
+                  const intent: DisplayIntent = {
+                    id: 'startup-preview',
+                    source: 'manual',
+                    priority: 50,
+                    content: '',
+                    durationMs,
+                    expiresAt: Date.now() + durationMs,
+                    style: 'dmx',
+                    assetPath: rawPath,
+                    composite: 'replace',
+                    ...(sp.overlay_mode !== undefined ? { overlayMode: sp.overlay_mode } : {}),
+                    ...(sp.transition !== undefined ? { transition: sp.transition } : {}),
+                  };
+                  void startDmxNotification(intent, 'replace');
                 }
               }
               socket.write(JSON.stringify({ ok: true }) + '\n');
@@ -1542,9 +1562,21 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     } else if (currentConfig.startup.animation === 'dmx') {
       const rawPath = currentConfig.startup.dmx_path;
       if (rawPath) {
-        const assetsBase = path.join(os.homedir(), '.config', 'dark-matrix', 'assets');
-        const dmxPath = path.resolve(assetsBase, rawPath);
-        if (dmxPath.startsWith(assetsBase + path.sep)) startDmxAnimation(dmxPath, false);
+        const durationMs = currentConfig.startup.dmx_duration_ms ?? 2000;
+        const bootIntent: DisplayIntent = {
+          id: 'startup',
+          source: 'manual',
+          priority: 50,
+          content: '',
+          durationMs,
+          expiresAt: Date.now() + durationMs,
+          style: 'dmx',
+          assetPath: rawPath,
+          composite: 'replace',
+          ...(currentConfig.startup.overlay_mode !== undefined ? { overlayMode: currentConfig.startup.overlay_mode } : {}),
+          ...(currentConfig.startup.transition !== undefined ? { transition: currentConfig.startup.transition } : {}),
+        };
+        void startDmxNotification(bootIntent, 'replace');
       } else process.stderr.write('dark-matrix: startup.animation is dmx but dmx_path is not set\n');
     } else {
       runOnModules(null, () => createStartupAnimation({ style: 'wipe' }));

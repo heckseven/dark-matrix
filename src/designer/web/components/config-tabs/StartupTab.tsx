@@ -15,6 +15,9 @@ interface StartupValue {
   animation: StartupAnimation;
   scroll_text: string;
   dmx_path?: string;
+  overlay_mode?: 'or' | 'replace' | 'xor' | 'halo';
+  transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash';
+  dmx_duration_ms?: number;
 }
 
 interface StartupTabProps {
@@ -202,6 +205,65 @@ export function StartupTab({ value, onChange, dualModule = false }: StartupTabPr
               pick
             </Button>
           </div>
+        </div>
+      )}
+
+      {value.animation === 'dmx' && (
+        <div className="flex flex-col gap-1">
+          <label className="font-mono text-xs text-muted-foreground">blend</label>
+          <Select
+            fluid
+            aria-label="Blend mode"
+            value={value.overlay_mode ?? 'halo'}
+            options={[
+              { value: 'replace', label: 'replace' },
+              { value: 'or',      label: 'additive' },
+              { value: 'xor',     label: 'xor' },
+              { value: 'halo',    label: 'halo' },
+            ]}
+            onValueChange={v => onChange({ ...value, overlay_mode: v as StartupValue['overlay_mode'] })}
+          />
+        </div>
+      )}
+
+      {value.animation === 'dmx' && (
+        <div className="flex flex-col gap-1">
+          <label className="font-mono text-xs text-muted-foreground">transition</label>
+          <Select
+            fluid
+            aria-label="Transition"
+            value={value.transition ?? 'dissolve'}
+            options={[
+              { value: 'none',    label: 'none' },
+              { value: 'wipe',    label: 'wipe' },
+              { value: 'scan',    label: 'scan' },
+              { value: 'slide',   label: 'slide' },
+              { value: 'dissolve',label: 'dissolve' },
+              { value: 'flash',   label: 'flash' },
+            ]}
+            onValueChange={v => {
+              const t = (v === 'wipe' || v === 'scan' || v === 'slide' || v === 'dissolve' || v === 'flash') ? v : undefined;
+              onChange({ ...value, transition: t });
+            }}
+          />
+        </div>
+      )}
+
+      {value.animation === 'dmx' && (
+        <div className="flex flex-col gap-1">
+          <label className="font-mono text-xs text-muted-foreground">duration</label>
+          <Input
+            fluid
+            type="number"
+            min="100"
+            aria-label="Duration ms"
+            value={value.dmx_duration_ms ?? 2000}
+            suffix="ms"
+            onChange={e => {
+              const n = parseInt(e.target.value, 10);
+              onChange({ ...value, dmx_duration_ms: isNaN(n) || n <= 0 ? undefined : n });
+            }}
+          />
         </div>
       )}
 
