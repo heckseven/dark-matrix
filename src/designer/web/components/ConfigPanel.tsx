@@ -69,6 +69,7 @@ export function ConfigPanel({ dualModule, topPad }: { dualModule: boolean; topPa
               <NotificationsTab
                 value={configData.notification_rules ?? []}
                 onChange={rules => patchConfig({ notification_rules: rules })}
+                dualModule={dualModule}
               />
             )}
             {activeTab === 'appearance' && (

@@ -7,7 +7,9 @@ import { Select } from './ui/select.js';
 import { Button } from './ui/button.js';
 import { Input } from './ui/input.js';
 
-const FRAME_SIZE = 9 * 34;
+const ROWS = 34;
+const COLS = 9;
+const FRAME_SIZE = COLS * ROWS;
 
 type NotifStyle = 'text' | 'dmx';
 type Composite = 'replace' | 'overlay';
@@ -43,36 +45,49 @@ function defaultCell(): CellState {
   return { id: uid(), style: 'text', text: 'test notification', textSize: 'small', textPosition: 'bottom', overlayMode: 'replace', transition: 'none', assetPath: '', composite: 'replace', durationMs: 2000 };
 }
 
+function expand9to18(frame: Uint8Array): Uint8Array {
+  const out = new Uint8Array(18 * ROWS);
+  for (let c = 0; c < COLS; c++)
+    for (let r = 0; r < ROWS; r++) {
+      out[c * ROWS + r]          = frame[c * ROWS + r] ?? 0;
+      out[(c + COLS) * ROWS + r] = frame[c * ROWS + r] ?? 0;
+    }
+  return out;
+}
+
 // Runs createScrollAnimation in the browser — scroll.ts has no node: imports.
-function ScrollPreview({ text, size }: { text: string; size: ScrollSize }) {
-  const [pixels, setPixels] = useState(BLANK);
+function ScrollPreview({ text, size, dual = false }: { text: string; size: ScrollSize; dual?: boolean }) {
+  const [pixels, setPixels] = useState(() => frameToB64(new Uint8Array((dual ? 18 : 9) * ROWS)));
 
   useEffect(() => {
+    setPixels(frameToB64(new Uint8Array((dual ? 18 : 9) * ROWS)));
     let cancelled = false;
     const anim = createScrollAnimation({ text: text || ' ', size, loop: true, startOffset: 0 });
     const iter = anim[Symbol.asyncIterator]();
     function tick() {
       void iter.next().then(result => {
         if (cancelled || result.done) return;
-        setPixels(frameToB64(result.value[0]));
+        setPixels(frameToB64(dual ? expand9to18(result.value[0]) : result.value[0]));
         setTimeout(tick, 50);
       });
     }
     tick();
     return () => { cancelled = true; anim.stop(); };
-  }, [text, size]);
+  }, [text, size, dual]);
 
-  return <MatrixPreview pixels={pixels} width={9} />;
+  return <MatrixPreview pixels={pixels} width={dual ? 18 : 9} />;
 }
 
 
 function NotifCell({
   cell,
+  dual,
   onClone,
   onRemove,
   onChange,
 }: {
   cell: CellState;
+  dual: boolean;
   onClone: () => void;
   onRemove: () => void;
   onChange: (updated: CellState) => void;
@@ -130,8 +145,8 @@ function NotifCell({
 
       <div className="flex justify-center">
         {cell.style === 'text'
-          ? <ScrollPreview text={cell.text} size={cell.textSize} />
-          : <DmxPreview filename={cell.assetPath || undefined} />
+          ? <ScrollPreview text={cell.text} size={cell.textSize} dual={dual} />
+          : <DmxPreview filename={cell.assetPath || undefined} dual={dual} />
         }
       </div>
 
@@ -259,6 +274,14 @@ function defaultDmxOverlayCell(): CellState {
 
 export function NotificationLab() {
   const [cells, setCells] = useState<CellState[]>(() => [defaultCell(), defaultDmxCell(), defaultDmxOverlayCell()]);
+  const [dual, setDual] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/config')
+      .then(r => r.json() as Promise<{ config?: { modules?: { left?: string; right?: string } } }>)
+      .then(d => setDual(!!(d.config?.modules?.left && d.config?.modules?.right)))
+      .catch(() => {});
+  }, []);
 
   function addCell() { setCells(cs => [...cs, defaultCell()]); }
 
@@ -291,6 +314,7 @@ export function NotificationLab() {
           <NotifCell
             key={cell.id}
             cell={cell}
+            dual={dual}
             onClone={() => cloneCell(cell.id)}
             onRemove={() => removeCell(cell.id)}
             onChange={updated => updateCell(cell.id, updated)}

@@ -26,6 +26,7 @@ export type NotificationRule = {
 export type NotificationsTabProps = {
   value: NotificationRule[];
   onChange: (rules: NotificationRule[]) => void;
+  dualModule?: boolean;
 };
 
 type RowProps = {
@@ -129,33 +130,48 @@ function Chip({ children, className }: { children: React.ReactNode; className?: 
 
 // ── live preview ──────────────────────────────────────────────────────────────
 
-const FSIZE = 9 * 34;
+const ROWS = 34;
+const COLS = 9;
 function toB64(f: Uint8Array): string {
   let s = '';
   for (let i = 0; i < f.length; i++) s += String.fromCharCode(f[i]!);
   return btoa(s);
 }
-const BLANK = toB64(new Uint8Array(FSIZE));
+function blankB64(dual: boolean) { return toB64(new Uint8Array((dual ? 18 : 9) * ROWS)); }
+function expand9to18(frame: Uint8Array): Uint8Array {
+  const out = new Uint8Array(18 * ROWS);
+  for (let c = 0; c < COLS; c++)
+    for (let r = 0; r < ROWS; r++) {
+      out[c * ROWS + r]          = frame[c * ROWS + r] ?? 0;
+      out[(c + COLS) * ROWS + r] = frame[c * ROWS + r] ?? 0;
+    }
+  return out;
+}
 
-function ScrollPrev({ text, size = 'small' }: { text: string; size?: ScrollSize }) {
-  const [px, setPx] = useState(BLANK);
+function ScrollPrev({ text, size = 'small', dual = false }: { text: string; size?: ScrollSize; dual?: boolean }) {
+  const [px, setPx] = useState(() => blankB64(dual));
   useEffect(() => {
+    setPx(blankB64(dual));
     let dead = false;
     const a = createScrollAnimation({ text: text || ' ', size, loop: true, startOffset: 0 });
     const it = a[Symbol.asyncIterator]();
-    const tick = () => void it.next().then((r: IteratorResult<ScrollFrame>) => { if (dead || r.done) return; setPx(toB64(r.value[0])); setTimeout(tick, 50); });
+    const tick = () => void it.next().then((r: IteratorResult<ScrollFrame>) => {
+      if (dead || r.done) return;
+      setPx(toB64(dual ? expand9to18(r.value[0]) : r.value[0]));
+      setTimeout(tick, 50);
+    });
     tick();
     return () => { dead = true; a.stop(); };
-  }, [text, size]);
-  return <MatrixPreview pixels={px} width={9} />;
+  }, [text, size, dual]);
+  return <MatrixPreview pixels={px} width={dual ? 18 : 9} />;
 }
 
-
-function RulePrev({ rule }: { rule: NotificationRule }) {
-  if (rule.animation === 'scroll') return <ScrollPrev text="test notification" />;
-  if (rule.animation === 'dmx') return <DmxPreview filename={rule.asset_path} />;
+function RulePrev({ rule, dual }: { rule: NotificationRule; dual: boolean }) {
+  const w = dual ? 91 : 43;
+  if (rule.animation === 'scroll') return <ScrollPrev text="test notification" dual={dual} />;
+  if (rule.animation === 'dmx') return <DmxPreview filename={rule.asset_path} dual={dual} />;
   return (
-    <div aria-hidden="true" className="flex items-center justify-center bg-black shrink-0" style={{ width: 43, height: 168 }}>
+    <div aria-hidden="true" className="flex items-center justify-center bg-black shrink-0" style={{ width: w, height: 168 }}>
       <span className="font-mono text-foreground/15" style={{ fontSize: 8 }}>none</span>
     </div>
   );
@@ -460,7 +476,7 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
 
 // ── tab ───────────────────────────────────────────────────────────────────────
 
-export function NotificationsTab({ value, onChange }: NotificationsTabProps) {
+export function NotificationsTab({ value, onChange, dualModule = false }: NotificationsTabProps) {
   const idsRef = useRef<string[]>(value.map(() => crypto.randomUUID()));
   const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -508,7 +524,7 @@ export function NotificationsTab({ value, onChange }: NotificationsTabProps) {
             className="absolute right-full mr-6 -translate-y-1/2 flex flex-col items-center gap-1.5 p-2 border border-foreground/20 bg-background rounded shadow-lg pointer-events-none z-50"
             style={{ top: hoverY }}
           >
-            <RulePrev rule={value[hoverIdx]!} />
+            <RulePrev rule={value[hoverIdx]!} dual={dualModule} />
             <span className="font-mono text-foreground/30 text-center" style={{ fontSize: 9 }}>
               {animLabel(value[hoverIdx]!)}
             </span>
