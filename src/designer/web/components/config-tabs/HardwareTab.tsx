@@ -25,71 +25,73 @@ function PortChip({ label, path: p }: { label: string; path: string }) {
       <span className="font-mono text-xs text-muted-foreground w-10 shrink-0">{label}</span>
       <span
         className={`font-mono text-xs px-2 py-0.5 rounded-sm border ${valid ? 'border-foreground/20 text-foreground' : 'border-red-500/40 text-red-400'}`}
-        title={p}
+        title={p || 'not set'}
       >
-        {p ? portLabel(p) : <span className="text-muted-foreground">not set</span>}
+        {p ? portLabel(p) : <span className="text-muted-foreground italic">not set</span>}
       </span>
     </div>
   );
 }
 
+type DetectState = 'idle' | 'running' | 'ok' | 'partial' | 'none' | 'error';
+
 export function HardwareTab({ value, onChange }: HardwareTabProps) {
-  const [detected, setDetected] = useState<string[] | null>(null);
-  const [detecting, setDetecting] = useState(false);
+  const [detectState, setDetectState] = useState<DetectState>('idle');
   const [detectMsg, setDetectMsg] = useState('');
   const [showOverride, setShowOverride] = useState(false);
 
   async function detect() {
-    setDetecting(true);
+    setDetectState('running');
     setDetectMsg('');
     try {
       const res = await fetch('/api/matrix-modules');
       if (!res.ok) throw new Error(res.statusText);
       const data = await res.json() as { ok: boolean; ports: string[] };
-      const ports = data.ports ?? [];
-      setDetected(ports);
+      const ports = (data.ports ?? []).sort();
       if (ports.length === 2) {
         onChange({ left: ports[0]!, right: ports[1]! });
-        setDetectMsg('');
+        setDetectState('ok');
       } else if (ports.length === 1) {
+        setDetectState('partial');
         setDetectMsg('1 module found — expected 2');
         setShowOverride(true);
       } else {
-        setDetectMsg('no modules found');
+        setDetectState('none');
+        setDetectMsg('no modules found via udevadm — verify paths manually');
         setShowOverride(true);
       }
     } catch {
-      setDetectMsg('detection failed');
+      setDetectState('error');
+      setDetectMsg('detection request failed');
       setShowOverride(true);
-    } finally {
-      setDetecting(false);
     }
   }
 
   useEffect(() => { void detect(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const detectedOk = detected !== null && detected.length === 2;
+  const configured = BY_PATH_RE.test(value.left) && BY_PATH_RE.test(value.right);
 
   return (
     <div className="flex flex-col gap-5 p-2">
 
       {/* detect row */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" onClick={() => void detect()} disabled={detecting}>
-          {detecting ? 'detecting…' : 're-detect'}
+        <Button variant="ghost" onClick={() => void detect()} disabled={detectState === 'running'}>
+          {detectState === 'running' ? 'detecting…' : 're-detect'}
         </Button>
-        {!detecting && detected !== null && (
-          detectedOk
-            ? <span className="font-mono text-xs text-green-400">● 2 modules found</span>
-            : <span className="font-mono text-xs text-red-400">✗ {detectMsg}</span>
+        {detectState === 'ok' && (
+          <span className="font-mono text-xs text-green-400">● 2 modules found</span>
+        )}
+        {(detectState === 'partial' || detectState === 'none' || detectState === 'error') && (
+          <span className="font-mono text-xs text-amber-400">◐ {detectMsg}</span>
         )}
       </div>
 
-      {/* port chips + swap */}
-      {detectedOk && (
-        <div className="flex flex-col gap-2">
-          <PortChip label="left" path={value.left} />
-          <PortChip label="right" path={value.right} />
+      {/* port chips — always visible once we have any config */}
+      <div className="flex flex-col gap-2">
+        <PortChip label="left" path={value.left} />
+        <PortChip label="right" path={value.right} />
+        {configured && (
           <div className="flex items-center gap-2 mt-1">
             <Button
               variant="ghost"
@@ -101,8 +103,8 @@ export function HardwareTab({ value, onChange }: HardwareTabProps) {
             </Button>
             <span className="font-mono text-xs text-muted-foreground">if left and right are reversed</span>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* override toggle */}
       <div className="flex flex-col gap-3">

@@ -65,7 +65,8 @@ export async function resolveModules(config: ModulesConfig): Promise<ResolvedMod
 }
 
 const SERIAL_DIR = '/dev/serial/by-path';
-const FRAMEWORK_SERIAL = 'ID_SERIAL_SHORT=FRAKDEBZ0100000000';
+const FRAMEWORK_SERIAL_RE = /^ID_SERIAL_SHORT=FRAK/;
+const FRAMEWORK_VENDOR_RE = /^ID_VENDOR_ID=32ac$/i;
 const TTY_ACM_RE = /^\/dev\/ttyACM\d+$/;
 
 function spawnUdevadm(devicePath: string): Promise<string> {
@@ -116,7 +117,7 @@ export async function enumerateMatrixModules(): Promise<string[]> {
         return;
       }
 
-      if (output.split('\n').some((line) => line.trim() === FRAMEWORK_SERIAL)) {
+      if (output.split('\n').some((line) => FRAMEWORK_SERIAL_RE.test(line.trim()) || FRAMEWORK_VENDOR_RE.test(line.trim()))) {
         results.push(byPath);
       }
     }),
