@@ -199,7 +199,7 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
       const state = (isMicSwitch || isCamSwitch) ? switchState(rule.content_glob) : 'any';
       onUpdate(buildRule(rule, { source: 'ec-switch', content_glob: toSwitchGlob('CAM', state) }));
     } else {
-      const newSrc = newVirt === '' ? undefined : newVirt as NotificationRule['source'];
+      const newSrc = (newVirt === '' || newVirt === 'any') ? undefined : newVirt as NotificationRule['source'];
       const patch: RulePatch = { source: newSrc };
       if (isMicSwitch || isCamSwitch) patch.content_glob = '';
       onUpdate(buildRule(rule, patch));
@@ -251,9 +251,9 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
               <Select
                 fluid
                 aria-label="Source"
-                value={vSrc}
+                value={vSrc === '' ? 'any' : vSrc}
                 options={[
-                  { value: '', label: 'any source' },
+                  { value: 'any', label: 'any source' },
                   { value: 'desktop-notification', label: 'desktop' },
                   { value: 'mic-switch', label: 'mic switch' },
                   { value: 'cam-switch', label: 'cam switch' },
