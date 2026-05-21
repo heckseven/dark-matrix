@@ -140,7 +140,7 @@ function RuleForm({ rule }: { rule: NotificationRule }) {
       </FormRow>
       {(rule.source === 'desktop-notification' || !rule.source) && (
         <FormRow label="app">
-          <Input className="w-full" aria-label="App glob" value={rule.app_name_glob ?? ''} placeholder="glob (*)" onChange={() => undefined} spellCheck={false} />
+          <Input className="w-full" expandedClassName="w-full" aria-label="App glob" value={rule.app_name_glob ?? ''} placeholder="glob (*)" onChange={() => undefined} spellCheck={false} />
         </FormRow>
       )}
       {rule.source === 'ec-switch' && (
@@ -161,9 +161,12 @@ function RuleForm({ rule }: { rule: NotificationRule }) {
       {rule.animation === 'dmx' && (
         <>
           <FormRow label="asset">
-            <span className="font-mono text-xs border border-foreground/25 rounded-sm px-1.5 py-0.5 truncate block w-full cursor-pointer">
-              {rule.asset_path?.replace('.dmx.json', '') ?? 'pick…'}
-            </span>
+            <div className="flex items-center gap-1.5 w-full">
+              <span className="font-mono text-xs p-1 truncate flex-1">
+                {rule.asset_path?.replace('.dmx.json', '') ?? '—'}
+              </span>
+              <Button variant="ghost" size="sm" className="shrink-0">pick</Button>
+            </div>
           </FormRow>
           <FormRow label="blend">
             <Select aria-label="Blend" value={rule.overlay_mode ?? 'replace'} onChange={() => undefined}>
@@ -194,7 +197,7 @@ function RuleForm({ rule }: { rule: NotificationRule }) {
         </FormRow>
       )}
       <FormRow label="duration">
-        <Input className="w-full" type="number" value={rule.duration_ms_override ?? ''} placeholder="default" onChange={() => undefined} suffix="ms" />
+        <Input type="number" value={rule.duration_ms_override ?? ''} placeholder="default" onChange={() => undefined} suffix="ms" />
       </FormRow>
     </>
   );
@@ -608,7 +611,7 @@ function O2g() {
                       edit
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent side="left" className="w-64 flex flex-col gap-3">
+                  <PopoverContent side="left" className="w-[360px] flex flex-col gap-3">
                     <div className="flex flex-col gap-2">
                       <RuleForm rule={rule} />
                     </div>
