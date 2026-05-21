@@ -32,7 +32,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
       else if (ref) (ref as React.MutableRefObject<HTMLInputElement | null>).current = node;
     }, [ref]);
 
-    const bracketCls = cn('select-none', readOnly ? 'text-foreground/35' : 'text-foreground');
+    const bracketCls = cn('select-none', readOnly ? 'text-muted-foreground' : 'text-foreground');
 
     const bracket = (
       <span className={cn('font-mono text-xs inline-flex items-center p-1 focus-within:ring-1 focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background has-[:disabled]:opacity-40', fluid && 'w-full')}>
