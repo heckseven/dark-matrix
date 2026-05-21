@@ -303,12 +303,9 @@ export function AssetImportPanel({ onSaved }: AssetImportPanelProps) {
         <Select
           value={fit}
           aria-label="Fit mode"
-          onChange={e => setFit(e.target.value as 'contain' | 'cover' | 'fill')}
-        >
-          <option value="contain">contain</option>
-          <option value="cover">cover</option>
-          <option value="fill">fill</option>
-        </Select>
+          options={[{ value: 'contain', label: 'contain' }, { value: 'cover', label: 'cover' }, { value: 'fill', label: 'fill' }]}
+          onValueChange={v => setFit(v as 'contain' | 'cover' | 'fill')}
+        />
       </div>
 
       {/* Brightness */}

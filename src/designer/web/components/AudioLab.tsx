@@ -79,9 +79,12 @@ function LabCell({ cell, audioCtx, onClone, onRemove, onChange }: {
   return (
     <div className="flex flex-col gap-2 p-3 border border-border rounded bg-background" style={{ minWidth: 180 }}>
       <div className="flex items-center gap-1">
-        <Select value={cell.style} onChange={e => setStyle(e.target.value as AudioStyle)} className="flex-1">
-          {AUDIO_STYLES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-        </Select>
+        <Select
+          value={cell.style}
+          options={AUDIO_STYLES.map(s => ({ value: s.id, label: s.label }))}
+          onValueChange={v => setStyle(v as AudioStyle)}
+          className="flex-1"
+        />
         <Button variant="ghost" size="sm" tooltip="Clone" onClick={onClone}>⎘</Button>
         <Button variant="destructive" size="sm" tooltip="Remove" onClick={onRemove}>×</Button>
       </div>
@@ -203,10 +206,11 @@ export function AudioLab() {
       <div className="flex items-center gap-4 mb-5">
         <span className="text-xs text-muted-foreground">audio lab</span>
         <span className={`text-xs ${statusDot}`}>● {wsStatus}</span>
-        <Select value={source} onChange={e => changeSource(e.target.value as AudioSource)}>
-          <option value="monitor">monitor</option>
-          <option value="mic">mic</option>
-        </Select>
+        <Select
+          value={source}
+          options={[{ value: 'monitor', label: 'monitor' }, { value: 'mic', label: 'mic' }]}
+          onValueChange={v => changeSource(v as AudioSource)}
+        />
         <Button variant="default" size="sm" onClick={addCell}>+ add cell</Button>
         <span className="text-xs text-muted-foreground ml-auto">raw grayscale · hardware thresholds at 128</span>
         <a href="?lab=notifications" className="text-xs text-muted-foreground hover:text-foreground transition-colors">notification lab →</a>

@@ -30,12 +30,9 @@ export function StartupTab({ value, onChange }: StartupTabProps) {
         <Select
           value={value.animation}
           aria-label="startup animation"
-          onChange={e => onChange({ ...value, animation: e.target.value as StartupAnimation })}
-        >
-          {ANIMATION_OPTIONS.map(o => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </Select>
+          options={ANIMATION_OPTIONS}
+          onValueChange={v => onChange({ ...value, animation: v as StartupAnimation })}
+        />
       </div>
 
       {value.animation === 'scroll' && (

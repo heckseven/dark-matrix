@@ -43,12 +43,10 @@ function PortField({
         {detected.length > 0 && (
           <Select
             aria-label={`Pick detected port for ${label}`}
-            value=""
-            onChange={e => { if (e.target.value) onPick(e.target.value); }}
-          >
-            <option value="">pick…</option>
-            {detected.map(p => <option key={p} value={p}>{p.replace('/dev/serial/by-path/', '')}</option>)}
-          </Select>
+            placeholder="pick…"
+            options={detected.map(p => ({ value: p, label: p.replace('/dev/serial/by-path/', '') }))}
+            onValueChange={onPick}
+          />
         )}
       </div>
       {value.length > 0 && (

@@ -566,8 +566,8 @@ function DataSettings({ widget, uid, onChange }: {
                 <Select
                   id={`${uid}-${key}`}
                   value={val}
-                  onChange={e => {
-                    const raw = e.target.value;
+                  options={DATA_METRICS.map(m => ({ value: m.id, label: m.label }))}
+                  onValueChange={raw => {
                     if (!DATA_METRIC_IDS.has(raw)) return;
                     const metric = raw as DataMetric | 'none';
                     const next = { ...widget };
@@ -575,11 +575,7 @@ function DataSettings({ widget, uid, onChange }: {
                     else delete next[key];
                     onChange(next);
                   }}
-                >
-                  {DATA_METRICS.map(m => (
-                    <option key={m.id} value={m.id}>{m.label}</option>
-                  ))}
-                </Select>
+                />
               </div>
             );
           })}

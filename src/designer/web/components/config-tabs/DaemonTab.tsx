@@ -69,12 +69,9 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
         <Select
           value={value.idle_animation}
           aria-label="idle animation"
-          onChange={e => onChange({ ...value, idle_animation: e.target.value as IdleAnimation })}
-        >
-          {IDLE_ANIMATION_OPTIONS.map(o => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </Select>
+          options={IDLE_ANIMATION_OPTIONS}
+          onValueChange={v => onChange({ ...value, idle_animation: v as IdleAnimation })}
+        />
       </div>
 
       <div className="flex flex-col gap-1">
@@ -125,12 +122,9 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
             <Select
               value={value.idle_gif_mode ?? 'bw'}
               aria-label="gif mode"
-              onChange={e => onChange({ ...value, idle_gif_mode: e.target.value as GifMode })}
-            >
-              {GIF_MODE_OPTIONS.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </Select>
+              options={GIF_MODE_OPTIONS}
+              onValueChange={v => onChange({ ...value, idle_gif_mode: v as GifMode })}
+            />
           </div>
 
           <div className="flex items-center gap-2">
@@ -152,12 +146,9 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
           <Select
             value={value.idle_eq_source ?? 'monitor'}
             aria-label="eq source"
-            onChange={e => onChange({ ...value, idle_eq_source: e.target.value as EqSource })}
-          >
-            {EQ_SOURCE_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </Select>
+            options={EQ_SOURCE_OPTIONS}
+            onValueChange={v => onChange({ ...value, idle_eq_source: v as EqSource })}
+          />
         </div>
       )}
     </div>

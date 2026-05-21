@@ -1,40 +1,102 @@
 import * as React from 'react';
+import * as SelectPrimitive from '@radix-ui/react-select';
 import { cn } from '@/lib/utils.js';
 
-export type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
+export type SelectOption = { value: string; label: string; disabled?: boolean };
+
+export type SelectProps = {
+  options: SelectOption[];
+  value?: string;
+  defaultValue?: string;
+  onValueChange?: (value: string) => void;
+  disabled?: boolean;
+  placeholder?: string;
   variant?: 'default' | 'primary';
-  /** Fills the containing block. Outer span becomes w-full; inner select becomes flex-1. */
   fluid?: boolean;
+  className?: string;
+  id?: string;
+  name?: string;
+  'aria-label'?: string;
+  'aria-labelledby'?: string;
 };
 
-const base = [
-  'font-mono text-xs bg-transparent outline-none appearance-none cursor-pointer',
-  'disabled:cursor-not-allowed disabled:opacity-40',
-  // leave room for the ▾ — truncate if constrained width is passed via className
-  'min-w-0 overflow-hidden text-ellipsis whitespace-nowrap pr-2',
-].join(' ');
-
-export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, children, variant = 'default', fluid, ...props }, ref) => {
+export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
+  ({ options, value, defaultValue, onValueChange, disabled, placeholder, variant = 'default', fluid, className, id, name, 'aria-label': ariaLabel, 'aria-labelledby': ariaLabelledby }, ref) => {
     const primary = variant === 'primary';
     const chrome = primary ? 'text-green-400' : 'text-foreground';
+
     return (
-      <span
-        className={cn(
-          'font-mono text-xs inline-flex items-center p-1 focus-within:ring-1',
-          primary ? 'focus-within:ring-green-400/30' : 'focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background',
-          fluid && 'w-full',
-        )}
+      <SelectPrimitive.Root
+        {...(value !== undefined && { value })}
+        {...(defaultValue !== undefined && { defaultValue })}
+        {...(onValueChange !== undefined && { onValueChange })}
+        {...(disabled !== undefined && { disabled })}
+        {...(name !== undefined && { name })}
       >
-        <span aria-hidden={true} className={cn('select-none', chrome)}>{'['}&nbsp;</span>
-        <select
+        <SelectPrimitive.Trigger
           ref={ref}
-          className={cn(base, chrome, fluid ? 'flex-1' : className)}
+          id={id}
+          aria-label={ariaLabel}
+          aria-labelledby={ariaLabelledby}
+          className={cn(
+            'font-mono text-xs inline-flex items-center p-1 cursor-pointer',
+            'focus-visible:outline-none focus-visible:ring-1',
+            primary
+              ? 'focus-visible:ring-green-400/30'
+              : 'focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background',
+            'disabled:cursor-not-allowed disabled:opacity-40',
+            chrome,
+            fluid ? 'w-full' : className,
+          )}
           style={primary ? { textShadow: '0 0 8px rgba(74,222,128,0.6)' } : undefined}
-          {...props}
-        >{children}</select>
-        <span aria-hidden={true} className={cn('select-none', chrome)}>{' ▾]'}</span>
-      </span>
+        >
+          <span aria-hidden="true" className="select-none">{'['}&nbsp;</span>
+          <SelectPrimitive.Value
+            placeholder={placeholder}
+            className={cn(
+              'min-w-0 overflow-hidden text-ellipsis whitespace-nowrap',
+              fluid ? 'flex-1 text-left' : undefined,
+            )}
+          />
+          <span aria-hidden="true" className="select-none">{' ▾]'}</span>
+        </SelectPrimitive.Trigger>
+
+        <SelectPrimitive.Portal>
+          <SelectPrimitive.Content
+            position="popper"
+            sideOffset={4}
+            collisionPadding={8}
+            className={cn(
+              'z-50 min-w-[var(--radix-select-trigger-width)] font-mono text-xs text-foreground bg-background',
+              'rounded border border-foreground p-3 outline-none',
+              'data-[state=open]:animate-in data-[state=closed]:animate-out',
+              'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+              'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+            )}
+          >
+            <SelectPrimitive.Viewport className="max-h-[var(--radix-select-content-available-height)] overflow-y-auto">
+              {options.map(opt => (
+                <SelectPrimitive.Item
+                  key={opt.value}
+                  value={opt.value}
+                  {...(opt.disabled !== undefined && { disabled: opt.disabled })}
+                  className={cn(
+                    'flex items-center w-full cursor-pointer rounded-sm px-2 py-1 select-none outline-none',
+                    'text-foreground',
+                    'data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground',
+                    'data-[disabled]:opacity-40 data-[disabled]:pointer-events-none',
+                  )}
+                >
+                  <span className="w-4 shrink-0 flex items-center justify-center text-green-500">
+                    <SelectPrimitive.ItemIndicator aria-hidden="true">✓&nbsp;</SelectPrimitive.ItemIndicator>
+                  </span>
+                  <SelectPrimitive.ItemText>{opt.label}</SelectPrimitive.ItemText>
+                </SelectPrimitive.Item>
+              ))}
+            </SelectPrimitive.Viewport>
+          </SelectPrimitive.Content>
+        </SelectPrimitive.Portal>
+      </SelectPrimitive.Root>
     );
   }
 );

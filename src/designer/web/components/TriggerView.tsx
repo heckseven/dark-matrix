@@ -89,12 +89,9 @@ function ThresholdFields({ trigger, onChange }: FieldProps) {
         <Select
           aria-label="Metric"
           value={t.metric}
-          onChange={e => update({ metric: e.target.value as 'cpu' | 'ram' | 'net_rx' | 'net_tx' })}
-        >
-          {(['cpu', 'ram', 'net_rx', 'net_tx'] as const).map(m => (
-            <option key={m} value={m}>{m}</option>
-          ))}
-        </Select>
+          options={(['cpu', 'ram', 'net_rx', 'net_tx'] as const).map(m => ({ value: m, label: m }))}
+          onValueChange={v => update({ metric: v as 'cpu' | 'ram' | 'net_rx' | 'net_tx' })}
+        />
       </div>
       <div className="flex items-center gap-2">
         <Checkbox
@@ -165,13 +162,9 @@ function InterfaceFields({ trigger, onChange }: FieldProps) {
           <Select
             aria-label="Interface name"
             value={isOther ? '__other__' : trigger.name}
-            onChange={e => onChange({ ...trigger, name: e.target.value === '__other__' ? '' : e.target.value })}
-          >
-            {detected.map(iface => (
-              <option key={iface} value={iface}>{iface}</option>
-            ))}
-            <option value="__other__">other…</option>
-          </Select>
+            options={[...detected.map(iface => ({ value: iface, label: iface })), { value: '__other__', label: 'other…' }]}
+            onValueChange={v => onChange({ ...trigger, name: v === '__other__' ? '' : v })}
+          />
         )}
         {(!useSelect || isOther) && (
           <Input
@@ -190,11 +183,9 @@ function InterfaceFields({ trigger, onChange }: FieldProps) {
         <Select
           aria-label="Interface state"
           value={trigger.state}
-          onChange={e => { const v = e.target.value; if (v === 'up' || v === 'down') onChange({ ...trigger, state: v }); }}
-        >
-          <option value="up">up</option>
-          <option value="down">down</option>
-        </Select>
+          options={[{ value: 'up', label: 'up' }, { value: 'down', label: 'down' }]}
+          onValueChange={v => { if (v === 'up' || v === 'down') onChange({ ...trigger, state: v }); }}
+        />
       </div>
     </div>
   );
@@ -224,12 +215,9 @@ function VmFields({ trigger, onChange }: FieldProps) {
         <Select
           aria-label="VM state"
           value={stateValue}
-          onChange={e => update(trigger.name, e.target.value)}
-        >
-          <option value="any">any</option>
-          <option value="running">running</option>
-          <option value="stopped">stopped</option>
-        </Select>
+          options={[{ value: 'any', label: 'any' }, { value: 'running', label: 'running' }, { value: 'stopped', label: 'stopped' }]}
+          onValueChange={v => update(trigger.name, v)}
+        />
       </div>
     </div>
   );
@@ -394,11 +382,9 @@ export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
               <Select
                 aria-label="match mode"
                 value={match}
-                onChange={e => { const v = e.target.value; if (v === 'all' || v === 'any') onMatchChange(v); }}
-              >
-                <option value="all">all</option>
-                <option value="any">any</option>
-              </Select>
+                options={[{ value: 'all', label: 'all' }, { value: 'any', label: 'any' }]}
+                onValueChange={v => { if (v === 'all' || v === 'any') onMatchChange(v); }}
+              />
             </div>
           )}
           <Button variant="default" size="sm" onClick={onDone}>done</Button>

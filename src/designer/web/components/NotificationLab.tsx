@@ -127,10 +127,13 @@ function NotifCell({
   return (
     <div className="flex flex-col gap-2 p-3 border border-border rounded bg-background" style={{ minWidth: 180 }}>
       <div className="flex items-center gap-1">
-        <Select aria-label="Notification style" value={cell.style} onChange={e => update({ style: e.target.value as NotifStyle })} className="flex-1">
-          <option value="text">text</option>
-          <option value="dmx">dmx</option>
-        </Select>
+        <Select
+          aria-label="Notification style"
+          value={cell.style}
+          options={[{ value: 'text', label: 'text' }, { value: 'dmx', label: 'dmx' }]}
+          onValueChange={v => update({ style: v as NotifStyle })}
+          className="flex-1"
+        />
         <Button variant="ghost" size="sm" aria-label="Clone" tooltip="Clone" onClick={onClone}>⎘</Button>
         <Button variant="destructive" size="sm" aria-label="Remove cell" tooltip="Remove" onClick={onRemove}>×</Button>
       </div>
@@ -151,21 +154,22 @@ function NotifCell({
         />
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">size</span>
-          <Select aria-label="Text size" value={cell.textSize} onChange={e => update({ textSize: e.target.value as ScrollSize })}>
-            <option value="tiny">tiny</option>
-            <option value="small">small</option>
-            <option value="medium">medium</option>
-            <option value="large">large</option>
-          </Select>
+          <Select
+            aria-label="Text size"
+            value={cell.textSize}
+            options={[{ value: 'tiny', label: 'tiny' }, { value: 'small', label: 'small' }, { value: 'medium', label: 'medium' }, { value: 'large', label: 'large' }]}
+            onValueChange={v => update({ textSize: v as ScrollSize })}
+          />
         </div>
         {cell.composite === 'overlay' && (
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">position</span>
-            <Select aria-label="Text position" value={cell.textPosition} onChange={e => update({ textPosition: e.target.value as TextPosition })}>
-              <option value="top">top</option>
-              <option value="middle">middle</option>
-              <option value="bottom">bottom</option>
-            </Select>
+            <Select
+              aria-label="Text position"
+              value={cell.textPosition}
+              options={[{ value: 'top', label: 'top' }, { value: 'middle', label: 'middle' }, { value: 'bottom', label: 'bottom' }]}
+              onValueChange={v => update({ textPosition: v as TextPosition })}
+            />
             <span className="text-xs text-foreground/25">hw</span>
           </div>
         )}
@@ -183,36 +187,48 @@ function NotifCell({
 
       <div className="flex items-center gap-2">
         <span className="text-xs text-muted-foreground">composite</span>
-        <Select aria-label="Composite mode" value={cell.composite} onChange={e => update({ composite: e.target.value as Composite })}>
-          <option value="replace">replace</option>
-          <option value="overlay">overlay</option>
-        </Select>
+        <Select
+          aria-label="Composite mode"
+          value={cell.composite}
+          options={[{ value: 'replace', label: 'replace' }, { value: 'overlay', label: 'overlay' }]}
+          onValueChange={v => update({ composite: v as Composite })}
+        />
         <span className="text-xs text-foreground/25">hw</span>
       </div>
 
       {cell.composite === 'overlay' && (
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">blend</span>
-          <Select aria-label="Overlay blend mode" value={cell.overlayMode} onChange={e => update({ overlayMode: e.target.value as OverlayMode })}>
-            <option value="replace">replace (black bg)</option>
-            <option value="or">additive (HUD+text)</option>
-            <option value="xor">invert (XOR)</option>
-            <option value="halo">halo (black border)</option>
-          </Select>
+          <Select
+            aria-label="Overlay blend mode"
+            value={cell.overlayMode}
+            options={[
+              { value: 'replace', label: 'replace (black bg)' },
+              { value: 'or', label: 'additive (HUD+text)' },
+              { value: 'xor', label: 'invert (XOR)' },
+              { value: 'halo', label: 'halo (black border)' },
+            ]}
+            onValueChange={v => update({ overlayMode: v as OverlayMode })}
+          />
           <span className="text-xs text-foreground/25">hw</span>
         </div>
       )}
 
       <div className="flex items-center gap-2">
         <span className="text-xs text-muted-foreground">transition</span>
-        <Select aria-label="Transition" value={cell.transition} onChange={e => update({ transition: e.target.value as TransitionMode })}>
-          <option value="none">none</option>
-          <option value="wipe">wipe</option>
-          <option value="scan">scan</option>
-          <option value="slide">slide</option>
-          <option value="dissolve">dissolve</option>
-          <option value="flash">flash</option>
-        </Select>
+        <Select
+          aria-label="Transition"
+          value={cell.transition}
+          options={[
+            { value: 'none', label: 'none' },
+            { value: 'wipe', label: 'wipe' },
+            { value: 'scan', label: 'scan' },
+            { value: 'slide', label: 'slide' },
+            { value: 'dissolve', label: 'dissolve' },
+            { value: 'flash', label: 'flash' },
+          ]}
+          onValueChange={v => update({ transition: v as TransitionMode })}
+        />
         <span className="text-xs text-foreground/25">hw</span>
       </div>
 

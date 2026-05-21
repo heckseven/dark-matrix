@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/tanstack-react';
-import { useArgs } from 'storybook/preview-api';
-import { fn } from 'storybook/test';
+import { useState } from 'react';
 import { Select } from './select.js';
 
 const OPTIONS = [
@@ -21,12 +20,13 @@ const meta = {
     docs: {
       description: {
         component: [
-          'Terminal-styled `[ value ]` select. All standard select attributes are forwarded.',
+          'Terminal-styled `[ value ▾]` select. Options via the `options` prop.',
           '',
           '**Usage**',
-          '- Use `value` + `onChange` for controlled usage; `defaultValue` for uncontrolled.',
+          '- Use `value` + `onValueChange` for controlled usage; `defaultValue` for uncontrolled.',
           '- Always pair with a visible `<label>` or `aria-label`.',
-          '- Children are `<option>` elements, same as a native select.',
+          '- `fluid` fills the containing block.',
+          '- `variant="primary"` renders with green glow for use in HUD UI.',
         ].join('\n'),
       },
     },
@@ -34,12 +34,13 @@ const meta = {
   argTypes: {
     disabled: { control: 'boolean', description: 'Prevents interaction.' },
     value: { control: 'text', description: 'Controlled value.' },
-    onChange: { description: 'Change handler — receives the native ChangeEvent.' },
+    placeholder: { control: 'text', description: 'Text shown when no value is selected.' },
+    onValueChange: { description: 'Called with the new value string when selection changes.' },
   },
   args: {
+    options: OPTIONS,
     value: 'cpu',
     'aria-label': 'Metric',
-    onChange: fn(),
   },
 } satisfies Meta<typeof Select>;
 
@@ -48,20 +49,32 @@ type Story = StoryObj<typeof meta>;
 
 export const Playground: Story = {
   render: (args) => {
-    const [, updateArgs] = useArgs();
-    return (
-      <Select {...args} onChange={e => { args.onChange?.(e); updateArgs({ value: e.target.value }); }}>
-        {OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </Select>
-    );
+    const [value, setValue] = useState(args.value ?? 'cpu');
+    return <Select {...args} value={value} onValueChange={setValue} />;
   },
 };
 
 export const LongValue: Story = {
-  args: { value: 'temperature', 'aria-label': 'Metric' },
-  render: (args) => (
-    <Select {...args}>
-      {OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-    </Select>
-  ),
+  render: (args) => {
+    const [value, setValue] = useState('temperature');
+    return <Select {...args} value={value} onValueChange={setValue} />;
+  },
+};
+
+export const WithPlaceholder: Story = {
+  render: (args) => {
+    const [value, setValue] = useState('');
+    return <Select {...args} {...(value ? { value } : {})} placeholder="pick one…" onValueChange={setValue} />;
+  },
+};
+
+export const Fluid: Story = {
+  render: (args) => {
+    const [value, setValue] = useState('cpu');
+    return (
+      <div className="w-64">
+        <Select {...args} fluid value={value} onValueChange={setValue} />
+      </div>
+    );
+  },
 };

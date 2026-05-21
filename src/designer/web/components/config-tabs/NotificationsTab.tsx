@@ -248,15 +248,21 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
           <div className="flex flex-col gap-2">
             {/* source */}
             <FormRow label="source">
-              <Select fluid aria-label="Source" value={vSrc} onChange={e => handleSourceChange(e.target.value)}>
-                <option value="">any source</option>
-                <option value="desktop-notification">desktop</option>
-                <option value="mic-switch">mic switch</option>
-                <option value="cam-switch">cam switch</option>
-                <option value="vm">vm</option>
-                <option value="claude">claude</option>
-                <option value="manual">manual</option>
-              </Select>
+              <Select
+                fluid
+                aria-label="Source"
+                value={vSrc}
+                options={[
+                  { value: '', label: 'any source' },
+                  { value: 'desktop-notification', label: 'desktop' },
+                  { value: 'mic-switch', label: 'mic switch' },
+                  { value: 'cam-switch', label: 'cam switch' },
+                  { value: 'vm', label: 'vm' },
+                  { value: 'claude', label: 'claude' },
+                  { value: 'manual', label: 'manual' },
+                ]}
+                onValueChange={handleSourceChange}
+              />
             </FormRow>
 
             {/* app glob */}
@@ -280,18 +286,9 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
                   fluid
                   aria-label="Urgency"
                   value={rule.urgency ?? 'any'}
-                  onChange={e => {
-                    const v = e.target.value;
-                    onUpdate(buildRule(rule, {
-                      urgency: (v === 'low' || v === 'normal' || v === 'critical') ? v : 'any',
-                    }));
-                  }}
-                >
-                  <option value="any">any</option>
-                  <option value="low">low</option>
-                  <option value="normal">normal</option>
-                  <option value="critical">critical</option>
-                </Select>
+                  options={[{ value: 'any', label: 'any' }, { value: 'low', label: 'low' }, { value: 'normal', label: 'normal' }, { value: 'critical', label: 'critical' }]}
+                  onValueChange={v => onUpdate(buildRule(rule, { urgency: (v === 'low' || v === 'normal' || v === 'critical') ? v : 'any' }))}
+                />
               </FormRow>
             )}
 
@@ -302,16 +299,13 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
                   fluid
                   aria-label="Switch state"
                   value={switchState(rule.content_glob)}
-                  onChange={e => {
-                    const state = e.target.value as SwitchState;
+                  options={[{ value: 'any', label: 'any' }, { value: 'on', label: 'on' }, { value: 'off', label: 'off' }]}
+                  onValueChange={v => {
+                    const state = v as SwitchState;
                     const prefix = isMicSwitch ? 'MIC' : 'CAM';
                     onUpdate(buildRule(rule, { content_glob: toSwitchGlob(prefix, state) }));
                   }}
-                >
-                  <option value="any">any</option>
-                  <option value="on">on</option>
-                  <option value="off">off</option>
-                </Select>
+                />
               </FormRow>
             )}
 
@@ -335,19 +329,15 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
                 fluid
                 aria-label="Animation"
                 value={rule.animation}
-                onChange={e => {
-                  const v = e.target.value;
+                options={[{ value: 'scroll', label: 'scroll' }, { value: 'dmx', label: 'dmx' }, { value: 'none', label: 'none' }]}
+                onValueChange={v => {
                   if (v === 'dmx') {
                     onUpdate(buildRule(rule, { animation: 'dmx', transition: 'dissolve', overlay_mode: 'halo', composite: 'overlay' }));
                   } else if (v === 'scroll' || v === 'none') {
                     onUpdate(buildRule(rule, { animation: v }));
                   }
                 }}
-              >
-                <option value="scroll">scroll</option>
-                <option value="dmx">dmx</option>
-                <option value="none">none</option>
-              </Select>
+              />
             </FormRow>
 
             {/* asset — dmx only */}
@@ -381,20 +371,15 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
                   fluid
                   aria-label="Blend"
                   value={rule.overlay_mode ?? (rule.composite === 'overlay' ? 'or' : 'replace')}
-                  onChange={e => {
-                    const v = e.target.value as 'replace' | 'or' | 'xor' | 'halo';
+                  options={[{ value: 'replace', label: 'replace' }, { value: 'or', label: 'additive' }, { value: 'xor', label: 'xor' }, { value: 'halo', label: 'halo' }]}
+                  onValueChange={v => {
                     if (v === 'replace') {
                       onUpdate(buildRule(rule, { composite: 'replace', overlay_mode: undefined }));
                     } else {
-                      onUpdate(buildRule(rule, { composite: 'overlay', overlay_mode: v }));
+                      onUpdate(buildRule(rule, { composite: 'overlay', overlay_mode: v as 'or' | 'xor' | 'halo' }));
                     }
                   }}
-                >
-                  <option value="replace">replace</option>
-                  <option value="or">additive</option>
-                  <option value="xor">xor</option>
-                  <option value="halo">halo</option>
-                </Select>
+                />
               </FormRow>
             )}
 
@@ -405,18 +390,16 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
                   fluid
                   aria-label="Transition"
                   value={rule.transition ?? 'none'}
-                  onChange={e => {
-                    const v = e.target.value;
-                    onUpdate(buildRule(rule, { transition: v === 'none' ? undefined : v as NotificationRule['transition'] }));
-                  }}
-                >
-                  <option value="none">none</option>
-                  <option value="wipe">wipe</option>
-                  <option value="scan">scan</option>
-                  <option value="slide">slide</option>
-                  <option value="dissolve">dissolve</option>
-                  <option value="flash">flash</option>
-                </Select>
+                  options={[
+                    { value: 'none', label: 'none' },
+                    { value: 'wipe', label: 'wipe' },
+                    { value: 'scan', label: 'scan' },
+                    { value: 'slide', label: 'slide' },
+                    { value: 'dissolve', label: 'dissolve' },
+                    { value: 'flash', label: 'flash' },
+                  ]}
+                  onValueChange={v => onUpdate(buildRule(rule, { transition: v === 'none' ? undefined : v as NotificationRule['transition'] }))}
+                />
               </FormRow>
             )}
 
@@ -427,14 +410,9 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
                   fluid
                   aria-label="Composite"
                   value={rule.composite ?? 'replace'}
-                  onChange={e => {
-                    const v = e.target.value;
-                    onUpdate(buildRule(rule, { composite: v === 'overlay' ? 'overlay' : 'replace' }));
-                  }}
-                >
-                  <option value="replace">replace</option>
-                  <option value="overlay">overlay</option>
-                </Select>
+                  options={[{ value: 'replace', label: 'replace' }, { value: 'overlay', label: 'overlay' }]}
+                  onValueChange={v => onUpdate(buildRule(rule, { composite: v === 'overlay' ? 'overlay' : 'replace' }))}
+                />
               </FormRow>
             )}
 
