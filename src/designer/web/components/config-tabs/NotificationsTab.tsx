@@ -7,6 +7,7 @@ import { Input } from '../ui/input.js';
 import { Button } from '../ui/button.js';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.js';
 import { AssetPickerModal } from '../AssetPickerModal.js';
+import { DmxPreview } from '../DmxPreview.js';
 
 export type NotificationRule = {
   source?: 'ec-switch' | 'vm' | 'claude' | 'desktop-notification' | 'manual';
@@ -149,19 +150,10 @@ function ScrollPrev({ text, size = 'small' }: { text: string; size?: ScrollSize 
   return <MatrixPreview pixels={px} width={9} />;
 }
 
-function DmxPrev({ asset }: { asset?: string }) {
-  return (
-    <div aria-hidden="true" className="flex items-center justify-center bg-black shrink-0" style={{ width: 43, height: 168 }}>
-      <span className="font-mono text-center text-foreground/25 leading-tight break-all" style={{ fontSize: 7 }}>
-        {asset?.replace('.dmx.json', '') ?? '—'}
-      </span>
-    </div>
-  );
-}
 
 function RulePrev({ rule }: { rule: NotificationRule }) {
   if (rule.animation === 'scroll') return <ScrollPrev text="test notification" />;
-  if (rule.animation === 'dmx') return <DmxPrev {...(rule.asset_path !== undefined ? { asset: rule.asset_path } : {})} />;
+  if (rule.animation === 'dmx') return <DmxPreview filename={rule.asset_path} />;
   return (
     <div aria-hidden="true" className="flex items-center justify-center bg-black shrink-0" style={{ width: 43, height: 168 }}>
       <span className="font-mono text-foreground/15" style={{ fontSize: 8 }}>none</span>

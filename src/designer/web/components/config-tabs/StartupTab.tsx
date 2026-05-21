@@ -8,6 +8,7 @@ import { Select } from '../ui/select.js';
 import { Input } from '../ui/input.js';
 import { Button } from '../ui/button.js';
 import { AssetPickerModal } from '../AssetPickerModal.js';
+import { DmxPreview } from '../DmxPreview.js';
 
 type StartupAnimation = 'gol-random' | 'scroll' | 'dmx' | 'none';
 
@@ -100,18 +101,6 @@ function GolPrev({ dual }: { dual: boolean }) {
   return <MatrixPreview pixels={px} width={dual ? 18 : 9} />;
 }
 
-function DmxPrev({ asset, dual }: { asset?: string; dual: boolean }) {
-  const label = asset?.replace('.dmx.json', '') ?? '—';
-  const w = dual ? 91 : 43;
-  return (
-    <div aria-hidden="true" className="flex items-center justify-center bg-black shrink-0" style={{ width: w, height: 168 }}>
-      <span className="font-mono text-center text-foreground/25 leading-tight break-all" style={{ fontSize: 7 }}>
-        {label}
-      </span>
-    </div>
-  );
-}
-
 function NonePrev({ dual }: { dual: boolean }) {
   const w = dual ? 91 : 43;
   return (
@@ -124,7 +113,7 @@ function NonePrev({ dual }: { dual: boolean }) {
 function AnimPrev({ value, dual }: { value: StartupValue; dual: boolean }) {
   if (value.animation === 'scroll') return <ScrollPrev text={value.scroll_text} dual={dual} />;
   if (value.animation === 'gol-random') return <GolPrev dual={dual} />;
-  if (value.animation === 'dmx') return <DmxPrev {...(value.dmx_path !== undefined ? { asset: value.dmx_path } : {})} dual={dual} />;
+  if (value.animation === 'dmx') return <DmxPreview filename={value.dmx_path} dual={dual} />;
   return <NonePrev dual={dual} />;
 }
 

@@ -1120,8 +1120,41 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
       return;
     }
 
-    // Assets delete
+    // Single asset fetch / delete
     const assetDeleteMatch = url.match(/^\/api\/assets\/([^/]+)$/);
+    if (assetDeleteMatch && method === 'GET') {
+      const filename = decodeURIComponent(assetDeleteMatch[1]!);
+      if (!/^[a-zA-Z0-9_\-]+\.dmx\.json$/i.test(filename)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'invalid filename' }));
+        return;
+      }
+      const dir = assetsDir(configDir);
+      const resolved = path.resolve(dir, filename);
+      if (!resolved.startsWith(dir + path.sep)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'invalid filename' }));
+        return;
+      }
+      try {
+        const raw = await fs.readFile(resolved, 'utf-8');
+        const project = parseProject(raw);
+        const asset: AssetMeta = {
+          name: filename,
+          width: project.width,
+          frameCount: project.frames.length,
+          firstFrame: project.frames[0]!.pixels,
+          frames: project.frames.map(f => f.pixels),
+          delays: project.frames.map(f => f.delayMs),
+        };
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, asset }));
+      } catch {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'not found' }));
+      }
+      return;
+    }
     if (assetDeleteMatch && method === 'DELETE') {
       const filename = decodeURIComponent(assetDeleteMatch[1]!);
       if (!/^[a-zA-Z0-9_\-]+\.dmx\.json$/.test(filename)) {
