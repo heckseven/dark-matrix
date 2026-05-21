@@ -140,133 +140,134 @@ export function StartupTab({ value, onChange, dualModule = false }: StartupTabPr
   }
 
   return (
-    <div className="flex flex-col gap-4 p-2">
+    <div className="flex gap-4 p-2 items-start">
 
-      <div className="flex flex-col gap-1">
-        <span className="font-mono text-xs text-muted-foreground">preview</span>
-        <AnimPrev value={value} dual={dualModule} />
-      </div>
+      <AnimPrev value={value} dual={dualModule} />
 
-      <div className="flex flex-col gap-1">
-        <label className="font-mono text-xs text-muted-foreground">animation</label>
-        <Select
-          fluid
-          aria-label="startup animation"
-          value={value.animation}
-          options={ANIMATION_OPTIONS}
-          onValueChange={v => onChange({ ...value, animation: v as StartupAnimation })}
-        />
-      </div>
+      <div className="flex flex-col gap-4 flex-1 min-w-0">
 
-      {value.animation === 'scroll' && (
         <div className="flex flex-col gap-1">
-          <label className="font-mono text-xs text-muted-foreground">
-            text ({value.scroll_text.length}/100)
-          </label>
-          <Input
+          <label className="font-mono text-xs text-muted-foreground">animation</label>
+          <Select
             fluid
-            value={value.scroll_text}
-            maxLength={100}
-            onChange={e => onChange({ ...value, scroll_text: e.target.value })}
-            aria-label="scroll text"
+            aria-label="startup animation"
+            value={value.animation}
+            options={ANIMATION_OPTIONS}
+            onValueChange={v => onChange({ ...value, animation: v as StartupAnimation })}
           />
         </div>
-      )}
 
-      {value.animation === 'dmx' && (
-        <div className="flex flex-col gap-1">
-          <label className="font-mono text-xs text-muted-foreground">asset</label>
-          <div className="flex items-center gap-1.5">
+        {value.animation === 'scroll' && (
+          <div className="flex flex-col gap-1">
+            <label className="font-mono text-xs text-muted-foreground">
+              text ({value.scroll_text.length}/100)
+            </label>
             <Input
               fluid
-              readOnly
-              value={assetDisplay ? assetDisplay.replace('.dmx.json', '') : ''}
-              placeholder="none"
-              aria-label="Selected asset"
+              value={value.scroll_text}
+              maxLength={100}
+              onChange={e => onChange({ ...value, scroll_text: e.target.value })}
+              aria-label="scroll text"
             />
-            <Button
-              variant="ghost"
-              size="sm"
-              className="shrink-0"
-              aria-label={`Pick asset${assetDisplay ? ` (current: ${assetDisplay.replace('.dmx.json', '')})` : ''}`}
-              onClick={() => setPickerOpen(true)}
-            >
-              pick
-            </Button>
           </div>
-        </div>
-      )}
+        )}
 
-      {value.animation === 'dmx' && (
-        <div className="flex flex-col gap-1">
-          <label className="font-mono text-xs text-muted-foreground">blend</label>
-          <Select
-            fluid
-            aria-label="Blend mode"
-            value={value.overlay_mode ?? 'halo'}
-            options={[
-              { value: 'replace', label: 'replace' },
-              { value: 'or',      label: 'additive' },
-              { value: 'xor',     label: 'xor' },
-              { value: 'halo',    label: 'halo' },
-            ]}
-            onValueChange={v => onChange({ ...value, overlay_mode: v as StartupValue['overlay_mode'] })}
-          />
-        </div>
-      )}
+        {value.animation === 'dmx' && (
+          <div className="flex flex-col gap-1">
+            <label className="font-mono text-xs text-muted-foreground">asset</label>
+            <div className="flex items-center gap-1.5">
+              <Input
+                fluid
+                readOnly
+                value={assetDisplay ? assetDisplay.replace('.dmx.json', '') : ''}
+                placeholder="none"
+                aria-label="Selected asset"
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0"
+                aria-label={`Pick asset${assetDisplay ? ` (current: ${assetDisplay.replace('.dmx.json', '')})` : ''}`}
+                onClick={() => setPickerOpen(true)}
+              >
+                pick
+              </Button>
+            </div>
+          </div>
+        )}
 
-      {value.animation === 'dmx' && (
-        <div className="flex flex-col gap-1">
-          <label className="font-mono text-xs text-muted-foreground">transition</label>
-          <Select
-            fluid
-            aria-label="Transition"
-            value={value.transition ?? 'dissolve'}
-            options={[
-              { value: 'none',    label: 'none' },
-              { value: 'wipe',    label: 'wipe' },
-              { value: 'scan',    label: 'scan' },
-              { value: 'slide',   label: 'slide' },
-              { value: 'dissolve',label: 'dissolve' },
-              { value: 'flash',   label: 'flash' },
-            ]}
-            onValueChange={v => {
-              const t = (v === 'wipe' || v === 'scan' || v === 'slide' || v === 'dissolve' || v === 'flash') ? v : undefined;
-              onChange({ ...value, transition: t });
-            }}
-          />
-        </div>
-      )}
+        {value.animation === 'dmx' && (
+          <div className="flex flex-col gap-1">
+            <label className="font-mono text-xs text-muted-foreground">blend</label>
+            <Select
+              fluid
+              aria-label="Blend mode"
+              value={value.overlay_mode ?? 'halo'}
+              options={[
+                { value: 'replace', label: 'replace' },
+                { value: 'or',      label: 'additive' },
+                { value: 'xor',     label: 'xor' },
+                { value: 'halo',    label: 'halo' },
+              ]}
+              onValueChange={v => onChange({ ...value, overlay_mode: v as StartupValue['overlay_mode'] })}
+            />
+          </div>
+        )}
 
-      {value.animation === 'dmx' && (
-        <div className="flex flex-col gap-1">
-          <label className="font-mono text-xs text-muted-foreground">duration</label>
-          <Input
-            fluid
-            type="number"
-            min="100"
-            aria-label="Duration ms"
-            value={value.dmx_duration_ms ?? 2000}
-            suffix="ms"
-            onChange={e => {
-              const n = parseInt(e.target.value, 10);
-              onChange({ ...value, dmx_duration_ms: isNaN(n) || n <= 0 ? undefined : n });
-            }}
-          />
-        </div>
-      )}
+        {value.animation === 'dmx' && (
+          <div className="flex flex-col gap-1">
+            <label className="font-mono text-xs text-muted-foreground">transition</label>
+            <Select
+              fluid
+              aria-label="Transition"
+              value={value.transition ?? 'dissolve'}
+              options={[
+                { value: 'none',    label: 'none' },
+                { value: 'wipe',    label: 'wipe' },
+                { value: 'scan',    label: 'scan' },
+                { value: 'slide',   label: 'slide' },
+                { value: 'dissolve',label: 'dissolve' },
+                { value: 'flash',   label: 'flash' },
+              ]}
+              onValueChange={v => {
+                const t = (v === 'wipe' || v === 'scan' || v === 'slide' || v === 'dissolve' || v === 'flash') ? v : undefined;
+                onChange({ ...value, transition: t });
+              }}
+            />
+          </div>
+        )}
 
-      <div className="flex items-center gap-3 border-t border-foreground/10 pt-3">
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={previewState === 'firing' || value.animation === 'none'}
-          onClick={() => void firePreview()}
-        >
-          {previewState === 'firing' ? 'firing…' : 'Test'}
-        </Button>
-        {previewState === 'ok' && <span className="font-mono text-xs text-green-400">● sent</span>}
-        {previewState === 'error' && <span className="font-mono text-xs text-amber-400">◐ daemon unavailable</span>}
+        {value.animation === 'dmx' && (
+          <div className="flex flex-col gap-1">
+            <label className="font-mono text-xs text-muted-foreground">duration</label>
+            <Input
+              fluid
+              type="number"
+              min="100"
+              aria-label="Duration ms"
+              value={value.dmx_duration_ms ?? 2000}
+              suffix="ms"
+              onChange={e => {
+                const n = parseInt(e.target.value, 10);
+                onChange({ ...value, dmx_duration_ms: isNaN(n) || n <= 0 ? undefined : n });
+              }}
+            />
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 border-t border-foreground/10 pt-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={previewState === 'firing' || value.animation === 'none'}
+            onClick={() => void firePreview()}
+          >
+            {previewState === 'firing' ? 'firing…' : 'Test'}
+          </Button>
+          {previewState === 'ok' && <span className="font-mono text-xs text-green-400">● sent</span>}
+          {previewState === 'error' && <span className="font-mono text-xs text-amber-400">◐ daemon unavailable</span>}
+        </div>
+
       </div>
 
       <AssetPickerModal
