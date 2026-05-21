@@ -1318,8 +1318,12 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                   onDone,
                 );
               } else if (spAnim === 'dmx') {
-                const dmxPath = sp.dmx_path ?? currentConfig.startup.dmx_path;
-                if (dmxPath) startDmxAnimation(dmxPath, false, onDone);
+                const rawPath = sp.dmx_path ?? currentConfig.startup.dmx_path;
+                if (rawPath) {
+                  const assetsBase = path.join(os.homedir(), '.config', 'dark-matrix', 'assets');
+                  const dmxPath = path.resolve(assetsBase, rawPath);
+                  if (dmxPath.startsWith(assetsBase + path.sep)) startDmxAnimation(dmxPath, false, onDone);
+                }
               }
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
@@ -1536,9 +1540,12 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       const text = currentConfig.startup.scroll_text;
       runOnModules(createScrollAnimation({ text, loop: false }));
     } else if (currentConfig.startup.animation === 'dmx') {
-      const dmxPath = currentConfig.startup.dmx_path;
-      if (dmxPath) startDmxAnimation(dmxPath, false);
-      else process.stderr.write('dark-matrix: startup.animation is dmx but dmx_path is not set\n');
+      const rawPath = currentConfig.startup.dmx_path;
+      if (rawPath) {
+        const assetsBase = path.join(os.homedir(), '.config', 'dark-matrix', 'assets');
+        const dmxPath = path.resolve(assetsBase, rawPath);
+        if (dmxPath.startsWith(assetsBase + path.sep)) startDmxAnimation(dmxPath, false);
+      } else process.stderr.write('dark-matrix: startup.animation is dmx but dmx_path is not set\n');
     } else {
       runOnModules(null, () => createStartupAnimation({ style: 'wipe' }));
     }
