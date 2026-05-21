@@ -1313,22 +1313,14 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 dmx_duration_ms?: number;
               };
               const spAnim = sp.animation ?? currentConfig.startup.animation;
-              stopAnim();
-              if (idleTimer) clearTimeout(idleTimer);
-              const onDone = () => { if (!dispatcher.current()) resumeAfterInterrupt(); };
-              if (spAnim === 'gol-random') {
-                runOnModules(null, () => createGolAnimation({ frames: 420, loop: false }), onDone);
-              } else if (spAnim === 'scroll') {
-                const text = sp.scroll_text ?? currentConfig.startup.scroll_text;
-                runOnModules(
-                  createScrollAnimation({ text: text || ' ', loop: false }),
-                  undefined,
-                  onDone,
-                );
-              } else if (spAnim === 'dmx') {
+              if (spAnim === 'dmx') {
+                // DMX runs as an overlay so the idle/HUD animation stays visible underneath.
+                // Fall back to replace if nothing is running — overlay needs a background loop
+                // to composite and push frames, otherwise hardware times out and goes black.
                 const rawPath = sp.dmx_path ?? currentConfig.startup.dmx_path;
                 if (rawPath) {
                   const durationMs = sp.dmx_duration_ms ?? 2000;
+                  const composite = stopCurrentAnim !== null ? 'overlay' : 'replace';
                   const intent: DisplayIntent = {
                     id: 'startup-preview',
                     source: 'manual',
@@ -1338,11 +1330,21 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                     expiresAt: Date.now() + durationMs,
                     style: 'dmx',
                     assetPath: rawPath,
-                    composite: 'overlay',
+                    composite,
                     ...(sp.overlay_mode !== undefined ? { overlayMode: sp.overlay_mode } : {}),
                     ...(sp.transition !== undefined ? { transition: sp.transition } : {}),
                   };
-                  void startDmxNotification(intent, 'overlay');
+                  void startDmxNotification(intent, composite);
+                }
+              } else {
+                stopAnim();
+                if (idleTimer) clearTimeout(idleTimer);
+                const onDone = () => { if (!dispatcher.current()) resumeAfterInterrupt(); };
+                if (spAnim === 'gol-random') {
+                  runOnModules(null, () => createGolAnimation({ frames: 420, loop: false }), onDone);
+                } else if (spAnim === 'scroll') {
+                  const text = sp.scroll_text ?? currentConfig.startup.scroll_text;
+                  runOnModules(createScrollAnimation({ text: text || ' ', loop: false }), undefined, onDone);
                 }
               }
               socket.write(JSON.stringify({ ok: true }) + '\n');
@@ -1572,11 +1574,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
           expiresAt: Date.now() + durationMs,
           style: 'dmx',
           assetPath: rawPath,
-          composite: 'overlay',
+          composite: 'replace',
           ...(currentConfig.startup.overlay_mode !== undefined ? { overlayMode: currentConfig.startup.overlay_mode } : {}),
           ...(currentConfig.startup.transition !== undefined ? { transition: currentConfig.startup.transition } : {}),
         };
-        void startDmxNotification(bootIntent, 'overlay');
+        void startDmxNotification(bootIntent, 'replace');
       } else process.stderr.write('dark-matrix: startup.animation is dmx but dmx_path is not set\n');
     } else {
       runOnModules(null, () => createStartupAnimation({ style: 'wipe' }));
