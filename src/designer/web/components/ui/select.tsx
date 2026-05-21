@@ -19,7 +19,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     return (
       <span
         className={cn(
-          'font-mono text-xs inline-flex items-center focus-within:ring-1',
+          'font-mono text-xs inline-flex items-center p-1 focus-within:ring-1',
           primary ? 'focus-within:ring-green-400/30' : 'focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background',
         )}
       >
