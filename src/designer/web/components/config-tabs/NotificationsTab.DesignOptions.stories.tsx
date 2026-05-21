@@ -130,7 +130,7 @@ function RuleForm({ rule }: { rule: NotificationRule }) {
   return (
     <>
       <FormRow label="source">
-        <Select aria-label="Source" value={rule.source ?? ''} onChange={() => undefined}>
+        <Select fluid aria-label="Source" value={rule.source ?? ''} onChange={() => undefined}>
           <option value="">any</option>
           <option value="desktop-notification">desktop</option>
           <option value="ec-switch">ec-switch</option>
@@ -140,19 +140,19 @@ function RuleForm({ rule }: { rule: NotificationRule }) {
       </FormRow>
       {(rule.source === 'desktop-notification' || !rule.source) && (
         <FormRow label="app">
-          <Input className="w-full" expandedClassName="w-full" aria-label="App glob" value={rule.app_name_glob ?? ''} placeholder="glob (*)" onChange={() => undefined} spellCheck={false} />
+          <Input fluid aria-label="App glob" value={rule.app_name_glob ?? ''} placeholder="glob (*)" onChange={() => undefined} spellCheck={false} />
         </FormRow>
       )}
       {rule.source === 'ec-switch' && (
         <FormRow label="switch">
-          <Select aria-label="Switch" value={rule.content_glob?.startsWith('CAM') ? 'cam' : 'mic'} onChange={() => undefined}>
+          <Select fluid aria-label="Switch" value={rule.content_glob?.startsWith('CAM') ? 'cam' : 'mic'} onChange={() => undefined}>
             <option value="mic">mic</option>
             <option value="cam">cam</option>
           </Select>
         </FormRow>
       )}
       <FormRow label="animation">
-        <Select aria-label="Animation" value={rule.animation} onChange={() => undefined}>
+        <Select fluid aria-label="Animation" value={rule.animation} onChange={() => undefined}>
           <option value="scroll">scroll</option>
           <option value="dmx">dmx</option>
           <option value="none">none</option>
@@ -177,7 +177,7 @@ function RuleForm({ rule }: { rule: NotificationRule }) {
             </div>
           </FormRow>
           <FormRow label="blend">
-            <Select aria-label="Blend" value={rule.overlay_mode ?? 'replace'} onChange={() => undefined}>
+            <Select fluid aria-label="Blend" value={rule.overlay_mode ?? 'replace'} onChange={() => undefined}>
               <option value="replace">replace</option>
               <option value="or">additive</option>
               <option value="xor">xor</option>
@@ -185,7 +185,7 @@ function RuleForm({ rule }: { rule: NotificationRule }) {
             </Select>
           </FormRow>
           <FormRow label="transition">
-            <Select aria-label="Transition" value={rule.transition ?? 'none'} onChange={() => undefined}>
+            <Select fluid aria-label="Transition" value={rule.transition ?? 'none'} onChange={() => undefined}>
               <option value="none">none</option>
               <option value="wipe">wipe</option>
               <option value="scan">scan</option>
@@ -198,14 +198,14 @@ function RuleForm({ rule }: { rule: NotificationRule }) {
       )}
       {rule.animation === 'scroll' && (
         <FormRow label="composite">
-          <Select aria-label="Composite" value={rule.composite ?? 'replace'} onChange={() => undefined}>
+          <Select fluid aria-label="Composite" value={rule.composite ?? 'replace'} onChange={() => undefined}>
             <option value="replace">replace</option>
             <option value="overlay">overlay</option>
           </Select>
         </FormRow>
       )}
       <FormRow label="duration">
-        <Input type="number" value={rule.duration_ms_override ?? ''} placeholder="default" onChange={() => undefined} suffix="ms" />
+        <Input fluid type="number" value={rule.duration_ms_override ?? ''} placeholder="default" onChange={() => undefined} suffix="ms" />
       </FormRow>
     </>
   );

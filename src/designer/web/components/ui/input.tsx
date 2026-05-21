@@ -7,10 +7,12 @@ export type InputProps = React.InputHTMLAttributes<HTMLInputElement> & {
   suffix?: string;
   /** Renders a <label> to the left of the bracket. Wires htmlFor automatically. */
   label?: string;
+  /** Fills the containing block. Outer span becomes w-full; inner input becomes flex-1. Ignores expandedClassName. */
+  fluid?: boolean;
 };
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, expandedClassName = 'w-48', suffix, label, onFocus, onBlur, onScroll, onInput, id, readOnly, ...props }, ref) => {
+  ({ className, expandedClassName = 'w-48', suffix, label, fluid, onFocus, onBlur, onScroll, onInput, id, readOnly, ...props }, ref) => {
     const generatedId = React.useId();
     const inputId = id ?? generatedId;
     const innerRef = React.useRef<HTMLInputElement>(null);
@@ -33,7 +35,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     const bracketCls = cn('select-none', readOnly ? 'text-foreground/35' : 'text-foreground');
 
     const bracket = (
-      <span className="font-mono text-xs inline-flex items-center p-1 focus-within:ring-1 focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background has-[:disabled]:opacity-40">
+      <span className={cn('font-mono text-xs inline-flex items-center p-1 focus-within:ring-1 focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background has-[:disabled]:opacity-40', fluid && 'w-full')}>
         <span aria-hidden="true" className={bracketCls}>{clips.left ? '‹' : '['}&nbsp;</span>
         <input
           id={inputId}
@@ -42,8 +44,8 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           className={cn(
             'bg-transparent border-none outline-none text-foreground font-mono text-xs disabled:cursor-not-allowed transition-[width] duration-150',
             readOnly && 'cursor-default',
-            className,
-            focused ? expandedClassName : undefined,
+            fluid ? 'flex-1 min-w-0' : className,
+            !fluid && focused ? expandedClassName : undefined,
           )}
           onFocus={e => { setFocused(true); check(); onFocus?.(e); }}
           onBlur={e => { setFocused(false); check(); onBlur?.(e); }}

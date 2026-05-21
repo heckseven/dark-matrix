@@ -3,6 +3,8 @@ import { cn } from '@/lib/utils.js';
 
 export type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
   variant?: 'default' | 'primary';
+  /** Fills the containing block. Outer span becomes w-full; inner select becomes flex-1. */
+  fluid?: boolean;
 };
 
 const base = [
@@ -13,7 +15,7 @@ const base = [
 ].join(' ');
 
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, children, variant = 'default', ...props }, ref) => {
+  ({ className, children, variant = 'default', fluid, ...props }, ref) => {
     const primary = variant === 'primary';
     const chrome = primary ? 'text-green-400' : 'text-foreground';
     return (
@@ -21,12 +23,13 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
         className={cn(
           'font-mono text-xs inline-flex items-center p-1 focus-within:ring-1',
           primary ? 'focus-within:ring-green-400/30' : 'focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background',
+          fluid && 'w-full',
         )}
       >
         <span aria-hidden={true} className={cn('select-none', chrome)}>{'['}&nbsp;</span>
         <select
           ref={ref}
-          className={cn(base, chrome, className)}
+          className={cn(base, chrome, fluid ? 'flex-1' : className)}
           style={primary ? { textShadow: '0 0 8px rgba(74,222,128,0.6)' } : undefined}
           {...props}
         >{children}</select>
