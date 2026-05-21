@@ -146,21 +146,7 @@ function LivePreviewToggle({ on, onToggle }: { on: boolean; onToggle: () => void
 
 function ConfigHeading() {
   const configDirty = useDesignerStore(s => s.configDirty);
-  const configData = useDesignerStore(s => s.configData);
-
-  async function handleSave() {
-    if (!configData) return;
-    const res = await fetch('/api/config', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(configData),
-    });
-    if (res.ok) {
-      designerStore.getState().markClean();
-    } else {
-      console.error('config save failed', res.status);
-    }
-  }
+  const saveConfig = useDesignerStore(s => s.saveConfig);
 
   return (
     <>
@@ -176,7 +162,7 @@ function ConfigHeading() {
       <Button
         variant="ghost"
         disabled={!configDirty}
-        onClick={() => void handleSave()}
+        onClick={() => void saveConfig()}
         className="ml-auto"
       >
         save

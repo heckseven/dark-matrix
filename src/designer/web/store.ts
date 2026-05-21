@@ -105,6 +105,7 @@ export interface DesignerActions {
   insertPreset(preset: HudPresetClient, afterIdx: number): void;
   loadConfigData(config: Config): void;
   patchConfig(patch: DeepPartial<Config>): void;
+  saveConfig(): Promise<void>;
   markClean(): void;
   loadAssets(): Promise<void>;
 }
@@ -485,6 +486,17 @@ export function createDesignerStore() {
       }
       const next = configData === null ? (patch as Config) : deepMerge(configData, patch);
       set({ configData: next, configDirty: true });
+    },
+
+    async saveConfig() {
+      const { configData } = get();
+      if (!configData) return;
+      const res = await fetch('/api/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(configData),
+      });
+      if (res.ok) set({ configDirty: false });
     },
 
     markClean() {

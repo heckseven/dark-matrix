@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useDesignerStore } from '../../store.js';
 import { Button } from '../ui/button.js';
 import { Input } from '../ui/input.js';
 
@@ -36,6 +37,7 @@ function PortChip({ label, path: p }: { label: string; path: string }) {
 type DetectState = 'idle' | 'running' | 'ok' | 'partial' | 'none' | 'error';
 
 export function HardwareTab({ value, onChange }: HardwareTabProps) {
+  const saveConfig = useDesignerStore(s => s.saveConfig);
   const [detectState, setDetectState] = useState<DetectState>('idle');
   const [detectMsg, setDetectMsg] = useState('');
   const [showOverride, setShowOverride] = useState(false);
@@ -97,7 +99,7 @@ export function HardwareTab({ value, onChange }: HardwareTabProps) {
               variant="ghost"
               size="sm"
               aria-label="Swap left and right modules"
-              onClick={() => onChange({ left: value.right, right: value.left })}
+              onClick={() => { onChange({ left: value.right, right: value.left }); void saveConfig(); }}
             >
               ⇄ swap
             </Button>
