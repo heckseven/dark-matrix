@@ -1018,7 +1018,7 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
     }
 
     if (url === '/api/matrix-modules' && method === 'GET') {
-      const ports = (await enumerateMatrixModules().catch(() => [])).sort();
+      const ports = await enumerateMatrixModules().catch(() => []);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true, ports }));
       return;

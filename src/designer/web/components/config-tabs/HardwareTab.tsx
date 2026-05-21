@@ -57,7 +57,7 @@ export function HardwareTab({ value, onChange }: HardwareTabProps) {
         setShowOverride(true);
       } else {
         setDetectState('none');
-        setDetectMsg('no modules found via udevadm — verify paths manually');
+        setDetectMsg('no modules found — verify paths manually');
         setShowOverride(true);
       }
     } catch {

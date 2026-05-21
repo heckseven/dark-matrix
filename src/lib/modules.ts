@@ -95,18 +95,29 @@ export async function enumerateMatrixModules(): Promise<string[]> {
     return [...matchingPaths].sort();
   }
 
-  const results: string[] = [];
+  // Deduplicate: keep one by-path entry per resolved ttyACM device.
+  // Framework laptops expose each port via both usb-0 and usbv2-0 paths.
+  const seenResolved = new Set<string>();
+  const candidates: Array<{ byPath: string; resolved: string }> = [];
   await Promise.all(
     entries.map(async (entry) => {
       const byPath = `${SERIAL_DIR}/${entry}`;
       try {
         const resolved = await fs.realpath(byPath);
-        if (matchingPaths.has(resolved)) results.push(byPath);
+        if (matchingPaths.has(resolved)) candidates.push({ byPath, resolved });
       } catch {
         // dangling symlink — skip
       }
     }),
   );
 
-  return results.sort();
+  const results: string[] = [];
+  for (const { byPath, resolved } of candidates.sort((a, b) => a.byPath.localeCompare(b.byPath))) {
+    if (!seenResolved.has(resolved)) {
+      seenResolved.add(resolved);
+      results.push(byPath);
+    }
+  }
+
+  return results;
 }
