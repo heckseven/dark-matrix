@@ -1297,6 +1297,27 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             }
+            case 'startup-preview': {
+              stopAnim();
+              if (idleTimer) clearTimeout(idleTimer);
+              const spCfg = currentConfig.startup;
+              if (spCfg.animation === 'gol-random') {
+                runOnModules(null, () => createGolAnimation({ frames: 420, loop: false }));
+                // 420 frames at 30 fps ≈ 14 s; resume after animation would naturally end
+                setTimeout(() => { if (!dispatcher.current()) resumeAfterInterrupt(); }, 16000);
+              } else if (spCfg.animation === 'scroll') {
+                runOnModules(
+                  createScrollAnimation({ text: spCfg.scroll_text || ' ', loop: false }),
+                  undefined,
+                  resumeAfterInterrupt,
+                );
+              } else if (spCfg.animation === 'dmx' && spCfg.dmx_path) {
+                startDmxAnimation(spCfg.dmx_path, false);
+                startIdleTimer();
+              }
+              socket.write(JSON.stringify({ ok: true }) + '\n');
+              break;
+            }
             case 'frame-stop':
               frameHeldLeft = false;
               frameHeldRight = false;

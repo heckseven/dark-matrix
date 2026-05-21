@@ -805,6 +805,19 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
       return;
     }
 
+    // Startup preview
+    if (url === '/api/startup-preview' && method === 'POST') {
+      try {
+        await sendToDaemon({ cmd: 'startup-preview' });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'daemon unavailable' }));
+      }
+      return;
+    }
+
     // Test notification
     if (url === '/api/test-notification' && method === 'POST') {
       try {
