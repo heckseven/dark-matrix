@@ -9,6 +9,7 @@ import { Input } from '../ui/input.js';
 import { Button } from '../ui/button.js';
 import { AssetPickerModal } from '../AssetPickerModal.js';
 import { DmxPreview } from '../DmxPreview.js';
+import { TabRow } from './tab-frame.js';
 
 type StartupAnimation = 'gol-random' | 'scroll' | 'dmx' | 'none';
 
@@ -146,8 +147,7 @@ export function StartupTab({ value, onChange, dualModule = false }: StartupTabPr
 
       <div className="flex flex-col gap-4 flex-1">
 
-        <div className="flex flex-col gap-1">
-          <label className="font-mono text-xs text-muted-foreground">animation</label>
+        <TabRow label="animation">
           <Select
             fluid
             aria-label="startup animation"
@@ -155,13 +155,10 @@ export function StartupTab({ value, onChange, dualModule = false }: StartupTabPr
             options={ANIMATION_OPTIONS}
             onValueChange={v => onChange({ ...value, animation: v as StartupAnimation })}
           />
-        </div>
+        </TabRow>
 
         {value.animation === 'scroll' && (
-          <div className="flex flex-col gap-1">
-            <label className="font-mono text-xs text-muted-foreground">
-              text ({value.scroll_text.length}/100)
-            </label>
+          <TabRow label={`text (${value.scroll_text.length}/100)`}>
             <Input
               fluid
               value={value.scroll_text}
@@ -169,36 +166,32 @@ export function StartupTab({ value, onChange, dualModule = false }: StartupTabPr
               onChange={e => onChange({ ...value, scroll_text: e.target.value })}
               aria-label="scroll text"
             />
-          </div>
+          </TabRow>
         )}
 
         {value.animation === 'dmx' && (
-          <div className="flex flex-col gap-1">
-            <label className="font-mono text-xs text-muted-foreground">asset</label>
-            <div className="flex items-center gap-1.5">
-              <Input
-                fluid
-                readOnly
-                value={assetDisplay ? assetDisplay.replace('.dmx.json', '') : ''}
-                placeholder="none"
-                aria-label="Selected asset"
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="shrink-0"
-                aria-label={`Pick asset${assetDisplay ? ` (current: ${assetDisplay.replace('.dmx.json', '')})` : ''}`}
-                onClick={() => setPickerOpen(true)}
-              >
-                pick
-              </Button>
-            </div>
-          </div>
+          <TabRow label="asset">
+            <Input
+              fluid
+              readOnly
+              value={assetDisplay ? assetDisplay.replace('.dmx.json', '') : ''}
+              placeholder="none"
+              aria-label="Selected asset"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0"
+              aria-label={`Pick asset${assetDisplay ? ` (current: ${assetDisplay.replace('.dmx.json', '')})` : ''}`}
+              onClick={() => setPickerOpen(true)}
+            >
+              pick
+            </Button>
+          </TabRow>
         )}
 
         {value.animation === 'dmx' && (
-          <div className="flex flex-col gap-1">
-            <label className="font-mono text-xs text-muted-foreground">blend</label>
+          <TabRow label="blend">
             <Select
               fluid
               aria-label="Blend mode"
@@ -211,12 +204,11 @@ export function StartupTab({ value, onChange, dualModule = false }: StartupTabPr
               ]}
               onValueChange={v => onChange({ ...value, overlay_mode: v as 'or' | 'replace' | 'xor' | 'halo' })}
             />
-          </div>
+          </TabRow>
         )}
 
         {value.animation === 'dmx' && (
-          <div className="flex flex-col gap-1">
-            <label className="font-mono text-xs text-muted-foreground">transition</label>
+          <TabRow label="transition">
             <Select
               fluid
               aria-label="Transition"
@@ -235,12 +227,11 @@ export function StartupTab({ value, onChange, dualModule = false }: StartupTabPr
                 onChange(t !== undefined ? { ...rest, transition: t } : rest);
               }}
             />
-          </div>
+          </TabRow>
         )}
 
         {value.animation === 'dmx' && (
-          <div className="flex flex-col gap-1">
-            <label className="font-mono text-xs text-muted-foreground">duration</label>
+          <TabRow label="duration">
             <Input
               fluid
               type="number"
@@ -254,7 +245,7 @@ export function StartupTab({ value, onChange, dualModule = false }: StartupTabPr
                 onChange(isNaN(n) || n <= 0 ? rest : { ...rest, dmx_duration_ms: n });
               }}
             />
-          </div>
+          </TabRow>
         )}
 
         <div className="flex items-center gap-3 border-t border-foreground/10 pt-3">

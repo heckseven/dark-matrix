@@ -3,7 +3,7 @@ import { Select } from '../ui/select.js';
 import { Input } from '../ui/input.js';
 import { Checkbox } from '../ui/checkbox.js';
 import { ScrubInput } from '../ui/scrub-input.js';
-import { TabFrame, TabField } from './tab-frame.js';
+import { TabFrame, TabRow } from './tab-frame.js';
 
 type IdleAnimation = 'heatmap' | 'audio-eq' | 'gol-random' | 'scroll' | 'gif' | 'hud' | 'none';
 type GifMode = 'bw' | 'gray';
@@ -51,7 +51,7 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
   return (
     <TabFrame>
 
-      <TabField label="poll interval">
+      <TabRow label="poll interval">
         <Input
           fluid
           type="number"
@@ -65,9 +65,9 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
           }}
           aria-label="poll interval ms"
         />
-      </TabField>
+      </TabRow>
 
-      <TabField label="idle animation">
+      <TabRow label="idle animation">
         <Select
           fluid
           value={value.idle_animation}
@@ -75,9 +75,9 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
           options={IDLE_ANIMATION_OPTIONS}
           onValueChange={v => onChange({ ...value, idle_animation: v as IdleAnimation })}
         />
-      </TabField>
+      </TabRow>
 
-      <TabField label="idle after">
+      <TabRow label="idle after">
         <ScrubInput
           value={value.idle_after_ms}
           min={0}
@@ -89,11 +89,11 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
           className="w-20 text-center"
           expandedClassName="w-28"
         />
-      </TabField>
+      </TabRow>
 
       {isGif && (
         <>
-          <TabField label="gif path (.gif)">
+          <TabRow label="gif path (.gif)">
             <Input
               fluid
               value={value.idle_gif_path ?? ''}
@@ -116,9 +116,9 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
               aria-label="gif path"
               spellCheck={false}
             />
-          </TabField>
+          </TabRow>
 
-          <TabField label="gif mode">
+          <TabRow label="gif mode">
             <Select
               fluid
               value={value.idle_gif_mode ?? 'bw'}
@@ -126,21 +126,20 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
               options={GIF_MODE_OPTIONS}
               onValueChange={v => onChange({ ...value, idle_gif_mode: v as GifMode })}
             />
-          </TabField>
+          </TabRow>
 
-          <label className="flex items-center gap-2 cursor-pointer">
+          <TabRow label="dual display">
             <Checkbox
               checked={value.idle_gif_dual ?? false}
               onChange={e => onChange({ ...value, idle_gif_dual: e.target.checked })}
               aria-label="gif dual"
             />
-            dual display
-          </label>
+          </TabRow>
         </>
       )}
 
       {isEq && (
-        <TabField label="eq source">
+        <TabRow label="eq source">
           <Select
             fluid
             value={value.idle_eq_source ?? 'monitor'}
@@ -148,7 +147,7 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
             options={EQ_SOURCE_OPTIONS}
             onValueChange={v => onChange({ ...value, idle_eq_source: v as EqSource })}
           />
-        </TabField>
+        </TabRow>
       )}
 
     </TabFrame>

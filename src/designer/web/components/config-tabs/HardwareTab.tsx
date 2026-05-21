@@ -26,25 +26,27 @@ function PortRow({
 }) {
   const valid = !path || BY_PATH_RE.test(path);
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-xs text-muted-foreground w-10 shrink-0">{label}</span>
-        <Input
-          fluid
-          value={path}
-          readOnly={!editing}
-          onChange={e => onChange(e.target.value)}
-          placeholder="not set"
-          aria-label={`${label.charAt(0).toUpperCase() + label.slice(1)} module path`}
-          spellCheck={false}
-        />
-        <Button variant="ghost" size="sm" onClick={onEdit}>
-          {editing ? 'done' : 'edit'}
-        </Button>
+    <div className="flex items-start gap-4">
+      <span className="w-28 shrink-0 text-muted-foreground">{label}</span>
+      <div className="flex flex-col gap-1 flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <Input
+            fluid
+            value={path}
+            readOnly={!editing}
+            onChange={e => onChange(e.target.value)}
+            placeholder="not set"
+            aria-label={`${label.charAt(0).toUpperCase() + label.slice(1)} module path`}
+            spellCheck={false}
+          />
+          <Button variant="ghost" size="sm" onClick={onEdit}>
+            {editing ? 'done' : 'edit'}
+          </Button>
+        </div>
+        {editing && path && !valid && (
+          <span className="text-red-400">✗ invalid path</span>
+        )}
       </div>
-      {editing && path && !valid && (
-        <span className="font-mono text-xs text-red-400 pl-12">✗ invalid path</span>
-      )}
     </div>
   );
 }
