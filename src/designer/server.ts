@@ -808,7 +808,9 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
     // Startup preview
     if (url === '/api/startup-preview' && method === 'POST') {
       try {
-        await sendToDaemon({ cmd: 'startup-preview' });
+        const body = await readBody(req);
+        const startup = JSON.parse(body) as { animation: string; scroll_text?: string; dmx_path?: string };
+        await sendToDaemon({ cmd: 'startup-preview', ...startup });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
       } catch {

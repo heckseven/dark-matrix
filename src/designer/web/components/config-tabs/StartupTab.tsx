@@ -135,7 +135,11 @@ export function StartupTab({ value, onChange, dualModule = false }: StartupTabPr
   async function firePreview() {
     setPreviewState('firing');
     try {
-      const res = await fetch('/api/startup-preview', { method: 'POST' });
+      const res = await fetch('/api/startup-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(value),
+      });
       setPreviewState(res.ok ? 'ok' : 'error');
     } catch {
       setPreviewState('error');

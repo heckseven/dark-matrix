@@ -1303,20 +1303,23 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               break;
             }
             case 'startup-preview': {
+              const sp = msg as { cmd: string; animation?: string; scroll_text?: string; dmx_path?: string };
+              const spAnim = sp.animation ?? currentConfig.startup.animation;
               stopAnim();
               if (idleTimer) clearTimeout(idleTimer);
-              const spCfg = currentConfig.startup;
               const onDone = () => { if (!dispatcher.current()) resumeAfterInterrupt(); };
-              if (spCfg.animation === 'gol-random') {
+              if (spAnim === 'gol-random') {
                 runOnModules(null, () => createGolAnimation({ frames: 420, loop: false }), onDone);
-              } else if (spCfg.animation === 'scroll') {
+              } else if (spAnim === 'scroll') {
+                const text = sp.scroll_text ?? currentConfig.startup.scroll_text;
                 runOnModules(
-                  createScrollAnimation({ text: spCfg.scroll_text || ' ', loop: false }),
+                  createScrollAnimation({ text: text || ' ', loop: false }),
                   undefined,
                   onDone,
                 );
-              } else if (spCfg.animation === 'dmx' && spCfg.dmx_path) {
-                startDmxAnimation(spCfg.dmx_path, false, onDone);
+              } else if (spAnim === 'dmx') {
+                const dmxPath = sp.dmx_path ?? currentConfig.startup.dmx_path;
+                if (dmxPath) startDmxAnimation(dmxPath, false, onDone);
               }
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
