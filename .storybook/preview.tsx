@@ -5,8 +5,29 @@ import '../src/designer/web/globals.css'
 
 const preview: Preview = {
   tags: ['!autodocs'],
+
+  globalTypes: {
+    modules: {
+      name: 'Modules',
+      description: 'Number of connected LED matrix modules',
+      defaultValue: 'dual',
+      toolbar: {
+        icon: 'grid',
+        items: [
+          { value: 'single', title: '1 module' },
+          { value: 'dual',   title: '2 modules' },
+        ],
+        showName: true,
+        dynamicTitle: true,
+      },
+    },
+  },
+
   decorators: [
-    Story => <TooltipProvider><Story /></TooltipProvider>,
+    (Story, context) => {
+      const dualModule = context.globals['modules'] !== 'single';
+      return <TooltipProvider><Story args={{ dualModule }} /></TooltipProvider>;
+    },
   ],
   parameters: {
     controls: {
