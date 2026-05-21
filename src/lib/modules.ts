@@ -65,8 +65,10 @@ export async function resolveModules(config: ModulesConfig): Promise<ResolvedMod
 }
 
 const SERIAL_DIR = '/dev/serial/by-path';
-const FRAMEWORK_SERIAL_RE = /^ID_SERIAL_SHORT=FRAK/;
-const FRAMEWORK_VENDOR_RE = /^ID_VENDOR_ID=32ac$/i;
+// Framework LED Matrix Input Module: VID 0x32AC, PID 0x0020
+// Source: inputmodule-rs/release/50-framework-inputmodule.rules
+const LED_MATRIX_VENDOR = 'id_vendor_id=32ac';
+const LED_MATRIX_PRODUCT = 'id_model_id=0020';
 const TTY_ACM_RE = /^\/dev\/ttyACM\d+$/;
 
 function spawnUdevadm(devicePath: string): Promise<string> {
@@ -117,7 +119,8 @@ export async function enumerateMatrixModules(): Promise<string[]> {
         return;
       }
 
-      if (output.split('\n').some((line) => FRAMEWORK_SERIAL_RE.test(line.trim()) || FRAMEWORK_VENDOR_RE.test(line.trim()))) {
+      const lines = output.split('\n').map(l => l.trim().toLowerCase());
+      if (lines.includes(LED_MATRIX_VENDOR) && lines.includes(LED_MATRIX_PRODUCT)) {
         results.push(byPath);
       }
     }),
