@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { createScrollAnimation } from '../../../animations/scroll.js';
 import type { ScrollSize } from '../../../animations/scroll.js';
 import { MatrixPreview } from './MatrixPreview.js';
+import { DmxPreview } from './DmxPreview.js';
 import { Select } from './ui/select.js';
 import { Button } from './ui/button.js';
 import { Input } from './ui/input.js';
@@ -64,17 +65,6 @@ function ScrollPreview({ text, size }: { text: string; size: ScrollSize }) {
   return <MatrixPreview pixels={pixels} width={9} />;
 }
 
-// Placeholder for styles that require hardware-side rendering (image/gif/dmx).
-// Dimensions match MatrixPreview canvas (43×168 CSS px).
-function HardwarePreview({ label }: { label: string }) {
-  return (
-    <div aria-hidden="true" className="flex items-center justify-center bg-black" style={{ width: 43, height: 168 }}>
-      <span className="font-mono text-center text-foreground/25 leading-tight break-all" style={{ fontSize: 7 }}>
-        {label || '—'}
-      </span>
-    </div>
-  );
-}
 
 function NotifCell({
   cell,
@@ -141,7 +131,7 @@ function NotifCell({
       <div className="flex justify-center">
         {cell.style === 'text'
           ? <ScrollPreview text={cell.text} size={cell.textSize} />
-          : <HardwarePreview label={cell.assetPath} />
+          : <DmxPreview filename={cell.assetPath || undefined} />
         }
       </div>
 
