@@ -209,7 +209,7 @@ export function StartupTab({ value, onChange, dualModule = false }: StartupTabPr
                 { value: 'xor',     label: 'xor' },
                 { value: 'halo',    label: 'halo' },
               ]}
-              onValueChange={v => onChange({ ...value, overlay_mode: v as StartupValue['overlay_mode'] })}
+              onValueChange={v => onChange({ ...value, overlay_mode: v as 'or' | 'replace' | 'xor' | 'halo' })}
             />
           </div>
         )}
@@ -231,7 +231,8 @@ export function StartupTab({ value, onChange, dualModule = false }: StartupTabPr
               ]}
               onValueChange={v => {
                 const t = (v === 'wipe' || v === 'scan' || v === 'slide' || v === 'dissolve' || v === 'flash') ? v : undefined;
-                onChange({ ...value, transition: t });
+                const { transition: _t, ...rest } = value;
+                onChange(t !== undefined ? { ...rest, transition: t } : rest);
               }}
             />
           </div>
@@ -249,7 +250,8 @@ export function StartupTab({ value, onChange, dualModule = false }: StartupTabPr
               suffix="ms"
               onChange={e => {
                 const n = parseInt(e.target.value, 10);
-                onChange({ ...value, dmx_duration_ms: isNaN(n) || n <= 0 ? undefined : n });
+                const { dmx_duration_ms: _d, ...rest } = value;
+                onChange(isNaN(n) || n <= 0 ? rest : { ...rest, dmx_duration_ms: n });
               }}
             />
           </div>

@@ -28,7 +28,7 @@ export function ConfigPanel({ dualModule, topPad }: { dualModule: boolean; topPa
   return (
     <div className="flex flex-col h-full w-full font-mono overflow-auto" style={{ paddingTop: topPad }}>
       <div className="mx-auto w-full max-w-[800px] px-4 sm:px-7">
-        <div className="pt-4">
+        <div className="pt-6 flex justify-center">
           <Tabs
             options={CONFIG_TABS}
             value={activeTab}
@@ -37,7 +37,8 @@ export function ConfigPanel({ dualModule, topPad }: { dualModule: boolean; topPa
           />
         </div>
 
-        <div className="py-4" aria-live="polite" aria-busy={!configData}>
+        <div className="mt-[4vh] pb-10 flex justify-center" aria-live="polite" aria-busy={!configData}>
+        <div className="w-full max-w-[500px]">
         {configData ? (
           <>
             {activeTab === 'hardware' && (
@@ -81,6 +82,7 @@ export function ConfigPanel({ dualModule, topPad }: { dualModule: boolean; topPa
           <p className="text-xs text-white/60">loading…</p>
         )}
         </div>
+      </div>
       </div>
     </div>
   );

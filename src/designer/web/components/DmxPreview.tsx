@@ -40,7 +40,7 @@ function trim18to9(frame: string): string {
   return toB64(out);
 }
 
-export function DmxPreview({ filename, dual = false }: { filename?: string; dual?: boolean }) {
+export function DmxPreview({ filename, dual = false }: { filename?: string | undefined; dual?: boolean }) {
   const [asset, setAsset] = useState<AssetMeta | null>(null);
   const [px, setPx] = useState(() => blankB64(dual ? 18 : 9));
 
