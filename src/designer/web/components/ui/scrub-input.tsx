@@ -108,7 +108,7 @@ export function ScrubInput({
   if (!label) return dragDiv;
   return (
     <span className="inline-flex items-center gap-2">
-      <label htmlFor={generatedId} className="font-mono text-xs text-foreground/55 whitespace-nowrap select-none">{label}</label>
+      <label htmlFor={generatedId} className="font-mono text-xs text-muted-foreground whitespace-nowrap select-none">{label}</label>
       {dragDiv}
     </span>
   );

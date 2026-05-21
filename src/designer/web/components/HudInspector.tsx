@@ -433,13 +433,13 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, getP
   void tick;
 
   if (assets === null) {
-    return <div className="font-mono text-xs text-foreground/55 p-4">loading…</div>;
+    return <div className="font-mono text-xs text-muted-foreground p-4">loading…</div>;
   }
 
   return (
     <div className="flex flex-col gap-3">
       {assets.length === 0 && (
-        <p className="font-mono text-xs text-foreground/55">no assets — import one to get started</p>
+        <p className="font-mono text-xs text-muted-foreground">no assets — import one to get started</p>
       )}
       <div className="grid grid-cols-3 gap-4">
         {assets.map(asset => {
@@ -462,7 +462,7 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, getP
               >
                 <CornerBrackets active={active} />
                 <MatrixPreview width={asset.width} pixels={pixels} />
-                <span className="font-mono text-xs text-foreground/55 truncate max-w-full">{label}</span>
+                <span className="font-mono text-xs text-muted-foreground truncate max-w-full">{label}</span>
               </button>
               {presetCount === 0 ? (
                 <Button
@@ -536,7 +536,7 @@ function DataSettings({ widget, uid, onChange }: {
   return (
     <div role="group" aria-label="Data widget settings" className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <span className="font-mono text-xs text-foreground/50">style</span>
+        <span className="font-mono text-xs text-muted-foreground">style</span>
         <Tabs
           options={DATA_STYLES.filter(s => s.id !== 'cores' && s.id !== 'scroll').map(s => ({ value: s.id, label: s.label }))}
           value={widget.style ?? 'line'}
@@ -549,7 +549,7 @@ function DataSettings({ widget, uid, onChange }: {
       </div>
 
       <div className="flex flex-col gap-3">
-        <span className="font-mono text-xs text-foreground/50">quadrants</span>
+        <span className="font-mono text-xs text-muted-foreground">quadrants</span>
         <div className="grid grid-cols-2 gap-2">
           {(
             [
@@ -562,7 +562,7 @@ function DataSettings({ widget, uid, onChange }: {
             const val: DataMetric | 'none' = widget[key] ?? 'none';
             return (
               <div key={key} className="flex flex-col gap-1">
-                <label htmlFor={`${uid}-${key}`} className="font-mono text-xs text-foreground/55">{label}</label>
+                <label htmlFor={`${uid}-${key}`} className="font-mono text-xs text-muted-foreground">{label}</label>
                 <Select
                   id={`${uid}-${key}`}
                   value={val}

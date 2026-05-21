@@ -59,7 +59,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     if (!label) return bracket;
     return (
       <span className="inline-flex items-center gap-2">
-        <label htmlFor={inputId} className="font-mono text-xs text-foreground/55 whitespace-nowrap select-none">{label}</label>
+        <label htmlFor={inputId} className="font-mono text-xs text-muted-foreground whitespace-nowrap select-none">{label}</label>
         {bracket}
       </span>
     );

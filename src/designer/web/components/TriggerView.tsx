@@ -85,7 +85,7 @@ function ThresholdFields({ trigger, onChange }: FieldProps) {
   return (
     <div className="flex items-center gap-4 flex-wrap">
       <div className="flex items-center gap-2">
-        <span className="font-mono text-xs text-foreground/55">metric</span>
+        <span className="font-mono text-xs text-muted-foreground">metric</span>
         <Select
           aria-label="Metric"
           value={t.metric}
@@ -102,7 +102,7 @@ function ThresholdFields({ trigger, onChange }: FieldProps) {
           checked={t.above !== undefined}
           onChange={e => e.target.checked ? update({ above: cfg.defaultVal }) : update({ clearAbove: true })}
         />
-        <label htmlFor={`${uid}-above-en`} className="font-mono text-xs text-foreground/55 cursor-pointer select-none">above</label>
+        <label htmlFor={`${uid}-above-en`} className="font-mono text-xs text-muted-foreground cursor-pointer select-none">above</label>
         {t.above !== undefined && (
           <ScrubInput
             aria-label="above threshold"
@@ -121,7 +121,7 @@ function ThresholdFields({ trigger, onChange }: FieldProps) {
           checked={t.below !== undefined}
           onChange={e => e.target.checked ? update({ below: cfg.defaultVal }) : update({ clearBelow: true })}
         />
-        <label htmlFor={`${uid}-below-en`} className="font-mono text-xs text-foreground/55 cursor-pointer select-none">below</label>
+        <label htmlFor={`${uid}-below-en`} className="font-mono text-xs text-muted-foreground cursor-pointer select-none">below</label>
         {t.below !== undefined && (
           <ScrubInput
             aria-label="below threshold"
@@ -160,7 +160,7 @@ function InterfaceFields({ trigger, onChange }: FieldProps) {
   return (
     <div className="flex items-center gap-4 flex-wrap">
       <div className="flex items-center gap-2">
-        <span className="font-mono text-xs text-foreground/55">name</span>
+        <span className="font-mono text-xs text-muted-foreground">name</span>
         {useSelect && (
           <Select
             aria-label="Interface name"
@@ -186,7 +186,7 @@ function InterfaceFields({ trigger, onChange }: FieldProps) {
         )}
       </div>
       <div className="flex items-center gap-2">
-        <span className="font-mono text-xs text-foreground/55">state</span>
+        <span className="font-mono text-xs text-muted-foreground">state</span>
         <Select
           aria-label="Interface state"
           value={trigger.state}
@@ -220,7 +220,7 @@ function VmFields({ trigger, onChange }: FieldProps) {
         expandedClassName="w-32"
       />
       <div className="flex items-center gap-2">
-        <span className="font-mono text-xs text-foreground/55">state</span>
+        <span className="font-mono text-xs text-muted-foreground">state</span>
         <Select
           aria-label="VM state"
           value={stateValue}
@@ -312,7 +312,7 @@ function TriggerRow({ trigger, onUpdate, onDelete }: {
         {trigger.type === 'interface' && <InterfaceFields trigger={trigger} onChange={onUpdate} />}
         {trigger.type === 'vm'        && <VmFields        trigger={trigger} onChange={onUpdate} />}
         {(trigger.type === 'idle' || trigger.type === 'active') && (
-          <p className="font-mono text-xs text-foreground/55">{TRIGGER_DESCRIPTIONS[trigger.type]}</p>
+          <p className="font-mono text-xs text-muted-foreground">{TRIGGER_DESCRIPTIONS[trigger.type]}</p>
         )}
       </div>
       <Button
@@ -390,7 +390,7 @@ export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
         <div className="ml-auto flex items-center gap-3">
           {triggers.length >= 2 && onMatchChange && (
             <div className="flex items-center gap-2">
-              <span className="font-mono text-xs text-foreground/55">match</span>
+              <span className="font-mono text-xs text-muted-foreground">match</span>
               <Select
                 aria-label="match mode"
                 value={match}
@@ -408,7 +408,7 @@ export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-2xl mx-auto px-8 py-6">
           {triggers.length === 0 && (
-            <p className="font-mono text-xs text-foreground/55 py-4">
+            <p className="font-mono text-xs text-muted-foreground py-4">
               no triggers — this preset is always active
             </p>
           )}
@@ -450,7 +450,7 @@ export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
                   role="status"
                   aria-live="polite"
                   aria-atomic="true"
-                  className="w-52 shrink-0 border-l border-foreground/15 px-4 py-3 text-foreground/50 leading-relaxed"
+                  className="w-52 shrink-0 border-l border-foreground/15 px-4 py-3 text-muted-foreground leading-relaxed"
                 >
                   {highlighted ? TRIGGER_DESCRIPTIONS[highlighted] : ''}
                 </div>

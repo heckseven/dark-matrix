@@ -261,8 +261,8 @@ export function AssetImportPanel({ onSaved }: AssetImportPanelProps) {
             className="sr-only"
             onChange={handleInputChange}
           />
-          <span className="font-mono text-xs text-foreground/55">drop image or click to select</span>
-          <span className="font-mono text-xs text-foreground/55">.png .jpg .gif .dmx.json</span>
+          <span className="font-mono text-xs text-muted-foreground">drop image or click to select</span>
+          <span className="font-mono text-xs text-muted-foreground">.png .jpg .gif .dmx.json</span>
         </label>
         {error && <span role="alert" className="font-mono text-xs text-red-400">{error}</span>}
       </div>
@@ -275,7 +275,7 @@ export function AssetImportPanel({ onSaved }: AssetImportPanelProps) {
       {/* Preview */}
       <div className="flex justify-center" aria-live="polite" aria-busy={previewLoading && !preview}>
         {previewLoading && !preview && (
-          <span className="font-mono text-xs text-foreground/55">loading…</span>
+          <span className="font-mono text-xs text-muted-foreground">loading…</span>
         )}
         {preview && (
           <AnimatedPreview
@@ -287,19 +287,19 @@ export function AssetImportPanel({ onSaved }: AssetImportPanelProps) {
           />
         )}
         {!previewLoading && !preview && (
-          <span className="font-mono text-xs text-foreground/55">no preview yet</span>
+          <span className="font-mono text-xs text-muted-foreground">no preview yet</span>
         )}
       </div>
 
       {/* Width */}
       <label className="flex items-center gap-3 cursor-pointer">
-        <span className="font-mono text-xs text-foreground/50 w-20 shrink-0">wide</span>
+        <span className="font-mono text-xs text-muted-foreground w-20 shrink-0">wide</span>
         <Checkbox checked={width === 18} onChange={e => setWidth(e.target.checked ? 18 : 9)} />
       </label>
 
       {/* Fit */}
       <div className="flex items-center gap-3">
-        <span className="font-mono text-xs text-foreground/50 w-20 shrink-0">fit</span>
+        <span className="font-mono text-xs text-muted-foreground w-20 shrink-0">fit</span>
         <Select
           value={fit}
           aria-label="Fit mode"
@@ -313,7 +313,7 @@ export function AssetImportPanel({ onSaved }: AssetImportPanelProps) {
 
       {/* Brightness */}
       <div className="flex items-center gap-3">
-        <span className="font-mono text-xs text-foreground/50 w-20 shrink-0">brightness</span>
+        <span className="font-mono text-xs text-muted-foreground w-20 shrink-0">brightness</span>
         <Slider
           aria-label="brightness"
           variant="value"
@@ -326,7 +326,7 @@ export function AssetImportPanel({ onSaved }: AssetImportPanelProps) {
 
       {/* Contrast */}
       <div className="flex items-center gap-3">
-        <span className="font-mono text-xs text-foreground/50 w-20 shrink-0">contrast</span>
+        <span className="font-mono text-xs text-muted-foreground w-20 shrink-0">contrast</span>
         <Slider
           aria-label="contrast"
           variant="value"
@@ -339,7 +339,7 @@ export function AssetImportPanel({ onSaved }: AssetImportPanelProps) {
 
       {/* Filename */}
       <div className="flex items-center gap-3">
-        <span className="font-mono text-xs text-foreground/50 w-20 shrink-0">filename</span>
+        <span className="font-mono text-xs text-muted-foreground w-20 shrink-0">filename</span>
         <Input
           type="text"
           value={filename}

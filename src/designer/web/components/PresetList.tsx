@@ -493,7 +493,7 @@ export function PresetList({
     >
       <ul aria-label="Presets" className="flex flex-col gap-2 pb-2 pt-2" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
         {presets.length === 0 && (
-          <li className="font-mono text-xs text-foreground/55 px-2 py-4">no presets</li>
+          <li className="font-mono text-xs text-muted-foreground px-2 py-4">no presets</li>
         )}
         {dropTarget === 0 && (
           <li aria-hidden="true" className="-my-[19px] h-0.5 bg-green-500 rounded-full pointer-events-none" />

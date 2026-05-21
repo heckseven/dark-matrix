@@ -191,7 +191,7 @@ export function TimeInput({
   if (!label) return bracket;
   return (
     <span className="inline-flex items-center gap-2">
-      <span id={labelId} className="font-mono text-xs text-foreground/55 whitespace-nowrap select-none">{label}</span>
+      <span id={labelId} className="font-mono text-xs text-muted-foreground whitespace-nowrap select-none">{label}</span>
       {bracket}
     </span>
   );

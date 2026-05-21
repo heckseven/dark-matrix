@@ -83,7 +83,7 @@ export function AssetPickerModal({ open, onOpenChange, current, onPick }: AssetP
               ‹ library
             </Button>
           ) : (
-            <span className="font-mono text-xs text-foreground/50 px-1">assets</span>
+            <span className="font-mono text-xs text-muted-foreground px-1">assets</span>
           )}
           <span className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
             {view === 'import' ? 'import asset' : 'pick asset'}
@@ -102,12 +102,12 @@ export function AssetPickerModal({ open, onOpenChange, current, onPick }: AssetP
           ) : (
             <div className="flex flex-col gap-3">
               {assets === null && (
-                <span className="font-mono text-xs text-foreground/55">loading…</span>
+                <span className="font-mono text-xs text-muted-foreground">loading…</span>
               )}
               {assets !== null && (
                 <>
                   {assets.length === 0 && (
-                    <p className="font-mono text-xs text-foreground/55">no assets — import one to get started</p>
+                    <p className="font-mono text-xs text-muted-foreground">no assets — import one to get started</p>
                   )}
                   {assets.length > 0 && (
                     <div className="grid grid-cols-3 gap-3">
@@ -126,7 +126,7 @@ export function AssetPickerModal({ open, onOpenChange, current, onPick }: AssetP
                             onClick={() => handlePick(asset.name)}
                           >
                             <MatrixPreview width={asset.width} pixels={pixels} />
-                            <span className="font-mono text-xs text-foreground/55 truncate max-w-full">{label}</span>
+                            <span className="font-mono text-xs text-muted-foreground truncate max-w-full">{label}</span>
                           </button>
                         );
                       })}

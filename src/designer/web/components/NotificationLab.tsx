@@ -150,7 +150,7 @@ function NotifCell({
           spellCheck={false}
         />
         <div className="flex items-center gap-2">
-          <span className="text-xs text-foreground/50">size</span>
+          <span className="text-xs text-muted-foreground">size</span>
           <Select aria-label="Text size" value={cell.textSize} onChange={e => update({ textSize: e.target.value as ScrollSize })}>
             <option value="tiny">tiny</option>
             <option value="small">small</option>
@@ -160,7 +160,7 @@ function NotifCell({
         </div>
         {cell.composite === 'overlay' && (
           <div className="flex items-center gap-2">
-            <span className="text-xs text-foreground/50">position</span>
+            <span className="text-xs text-muted-foreground">position</span>
             <Select aria-label="Text position" value={cell.textPosition} onChange={e => update({ textPosition: e.target.value as TextPosition })}>
               <option value="top">top</option>
               <option value="middle">middle</option>
@@ -182,7 +182,7 @@ function NotifCell({
       )}
 
       <div className="flex items-center gap-2">
-        <span className="text-xs text-foreground/50">composite</span>
+        <span className="text-xs text-muted-foreground">composite</span>
         <Select aria-label="Composite mode" value={cell.composite} onChange={e => update({ composite: e.target.value as Composite })}>
           <option value="replace">replace</option>
           <option value="overlay">overlay</option>
@@ -192,7 +192,7 @@ function NotifCell({
 
       {cell.composite === 'overlay' && (
         <div className="flex items-center gap-2">
-          <span className="text-xs text-foreground/50">blend</span>
+          <span className="text-xs text-muted-foreground">blend</span>
           <Select aria-label="Overlay blend mode" value={cell.overlayMode} onChange={e => update({ overlayMode: e.target.value as OverlayMode })}>
             <option value="replace">replace (black bg)</option>
             <option value="or">additive (HUD+text)</option>
@@ -204,7 +204,7 @@ function NotifCell({
       )}
 
       <div className="flex items-center gap-2">
-        <span className="text-xs text-foreground/50">transition</span>
+        <span className="text-xs text-muted-foreground">transition</span>
         <Select aria-label="Transition" value={cell.transition} onChange={e => update({ transition: e.target.value as TransitionMode })}>
           <option value="none">none</option>
           <option value="wipe">wipe</option>
@@ -235,7 +235,7 @@ function NotifCell({
         <span className="font-mono text-xs" aria-live="polite" aria-atomic="true">
           {result && ('error' in result
             ? <span className="text-red-400">{result.error}</span>
-            : <span className="text-foreground/50">→ {result.action}</span>
+            : <span className="text-muted-foreground">→ {result.action}</span>
           )}
         </span>
       </div>
@@ -274,10 +274,10 @@ export function NotificationLab() {
   return (
     <div className="min-h-screen bg-background text-foreground p-5 font-mono">
       <div className="flex items-center gap-4 mb-5">
-        <a href="?lab" className="text-xs text-foreground/50 hover:text-foreground transition-colors">← back to audio lab</a>
-        <span className="text-xs text-foreground/50">notification lab</span>
+        <a href="?lab" className="text-xs text-muted-foreground hover:text-foreground transition-colors">← back to audio lab</a>
+        <span className="text-xs text-muted-foreground">notification lab</span>
         <Button variant="default" size="sm" aria-label="Add notification cell" onClick={addCell}>+ add cell</Button>
-        <span className="text-xs text-foreground/50 ml-auto">text: live preview · dmx: fire to hardware</span>
+        <span className="text-xs text-muted-foreground ml-auto">text: live preview · dmx: fire to hardware</span>
       </div>
 
       <div className="flex flex-wrap gap-3 items-start">

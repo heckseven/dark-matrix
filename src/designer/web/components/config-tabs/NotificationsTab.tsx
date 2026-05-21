@@ -174,7 +174,7 @@ function RulePrev({ rule }: { rule: NotificationRule }) {
 function FormRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="font-mono text-xs text-foreground/45 w-20 shrink-0">{label}</span>
+      <span className="font-mono text-xs text-muted-foreground w-20 shrink-0">{label}</span>
       <div className="flex-1 min-w-0">{children}</div>
     </div>
   );
@@ -573,7 +573,7 @@ export function NotificationsTab({ value, onChange }: NotificationsTabProps) {
         </Button>
       </div>
 
-      <div className="font-mono text-xs text-foreground/55 flex flex-col gap-1 border-t border-foreground/10 mt-4 pt-4">
+      <div className="font-mono text-xs text-muted-foreground flex flex-col gap-1 border-t border-foreground/10 mt-4 pt-4">
         <p className="text-foreground/60 mb-1">assets</p>
         <p>assets live in <span className="text-foreground/70">~/.config/dark-matrix/assets/</span> — use the picker to browse or import images/GIFs as DMX</p>
 
@@ -622,7 +622,7 @@ function TestNotification({ rules }: { rules: NotificationRule[] }) {
 
   return (
     <div className="mt-4 pt-4 border-t border-foreground/10 flex flex-col gap-2">
-      <span className="font-mono text-xs text-foreground/50">test notification</span>
+      <span className="font-mono text-xs text-muted-foreground">test notification</span>
       <div className="flex items-center gap-2">
         <Input
           aria-label="Test app name"
@@ -642,7 +642,7 @@ function TestNotification({ rules }: { rules: NotificationRule[] }) {
           )}
         </span>
       </div>
-      <span aria-live="polite" className="font-mono text-xs text-foreground/55">
+      <span aria-live="polite" className="font-mono text-xs text-muted-foreground">
         {appName && matchedRule && !result && (
           <>matches rule: {matchedRule.app_name_glob ?? matchedRule.content_glob ?? '*'} → {matchedRule.animation}</>
         )}
