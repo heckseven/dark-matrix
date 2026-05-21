@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import { spawn } from 'node:child_process';
+import { SerialPort } from 'serialport';
 
 export interface ModulesConfig {
   left: string;
@@ -67,64 +67,46 @@ export async function resolveModules(config: ModulesConfig): Promise<ResolvedMod
 const SERIAL_DIR = '/dev/serial/by-path';
 // Framework LED Matrix Input Module: VID 0x32AC, PID 0x0020
 // Source: inputmodule-rs/release/50-framework-inputmodule.rules
-const LED_MATRIX_VENDOR = 'id_vendor_id=32ac';
-const LED_MATRIX_PRODUCT = 'id_model_id=0020';
-const TTY_ACM_RE = /^\/dev\/ttyACM\d+$/;
-
-function spawnUdevadm(devicePath: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn('udevadm', ['info', '-q', 'property', devicePath], { shell: false, stdio: ['ignore', 'pipe', 'ignore'] });
-    const chunks: Buffer[] = [];
-    if (proc.stdout === null) {
-      reject(new Error('udevadm stdout is null'));
-      return;
-    }
-    proc.stdout.on('data', (chunk: Buffer) => chunks.push(chunk));
-    proc.on('error', reject);
-    proc.on('close', (code) => {
-      if (code !== 0) {
-        reject(new Error(`udevadm exited with code ${code}`));
-        return;
-      }
-      resolve(Buffer.concat(chunks).toString('utf8'));
-    });
-  });
-}
+const LED_MATRIX_VENDOR = '32ac';
+const LED_MATRIX_PRODUCT = '0020';
 
 export async function enumerateMatrixModules(): Promise<string[]> {
-  let entries: string[];
+  // Find matching devices via serialport's cross-platform VID/PID listing
+  let portList: Awaited<ReturnType<typeof SerialPort.list>>;
   try {
-    entries = await fs.readdir(SERIAL_DIR);
+    portList = await SerialPort.list();
   } catch {
     return [];
   }
 
-  const results: string[] = [];
+  const matchingPaths = new Set(
+    portList
+      .filter(p => p.vendorId?.toLowerCase() === LED_MATRIX_VENDOR && p.productId?.toLowerCase() === LED_MATRIX_PRODUCT)
+      .map(p => p.path),
+  );
 
+  if (matchingPaths.size === 0) return [];
+
+  // Map matched ttyACM paths back to stable by-path entries
+  let entries: string[];
+  try {
+    entries = await fs.readdir(SERIAL_DIR);
+  } catch {
+    return [...matchingPaths].sort();
+  }
+
+  const results: string[] = [];
   await Promise.all(
     entries.map(async (entry) => {
       const byPath = `${SERIAL_DIR}/${entry}`;
-      let resolved: string;
       try {
-        resolved = await fs.realpath(byPath);
+        const resolved = await fs.realpath(byPath);
+        if (matchingPaths.has(resolved)) results.push(byPath);
       } catch {
-        return;
-      }
-      if (!TTY_ACM_RE.test(resolved)) return;
-
-      let output: string;
-      try {
-        output = await spawnUdevadm(byPath);
-      } catch {
-        return;
-      }
-
-      const lines = output.split('\n').map(l => l.trim().toLowerCase());
-      if (lines.includes(LED_MATRIX_VENDOR) && lines.includes(LED_MATRIX_PRODUCT)) {
-        results.push(byPath);
+        // dangling symlink — skip
       }
     }),
   );
 
-  return results;
+  return results.sort();
 }
