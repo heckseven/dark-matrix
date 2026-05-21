@@ -162,10 +162,18 @@ function RuleForm({ rule }: { rule: NotificationRule }) {
         <>
           <FormRow label="asset">
             <div className="flex items-center gap-1.5 w-full">
-              <span className="font-mono text-xs p-1 truncate flex-1">
-                {rule.asset_path?.replace('.dmx.json', '') ?? '—'}
-              </span>
-              <Button variant="ghost" size="sm" className="shrink-0">pick</Button>
+              <Input
+                readOnly
+                className="w-full"
+                expandedClassName=""
+                value={rule.asset_path?.replace('.dmx.json', '') ?? ''}
+                placeholder="none"
+                aria-label="Selected asset"
+              />
+              <Button variant="ghost" size="sm" className="shrink-0"
+                aria-label={`Pick asset${rule.asset_path ? ` (current: ${rule.asset_path.replace('.dmx.json', '')})` : ''}`}>
+                pick
+              </Button>
             </div>
           </FormRow>
           <FormRow label="blend">
