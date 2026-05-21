@@ -91,7 +91,7 @@ export function BrightnessTab({ value, onChange }: Props) {
           min={0}
           max={255}
           step={1}
-          size={60}
+          segments={60}
           value={value.offset}
           onChange={e => onChange({ ...value, offset: Number(e.target.value) })}
         />
@@ -100,25 +100,25 @@ export function BrightnessTab({ value, onChange }: Props) {
       <TabRow label="min brightness">
         <Slider
           aria-label="minimum brightness"
-          aria-describedby={minMaxErrorId}
+          aria-describedby={minMaxError ? minMaxErrorId : undefined}
           min={0}
           max={255}
           step={1}
-          size={60}
+          segments={60}
           value={value.min}
           onChange={e => onChange({ ...value, min: Number(e.target.value) })}
         />
-        {minMaxError && <span id={minMaxErrorId} role="alert" className="text-red-400">must be ≤ max</span>}
+        {minMaxError && <span id={minMaxErrorId} role="alert" className="font-mono text-xs text-red-400">must be ≤ max</span>}
       </TabRow>
 
       <TabRow label="max brightness">
         <Slider
           aria-label="maximum brightness"
-          aria-describedby={minMaxErrorId}
+          aria-describedby={minMaxError ? minMaxErrorId : undefined}
           min={0}
           max={255}
           step={1}
-          size={60}
+          segments={60}
           value={value.max}
           onChange={e => onChange({ ...value, max: Number(e.target.value) })}
         />
@@ -143,7 +143,7 @@ export function BrightnessTab({ value, onChange }: Props) {
             min={0}
             max={255}
             step={1}
-            size={60}
+            segments={60}
             value={value.manual_value}
             onChange={e => onChange({ ...value, manual_value: Number(e.target.value) })}
           />

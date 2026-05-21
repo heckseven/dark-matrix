@@ -214,7 +214,6 @@ export function StartupTab({ value, onChange, dualModule = false }: StartupTabPr
               aria-label="Transition"
               value={value.transition ?? 'dissolve'}
               options={[
-                { value: 'none',    label: 'none' },
                 { value: 'wipe',    label: 'wipe' },
                 { value: 'scan',    label: 'scan' },
                 { value: 'slide',   label: 'slide' },

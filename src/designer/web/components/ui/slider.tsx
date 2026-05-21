@@ -5,8 +5,7 @@ export type SliderVariant = 'cycling' | 'value';
 
 type SliderProps = React.InputHTMLAttributes<HTMLInputElement> & {
   variant?: SliderVariant;
-  /** Track segment count. Default: 24. */
-  size?: number;
+  segments?: number;
 };
 
 const SEG = 24;
@@ -15,7 +14,7 @@ const trackInput = 'absolute inset-0 opacity-0 cursor-pointer z-10';
 const trackVisual = 'font-mono text-sm select-none pointer-events-none whitespace-pre';
 
 export const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
-  ({ className, variant = 'value', size: sizeProp, value, defaultValue, min = 0, max = 100, onChange, ...props }, ref) => {
+  ({ className, variant = 'value', segments: sizeProp, value, defaultValue, min = 0, max = 100, onChange, ...props }, ref) => {
     const seg = sizeProp ?? SEG;
     const [localValue, setLocalValue] = React.useState(
       defaultValue !== undefined ? Number(defaultValue) : Number(min)

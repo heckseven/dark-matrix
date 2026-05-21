@@ -1,17 +1,10 @@
-export function TabFrame({ children }: { children: React.ReactNode }) {
+import type { ReactNode } from 'react';
+
+export function TabFrame({ children }: { children: ReactNode }) {
   return <div className="flex flex-col gap-4 p-2">{children}</div>;
 }
 
-export function TabField({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="text-muted-foreground">{label}</span>
-      {children}
-    </div>
-  );
-}
-
-export function TabRow({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
+export function TabRow({ label, children }: { label: ReactNode; children: ReactNode }) {
   return (
     <div className="flex items-center gap-4">
       <span className="w-28 shrink-0 text-muted-foreground">{label}</span>

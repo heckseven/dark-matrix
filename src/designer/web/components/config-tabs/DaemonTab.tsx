@@ -129,11 +129,13 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
           </TabRow>
 
           <TabRow label="dual display">
-            <Checkbox
-              checked={value.idle_gif_dual ?? false}
-              onChange={e => onChange({ ...value, idle_gif_dual: e.target.checked })}
-              aria-label="gif dual"
-            />
+            <label className="flex items-center gap-2 cursor-pointer">
+              <Checkbox
+                checked={value.idle_gif_dual ?? false}
+                onChange={e => onChange({ ...value, idle_gif_dual: e.target.checked })}
+                aria-label="dual display"
+              />
+            </label>
           </TabRow>
         </>
       )}

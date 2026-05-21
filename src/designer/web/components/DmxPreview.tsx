@@ -58,6 +58,7 @@ export function DmxPreview({ filename, dual = false }: { filename?: string | und
     if (!asset || asset.frames.length === 0) return;
     let frameIdx = 0;
     let dead = false;
+    let timerId: ReturnType<typeof setTimeout>;
 
     const tick = () => {
       if (dead) return;
@@ -71,11 +72,11 @@ export function DmxPreview({ filename, dual = false }: { filename?: string | und
       setPx(displayFrame);
       const delay = asset.delays[frameIdx] ?? 100;
       frameIdx = frameIdx < asset.frames.length - 1 ? frameIdx + 1 : 0;
-      setTimeout(tick, delay || 100);
+      timerId = setTimeout(tick, delay || 100);
     };
 
     tick();
-    return () => { dead = true; };
+    return () => { dead = true; clearTimeout(timerId); };
   }, [asset, dual]);
 
   return <MatrixPreview pixels={px} width={dual ? 18 : 9} />;

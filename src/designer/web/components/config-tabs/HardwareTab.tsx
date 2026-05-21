@@ -44,7 +44,7 @@ function PortRow({
           </Button>
         </div>
         {editing && path && !valid && (
-          <span className="text-red-400">✗ invalid path</span>
+          <span className="font-mono text-xs text-red-400">✗ invalid path</span>
         )}
       </div>
     </div>
