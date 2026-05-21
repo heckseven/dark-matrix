@@ -1338,11 +1338,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                     expiresAt: Date.now() + durationMs,
                     style: 'dmx',
                     assetPath: rawPath,
-                    composite: 'replace',
+                    composite: 'overlay',
                     ...(sp.overlay_mode !== undefined ? { overlayMode: sp.overlay_mode } : {}),
                     ...(sp.transition !== undefined ? { transition: sp.transition } : {}),
                   };
-                  void startDmxNotification(intent, 'replace');
+                  void startDmxNotification(intent, 'overlay');
                 }
               }
               socket.write(JSON.stringify({ ok: true }) + '\n');
@@ -1572,11 +1572,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
           expiresAt: Date.now() + durationMs,
           style: 'dmx',
           assetPath: rawPath,
-          composite: 'replace',
+          composite: 'overlay',
           ...(currentConfig.startup.overlay_mode !== undefined ? { overlayMode: currentConfig.startup.overlay_mode } : {}),
           ...(currentConfig.startup.transition !== undefined ? { transition: currentConfig.startup.transition } : {}),
         };
-        void startDmxNotification(bootIntent, 'replace');
+        void startDmxNotification(bootIntent, 'overlay');
       } else process.stderr.write('dark-matrix: startup.animation is dmx but dmx_path is not set\n');
     } else {
       runOnModules(null, () => createStartupAnimation({ style: 'wipe' }));
