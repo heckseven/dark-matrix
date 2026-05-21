@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useDesignerStore } from '../../store.js';
 import { Button } from '../ui/button.js';
 import { Input } from '../ui/input.js';
+import { TabFrame } from './tab-frame.js';
 
 const BY_PATH_RE = /^\/dev\/(serial\/by-path\/[a-zA-Z0-9:._-]+|ttyACM\d+|ttyUSB\d+)$/;
 
@@ -88,7 +89,7 @@ export function HardwareTab({ value, onChange }: HardwareTabProps) {
   const configured = BY_PATH_RE.test(value.left) && BY_PATH_RE.test(value.right);
 
   return (
-    <div className="flex flex-col gap-5 p-2">
+    <TabFrame>
 
       {/* detect row */}
       <div className="flex flex-col gap-2">
@@ -147,6 +148,6 @@ export function HardwareTab({ value, onChange }: HardwareTabProps) {
           <p className="mt-2">to identify which physical port is which, unplug one module and re-run — the entry that disappears is that module.</p>
         </div>
       )}
-    </div>
+    </TabFrame>
   );
 }

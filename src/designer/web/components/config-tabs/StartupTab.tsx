@@ -144,7 +144,7 @@ export function StartupTab({ value, onChange, dualModule = false }: StartupTabPr
 
       <AnimPrev value={value} dual={dualModule} />
 
-      <div className="flex flex-col gap-4 w-full max-w-[240px]">
+      <div className="flex flex-col gap-4 flex-1">
 
         <div className="flex flex-col gap-1">
           <label className="font-mono text-xs text-muted-foreground">animation</label>

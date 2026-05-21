@@ -3,6 +3,7 @@ import { Select } from '../ui/select.js';
 import { Input } from '../ui/input.js';
 import { Checkbox } from '../ui/checkbox.js';
 import { ScrubInput } from '../ui/scrub-input.js';
+import { TabFrame, TabField } from './tab-frame.js';
 
 type IdleAnimation = 'heatmap' | 'audio-eq' | 'gol-random' | 'scroll' | 'gif' | 'hud' | 'none';
 type GifMode = 'bw' | 'gray';
@@ -24,7 +25,7 @@ interface DaemonTabProps {
 }
 
 const IDLE_ANIMATION_OPTIONS: { value: IdleAnimation; label: string }[] = [
-  { value: 'heatmap',   label: 'heatmap' },
+  { value: 'heatmap',    label: 'heatmap' },
   { value: 'audio-eq',  label: 'audio-eq' },
   { value: 'gol-random', label: 'gol-random' },
   { value: 'scroll',    label: 'scroll' },
@@ -48,10 +49,11 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
   const isEq  = value.idle_animation === 'audio-eq';
 
   return (
-    <div className="flex flex-col gap-4 p-2">
-      <div className="flex flex-col gap-1">
-        <label className="font-mono text-xs text-muted-foreground">poll interval (ms)</label>
+    <TabFrame>
+
+      <TabField label="poll interval">
         <Input
+          fluid
           type="number"
           value={value.poll_interval_ms}
           min={100}
@@ -63,10 +65,9 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
           }}
           aria-label="poll interval ms"
         />
-      </div>
+      </TabField>
 
-      <div className="flex flex-col gap-1">
-        <label className="font-mono text-xs text-muted-foreground">idle animation</label>
+      <TabField label="idle animation">
         <Select
           fluid
           value={value.idle_animation}
@@ -74,10 +75,9 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
           options={IDLE_ANIMATION_OPTIONS}
           onValueChange={v => onChange({ ...value, idle_animation: v as IdleAnimation })}
         />
-      </div>
+      </TabField>
 
-      <div className="flex flex-col gap-1">
-        <label className="font-mono text-xs text-muted-foreground">idle after</label>
+      <TabField label="idle after">
         <ScrubInput
           value={value.idle_after_ms}
           min={0}
@@ -89,15 +89,14 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
           className="w-20 text-center"
           expandedClassName="w-28"
         />
-      </div>
+      </TabField>
 
       {isGif && (
         <>
-          <div className="flex flex-col gap-1">
-            <label className="font-mono text-xs text-muted-foreground">gif path (.gif)</label>
+          <TabField label="gif path (.gif)">
             <Input
+              fluid
               value={value.idle_gif_path ?? ''}
-              expandedClassName="w-64"
               onChange={e => {
                 const v = e.target.value;
                 if (v === '') {
@@ -117,10 +116,9 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
               aria-label="gif path"
               spellCheck={false}
             />
-          </div>
+          </TabField>
 
-          <div className="flex flex-col gap-1">
-            <label className="font-mono text-xs text-muted-foreground">gif mode</label>
+          <TabField label="gif mode">
             <Select
               fluid
               value={value.idle_gif_mode ?? 'bw'}
@@ -128,24 +126,21 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
               options={GIF_MODE_OPTIONS}
               onValueChange={v => onChange({ ...value, idle_gif_mode: v as GifMode })}
             />
-          </div>
+          </TabField>
 
-          <div className="flex items-center gap-2">
-            <label className="font-mono text-xs text-muted-foreground flex items-center gap-2 cursor-pointer">
-              <Checkbox
-                checked={value.idle_gif_dual ?? false}
-                onChange={e => onChange({ ...value, idle_gif_dual: e.target.checked })}
-                aria-label="gif dual"
-              />
-              dual display
-            </label>
-          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <Checkbox
+              checked={value.idle_gif_dual ?? false}
+              onChange={e => onChange({ ...value, idle_gif_dual: e.target.checked })}
+              aria-label="gif dual"
+            />
+            dual display
+          </label>
         </>
       )}
 
       {isEq && (
-        <div className="flex flex-col gap-1">
-          <label className="font-mono text-xs text-muted-foreground">eq source</label>
+        <TabField label="eq source">
           <Select
             fluid
             value={value.idle_eq_source ?? 'monitor'}
@@ -153,8 +148,9 @@ export function DaemonTab({ value, onChange }: DaemonTabProps) {
             options={EQ_SOURCE_OPTIONS}
             onValueChange={v => onChange({ ...value, idle_eq_source: v as EqSource })}
           />
-        </div>
+        </TabField>
       )}
-    </div>
+
+    </TabFrame>
   );
 }
