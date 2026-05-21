@@ -140,7 +140,7 @@ export function StartupTab({ value, onChange, dualModule = false }: StartupTabPr
   }
 
   return (
-    <div className="flex gap-10 p-2 items-center">
+    <div className="flex gap-10 p-2 items-start justify-center">
 
       <AnimPrev value={value} dual={dualModule} />
 
