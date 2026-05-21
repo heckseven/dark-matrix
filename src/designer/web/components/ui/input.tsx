@@ -10,7 +10,7 @@ export type InputProps = React.InputHTMLAttributes<HTMLInputElement> & {
 };
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, expandedClassName = 'w-48', suffix, label, onFocus, onBlur, onScroll, onInput, id, ...props }, ref) => {
+  ({ className, expandedClassName = 'w-48', suffix, label, onFocus, onBlur, onScroll, onInput, id, readOnly, ...props }, ref) => {
     const generatedId = React.useId();
     const inputId = id ?? generatedId;
     const innerRef = React.useRef<HTMLInputElement>(null);
@@ -30,14 +30,18 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
       else if (ref) (ref as React.MutableRefObject<HTMLInputElement | null>).current = node;
     }, [ref]);
 
+    const bracketCls = cn('select-none', readOnly ? 'text-foreground/35' : 'text-foreground');
+
     const bracket = (
       <span className="font-mono text-xs inline-flex items-center p-1 focus-within:ring-1 focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background has-[:disabled]:opacity-40">
-        <span aria-hidden="true" className="text-foreground select-none">{clips.left ? '‹' : '['}&nbsp;</span>
+        <span aria-hidden="true" className={bracketCls}>{clips.left ? '‹' : '['}&nbsp;</span>
         <input
           id={inputId}
           ref={mergedRef}
+          readOnly={readOnly}
           className={cn(
             'bg-transparent border-none outline-none text-foreground font-mono text-xs disabled:cursor-not-allowed transition-[width] duration-150',
+            readOnly && 'cursor-default',
             className,
             focused ? expandedClassName : undefined,
           )}
@@ -47,7 +51,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           onInput={e => { check(); onInput?.(e); }}
           {...props}
         />
-        <span aria-hidden="true" className="text-foreground select-none">{!focused && clips.right ? ' ›' : !focused && suffix ? `${suffix} ]` : ' ]'}</span>
+        <span aria-hidden="true" className={bracketCls}>{!focused && clips.right ? ' ›' : !focused && suffix ? `${suffix} ]` : ' ]'}</span>
       </span>
     );
     if (!label) return bracket;

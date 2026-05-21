@@ -62,6 +62,16 @@ export const Disabled: Story = {
   },
 };
 
+/** Value is visible and focusable but not editable. Brackets are muted to signal non-editable state without removing the field from the tab order. */
+export const ReadOnly: Story = {
+  args: { type: 'text', value: 'skulltalkk', readOnly: true, className: 'w-32', 'aria-label': 'Read-only text input', onChange: fn() },
+  play: async ({ canvas }) => {
+    const input = canvas.getByRole('textbox');
+    await expect(input).toHaveAttribute('readonly');
+    await expect(input).not.toBeDisabled();
+  },
+};
+
 /** Canonical usage: input inside a label with a Text sibling. */
 export const WithLabel: Story = {
   render: () => (
