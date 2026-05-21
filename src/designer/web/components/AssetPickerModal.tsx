@@ -20,10 +20,18 @@ export function AssetPickerModal({ open, onOpenChange, current, onPick }: AssetP
   assetsRef.current = assets;
   const [tick, setTick] = useState(0);
 
+  function fetchAssets() {
+    fetch('/api/assets')
+      .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() as Promise<{ ok: boolean; assets: AssetMeta[] }>; })
+      .then(d => setAssets(d.assets ?? []))
+      .catch(() => setAssets([]));
+  }
+
   useEffect(() => {
     if (!open) return;
     setView('grid');
     fetchAssets();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   useEffect(() => {
@@ -51,13 +59,6 @@ export function AssetPickerModal({ open, onOpenChange, current, onPick }: AssetP
   }, [open]);
 
   void tick;
-
-  function fetchAssets() {
-    fetch('/api/assets')
-      .then(r => r.json() as Promise<{ ok: boolean; assets: AssetMeta[] }>)
-      .then(d => setAssets(d.assets ?? []))
-      .catch(() => setAssets([]));
-  }
 
   function handlePick(filename: string) {
     onPick(filename);

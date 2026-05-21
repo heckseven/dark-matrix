@@ -13,12 +13,13 @@ export async function loadNotificationAsset(assetPath: string): Promise<Notifica
     throw new Error('asset path outside sandbox');
   }
 
+  let stat: Awaited<ReturnType<typeof fs.stat>>;
   try {
-    const stat = await fs.stat(resolved);
-    if (!stat.isFile()) throw new Error('not a file');
+    stat = await fs.stat(resolved);
   } catch {
     throw new Error(`asset not found: ${assetPath}`);
   }
+  if (!stat.isFile()) throw new Error(`asset not found: ${assetPath}`);
 
   if (resolved.toLowerCase().endsWith('.dmx.json')) {
     return { kind: 'dmx', path: resolved };

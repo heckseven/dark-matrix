@@ -301,7 +301,7 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
                   value={switchState(rule.content_glob)}
                   options={[{ value: 'any', label: 'any' }, { value: 'on', label: 'on' }, { value: 'off', label: 'off' }]}
                   onValueChange={v => {
-                    const state = v as SwitchState;
+                    const state: SwitchState = (v === 'on' || v === 'off') ? v : 'any';
                     const prefix = isMicSwitch ? 'MIC' : 'CAM';
                     onUpdate(buildRule(rule, { content_glob: toSwitchGlob(prefix, state) }));
                   }}
@@ -398,7 +398,10 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
                     { value: 'dissolve', label: 'dissolve' },
                     { value: 'flash', label: 'flash' },
                   ]}
-                  onValueChange={v => onUpdate(buildRule(rule, { transition: v === 'none' ? undefined : v as NotificationRule['transition'] }))}
+                  onValueChange={v => {
+                    const t: NotificationRule['transition'] = (v === 'wipe' || v === 'scan' || v === 'slide' || v === 'dissolve' || v === 'flash') ? v : undefined;
+                    onUpdate(buildRule(rule, { transition: t }));
+                  }}
                 />
               </FormRow>
             )}
@@ -452,15 +455,13 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
         ×
       </Button>
 
-      {/* asset picker modal — portalled, no layout impact */}
-      {rule.animation === 'dmx' && (
-        <AssetPickerModal
-          open={pickerOpen}
-          onOpenChange={setPickerOpen}
-          {...(assetDisplay ? { current: assetDisplay } : {})}
-          onPick={filename => onUpdate(buildRule(rule, { asset_path: filename }))}
-        />
-      )}
+      {/* asset picker modal — portalled, always mounted so it survives animation type changes */}
+      <AssetPickerModal
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        {...(assetDisplay ? { current: assetDisplay } : {})}
+        onPick={filename => onUpdate(buildRule(rule, { asset_path: filename }))}
+      />
     </div>
   );
 }

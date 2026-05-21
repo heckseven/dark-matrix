@@ -31,7 +31,7 @@ function PortField({
   const valid = BY_PATH_RE.test(value);
   return (
     <div className="flex flex-col gap-1">
-      <label className="font-mono text-xs text-muted-foreground">{label}</label>
+      <span className="font-mono text-xs text-muted-foreground">{label}</span>
       <div className="flex items-center gap-2">
         <Input
           value={value}

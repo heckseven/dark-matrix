@@ -63,8 +63,8 @@ export const LongValue: Story = {
 
 export const WithPlaceholder: Story = {
   render: (args) => {
-    const [value, setValue] = useState('');
-    return <Select {...args} {...(value ? { value } : {})} placeholder="pick one…" onValueChange={setValue} />;
+    const [value, setValue] = useState<string | undefined>(undefined);
+    return <Select {...args} {...(value !== undefined ? { value } : {})} placeholder="pick one…" onValueChange={setValue} />;
   },
 };
 

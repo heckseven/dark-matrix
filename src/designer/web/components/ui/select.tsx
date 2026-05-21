@@ -51,13 +51,12 @@ export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
           style={primary ? { textShadow: '0 0 8px rgba(74,222,128,0.6)' } : undefined}
         >
           <span aria-hidden="true" className="select-none">{'['}&nbsp;</span>
-          <SelectPrimitive.Value
-            placeholder={placeholder}
-            className={cn(
-              'min-w-0 overflow-hidden text-ellipsis whitespace-nowrap',
-              fluid ? 'flex-1 text-left' : undefined,
-            )}
-          />
+          <span className={cn(
+            'min-w-0 overflow-hidden text-ellipsis whitespace-nowrap',
+            fluid ? 'flex-1 text-left' : undefined,
+          )}>
+            <SelectPrimitive.Value placeholder={placeholder} />
+          </span>
           <span aria-hidden="true" className="select-none">{' ▾]'}</span>
         </SelectPrimitive.Trigger>
 
@@ -87,8 +86,8 @@ export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
                     'data-[disabled]:opacity-40 data-[disabled]:pointer-events-none',
                   )}
                 >
-                  <span className="w-4 shrink-0 flex items-center justify-center text-green-500">
-                    <SelectPrimitive.ItemIndicator aria-hidden="true">✓&nbsp;</SelectPrimitive.ItemIndicator>
+                  <span aria-hidden="true" className="w-4 shrink-0 flex items-center justify-center text-green-500">
+                    <SelectPrimitive.ItemIndicator>✓&nbsp;</SelectPrimitive.ItemIndicator>
                   </span>
                   <SelectPrimitive.ItemText>{opt.label}</SelectPrimitive.ItemText>
                 </SelectPrimitive.Item>

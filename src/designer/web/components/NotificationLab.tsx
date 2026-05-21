@@ -170,7 +170,7 @@ function NotifCell({
               options={[{ value: 'top', label: 'top' }, { value: 'middle', label: 'middle' }, { value: 'bottom', label: 'bottom' }]}
               onValueChange={v => update({ textPosition: v as TextPosition })}
             />
-            <span className="text-xs text-foreground/25">hw</span>
+            <abbr title="hardware" className="text-xs text-muted-foreground no-underline">hw</abbr>
           </div>
         )}
       </>}
@@ -193,7 +193,7 @@ function NotifCell({
           options={[{ value: 'replace', label: 'replace' }, { value: 'overlay', label: 'overlay' }]}
           onValueChange={v => update({ composite: v as Composite })}
         />
-        <span className="text-xs text-foreground/25">hw</span>
+        <abbr title="hardware" className="text-xs text-muted-foreground no-underline">hw</abbr>
       </div>
 
       {cell.composite === 'overlay' && (
@@ -210,7 +210,7 @@ function NotifCell({
             ]}
             onValueChange={v => update({ overlayMode: v as OverlayMode })}
           />
-          <span className="text-xs text-foreground/25">hw</span>
+          <abbr title="hardware" className="text-xs text-muted-foreground no-underline">hw</abbr>
         </div>
       )}
 
@@ -229,7 +229,7 @@ function NotifCell({
           ]}
           onValueChange={v => update({ transition: v as TransitionMode })}
         />
-        <span className="text-xs text-foreground/25">hw</span>
+        <abbr title="hardware" className="text-xs text-muted-foreground no-underline">hw</abbr>
       </div>
 
       <Input

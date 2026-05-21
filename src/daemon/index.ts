@@ -38,7 +38,7 @@ import type { GifAnimation } from '../animations/gif.js';
 import type { DisplayIntent } from '../lib/dispatcher.js';
 import { packBW, FRAME_SIZE, FRAME_COLS, FRAME_ROWS, createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
-import { getTransitionFrames, transitionDuration } from '../animations/transitions.js';
+import { getTransitionFrames } from '../animations/transitions.js';
 import type { TransitionFrame } from '../animations/transitions.js';
 import { composeFrames } from '../lib/compositor.js';
 import type { NotifyOverlay } from '../lib/compositor.js';
@@ -851,6 +851,14 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     const deadline = Date.now() + intent.durationMs;
     let stopped = false;
 
+    if (composite === 'replace') {
+      stopAnim();
+      if (idleTimer) clearTimeout(idleTimer);
+      stopCurrentAnim = () => { stopped = true; };
+    } else {
+      stopCurrentOverlay = () => { stopped = true; setActiveOverlay(null); };
+    }
+
     // Pre-compute transitions using the first DMX frame as reference
     const tf = intent.transition;
     type DualStep = { left: Frame | null; right: Frame | null; delayMs: number };
@@ -878,10 +886,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       const rightExit  = dual ? getTransitionFrames(rightRef, tf, false) : leftExit;
       const BLANK = createFrame();
       const [leftPresent, rightPresent] = (tf === 'wipe' && dual)
-        ? await Promise.all([
-            fs.access(leftDev).then(() => true).catch(() => false),
-            fs.access(rightDev).then(() => true).catch(() => false),
-          ])
+        ? [deviceAvailable.get(leftDev) ?? false, deviceAvailable.get(rightDev) ?? false]
         : [false, false];
       // In overlay mode, idle side should pass null (HUD shows through). In replace mode,
       // send BLANK so the device goes dark while the other panel is transitioning.
@@ -937,14 +942,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       }
     }
     const adjDeadline = deadline - exitSteps.reduce((s, step) => s + step.delayMs, 0);
-
-    if (composite === 'replace') {
-      stopAnim();
-      if (idleTimer) clearTimeout(idleTimer);
-      stopCurrentAnim = () => { stopped = true; };
-    } else {
-      stopCurrentOverlay = () => { stopped = true; setActiveOverlay(null); };
-    }
 
     for (const { left: lf, right: rf, delayMs } of entrySteps) {
       if (stopped) break;

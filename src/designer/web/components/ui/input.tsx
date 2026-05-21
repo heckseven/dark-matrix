@@ -35,7 +35,11 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     const bracketCls = cn('select-none', readOnly ? 'text-muted-foreground' : 'text-foreground');
 
     const bracket = (
-      <span className={cn('font-mono text-xs inline-flex items-center p-1 focus-within:ring-1 focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background has-[:disabled]:opacity-40', fluid && 'w-full')}>
+      <span className={cn(
+        'font-mono text-xs inline-flex items-center p-1 has-[:disabled]:opacity-40',
+        !readOnly && 'has-[:focus-visible]:ring-1 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-1 has-[:focus-visible]:ring-offset-background',
+        fluid && 'w-full',
+      )}>
         <span aria-hidden="true" className={bracketCls}>{clips.left ? '‹' : '['}&nbsp;</span>
         <input
           id={inputId}
