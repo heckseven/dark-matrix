@@ -72,6 +72,17 @@ export const ReadOnly: Story = {
   },
 };
 
+/** Fills the parent container width. Inner input becomes flex-1; expandedClassName is ignored. */
+export const Fluid: Story = {
+  render: () => (
+    <div className="w-64 flex flex-col gap-2">
+      <Input fluid placeholder="fills container" aria-label="Fluid text input" />
+      <Input fluid type="number" defaultValue={5000} suffix="ms" aria-label="Fluid number input with suffix" />
+      <Input fluid readOnly value="skulltalkk" aria-label="Fluid read-only input" />
+    </div>
+  ),
+};
+
 /** Canonical usage: input inside a label with a Text sibling. */
 export const WithLabel: Story = {
   render: () => (
