@@ -26,7 +26,7 @@ const preview: Preview = {
   decorators: [
     (Story, context) => {
       const dualModule = context.globals['modules'] !== 'single';
-      return <TooltipProvider><Story args={{ dualModule }} /></TooltipProvider>;
+      return <TooltipProvider><Story args={{ ...context.args, dualModule }} /></TooltipProvider>;
     },
   ],
   parameters: {

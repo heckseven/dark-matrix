@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { spawn } from 'node:child_process';
 import net from 'node:net';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -708,6 +709,10 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
 
   let prefs = await loadPrefs(configDir);
 
+  // Transient error cache: populated by the youtube-stream proxy on yt-dlp failure so
+  // the client can retrieve the message without triggering a second subprocess.
+  const ytStreamErrors = new Map<string, string>();
+
   const server = http.createServer(async (req, res) => {
     const url = req.url ?? '/';
     const method = req.method ?? 'GET';
@@ -716,6 +721,143 @@ export async function startDesignerServer(opts?: DesignerServerOptions): Promise
     if (url === '/api/health' && method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true, version: 1 }));
+      return;
+    }
+
+    // YouTube stream proxy — requires yt-dlp: sudo apt install yt-dlp
+    if (url.startsWith('/api/youtube-stream') && method === 'GET') {
+      const params = new URLSearchParams(url.includes('?') ? url.slice(url.indexOf('?') + 1) : '');
+      const ytUrl = params.get('url');
+      if (!ytUrl) { res.writeHead(400); res.end('missing url'); return; }
+
+      // Validate input is a YouTube URL
+      let parsedYt: URL;
+      try { parsedYt = new URL(ytUrl); } catch { res.writeHead(400); res.end('invalid url'); return; }
+      if (!/^(www\.|music\.)?youtube\.com$|^youtu\.be$/.test(parsedYt.hostname)) {
+        res.writeHead(400); res.end('not a youtube url'); return;
+      }
+
+      // Resolve CDN stream URL via yt-dlp
+      let streamUrl: string;
+      try {
+        streamUrl = await new Promise<string>((resolve, reject) => {
+          const p = spawn('yt-dlp', [
+            '-f', 'best[height<=480][ext=mp4]/best[height<=480]/best[ext=mp4]/best',
+            '-g', ytUrl,
+          ], { stdio: ['ignore', 'pipe', 'pipe'] });
+          let out = '', err = '';
+          p.stdout?.on('data', (d: Buffer) => { out += d.toString(); });
+          p.stderr?.on('data', (d: Buffer) => { err += d.toString(); });
+          p.on('close', (code) => {
+            if (code !== 0) return reject(new Error(`yt-dlp: ${err.trim().split('\n')[0]}`));
+            const u = out.trim().split('\n')[0];
+            u ? resolve(u) : reject(new Error('yt-dlp returned no URL'));
+          });
+          p.on('error', (e) => {
+            if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
+              reject(new Error('yt-dlp not found — install it: sudo apt install yt-dlp'));
+            } else {
+              reject(new Error('yt-dlp failed to start'));
+            }
+          });
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'yt-dlp error';
+        console.error('[youtube-stream] yt-dlp:', err);
+        ytStreamErrors.set(ytUrl, message);
+        setTimeout(() => ytStreamErrors.delete(ytUrl), 30_000);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: message }));
+        return;
+      }
+
+      // Guard against yt-dlp returning non-CDN URLs
+      let parsedStream: URL;
+      try { parsedStream = new URL(streamUrl); } catch {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'unexpected stream source' }));
+        return;
+      }
+      if (!parsedStream.hostname.endsWith('.googlevideo.com')) {
+        console.error('[youtube-stream] unexpected CDN host:', parsedStream.hostname);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'unexpected stream source' }));
+        return;
+      }
+
+      // Proxy bytes with 30s connect timeout; cancel on client disconnect.
+      // ac is used only for the initial fetch() connection. Once we have the
+      // reader, we cancel it directly — calling ac.abort() on an in-progress
+      // stream body throws synchronously from undici's abort listener in Node 24.
+      const ac = new AbortController();
+      const timeout = setTimeout(() => ac.abort(), 30_000);
+      let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+      req.once('close', () => {
+        clearTimeout(timeout);
+        if (reader) void reader.cancel().catch(() => {});
+        else try { ac.abort(); } catch { /* ignore */ }
+      });
+
+      try {
+        const rawRange = req.headers['range'];
+        const safeRange = typeof rawRange === 'string' && /^bytes=\d+-\d*$/.test(rawRange) ? rawRange : undefined;
+        const upstream = await fetch(streamUrl, {
+          signal: ac.signal,
+          headers: {
+            ...(safeRange ? { 'Range': safeRange } : {}),
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': 'https://www.youtube.com/',
+          },
+        });
+        clearTimeout(timeout);
+
+        const outHeaders: Record<string, string> = { 'Cache-Control': 'no-store' };
+        const ct = upstream.headers.get('content-type');
+        const cl = upstream.headers.get('content-length');
+        const cr = upstream.headers.get('content-range');
+        const ar = upstream.headers.get('accept-ranges');
+        if (ct) outHeaders['Content-Type'] = ct;
+        if (cl) outHeaders['Content-Length'] = cl;
+        if (cr) outHeaders['Content-Range'] = cr;
+        if (ar) outHeaders['Accept-Ranges'] = ar;
+        res.writeHead(upstream.status, outHeaders);
+
+        reader = upstream.body!.getReader();
+        try {
+          while (!res.destroyed) {
+            const { done, value } = await reader.read();
+            if (done) { res.end(); break; }
+            if (!res.write(value)) {
+              // Wait for backpressure to clear; also exit if socket closes.
+              await new Promise<void>(resolve => {
+                const end = () => { res.removeListener('drain', end); res.removeListener('close', end); resolve(); };
+                res.once('drain', end);
+                res.once('close', end);
+              });
+            }
+          }
+        } finally {
+          void reader.cancel().catch(() => {});
+        }
+      } catch (err) {
+        clearTimeout(timeout);
+        console.error('[youtube-stream] fetch error:', err);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'stream unavailable' }));
+        }
+      }
+      return;
+    }
+
+    // YouTube stream error — returns cached yt-dlp error without re-running yt-dlp
+    if (url.startsWith('/api/youtube-stream-error') && method === 'GET') {
+      const params = new URLSearchParams(url.includes('?') ? url.slice(url.indexOf('?') + 1) : '');
+      const ytUrl = params.get('url');
+      const error = ytUrl ? ytStreamErrors.get(ytUrl) ?? null : null;
+      if (ytUrl) ytStreamErrors.delete(ytUrl);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error }));
       return;
     }
 

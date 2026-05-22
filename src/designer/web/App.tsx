@@ -20,6 +20,7 @@ import type { AppMode } from './app-modes.js';
 import { AudioPanel } from './components/AudioPanel.js';
 import { ConfigPanel } from './components/ConfigPanel.js';
 import { HudPanel, hudSendWsGlobal } from './components/HudPanel.js';
+import { VideoPanel, VideoHeader, VideoTransportControls, VideoSettingsToggle } from './components/VideoPanel.js';
 
 const MODE_LABEL = Object.fromEntries(MODES.map(m => [m.id, m.label])) as Record<AppMode, string>;
 
@@ -480,6 +481,7 @@ export function App() {
                       value={micSensitivity}
                       min={0}
                       max={100}
+                      className="w-36"
                       onChange={e => designerStore.getState().setMicSensitivity(Number(e.target.value))}
                     />
                   )}
@@ -493,6 +495,16 @@ export function App() {
                   </Toggle>
                 </div>
               )}
+            </>
+          ) : activeMode === 'video' ? (
+            <>
+              <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
+              <VideoHeader />
+              <div className="ml-auto flex items-center gap-1">
+                <VideoTransportControls />
+                <span className="w-4 shrink-0" aria-hidden="true" />
+                <VideoSettingsToggle />
+              </div>
             </>
           ) : (
             <>
@@ -589,6 +601,10 @@ export function App() {
           <div className="h-full flex">
             <HudPanel dualModule={dualModule} topPad={headerHeight} onNeedsAudioChange={setHudNeedsAudio} onClocksVisibleChange={setHudClocksVisible} {...(clockNow !== undefined ? { clockNow } : {})} />
           </div>
+        ) : activeMode === 'video' ? (
+          <div className="h-full flex">
+            <VideoPanel topPad={headerHeight} />
+          </div>
         ) : activeMode === 'audio' ? (
           <div className="h-full flex">
             <AudioPanel dualModule={dualModule} />
@@ -615,7 +631,7 @@ export function App() {
           </div>
         )}
 
-        {activeMode !== 'audio' && activeMode !== 'hud' && activeMode !== 'config' && <footer ref={footerRef} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+        {activeMode !== 'audio' && activeMode !== 'hud' && activeMode !== 'config' && activeMode !== 'video' && <footer ref={footerRef} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
           <div className="flex-1 flex items-center gap-4">
             <span>frame {activeFrameIdx + 1}</span>
             <span>row {cursor.row}</span>
