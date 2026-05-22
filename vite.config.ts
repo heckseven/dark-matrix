@@ -6,7 +6,7 @@ import path from 'node:path';
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
-    outDir: 'dist/designer/web',
+    outDir: 'dist/deck/web',
     emptyOutDir: true,
   },
   server: {

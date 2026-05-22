@@ -16,5 +16,5 @@
     "allowImportingTsExtensions": true,
     "types": ["vite/client"]
   },
-  "include": ["src/designer/web/**/*", "vite.config.ts"]
+  "include": ["src/deck/web/**/*", "vite.config.ts"]
 }

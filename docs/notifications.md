@@ -47,7 +47,7 @@ Assets live at `~/.config/dark-matrix/assets/`. Rules reference filenames only (
 Supported formats:
 - `.png`, `.jpg`, `.jpeg`, `.bmp` — loaded as grayscale frames
 - `.gif` — animated via sharp; loops for the configured duration
-- `.dmx.json` — DMX animation projects from the designer
+- `.dmx.json` — DMX animation projects from the deck
 
 ## Configuration
 
@@ -121,7 +121,7 @@ Image overlay for any notification matching a content pattern:
 
 ## Testing
 
-The designer's Notifications tab has a test panel that fires a synthetic desktop notification and shows which rule matched. The `notify-test` socket command supports additional override fields for ad-hoc style testing:
+The deck's Notifications tab has a test panel that fires a synthetic desktop notification and shows which rule matched. The `notify-test` socket command supports additional override fields for ad-hoc style testing:
 
 ```json
 {

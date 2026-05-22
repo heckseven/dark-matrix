@@ -1,6 +1,6 @@
 # HUD Picker Thumbnail Draw Order
 
-Draw in the designer at **9-wide, BW mode**. One frame per widget, in this exact order.
+Draw in the deck at **9-wide, BW mode**. One frame per widget, in this exact order.
 Export as `.dmx.json` and hand off — the pixel data will be parsed by frame index.
 
 ## Clocks (frames 1–7) — matches CLOCK_FACES order

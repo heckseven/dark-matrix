@@ -1,6 +1,6 @@
 # dark-matrix
 
-Framework16 LED Matrix control daemon and pixel animation designer. Two 9×34 LED modules
+Framework16 LED Matrix control daemon and pixel animation deck. Two 9×34 LED modules
 (left/right), driven over USB serial via a persistent TypeScript/Node.js daemon + CLI.
 
 ---
@@ -54,7 +54,7 @@ The mapping is stored in `~/.config/dark-matrix/config.json`.
 
 ---
 
-## Designer
+## Deck
 
 A browser-based pixel animation editor. Launches a local HTTP server and opens the UI.
 
@@ -128,7 +128,7 @@ dark-matrix <command>
 | `ping` | Check if daemon is running |
 | `release` | Release serial port handles (for compatibility with `matrix.sh`) |
 | `calibrate` | Confirm left/right module assignment |
-| `ui [--port <n>]` | Launch pixel animation designer (default port 7340) |
+| `ui [--port <n>]` | Launch pixel animation deck (default port 7340) |
 
 ### Images
 
@@ -235,7 +235,7 @@ src/
 │   └── index.ts          # Event loop, source watchers, Unix socket IPC
 ├── cli/
 │   └── index.ts          # CLI commands
-├── designer/
+├── deck/
 │   ├── format.ts         # .dmx.json project format + serialization
 │   ├── server.ts         # HTTP server (static + API) + WebSocket live preview
 │   └── web/
@@ -278,7 +278,7 @@ src/
 **Frame storage:** column-major `Uint8Array` (`frame[col * 34 + row]`).
 Wire format for BW frames is row-major — `packBW` handles the transposition.
 
-**Designer server API:**
+**Deck server API:**
 
 | Endpoint | Method | Description |
 |---|---|---|
@@ -286,7 +286,7 @@ Wire format for BW frames is row-major — `packBW` handles the transposition.
 | `/api/export/gif` | POST | Render project frames to animated GIF |
 | `/api/export/png` | POST | Render a single frame to PNG |
 | `/api/modules` | GET | Returns `{ left, right }` availability from daemon |
-| `/api/prefs` | GET/PUT | Persist designer UI preferences |
+| `/api/prefs` | GET/PUT | Persist deck UI preferences |
 | `/api/library` | GET | List saved projects in `~/.config/dark-matrix/library/` |
 | `/api/library` | POST | Save project `{ name, project, copy? }` — `copy:true` writes a `_copy` variant |
 | `/api/library/:name` | GET | Load a saved project |
@@ -328,7 +328,7 @@ systemctl --user daemon-reload && systemctl --user restart dark-matrix
 - [ ] Verify left/right calibration is correct on hardware (run `dark-matrix calibrate`)
 - [x] Audio EQ: `idle_eq_source: "monitor" | "mic"` config key
 - [x] GIF idle animation: `idle_animation: "gif"` + `idle_gif_path`, `idle_gif_mode`, `idle_gif_dual` config keys
-- [x] Pixel animation designer (`dark-matrix designer`)
+- [x] Pixel animation deck (`dark-matrix deck`)
 
 ### Medium priority
 
@@ -337,7 +337,7 @@ systemctl --user daemon-reload && systemctl --user restart dark-matrix
 - [ ] Scroll speed config in `daemon` config block (not just CLI flag)
 - [ ] Multiple idle animations in rotation (round-robin or random)
 - [ ] `dark-matrix status` — show current intent, brightness, module paths
-- [ ] Additional app modes beyond designer (hud, audio, ai, etc.)
+- [ ] Additional app modes beyond the deck (hud, audio, ai, etc.)
 
 ### Low priority / nice to have
 

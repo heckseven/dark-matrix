@@ -11,8 +11,8 @@ import { startBrightnessLoop } from '../lib/brightness.js';
 import { watchSwitches } from '../lib/ec-switches.js';
 import { watchVms } from '../lib/vm-source.js';
 import { parseClaudeHook } from '../lib/claude-source.js';
-import { parseProject, base64ToFrame } from '../designer/format.js';
-import type { DmxProject } from '../designer/format.js';
+import { parseProject, base64ToFrame } from '../deck/format.js';
+import type { DmxProject } from '../deck/format.js';
 import { watchDesktopNotifications } from '../lib/dbus-notifications.js';
 import { watchMic } from '../lib/mic-source.js';
 import { Dispatcher, ecSwitchIntent, vmIntent, notificationIntent } from '../lib/dispatcher.js';
@@ -78,7 +78,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   }
 
   // Pre-populate currentConfig.hud from active_hud_preset so runHudOnModules
-  // uses the right widgets even before the designer sends a hud-config message.
+  // uses the right widgets even before the deck sends a hud-config message.
   if (currentConfig.active_hud_preset) {
     const activePreset = (currentConfig.hud_presets ?? []).find(p => p.name === currentConfig.active_hud_preset);
     if (activePreset) currentConfig = { ...currentConfig, hud: { left: activePreset.left, right: activePreset.right } };

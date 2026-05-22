@@ -5,17 +5,17 @@
   "tsx": true,
   "tailwind": {
     "config": "",
-    "css": "src/designer/web/globals.css",
+    "css": "src/deck/web/globals.css",
     "baseColor": "neutral",
     "cssVariables": true,
     "prefix": ""
   },
   "aliases": {
-    "components": "@/designer/web/components",
+    "components": "@/deck/web/components",
     "utils": "@/lib/utils",
-    "ui": "@/designer/web/components/ui",
+    "ui": "@/deck/web/components/ui",
     "lib": "@/lib",
-    "hooks": "@/designer/web/hooks"
+    "hooks": "@/deck/web/hooks"
   },
   "iconLibrary": "lucide"
 }

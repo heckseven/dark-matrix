@@ -1,7 +1,7 @@
 import type { Preview } from '@storybook/tanstack-react'
 import { themes } from 'storybook/theming'
-import { TooltipProvider } from '../src/designer/web/components/ui/tooltip.js'
-import '../src/designer/web/globals.css'
+import { TooltipProvider } from '../src/deck/web/components/ui/tooltip.js'
+import '../src/deck/web/globals.css'
 
 const preview: Preview = {
   tags: ['!autodocs'],

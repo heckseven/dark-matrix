@@ -305,12 +305,12 @@ async function cmdPlay(args: string[]) {
   }
 }
 
-async function cmdDesigner(args: string[]): Promise<void> {
+async function cmdDeck(args: string[]): Promise<void> {
   const portIdx = args.indexOf('--port');
   const port = portIdx !== -1 ? parseInt(args[portIdx + 1] ?? '7340', 10) : 7340;
-  const { startDesignerServer } = await import('../designer/server.js');
-  const server = await startDesignerServer({ port });
-  process.stdout.write(`Designer running at ${server.url}\nPress Ctrl-C to stop.\n`);
+  const { startDeckServer } = await import('../deck/server.js');
+  const server = await startDeckServer({ port });
+  process.stdout.write(`Deck running at ${server.url}\nPress Ctrl-C to stop.\n`);
 
   const openUrl = server.url;
   const opener = process.platform === 'darwin' ? 'open'
@@ -339,7 +339,7 @@ switch (cmd) {
     }
     break;
   case 'play':       await cmdPlay(args); break;
-  case 'ui':         await cmdDesigner(args); break;
+  case 'ui':         await cmdDeck(args); break;
   case 'show':       await cmdShow(args); break;
   case 'show-split': await cmdShowSplit(args); break;
   case 'display':    await cmdDisplay(args); break;

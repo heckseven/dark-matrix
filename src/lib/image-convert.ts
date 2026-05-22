@@ -4,7 +4,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { createFrame } from './frame.js';
 import type { Frame } from './frame.js';
-import type { DmxProject } from '../designer/format.js';
+import type { DmxProject } from '../deck/format.js';
 
 export type ImageFit = 'fill' | 'contain' | 'cover';
 export type ImageMode = 'bw' | 'gray';

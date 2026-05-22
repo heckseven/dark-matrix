@@ -87,7 +87,7 @@ function stretch(): ClockRenderer {
 
   // Stateful: track real wall-clock time when each digit last changed.
   // Using Date.now() (not simulated `now`) so animation runs at real speed
-  // regardless of fast-clock mode in the designer.
+  // regardless of fast-clock mode in the deck.
   let prevDigits: [number, number, number, number] | null = null;
   const changeWall: [number, number, number, number] = [0, 0, 0, 0];
 
