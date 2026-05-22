@@ -3,8 +3,7 @@ import { useDeckStore, deckStore } from '../store.js';
 import { BiomeList } from './BiomeList.js';
 import { LifeCanvas, encodeGrid, makeRandomGrid } from './LifeCanvas.js';
 import { LifeInspector } from './LifeInspector.js';
-import { AssetPickerModal } from './AssetPickerModal.js';
-import type { AssetMeta } from '../../../lib/asset-meta.js';
+import { LibraryPickerModal } from './LibraryPickerModal.js';
 import type { BiomePreset } from '../types/life-types.js';
 
 const ROWS = 34;
@@ -203,9 +202,9 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
 
   // ── Import from design ────────────────────────────────────────────────
 
-  function handleImportDesign(_filename: string, meta?: AssetMeta) {
-    if (!meta || !selectedBiome) return;
-    const snapshot = fitAssetFrame(meta.firstFrame, meta.width, cols);
+  function handleImportDesign(_name: string, firstFrame: string, width: 9 | 18) {
+    if (!selectedBiome) return;
+    const snapshot = fitAssetFrame(firstFrame, width, cols);
     deckStore.getState().updateBiome(selectedBiome.name, { gridSnapshot: snapshot });
     deckStore.getState().restartLife();
     debouncedBiomeSave();
@@ -281,7 +280,7 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
         )}
       </aside>
 
-      <AssetPickerModal
+      <LibraryPickerModal
         open={designPickerOpen}
         onOpenChange={setDesignPickerOpen}
         onPick={handleImportDesign}
