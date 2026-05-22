@@ -61,6 +61,8 @@ export interface DeckState {
   selectedBiomeName: string | null;
   lifeIsPlaying: boolean;
   lifeGeneration: number;
+  lifeStepForwardCount: number;
+  lifeStepBackCount: number;
 }
 
 export interface DeckActions {
@@ -121,8 +123,12 @@ export interface DeckActions {
   renameBiome(oldName: string, newName: string): void;
   updateBiome(name: string, patch: Partial<BiomePreset>): void;
   setActiveBiome(name: string | null): void;
+  moveBiome(fromIdx: number, toIdx: number): void;
+  insertBiome(preset: BiomePreset, afterIdx: number): void;
   setLifePlaying(v: boolean): void;
   restartLife(): void;
+  stepLifeForward(): void;
+  stepLifeBack(): void;
 }
 
 export type DeckStore = DeckState & DeckActions;
@@ -236,6 +242,8 @@ export function createDeckStore() {
     selectedBiomeName: null,
     lifeIsPlaying: false,
     lifeGeneration: 0,
+    lifeStepForwardCount: 0,
+    lifeStepBackCount: 0,
 
     setPixel(frameIdx, col, row, value) {
       const { frames, mode, undoStack, strokeSnapshot, previewTarget, width } = get();
@@ -568,6 +576,22 @@ export function createDeckStore() {
       set({ activeBiomeName: name });
     },
 
+    moveBiome(fromIdx, toIdx) {
+      set(s => {
+        const next = [...s.biomePresets];
+        const [item] = next.splice(fromIdx, 1);
+        if (item) next.splice(toIdx, 0, item);
+        return { biomePresets: next };
+      });
+    },
+
+    insertBiome(preset, afterIdx) {
+      set(s => {
+        const next = [...s.biomePresets];
+        next.splice(afterIdx + 1, 0, preset);
+        return { biomePresets: next };
+      });
+    },
 
     setLifePlaying(v) {
       set({ lifeIsPlaying: v });
@@ -575,6 +599,14 @@ export function createDeckStore() {
 
     restartLife() {
       set(s => ({ lifeGeneration: s.lifeGeneration + 1, lifeIsPlaying: false }));
+    },
+
+    stepLifeForward() {
+      set(s => ({ lifeStepForwardCount: s.lifeStepForwardCount + 1 }));
+    },
+
+    stepLifeBack() {
+      set(s => ({ lifeStepBackCount: s.lifeStepBackCount + 1 }));
     },
   }));
 }

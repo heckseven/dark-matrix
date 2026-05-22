@@ -5,17 +5,21 @@ import { LifeCanvas, encodeGrid, makeRandomGrid } from './LifeCanvas.js';
 import { LifeInspector } from './LifeInspector.js';
 import type { BiomePreset } from '../types/life-types.js';
 
+export let lifeTriggerSave: () => void = () => {};
+
 function makeBiome(): BiomePreset {
   const ts = Date.now().toString(36);
   return { name: `biome-${ts}`, algorithm: 'conway', tickMs: 120 };
 }
 
 export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number; dualModule?: boolean }) {
-  const biomePresets    = useDeckStore(s => s.biomePresets);
-  const activeBiomeName = useDeckStore(s => s.activeBiomeName);
-  const selectedBiomeName = useDeckStore(s => s.selectedBiomeName);
-  const lifeIsPlaying   = useDeckStore(s => s.lifeIsPlaying);
-  const lifeGeneration  = useDeckStore(s => s.lifeGeneration);
+  const biomePresets       = useDeckStore(s => s.biomePresets);
+  const activeBiomeName    = useDeckStore(s => s.activeBiomeName);
+  const selectedBiomeName  = useDeckStore(s => s.selectedBiomeName);
+  const lifeIsPlaying      = useDeckStore(s => s.lifeIsPlaying);
+  const lifeGeneration     = useDeckStore(s => s.lifeGeneration);
+  const lifeStepForwardCount = useDeckStore(s => s.lifeStepForwardCount);
+  const lifeStepBackCount    = useDeckStore(s => s.lifeStepBackCount);
 
   const cols: 9 | 18 = dualModule ? 18 : 9;
   const selectedBiome = biomePresets.find(b => b.name === selectedBiomeName) ?? null;
@@ -41,6 +45,8 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
       sendWs({ type: 'biome-preset-save', presets: deckStore.getState().biomePresets });
     }, 800);
   }, []);
+
+  lifeTriggerSave = debouncedBiomeSave;
 
   const sendPreviewFrame = useCallback((snapshot: string) => {
     const ws = wsRef.current;
@@ -120,6 +126,19 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
     debouncedBiomeSave();
   }
 
+  function handleInsert(afterIdx: number) {
+    const preset = makeBiome();
+    deckStore.getState().insertBiome(preset, afterIdx);
+    deckStore.getState().selectBiome(preset.name);
+    deckStore.getState().setLifePlaying(false);
+    debouncedBiomeSave();
+  }
+
+  function handleMove(fromIdx: number, toIdx: number) {
+    deckStore.getState().moveBiome(fromIdx, toIdx);
+    debouncedBiomeSave();
+  }
+
   function handleDelete(name: string) {
     deckStore.getState().deleteBiome(name);
     debouncedBiomeSave();
@@ -184,9 +203,11 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
           onSelect={handleSelect}
           onActivate={handleActivate}
           onCreate={handleCreate}
+          onInsert={handleInsert}
           onDelete={handleDelete}
           onDuplicate={handleDuplicate}
           onRename={handleRename}
+          onMove={handleMove}
         />
       </aside>
 
@@ -198,6 +219,8 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
             playing={lifeIsPlaying}
             generation={lifeGeneration}
             cols={cols}
+            stepForwardCount={lifeStepForwardCount}
+            stepBackCount={lifeStepBackCount}
             onGridChange={handleGridChange}
             onTick={sendPreviewFrame}
           />

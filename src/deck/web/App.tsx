@@ -21,7 +21,7 @@ import { AudioPanel } from './components/AudioPanel.js';
 import { ConfigPanel } from './components/ConfigPanel.js';
 import { HudPanel, hudSendWsGlobal } from './components/HudPanel.js';
 import { VideoPanel, VideoHeader, VideoTransportControls, VideoSettingsToggle } from './components/VideoPanel.js';
-import { LifePanel } from './components/LifePanel.js';
+import { LifePanel, lifeTriggerSave } from './components/LifePanel.js';
 
 const MODE_LABEL = Object.fromEntries(MODES.map(m => [m.id, m.label])) as Record<AppMode, string>;
 
@@ -513,18 +513,47 @@ export function App() {
             <>
               <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
               <div className="absolute inset-x-0 flex justify-center pointer-events-none">
-                <span className="font-mono text-xs text-foreground">
-                  {selectedBiomeName ?? 'no biome selected'}
-                </span>
+                <div className="pointer-events-auto">
+                  {selectedBiomeName ? (
+                    <ProjectTitle
+                      value={selectedBiomeName}
+                      onChange={newName => {
+                        deckStore.getState().renameBiome(selectedBiomeName, newName);
+                        lifeTriggerSave();
+                      }}
+                    />
+                  ) : (
+                    <span className="font-mono text-xs text-muted-foreground">no biome selected</span>
+                  )}
+                </div>
               </div>
               <div className="ml-auto flex items-center gap-2">
                 <Button
                   variant="ghost"
+                  aria-label="Step back"
+                  tooltip="step back"
+                  disabled={lifeIsPlaying || !selectedBiomeName}
+                  onClick={() => deckStore.getState().stepLifeBack()}
+                >
+                  ◁
+                </Button>
+                <Button
+                  variant="ghost"
                   aria-label="Restart simulation"
                   tooltip="restart"
+                  disabled={!selectedBiomeName}
                   onClick={() => deckStore.getState().restartLife()}
                 >
                   ↺
+                </Button>
+                <Button
+                  variant="ghost"
+                  aria-label="Step forward"
+                  tooltip="step forward"
+                  disabled={lifeIsPlaying || !selectedBiomeName}
+                  onClick={() => deckStore.getState().stepLifeForward()}
+                >
+                  ▷
                 </Button>
                 <Button
                   variant="ghost"

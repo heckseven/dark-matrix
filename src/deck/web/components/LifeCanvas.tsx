@@ -112,17 +112,26 @@ function stepGrid(grid: Uint8Array, cols: number, birth: readonly number[], surv
 
 // ── component ────────────────────────────────────────────────────────────────
 
-export function LifeCanvas({ biome, playing, generation, cols = 9, onGridChange, onTick }: {
+const HISTORY_MAX = 64;
+
+export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCount = 0, stepBackCount = 0, onGridChange, onTick }: {
   biome: BiomePreset | null;
   playing: boolean;
   generation: number;
   cols?: 9 | 18;
+  stepForwardCount?: number;
+  stepBackCount?: number;
   onGridChange: (snapshot: string) => void;
   onTick?: (snapshot: string) => void;
 }) {
   const zoom = useDeckStore(s => s.zoom);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const focusMarksRef = useRef<HTMLDivElement>(null);
+  const historyRef = useRef<Array<Uint8Array<ArrayBuffer>>>([]);
+  const biomeRef = useRef(biome);
+  biomeRef.current = biome;
+  const prevStepFwdRef = useRef(stepForwardCount);
+  const prevStepBackRef = useRef(stepBackCount);
 
   const state = useRef({
     grid: new Uint8Array(cols * ROWS) as Uint8Array<ArrayBuffer>,
@@ -234,6 +243,9 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, onGridChange,
   // ── grid reset on generation/biome/cols change ────────────────────────────
 
   useEffect(() => {
+    historyRef.current = [];
+    prevStepFwdRef.current = stepForwardCount;
+    prevStepBackRef.current = stepBackCount;
     const expectedBytes = cols * ROWS;
     const snapshot = biome?.gridSnapshot;
     if (snapshot) {
@@ -246,6 +258,36 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, onGridChange,
     schedulePaint();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generation, biome?.name, cols]);
+
+  // ── single step forward ───────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (stepForwardCount === prevStepFwdRef.current) return;
+    prevStepFwdRef.current = stepForwardCount;
+    if (state.current.playing || !biomeRef.current) return;
+    const { birth, survival } = LIFE_ALGORITHMS[biomeRef.current.algorithm];
+    if (historyRef.current.length >= HISTORY_MAX) historyRef.current.shift();
+    historyRef.current.push(new Uint8Array(state.current.grid) as Uint8Array<ArrayBuffer>);
+    const next = stepGrid(state.current.grid, state.current.cols, birth, survival);
+    state.current.grid = next;
+    schedulePaint();
+    onTick?.(encodeGrid(next));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepForwardCount]);
+
+  // ── single step back ─────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (stepBackCount === prevStepBackRef.current) return;
+    prevStepBackRef.current = stepBackCount;
+    if (state.current.playing) return;
+    const prev = historyRef.current.pop();
+    if (!prev) return;
+    state.current.grid = prev;
+    schedulePaint();
+    onTick?.(encodeGrid(prev));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepBackCount]);
 
   // ── simulation tick ───────────────────────────────────────────────────────
 
