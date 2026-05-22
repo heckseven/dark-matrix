@@ -1393,7 +1393,7 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
     return sock;
   }
 
-  const wss = new WebSocketServer({ server, path: '/ws' });
+  const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 1 * 1024 * 1024 });
   wss.setMaxListeners(50);
 
   let retryGen = 0;
@@ -1569,17 +1569,12 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
         })();
       } else if (type === 'hud-preset-save') {
         void (async () => {
-          const presets = msg['presets'];
-          if (!Array.isArray(presets)) {
-            ws.send(JSON.stringify({ type: 'error', error: 'invalid payload' }));
+          const parsed = ConfigSchema.shape.hud_presets.safeParse(msg['presets']);
+          if (!parsed.success) {
+            ws.send(JSON.stringify({ type: 'error', error: parsed.error.issues.map(i => i.message).join('; ') }));
             return;
           }
-          const names = (presets as { name?: unknown }[]).map(p => p.name);
-          const hasDupe = names.some((n, i) => names.indexOf(n) !== i);
-          if (hasDupe) {
-            ws.send(JSON.stringify({ type: 'error', error: 'duplicate preset name' }));
-            return;
-          }
+          const presets = parsed.data ?? [];
           try {
             const cfgPath = configFilePath(configDir);
             const config = await loadConfig(cfgPath);
@@ -1668,6 +1663,7 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
               const tmp = cfgPath + '.tmp';
               await fs.writeFile(tmp, JSON.stringify({ ...cfg, active_biome_preset: name }, null, 2) + '\n', { mode: 0o600 });
               await fs.rename(tmp, cfgPath);
+              sendToDaemon({ cmd: 'reload' }).catch(() => {});
               ws.send(JSON.stringify({ type: 'biome-preset-activated', name }));
             } catch (err) {
               ws.send(JSON.stringify({ type: 'error', error: String(err) }));

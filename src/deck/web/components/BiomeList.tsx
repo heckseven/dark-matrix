@@ -3,11 +3,13 @@ import { Button } from './ui/button.js';
 import { MatrixPreview } from './MatrixPreview.js';
 import { Stack } from './ui/stack.js';
 import type { BiomePreset } from '../types/life-types.js';
-
-const ROWS = 34;
-
+import { ROWS } from '../store.js';
 
 const EMPTY_9 = btoa(String.fromCharCode(...new Uint8Array(9 * ROWS)));
+
+function resolveDropIndex(from: number, target: number): number {
+  return from < target ? target - 1 : target;
+}
 
 function snapshotPixels(snap: string | undefined): { pixels: string; width: 9 | 18 } {
   if (!snap) return { pixels: EMPTY_9, width: 9 };
@@ -53,7 +55,7 @@ function GapZone({ afterIdx, showDrop, setDropTarget, biomeCount, onInsert, onMo
         setDropTarget(null);
         if (!Number.isInteger(from) || from < 0 || from >= biomeCount) return;
         const target = afterIdx + 1;
-        const to = from < target ? target - 1 : target;
+        const to = resolveDropIndex(from, target);
         if (to !== from) onMove(from, to);
       }}
     >
@@ -135,7 +137,7 @@ function BiomeCard({ biome, idx, biomeCount, isActive, isSelected, dropTarget, o
         const target = dropTarget;
         setDropTarget(null);
         if (!Number.isInteger(from) || from < 0 || from >= biomeCount || target === null) return;
-        const to = from < target ? target - 1 : target;
+        const to = resolveDropIndex(from, target);
         if (to !== from) onDrop(from, to);
       }}
     >
@@ -241,7 +243,7 @@ export function BiomeList({ biomes, activeName, selectedName, onSelect, onActiva
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropTarget(null);
       }}
     >
-      <ul aria-label="Biomes" className="flex flex-col gap-2 pb-2 pt-2" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+      <ul aria-label="Biomes" className="flex flex-col gap-2" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
         {biomes.length === 0 && (
           <li className="font-mono text-xs text-muted-foreground px-2 py-4">no biomes</li>
         )}

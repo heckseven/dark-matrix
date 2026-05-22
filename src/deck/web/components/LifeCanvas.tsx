@@ -1,9 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { useDeckStore, deckStore, stepZoom } from '../store.js';
+import { useDeckStore, deckStore, stepZoom, ROWS } from '../store.js';
 import { LIFE_ALGORITHMS } from '../../../animations/gol.js';
 import type { BiomePreset } from '../types/life-types.js';
 
-const ROWS = 34;
 const MIN_L = 48;
 const BASE_CELL = 20;
 const GAP = 1;
@@ -136,6 +135,8 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCo
   const stepCountRef = useRef(0);
   const onStepRef = useRef(onStep);
   onStepRef.current = onStep;
+  const onTickRef = useRef(onTick);
+  onTickRef.current = onTick;
 
   const state = useRef({
     grid: new Uint8Array(cols * ROWS) as Uint8Array<ArrayBuffer>,
@@ -277,7 +278,7 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCo
     const next = stepGrid(state.current.grid, state.current.cols, birth, survival);
     state.current.grid = next;
     schedulePaint();
-    onTick?.(encodeGrid(next));
+    onTickRef.current?.(encodeGrid(next));
     const count = ++stepCountRef.current;
     onStepRef.current?.(count);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -293,7 +294,7 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCo
     if (!prev) return;
     state.current.grid = prev;
     schedulePaint();
-    onTick?.(encodeGrid(prev));
+    onTickRef.current?.(encodeGrid(prev));
     const count = Math.max(0, --stepCountRef.current);
     stepCountRef.current = count;
     onStepRef.current?.(count);
@@ -309,7 +310,7 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCo
       const next = stepGrid(state.current.grid, state.current.cols, birth, survival);
       state.current.grid = next;
       schedulePaint();
-      onTick?.(encodeGrid(next));
+      onTickRef.current?.(encodeGrid(next));
       const count = ++stepCountRef.current;
       onStepRef.current?.(count);
     }, biome.tickMs);

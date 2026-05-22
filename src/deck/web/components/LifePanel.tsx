@@ -1,12 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useDeckStore, deckStore } from '../store.js';
+import { useDeckStore, deckStore, ROWS } from '../store.js';
 import { BiomeList } from './BiomeList.js';
 import { LifeCanvas, encodeGrid, makeRandomGrid } from './LifeCanvas.js';
 import { LifeInspector } from './LifeInspector.js';
 import { LibraryPickerModal } from './LibraryPickerModal.js';
 import type { BiomePreset } from '../types/life-types.js';
-
-const ROWS = 34;
 
 function fitAssetFrame(firstFrame: string, srcWidth: 9 | 18, dstCols: 9 | 18): string {
   let bin: string;
@@ -16,13 +14,8 @@ function fitAssetFrame(firstFrame: string, srcWidth: 9 | 18, dstCols: 9 | 18): s
   const dst = new Uint8Array(dstCols * ROWS);
   if (srcWidth === dstCols) {
     for (let i = 0; i < src.length; i++) dst[i] = src[i]! > 127 ? 255 : 0;
-  } else if (srcWidth === 18 && dstCols === 9) {
-    for (let c = 0; c < 9; c++)
-      for (let r = 0; r < ROWS; r++)
-        dst[c * ROWS + r] = (src[c * ROWS + r] ?? 0) > 127 ? 255 : 0;
   } else {
-    // 9 → 18: left half populated, right half zeros
-    for (let c = 0; c < 9; c++)
+    for (let c = 0; c < Math.min(srcWidth, dstCols); c++)
       for (let r = 0; r < ROWS; r++)
         dst[c * ROWS + r] = (src[c * ROWS + r] ?? 0) > 127 ? 255 : 0;
   }
@@ -173,7 +166,7 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
     const store = deckStore.getState();
     const src = store.biomePresets.find(b => b.name === name);
     if (!src) return;
-    const copy: BiomePreset = { ...src, name: `${src.name} copy` };
+    const copy: BiomePreset = { ...src, name: `${src.name}-${Date.now().toString(36)}` };
     store.createBiome(copy);
     store.selectBiome(copy.name);
     debouncedBiomeSave();

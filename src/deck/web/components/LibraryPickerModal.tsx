@@ -3,8 +3,8 @@ import { Dialog, DialogContent, DialogTitle } from './ui/dialog.js';
 import { Button } from './ui/button.js';
 import { MatrixPreview } from './MatrixPreview.js';
 import type { DmxProject } from '../../format.js';
+import { ROWS } from '../store.js';
 
-const ROWS = 34;
 const EMPTY_9 = btoa(String.fromCharCode(...new Uint8Array(9 * ROWS)));
 
 type LibraryEntry = {
@@ -13,9 +13,9 @@ type LibraryEntry = {
   width: 9 | 18;
 };
 
-async function fetchEntry(name: string): Promise<LibraryEntry | null> {
+async function fetchEntry(name: string, signal?: AbortSignal): Promise<LibraryEntry | null> {
   try {
-    const proj = await fetch(`/api/library/${encodeURIComponent(name)}`).then(r => {
+    const proj = await fetch(`/api/library/${encodeURIComponent(name)}`, signal ? { signal } : {}).then(r => {
       if (!r.ok) throw new Error(r.statusText);
       return r.json() as Promise<DmxProject>;
     });
@@ -43,13 +43,16 @@ export function LibraryPickerModal({ open, onOpenChange, onPick }: LibraryPicker
 
   useEffect(() => {
     if (!open) return;
+    const controller = new AbortController();
+    const { signal } = controller;
     setView({ step: 'grid' });
     setEntries(null);
-    fetch('/api/library')
+    fetch('/api/library', { signal })
       .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() as Promise<{ ok: boolean; files: { name: string }[] }>; })
-      .then(d => Promise.all((d.files ?? []).map(f => fetchEntry(f.name))))
+      .then(d => Promise.all((d.files ?? []).map(f => fetchEntry(f.name, signal))))
       .then(results => setEntries(results.filter((e): e is LibraryEntry => e !== null)))
-      .catch(() => setEntries([]));
+      .catch(err => { if (err instanceof Error && err.name === 'AbortError') return; setEntries([]); });
+    return () => controller.abort();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -125,7 +128,7 @@ export function LibraryPickerModal({ open, onOpenChange, onPick }: LibraryPicker
             <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${view.entry.width === 18 ? 100 : 52}px, max-content))` }}>
               {view.entry.frames.map((pixels, idx) => (
                 <button
-                  key={idx}
+                  key={`${view.entry.name}-${idx}`}
                   type="button"
                   aria-label={`Frame ${idx + 1}`}
                   className="flex flex-col gap-1 items-center p-2 rounded-sm hover:bg-foreground/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
