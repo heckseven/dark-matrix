@@ -1,7 +1,8 @@
 # dark-matrix
 
-Framework16 LED Matrix control daemon and pixel animation deck. Two 9×34 LED modules
-(left/right), driven over USB serial via a persistent TypeScript/Node.js daemon + CLI.
+Framework16 LED Matrix control system. Two 9×34 LED modules (left/right) driven over USB
+serial by a persistent TypeScript/Node.js daemon, with a CLI and a browser-based web UI
+(the Deck) for configuration, animation, HUD presets, audio visualization, and more.
 
 ---
 
@@ -56,13 +57,26 @@ The mapping is stored in `~/.config/dark-matrix/config.json`.
 
 ## Deck
 
-A browser-based pixel animation editor. Launches a local HTTP server and opens the UI.
+Browser-based control UI for the daemon. Launches a local HTTP server and opens in the browser.
 
 ```sh
 dark-matrix ui [--port <n>]   # default: 7340
 ```
 
-### Features
+### Modes
+
+| Mode | Description |
+|---|---|
+| **design** | Pixel animation editor — draw, animate, and push to hardware |
+| **hud** | Named HUD presets — configure widget layouts per module side; switch via CLI |
+| **audio** | Real-time audio visualizer — EQ bars, waveform, radial, waterfall, heatmap styles |
+| **video** | Matrix-rendered video display |
+| **data** | Data-driven display (in progress) |
+| **runes** | Rune/glyph display |
+| **games** | Game of Life and similar generative modes |
+| **config** | Daemon settings — startup, brightness, hardware, notifications, appearance |
+
+### Design mode features
 
 - **Draw** on a hardware-accurate pixel canvas; BW or grayscale palette
 - **Animate** — add, remove, clone, reorder frames; set per-frame delay; play/pause/loop
@@ -76,7 +90,6 @@ dark-matrix ui [--port <n>]   # default: 7340
 - **Export** — download `.dmx.json` project, export GIF, export single frame as PNG
 - **Session persistence** — state is saved to `localStorage`; refreshing the page restores your work
 - **Module detection** — polls `/api/modules` every 2s; hides dual-module UI when only one module is connected
-- **Mode picker** (`◫` button) — application mode switcher overlay (design mode active; other modes planned)
 
 ### Project format
 
@@ -128,7 +141,8 @@ dark-matrix <command>
 | `ping` | Check if daemon is running |
 | `release` | Release serial port handles (for compatibility with `matrix.sh`) |
 | `calibrate` | Confirm left/right module assignment |
-| `ui [--port <n>]` | Launch pixel animation deck (default port 7340) |
+| `ui [--port <n>]` | Launch the Deck UI (default port 7340) |
+| `hud preset <name>` | Switch to a named HUD preset |
 
 ### Images
 
@@ -243,12 +257,21 @@ src/
 │       ├── store.ts       # Zustand state + localStorage session persistence
 │       ├── files.ts       # Import/export helpers
 │       └── components/
-│           ├── PixelCanvas.tsx   # Drawing surface
-│           ├── FrameStrip.tsx    # Animation frame list + drag-reorder
-│           ├── ColorPalette.tsx  # BW/grayscale color picker
-│           ├── MatrixPreview.tsx # Hardware-accurate pixel thumbnail
-│           ├── ModePicker.tsx    # App mode switcher overlay
-│           └── LivePreview.tsx   # WebSocket → daemon live preview bridge
+│           ├── PixelCanvas.tsx    # Drawing surface
+│           ├── FrameStrip.tsx     # Animation frame list + drag-reorder
+│           ├── ColorPalette.tsx   # BW/grayscale color picker
+│           ├── MatrixPreview.tsx  # Hardware-accurate pixel thumbnail
+│           ├── ModePicker.tsx     # App mode switcher overlay
+│           ├── LivePreview.tsx    # WebSocket → daemon live preview bridge
+│           ├── ConfigPanel.tsx    # Daemon settings (startup, brightness, hardware, notifications)
+│           ├── AudioPanel.tsx     # Audio visualizer with style picker + source selector
+│           ├── HudPanel.tsx       # Three-column HUD preset editor
+│           ├── HudDualPreview.tsx # Side-by-side live preview for HUD layout
+│           ├── HudInspector.tsx   # Widget inspector for selected module side
+│           ├── PresetList.tsx     # Scrollable named preset list
+│           ├── VideoPanel.tsx     # Video display panel
+│           ├── TriggerView.tsx    # Event trigger configuration
+│           └── Playback.tsx       # Frame playback controls
 ├── lib/
 │   ├── transport.ts       # BinaryTransport (one-shot) + SerialTransport (held port)
 │   ├── frame.ts           # Frame type: 9×34 Uint8Array + packBW helper
@@ -300,7 +323,7 @@ Wire format for BW frames is row-major — `packBW` handles the transposition.
 
 ```sh
 pnpm build          # compile TS → dist/
-pnpm test           # vitest (~313 tests)
+pnpm test           # vitest (~486 tests)
 pnpm test --watch   # watch mode
 ```
 
@@ -328,7 +351,7 @@ systemctl --user daemon-reload && systemctl --user restart dark-matrix
 - [ ] Verify left/right calibration is correct on hardware (run `dark-matrix calibrate`)
 - [x] Audio EQ: `idle_eq_source: "monitor" | "mic"` config key
 - [x] GIF idle animation: `idle_animation: "gif"` + `idle_gif_path`, `idle_gif_mode`, `idle_gif_dual` config keys
-- [x] Pixel animation deck (`dark-matrix deck`)
+- [x] Pixel animation editor (`dark-matrix ui`)
 
 ### Medium priority
 
@@ -337,7 +360,10 @@ systemctl --user daemon-reload && systemctl --user restart dark-matrix
 - [ ] Scroll speed config in `daemon` config block (not just CLI flag)
 - [ ] Multiple idle animations in rotation (round-robin or random)
 - [ ] `dark-matrix status` — show current intent, brightness, module paths
-- [ ] Additional app modes beyond the deck (hud, audio, ai, etc.)
+- [x] HUD presets mode — three-column preset editor, named presets, CLI switching
+- [x] Audio visualizer mode — multiple styles, monitor/mic source
+- [ ] Data, runes, games modes (stubs present, not implemented)
+- [ ] AI/generative art mode
 
 ### Low priority / nice to have
 
