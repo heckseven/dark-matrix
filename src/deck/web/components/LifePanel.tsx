@@ -258,6 +258,7 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
             stepBackCount={lifeStepBackCount}
             onGridChange={handleGridChange}
             onTick={sendPreviewFrame}
+            onStep={n => deckStore.getState().setLifeStepCount(n)}
           />
         ) : (
           <p className="font-mono text-xs text-muted-foreground">select a biome to begin</p>

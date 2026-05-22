@@ -114,7 +114,7 @@ function stepGrid(grid: Uint8Array, cols: number, birth: readonly number[], surv
 
 const HISTORY_MAX = 64;
 
-export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCount = 0, stepBackCount = 0, onGridChange, onTick }: {
+export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCount = 0, stepBackCount = 0, onGridChange, onTick, onStep }: {
   biome: BiomePreset | null;
   playing: boolean;
   generation: number;
@@ -123,6 +123,7 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCo
   stepBackCount?: number;
   onGridChange: (snapshot: string) => void;
   onTick?: (snapshot: string) => void;
+  onStep?: (count: number) => void;
 }) {
   const zoom = useDeckStore(s => s.zoom);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -132,6 +133,9 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCo
   biomeRef.current = biome;
   const prevStepFwdRef = useRef(stepForwardCount);
   const prevStepBackRef = useRef(stepBackCount);
+  const stepCountRef = useRef(0);
+  const onStepRef = useRef(onStep);
+  onStepRef.current = onStep;
 
   const state = useRef({
     grid: new Uint8Array(cols * ROWS) as Uint8Array<ArrayBuffer>,
@@ -246,6 +250,8 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCo
     historyRef.current = [];
     prevStepFwdRef.current = stepForwardCount;
     prevStepBackRef.current = stepBackCount;
+    stepCountRef.current = 0;
+    onStepRef.current?.(0);
     const expectedBytes = cols * ROWS;
     const snapshot = biome?.gridSnapshot;
     if (snapshot) {
@@ -272,6 +278,8 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCo
     state.current.grid = next;
     schedulePaint();
     onTick?.(encodeGrid(next));
+    const count = ++stepCountRef.current;
+    onStepRef.current?.(count);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stepForwardCount]);
 
@@ -286,6 +294,9 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCo
     state.current.grid = prev;
     schedulePaint();
     onTick?.(encodeGrid(prev));
+    const count = Math.max(0, --stepCountRef.current);
+    stepCountRef.current = count;
+    onStepRef.current?.(count);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stepBackCount]);
 
@@ -299,6 +310,8 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCo
       state.current.grid = next;
       schedulePaint();
       onTick?.(encodeGrid(next));
+      const count = ++stepCountRef.current;
+      onStepRef.current?.(count);
     }, biome.tickMs);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps

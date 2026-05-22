@@ -63,6 +63,7 @@ export interface DeckState {
   lifeGeneration: number;
   lifeStepForwardCount: number;
   lifeStepBackCount: number;
+  lifeStepCount: number;
 }
 
 export interface DeckActions {
@@ -129,6 +130,7 @@ export interface DeckActions {
   restartLife(): void;
   stepLifeForward(): void;
   stepLifeBack(): void;
+  setLifeStepCount(n: number): void;
 }
 
 export type DeckStore = DeckState & DeckActions;
@@ -244,6 +246,7 @@ export function createDeckStore() {
     lifeGeneration: 0,
     lifeStepForwardCount: 0,
     lifeStepBackCount: 0,
+    lifeStepCount: 0,
 
     setPixel(frameIdx, col, row, value) {
       const { frames, mode, undoStack, strokeSnapshot, previewTarget, width } = get();
@@ -598,7 +601,7 @@ export function createDeckStore() {
     },
 
     restartLife() {
-      set(s => ({ lifeGeneration: s.lifeGeneration + 1, lifeIsPlaying: false }));
+      set(s => ({ lifeGeneration: s.lifeGeneration + 1, lifeIsPlaying: false, lifeStepCount: 0 }));
     },
 
     stepLifeForward() {
@@ -607,6 +610,10 @@ export function createDeckStore() {
 
     stepLifeBack() {
       set(s => ({ lifeStepBackCount: s.lifeStepBackCount + 1 }));
+    },
+
+    setLifeStepCount(n) {
+      set({ lifeStepCount: n });
     },
   }));
 }

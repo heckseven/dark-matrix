@@ -3,9 +3,12 @@ import type { Animation } from '../lib/animation.js';
 import { createFrame } from '../lib/frame.js';
 
 export const LIFE_ALGORITHMS = {
-  conway:   { birth: [3],          survival: [2, 3]          },
-  highlife: { birth: [3, 6],       survival: [2, 3]          },
-  daynight: { birth: [3, 6, 7, 8], survival: [3, 4, 6, 7, 8] },
+  conway:   { birth: [3],             survival: [2, 3]             },
+  highlife: { birth: [3, 6],          survival: [2, 3]             },
+  daynight: { birth: [3, 6, 7, 8],    survival: [3, 4, 6, 7, 8]   },
+  maze:     { birth: [3],             survival: [1, 2, 3, 4, 5]   },
+  coral:    { birth: [3],             survival: [4, 5, 6, 7, 8]   },
+  anneal:   { birth: [4, 6, 7, 8],    survival: [3, 5, 6, 7, 8]   },
 } as const;
 
 export type LifeAlgorithm = keyof typeof LIFE_ALGORITHMS;

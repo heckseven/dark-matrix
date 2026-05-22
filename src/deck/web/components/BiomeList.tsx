@@ -10,6 +10,9 @@ const ALGO_BADGE: Record<LifeAlgorithm, string> = {
   conway:   'B3/S23',
   highlife: 'B36/S23',
   daynight: 'B3678/S34678',
+  maze:     'B3/S12345',
+  coral:    'B3/S45678',
+  anneal:   'B4678/S35678',
 };
 
 const EMPTY_9 = btoa(String.fromCharCode(...new Uint8Array(9 * ROWS)));

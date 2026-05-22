@@ -95,7 +95,7 @@ export const ConfigSchema = z.object({
   active_biome_preset: z.string().optional(),
   biome_presets: z.array(z.object({
     name: z.string().min(1),
-    algorithm: z.enum(['conway', 'highlife', 'daynight']),
+    algorithm: z.enum(['conway', 'highlife', 'daynight', 'maze', 'coral', 'anneal']),
     tickMs: z.number().int().min(16).max(2000),
     gridSnapshot: z.string().optional(),
   })).optional().superRefine((presets, ctx) => {

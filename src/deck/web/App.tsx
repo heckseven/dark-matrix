@@ -191,6 +191,7 @@ export function App() {
   const selectedPreset     = hudPresets.find(p => p.name === selectedPresetName) ?? null;
   const selectedBiomeName  = useDeckStore(s => s.selectedBiomeName);
   const lifeIsPlaying      = useDeckStore(s => s.lifeIsPlaying);
+  const lifeStepCount      = useDeckStore(s => s.lifeStepCount);
 
   useEffect(() => {
     document.title = activeMode ? `dark-matrix - ${MODE_LABEL[activeMode]}` : 'dark-matrix';
@@ -528,6 +529,9 @@ export function App() {
                 </div>
               </div>
               <div className="ml-auto flex items-center gap-2">
+                {selectedBiomeName && (
+                  <span className="font-mono text-xs text-muted-foreground tabular-nums w-12 text-right">{lifeStepCount}</span>
+                )}
                 <Button
                   variant="ghost"
                   aria-label="Step back"

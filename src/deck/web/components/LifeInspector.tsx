@@ -10,6 +10,9 @@ const ALGORITHMS: { id: LifeAlgorithm; label: string; notation: string; tag: str
   { id: 'conway',   label: "Conway's",  notation: 'B3/S23',        tag: 'classic'     },
   { id: 'highlife', label: 'HighLife',  notation: 'B36/S23',       tag: 'replication' },
   { id: 'daynight', label: 'Day&Night', notation: 'B3678/S34678',  tag: 'symmetry'    },
+  { id: 'maze',     label: 'Maze',      notation: 'B3/S12345',     tag: 'labyrinth'   },
+  { id: 'coral',    label: 'Coral',     notation: 'B3/S45678',     tag: 'growth'      },
+  { id: 'anneal',   label: 'Anneal',    notation: 'B4678/S35678',  tag: 'annealing'   },
 ];
 
 export function LifeInspector({ biome, onChange, onRandomize, onFromDesign }: {
@@ -28,7 +31,7 @@ export function LifeInspector({ biome, onChange, onRandomize, onFromDesign }: {
         <Text as="p" size="xs" variant="muted" className="mb-3 uppercase tracking-wider">algorithm</Text>
         <div className="flex flex-col gap-2">
           {ALGORITHMS.map(a => (
-            <Tooltip key={a.id} content={`${a.notation} · ${a.tag}`}>
+            <Tooltip key={a.id} content={`${a.notation} · ${a.tag}`} side="left">
               <label className="flex items-center gap-3 cursor-pointer">
                 <Radio
                   name="algorithm"
