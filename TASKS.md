@@ -19,15 +19,15 @@
 - [x] Clock mode — multiple face designs (binary, analogue, bar, segment); implemented as a HUD widget with live face picker in HudInspector; live preview on modules
 - [x] HUD mode — daemon data sources (CPU, memory, network, time via `/proc`); WebSocket push from daemon; three-column preset editor (PresetList, HudDualPreview, HudInspector); named presets saveable and switchable via `dark-matrix hud preset <name>`; event-driven trigger engine (time, idle, active, threshold, interface, vm); live preview in deck and on modules
 - [ ] Generative art panel — new tool panel in deck with parameterized generators (noise, reaction-diffusion, CA seeds); writes into frames; save to library
-- [ ] Image import tooling — contrast, brightness, dithering controls in deck when importing PNG/GIF; helps optimize images for the low-res display
+- [x] Image import tooling — contrast, brightness, dithering controls in deck when importing PNG/GIF; helps optimize images for the low-res display
 - [x] Default view settings — deck UI to configure startup mode and animation (`config.json` schema already exists); persists across power cycles
-- [ ] YouTube / video pipeline — `yt-dlp` + `ffmpeg` capture, scale to 9×34 or 18×34, dither, push via frame command at ~20fps; audio plays through system independently
+- [x] YouTube / video pipeline — `yt-dlp` + `ffmpeg` capture, scale to 9×34 or 18×34, dither, push via frame command at ~20fps; audio plays through system independently
 - [ ] Interactive games — keyboard input from browser routed via WebSocket to game loop (Tetris, Snake); game state lives in browser, renders frames and pushes via existing live preview `frame` mechanism
 - [x] Notifications panel — per-app and per-urgency animation rules for D-Bus notification events (watcher already exists); deck panel to configure trigger → animation mappings; preview mode to fire a test notification without waiting for a real one
 - [x] Config panel — settings panel in deck covering: startup animation picker (type + dmx path), daemon tunables (poll interval, idle timeout, idle animation), hardware assignment (serial port, module calibration), notification rules, accent color and UI theme
-- [ ] Refine config panel designs — revisit layout, spacing, and interaction patterns across all config tabs; improve visual hierarchy and consistency with the rest of the deck
+- [x] Refine config panel designs — revisit layout, spacing, and interaction patterns across all config tabs; improve visual hierarchy and consistency with the rest of the deck
 - [ ] Audio full screen visualizer — full-viewport audio visualization mode; larger canvas with richer styles beyond the current 9×34 hardware mirror; source selectable (monitor/mic)
-- [ ] Video integration — local file, URL, and webcam sources; `ffmpeg` pipeline to scale, dither, and push frames at ~20fps; extends the existing `play` command with video source support
+- [x] Video integration — local file, URL, and webcam sources; `ffmpeg` pipeline to scale, dither, and push frames at ~20fps; extends the existing `play` command with video source support
 
 ## HUD enhancements
 
