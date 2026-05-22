@@ -10,10 +10,11 @@ const ALGORITHMS: { id: LifeAlgorithm; label: string; notation: string; tag: str
   { id: 'daynight', label: 'Day&Night', notation: 'B3678/S34678',  tag: 'symmetry'    },
 ];
 
-export function LifeInspector({ biome, onChange, onRandomize }: {
+export function LifeInspector({ biome, onChange, onRandomize, onFromDesign }: {
   biome: BiomePreset;
   onChange(b: BiomePreset): void;
   onRandomize(density: number): void;
+  onFromDesign?(): void;
 }) {
   const [density, setDensity] = useState(35);
 
@@ -82,13 +83,25 @@ export function LifeInspector({ biome, onChange, onRandomize }: {
           />
         </div>
 
-        <Button
-          variant="ghost"
-          className="w-full font-mono text-xs"
-          onClick={() => onRandomize(density / 100)}
-        >
-          randomize
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            className="flex-1 font-mono text-xs"
+            onClick={() => onRandomize(density / 100)}
+          >
+            randomize
+          </Button>
+          {onFromDesign && (
+            <Button
+              variant="ghost"
+              className="flex-1 font-mono text-xs"
+              tooltip="Use first frame of a saved design as seed"
+              onClick={onFromDesign}
+            >
+              from design
+            </Button>
+          )}
+        </div>
       </section>
     </div>
   );

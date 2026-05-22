@@ -9,7 +9,7 @@ export interface AssetPickerModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   current?: string;
-  onPick: (filename: string) => void;
+  onPick: (filename: string, meta?: AssetMeta) => void;
 }
 
 export function AssetPickerModal({ open, onOpenChange, current, onPick }: AssetPickerModalProps) {
@@ -20,17 +20,17 @@ export function AssetPickerModal({ open, onOpenChange, current, onPick }: AssetP
   assetsRef.current = assets;
   const [tick, setTick] = useState(0);
 
-  function fetchAssets() {
-    fetch('/api/assets')
+  function fetchAssets(): Promise<AssetMeta[]> {
+    return fetch('/api/assets')
       .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() as Promise<{ ok: boolean; assets: AssetMeta[] }>; })
-      .then(d => setAssets(d.assets ?? []))
-      .catch(() => setAssets([]));
+      .then(d => { const list = d.assets ?? []; setAssets(list); return list; })
+      .catch(() => { setAssets([]); return []; });
   }
 
   useEffect(() => {
     if (!open) return;
     setView('grid');
-    fetchAssets();
+    void fetchAssets();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -60,8 +60,8 @@ export function AssetPickerModal({ open, onOpenChange, current, onPick }: AssetP
 
   void tick;
 
-  function handlePick(filename: string) {
-    onPick(filename);
+  function handlePick(filename: string, meta?: AssetMeta) {
+    onPick(filename, meta);
     onOpenChange(false);
   }
 
@@ -96,8 +96,9 @@ export function AssetPickerModal({ open, onOpenChange, current, onPick }: AssetP
           {view === 'import' ? (
             <AssetImportPanel
               onSaved={filename => {
-                fetchAssets();
-                handlePick(filename);
+                void fetchAssets().then(list => {
+                  handlePick(filename, list.find(a => a.name === filename));
+                });
               }}
             />
           ) : (
@@ -124,7 +125,7 @@ export function AssetPickerModal({ open, onOpenChange, current, onPick }: AssetP
                             aria-label={active ? `${label}, selected` : label}
                             aria-pressed={active}
                             className={`relative flex flex-col gap-2 items-center p-2 w-full rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px] hover:bg-foreground/5${active ? ' outline outline-1 outline-white/40' : ''}${asset.width === 18 ? ' col-span-2' : ''}`}
-                            onClick={() => handlePick(asset.name)}
+                            onClick={() => handlePick(asset.name, asset)}
                           >
                             <MatrixPreview width={asset.width} pixels={pixels} />
                             <span className="font-mono text-xs text-muted-foreground truncate max-w-full">{label}</span>

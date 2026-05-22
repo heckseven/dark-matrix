@@ -1,9 +1,34 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useDeckStore, deckStore } from '../store.js';
 import { BiomeList } from './BiomeList.js';
 import { LifeCanvas, encodeGrid, makeRandomGrid } from './LifeCanvas.js';
 import { LifeInspector } from './LifeInspector.js';
+import { AssetPickerModal } from './AssetPickerModal.js';
+import type { AssetMeta } from '../../../lib/asset-meta.js';
 import type { BiomePreset } from '../types/life-types.js';
+
+const ROWS = 34;
+
+function fitAssetFrame(firstFrame: string, srcWidth: 9 | 18, dstCols: 9 | 18): string {
+  let bin: string;
+  try { bin = atob(firstFrame); } catch { return btoa(String.fromCharCode(...new Uint8Array(dstCols * ROWS))); }
+  const src = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) src[i] = bin.charCodeAt(i)!;
+  const dst = new Uint8Array(dstCols * ROWS);
+  if (srcWidth === dstCols) {
+    for (let i = 0; i < src.length; i++) dst[i] = src[i]! > 127 ? 255 : 0;
+  } else if (srcWidth === 18 && dstCols === 9) {
+    for (let c = 0; c < 9; c++)
+      for (let r = 0; r < ROWS; r++)
+        dst[c * ROWS + r] = (src[c * ROWS + r] ?? 0) > 127 ? 255 : 0;
+  } else {
+    // 9 → 18: left half populated, right half zeros
+    for (let c = 0; c < 9; c++)
+      for (let r = 0; r < ROWS; r++)
+        dst[c * ROWS + r] = (src[c * ROWS + r] ?? 0) > 127 ? 255 : 0;
+  }
+  return btoa(String.fromCharCode(...dst));
+}
 
 export let lifeTriggerSave: () => void = () => {};
 
@@ -13,6 +38,7 @@ function makeBiome(): BiomePreset {
 }
 
 export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number; dualModule?: boolean }) {
+  const [designPickerOpen, setDesignPickerOpen] = useState(false);
   const biomePresets       = useDeckStore(s => s.biomePresets);
   const activeBiomeName    = useDeckStore(s => s.activeBiomeName);
   const selectedBiomeName  = useDeckStore(s => s.selectedBiomeName);
@@ -175,6 +201,16 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
     debouncedBiomeSave();
   }
 
+  // ── Import from design ────────────────────────────────────────────────
+
+  function handleImportDesign(_filename: string, meta?: AssetMeta) {
+    if (!meta || !selectedBiome) return;
+    const snapshot = fitAssetFrame(meta.firstFrame, meta.width, cols);
+    deckStore.getState().updateBiome(selectedBiome.name, { gridSnapshot: snapshot });
+    deckStore.getState().restartLife();
+    debouncedBiomeSave();
+  }
+
   // ── Canvas handlers ───────────────────────────────────────────────────
 
   function handleGridChange(snapshot: string) {
@@ -236,6 +272,7 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
             biome={selectedBiome}
             onChange={handleBiomeChange}
             onRandomize={handleRandomize}
+            onFromDesign={() => setDesignPickerOpen(true)}
           />
         ) : (
           <div className="p-4">
@@ -243,6 +280,12 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
           </div>
         )}
       </aside>
+
+      <AssetPickerModal
+        open={designPickerOpen}
+        onOpenChange={setDesignPickerOpen}
+        onPick={handleImportDesign}
+      />
     </div>
   );
 }
