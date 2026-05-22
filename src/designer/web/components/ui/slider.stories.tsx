@@ -1,6 +1,8 @@
+import * as React from 'react';
 import type { Meta, StoryObj } from '@storybook/tanstack-react';
 import { fn } from 'storybook/test';
 import { Slider } from './slider';
+import { Toggle } from './toggle';
 
 const meta = {
   title: 'Components/Slider',
@@ -51,4 +53,57 @@ export const Playground: Story = {
 /** Thumb character cycles through a set as the handle moves. */
 export const Cycling: Story = {
   args: { variant: 'cycling', 'aria-label': 'Slider' },
+};
+
+const DURATION = 120;
+
+function fmt(secs: number) {
+  return `${Math.floor(secs / 60)}:${Math.floor(secs % 60).toString().padStart(2, '0')}`;
+}
+
+/** Cycling variant as a video progress bar. Toggle play to see the thumb animate. */
+export const CyclingPlayback: Story = {
+  args: { cycleStep: 4 },
+  argTypes: {
+    cycleStep: {
+      control: { type: 'range', min: 1, max: 32, step: 1 },
+      description: 'Pixels of thumb travel before the cycling character advances.',
+    },
+  },
+  render: ({ cycleStep }) => {
+    const [currentTime, setCurrentTime] = React.useState(0);
+    const [playing, setPlaying] = React.useState(false);
+
+    React.useEffect(() => {
+      if (!playing) return;
+      const id = setInterval(() => {
+        setCurrentTime(t => {
+          if (t >= DURATION) { setPlaying(false); return DURATION; }
+          return t + 1;
+        });
+      }, 100);
+      return () => clearInterval(id);
+    }, [playing]);
+
+    return (
+      <div className="flex items-center gap-2 px-3 py-1 bg-black w-full">
+        <Toggle pressed={playing} onPressedChange={setPlaying} aria-label={playing ? 'Pause' : 'Play'}>
+          {playing ? '⏸' : '▶'}
+        </Toggle>
+        <span className="font-mono text-sm text-foreground tabular-nums shrink-0">{fmt(currentTime)}</span>
+        <Slider
+          variant="cycling"
+          cycleStep={cycleStep}
+          min={0}
+          max={DURATION}
+          step="any"
+          value={currentTime}
+          className="flex-1"
+          aria-label="Seek"
+          onChange={e => setCurrentTime(Number(e.target.value))}
+        />
+        <span className="font-mono text-sm text-foreground tabular-nums shrink-0">{fmt(DURATION)}</span>
+      </div>
+    );
+  },
 };

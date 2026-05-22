@@ -7,15 +7,16 @@ type SliderProps = React.InputHTMLAttributes<HTMLInputElement> & {
   variant?: SliderVariant;
   segments?: number;
   valueLabel?: string;
+  cycleStep?: number;
 };
 
 const SEG = 24;
-const CYCLE_CHARS = ['·', '∗', '✱', '●', '✱', '∗'];
+const CYCLE_CHARS = ['·', '∘', '∗', '✳', '✱', '●', '✱', '✳', '∗', '∘', '✦', '✧', '✶', '✴', '✶', '✧', '✦'];
 const trackInput = 'absolute inset-0 opacity-0 cursor-pointer z-10';
 const trackVisual = 'font-mono text-sm select-none pointer-events-none whitespace-pre';
 
 export const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
-  ({ className, variant = 'value', segments: sizeProp, value, defaultValue, min = 0, max = 100, onChange, valueLabel, ...props }, ref) => {
+  ({ className, variant = 'value', segments: sizeProp, value, defaultValue, min = 0, max = 100, onChange, valueLabel, cycleStep = 4, ...props }, ref) => {
     const seg = sizeProp ?? SEG;
     const [localValue, setLocalValue] = React.useState(
       defaultValue !== undefined ? Number(defaultValue) : Number(min)
@@ -44,7 +45,7 @@ export const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
     };
 
     if (variant === 'cycling') {
-      const cycleChar = CYCLE_CHARS[Math.floor(Math.round(t * trackWidth) / 4) % CYCLE_CHARS.length]!;
+      const cycleChar = CYCLE_CHARS[Math.floor(Math.round(t * trackWidth) / cycleStep) % CYCLE_CHARS.length]!;
       return (
         <span ref={outerRef} className={cn('relative block min-w-0', className)}>
           <input ref={ref} type="range" min={min} max={max} value={current} onChange={handleChange} className={trackInput} {...props} />
