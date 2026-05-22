@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Button } from './ui/button.js';
 import { Slider } from './ui/slider.js';
 import { Text } from './ui/text.js';
+import { Radio } from './ui/radio.js';
+import { Tooltip } from './ui/tooltip.js';
 import type { BiomePreset, LifeAlgorithm } from '../types/life-types.js';
 
 const ALGORITHMS: { id: LifeAlgorithm; label: string; notation: string; tag: string }[] = [
@@ -23,29 +25,21 @@ export function LifeInspector({ biome, onChange, onRandomize, onFromDesign }: {
 
       {/* Algorithm picker */}
       <section>
-        <Text as="p" size="xs" variant="muted" className="mb-2 uppercase tracking-wider">algorithm</Text>
-        <div className="flex flex-col gap-1">
-          {ALGORITHMS.map(a => {
-            const selected = biome.algorithm === a.id;
-            return (
-              <button
-                key={a.id}
-                onClick={() => onChange({ ...biome, algorithm: a.id })}
-                className={`text-left px-3 py-2 rounded transition-colors border ${
-                  selected
-                    ? 'border-foreground bg-foreground/10 text-foreground'
-                    : 'border-border text-muted-foreground hover:border-foreground/50 hover:text-foreground'
-                }`}
-              >
-                <div className="font-mono text-xs">{a.label}</div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[10px] opacity-60">{a.notation}</span>
-                  <span className="text-[10px] opacity-40">·</span>
-                  <span className="text-[10px] opacity-50">{a.tag}</span>
-                </div>
-              </button>
-            );
-          })}
+        <Text as="p" size="xs" variant="muted" className="mb-3 uppercase tracking-wider">algorithm</Text>
+        <div className="flex flex-col gap-2">
+          {ALGORITHMS.map(a => (
+            <Tooltip key={a.id} content={`${a.notation} · ${a.tag}`}>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <Radio
+                  name="algorithm"
+                  value={a.id}
+                  checked={biome.algorithm === a.id}
+                  onChange={() => onChange({ ...biome, algorithm: a.id })}
+                />
+                <span className="font-mono">{a.label}</span>
+              </label>
+            </Tooltip>
+          ))}
         </div>
       </section>
 
@@ -95,10 +89,10 @@ export function LifeInspector({ biome, onChange, onRandomize, onFromDesign }: {
             <Button
               variant="ghost"
               className="flex-1 font-mono text-xs"
-              tooltip="Use first frame of a saved design as seed"
+              tooltip="Seed from a saved design"
               onClick={onFromDesign}
             >
-              from design
+              library
             </Button>
           )}
         </div>
