@@ -33,7 +33,6 @@
 
 - [ ] Static HUD picker thumbnails — draw 34 frames in the deck (9-wide BW) per `docs/hud-picker-thumbnail-draworder.md`; export `.dmx.json`; replace dynamic render calls in `HudInspector.tsx` and `PresetList.tsx` with static pixel constants parsed from the file
 
-- [ ] Trigger editor redesign — replace current TriggerEditor right-aside layout with a clearer UX; better add/edit flow, visual indicator of which triggers are currently active, group triggers by type
 - [ ] Data widget display variations — new styles beyond line/bars; candidates: radial gauges, sparklines, digit readouts, dot-matrix counters; selectable per-quadrant in HudInspector
 - [ ] AI data sources — GPU utilization (nvidia-smi/ROCm: GPU%, VRAM%, temp) and local inference stats (Ollama API: active model, tokens/sec, context size); new daemon proc-source variants; exposed as selectable metrics in HUD data quadrants alongside CPU/RAM/net
 - [ ] Runes HUD widget — third widget type alongside clock and data; configurable glyph or animated rune sequence per module; face-style picker in HudInspector; stored in preset left/right slots
