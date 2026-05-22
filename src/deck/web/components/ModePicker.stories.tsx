@@ -17,7 +17,7 @@ const meta = {
   argTypes: {
     activeMode: {
       control: 'select',
-      options: ['hud', 'audio', 'data', 'video', 'runes', 'games', 'design', 'config'] satisfies AppMode[],
+      options: ['hud', 'audio', 'data', 'video', 'runes', 'life', 'design', 'config'] satisfies AppMode[],
       description: 'Currently selected mode.',
     },
     dualModule: {

@@ -93,7 +93,7 @@ export const CyclingPlayback: Story = {
         <span className="font-mono text-sm text-foreground tabular-nums shrink-0">{fmt(currentTime)}</span>
         <Slider
           variant="cycling"
-          cycleStep={cycleStep}
+          {...(cycleStep !== undefined ? { cycleStep } : {})}
           min={0}
           max={DURATION}
           step="any"

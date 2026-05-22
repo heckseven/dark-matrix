@@ -1622,6 +1622,60 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
             }
           })();
         }
+      } else if (type === 'biome-presets-get') {
+        void (async () => {
+          try {
+            const config = await loadConfig(configFilePath(configDir));
+            const activeName = config.active_biome_preset ?? null;
+            ws.send(JSON.stringify({ type: 'biome-presets', presets: config.biome_presets ?? [], activeName }));
+          } catch {
+            ws.send(JSON.stringify({ type: 'biome-presets', presets: [], activeName: null }));
+          }
+        })();
+      } else if (type === 'biome-preset-save') {
+        void (async () => {
+          const parsed = ConfigSchema.shape.biome_presets.safeParse(msg['presets']);
+          if (!parsed.success) {
+            ws.send(JSON.stringify({ type: 'error', error: parsed.error.issues.map(i => i.message).join('; ') }));
+            return;
+          }
+          const presets = parsed.data ?? [];
+          try {
+            const cfgPath = configFilePath(configDir);
+            const config = await loadConfig(cfgPath);
+            const updated = { ...config, biome_presets: presets };
+            const tmp = cfgPath + '.tmp';
+            await fs.writeFile(tmp, JSON.stringify(updated, null, 2) + '\n', { mode: 0o600 });
+            await fs.rename(tmp, cfgPath);
+            ws.send(JSON.stringify({ type: 'biome-presets-saved' }));
+          } catch (err) {
+            ws.send(JSON.stringify({ type: 'error', error: String(err) }));
+          }
+        })();
+      } else if (type === 'biome-preset-activate') {
+        const name = msg['name'];
+        if (typeof name !== 'string' || !name) {
+          ws.send(JSON.stringify({ type: 'error', error: 'invalid payload' }));
+        } else {
+          void (async () => {
+            try {
+              const cfgPath = configFilePath(configDir);
+              const cfg = await loadConfig(cfgPath);
+              if (!cfg.biome_presets?.some(p => p.name === name)) {
+                ws.send(JSON.stringify({ type: 'error', error: 'biome not found' }));
+                return;
+              }
+              const tmp = cfgPath + '.tmp';
+              await fs.writeFile(tmp, JSON.stringify({ ...cfg, active_biome_preset: name }, null, 2) + '\n', { mode: 0o600 });
+              await fs.rename(tmp, cfgPath);
+              ws.send(JSON.stringify({ type: 'biome-preset-activated', name }));
+            } catch (err) {
+              ws.send(JSON.stringify({ type: 'error', error: String(err) }));
+            }
+          })();
+        }
+      } else if (type === 'life-mode-stop') {
+        sendToDaemon({ cmd: 'life-hardware-stop' }).catch(() => {});
       }
     });
   });

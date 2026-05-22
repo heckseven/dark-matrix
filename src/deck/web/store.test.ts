@@ -112,8 +112,8 @@ describe('Store', () => {
     expect(store.getState().activeMode).toBe(null);
     store.getState().setActiveMode('hud');
     expect(store.getState().activeMode).toBe('hud');
-    store.getState().setActiveMode('games');
-    expect(store.getState().activeMode).toBe('games');
+    store.getState().setActiveMode('life');
+    expect(store.getState().activeMode).toBe('life');
   });
 
   it('12. initial libraryPath is null, setLibraryPath updates and clears it', () => {

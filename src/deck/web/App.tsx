@@ -21,6 +21,7 @@ import { AudioPanel } from './components/AudioPanel.js';
 import { ConfigPanel } from './components/ConfigPanel.js';
 import { HudPanel, hudSendWsGlobal } from './components/HudPanel.js';
 import { VideoPanel, VideoHeader, VideoTransportControls, VideoSettingsToggle } from './components/VideoPanel.js';
+import { LifePanel } from './components/LifePanel.js';
 
 const MODE_LABEL = Object.fromEntries(MODES.map(m => [m.id, m.label])) as Record<AppMode, string>;
 
@@ -188,6 +189,8 @@ export function App() {
   const selectedPresetName = useDeckStore(s => s.selectedPresetName);
   const hudSelectedSide    = useDeckStore(s => s.hudSelectedSide);
   const selectedPreset     = hudPresets.find(p => p.name === selectedPresetName) ?? null;
+  const selectedBiomeName  = useDeckStore(s => s.selectedBiomeName);
+  const lifeIsPlaying      = useDeckStore(s => s.lifeIsPlaying);
 
   useEffect(() => {
     document.title = activeMode ? `dark-matrix - ${MODE_LABEL[activeMode]}` : 'dark-matrix';
@@ -506,6 +509,34 @@ export function App() {
                 <VideoSettingsToggle />
               </div>
             </>
+          ) : activeMode === 'life' ? (
+            <>
+              <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
+              <div className="absolute inset-x-0 flex justify-center pointer-events-none">
+                <span className="font-mono text-xs text-foreground">
+                  {selectedBiomeName ?? 'no biome selected'}
+                </span>
+              </div>
+              <div className="ml-auto flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  aria-label="Restart simulation"
+                  tooltip="restart"
+                  onClick={() => deckStore.getState().restartLife()}
+                >
+                  ↺
+                </Button>
+                <Button
+                  variant="ghost"
+                  aria-label={lifeIsPlaying ? 'Pause simulation' : 'Play simulation'}
+                  tooltip={lifeIsPlaying ? 'pause' : 'play'}
+                  disabled={!selectedBiomeName}
+                  onClick={() => deckStore.getState().setLifePlaying(!lifeIsPlaying)}
+                >
+                  <span className="inline-block w-[1em] text-center">{lifeIsPlaying ? '⏸' : '▶'}</span>
+                </Button>
+              </div>
+            </>
           ) : (
             <>
               <div className="flex items-center gap-1">
@@ -613,6 +644,10 @@ export function App() {
           <div className="h-full flex">
             <ConfigPanel dualModule={dualModule} topPad={headerHeight} />
           </div>
+        ) : activeMode === 'life' ? (
+          <div className="h-full flex">
+            <LifePanel topPad={headerHeight} dualModule={dualModule} />
+          </div>
         ) : (
           <div className="h-full grid overflow-hidden" style={{ gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)' }}>
             <aside aria-label="Color palette" className="overflow-hidden flex items-start justify-end pl-4" style={{ paddingTop: topPad }}>
@@ -631,7 +666,7 @@ export function App() {
           </div>
         )}
 
-        {activeMode !== 'audio' && activeMode !== 'hud' && activeMode !== 'config' && activeMode !== 'video' && <footer ref={footerRef} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+        {activeMode !== 'audio' && activeMode !== 'hud' && activeMode !== 'config' && activeMode !== 'video' && activeMode !== 'life' && <footer ref={footerRef} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
           <div className="flex-1 flex items-center gap-4">
             <span>frame {activeFrameIdx + 1}</span>
             <span>row {cursor.row}</span>

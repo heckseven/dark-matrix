@@ -6,6 +6,7 @@ import type { AudioStyle } from '../../animations/audio-renderers.js';
 import type { ClockFace } from '../../animations/clock-renderers.js';
 import type { DataStyle } from '../../animations/data-renderers.js';
 import type { HudPresetClient, HudWidget, HudTrigger } from './types/hud-preset.js';
+import type { BiomePreset } from './types/life-types.js';
 import type { Config } from './types/config-types.js';
 import type { AssetMeta } from '../../lib/asset-meta.js';
 
@@ -55,6 +56,11 @@ export interface DeckState {
   configData: Config | null;
   configDirty: boolean;
   assetList: AssetMeta[] | null;
+  biomePresets: BiomePreset[];
+  activeBiomeName: string | null;
+  selectedBiomeName: string | null;
+  lifeIsPlaying: boolean;
+  lifeGeneration: number;
 }
 
 export interface DeckActions {
@@ -108,6 +114,15 @@ export interface DeckActions {
   saveConfig(): Promise<void>;
   markClean(): void;
   loadAssets(): Promise<void>;
+  loadBiomes(presets: BiomePreset[], activeName: string | null): void;
+  selectBiome(name: string | null): void;
+  createBiome(preset: BiomePreset): void;
+  deleteBiome(name: string): void;
+  renameBiome(oldName: string, newName: string): void;
+  updateBiome(name: string, patch: Partial<BiomePreset>): void;
+  setActiveBiome(name: string | null): void;
+  setLifePlaying(v: boolean): void;
+  restartLife(): void;
 }
 
 export type DeckStore = DeckState & DeckActions;
@@ -216,6 +231,11 @@ export function createDeckStore() {
     configData: null,
     configDirty: false,
     assetList: null,
+    biomePresets: [],
+    activeBiomeName: null,
+    selectedBiomeName: null,
+    lifeIsPlaying: false,
+    lifeGeneration: 0,
 
     setPixel(frameIdx, col, row, value) {
       const { frames, mode, undoStack, strokeSnapshot, previewTarget, width } = get();
@@ -510,6 +530,51 @@ export function createDeckStore() {
         const data = await res.json() as { ok: boolean; assets: AssetMeta[] };
         set({ assetList: data.assets ?? [] });
       } catch { /* network unavailable */ }
+    },
+
+    loadBiomes(presets, activeName) {
+      set({ biomePresets: presets, activeBiomeName: activeName });
+    },
+
+    selectBiome(name) {
+      set({ selectedBiomeName: name });
+    },
+
+    createBiome(preset) {
+      set(s => ({ biomePresets: [...s.biomePresets, preset] }));
+    },
+
+    deleteBiome(name) {
+      set(s => ({
+        biomePresets: s.biomePresets.filter(p => p.name !== name),
+        selectedBiomeName: s.selectedBiomeName === name ? null : s.selectedBiomeName,
+        activeBiomeName: s.activeBiomeName === name ? null : s.activeBiomeName,
+      }));
+    },
+
+    renameBiome(oldName, newName) {
+      set(s => ({
+        biomePresets: s.biomePresets.map(p => p.name === oldName ? { ...p, name: newName } : p),
+        selectedBiomeName: s.selectedBiomeName === oldName ? newName : s.selectedBiomeName,
+        activeBiomeName: s.activeBiomeName === oldName ? newName : s.activeBiomeName,
+      }));
+    },
+
+    updateBiome(name, patch) {
+      set(s => ({ biomePresets: s.biomePresets.map(p => p.name === name ? { ...p, ...patch } : p) }));
+    },
+
+    setActiveBiome(name) {
+      set({ activeBiomeName: name });
+    },
+
+
+    setLifePlaying(v) {
+      set({ lifeIsPlaying: v });
+    },
+
+    restartLife() {
+      set(s => ({ lifeGeneration: s.lifeGeneration + 1, lifeIsPlaying: false }));
     },
   }));
 }

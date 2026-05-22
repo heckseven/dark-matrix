@@ -35,6 +35,13 @@ export type NotificationRule = {
   dmx_path?: string;
 };
 
+export type BiomePresetConfig = {
+  name: string;
+  algorithm: 'conway' | 'highlife' | 'daynight';
+  tickMs: number;
+  gridSnapshot?: string;
+};
+
 export type Config = {
   modules: {
     left: string;
@@ -70,4 +77,6 @@ export type Config = {
   };
   notification_rules?: NotificationRule[];
   hud_presets?: HudPreset[];
+  biome_presets?: BiomePresetConfig[];
+  active_biome_preset?: string;
 };

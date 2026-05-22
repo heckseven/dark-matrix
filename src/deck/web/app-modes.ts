@@ -4,7 +4,7 @@ export const MODES = [
   { id: 'video',  label: 'video' },
   { id: 'data',   label: 'data' },
   { id: 'runes',  label: 'runes' },
-  { id: 'games',  label: 'life' },
+  { id: 'life',   label: 'life' },
   { id: 'design', label: 'design' },
   { id: 'config', label: 'config' },
 ] as const;

@@ -1269,8 +1269,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               const mode = m.mode === 'gray' ? 'gray' : 'bw';
               if (m.left  !== undefined) frameHeldLeft  = true;
               if (m.right !== undefined) frameHeldRight = true;
-              if (!currentConfig.hud) {
-                // No HUD running — stop any idle animation so it doesn't clobber the preview
+              if (!hudHardwareActive) {
+                // HUD hardware not active — stop any idle animation so it doesn't clobber the preview
                 stopAnim();
                 if (idleTimer) clearTimeout(idleTimer);
               }
@@ -1421,6 +1421,13 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               hudAudioSource = 'monitor';
               if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
               if (!currentConfig.hud) startIdleAnimation();
+              socket.write(JSON.stringify({ ok: true }) + '\n');
+              break;
+            }
+            case 'life-hardware-stop': {
+              hudHardwareActive = false;
+              stopAnim();
+              startIdleTimer();
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             }

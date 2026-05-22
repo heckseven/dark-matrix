@@ -92,6 +92,18 @@ export const ConfigSchema = z.object({
     const dupes = names.filter((n, i) => names.indexOf(n) !== i);
     for (const d of dupes) ctx.addIssue({ code: 'custom', message: `duplicate preset name: "${d}"`, path: [] });
   }),
+  active_biome_preset: z.string().optional(),
+  biome_presets: z.array(z.object({
+    name: z.string().min(1),
+    algorithm: z.enum(['conway', 'highlife', 'daynight']),
+    tickMs: z.number().int().min(16).max(2000),
+    gridSnapshot: z.string().optional(),
+  })).optional().superRefine((presets, ctx) => {
+    if (!presets) return;
+    const names = presets.map(p => p.name);
+    const dupes = names.filter((n, i) => names.indexOf(n) !== i);
+    for (const d of dupes) ctx.addIssue({ code: 'custom', message: `duplicate biome name: "${d}"`, path: [] });
+  }),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

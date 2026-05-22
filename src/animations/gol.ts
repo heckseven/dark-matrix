@@ -2,10 +2,20 @@ import type { Frame } from '../lib/frame.js';
 import type { Animation } from '../lib/animation.js';
 import { createFrame } from '../lib/frame.js';
 
+export const LIFE_ALGORITHMS = {
+  conway:   { birth: [3],          survival: [2, 3]          },
+  highlife: { birth: [3, 6],       survival: [2, 3]          },
+  daynight: { birth: [3, 6, 7, 8], survival: [3, 4, 6, 7, 8] },
+} as const;
+
+export type LifeAlgorithm = keyof typeof LIFE_ALGORITHMS;
+
 export type GolOptions = {
-  seed?: number;      // fixed seed for deterministic start; omit for random
-  frames?: number;    // frames per loop iteration, default 420 (matches firmware)
-  loop?: boolean;     // default true — re-seed and repeat when frames exhausted
+  seed?: number;        // fixed seed for deterministic start; omit for random
+  frames?: number;      // frames per loop iteration, default 420 (matches firmware)
+  loop?: boolean;       // default true — re-seed and repeat when frames exhausted
+  birth?: readonly number[];     // cells born with these neighbour counts; default [3]
+  survival?: readonly number[];  // live cells surviving with these neighbour counts; default [2, 3]
 };
 
 const COLS = 9;
@@ -26,7 +36,7 @@ function seedGrid(rng: () => number): Uint8Array {
   return g;
 }
 
-function step(grid: Uint8Array): Uint8Array {
+function step(grid: Uint8Array, birth: readonly number[], survival: readonly number[]): Uint8Array {
   const next = new Uint8Array(COLS * ROWS);
   for (let col = 0; col < COLS; col++) {
     for (let row = 0; row < ROWS; row++) {
@@ -40,7 +50,7 @@ function step(grid: Uint8Array): Uint8Array {
         }
       }
       const alive = (grid[col * ROWS + row] ?? 0) === 1;
-      next[col * ROWS + row] = (alive ? n === 2 || n === 3 : n === 3) ? 1 : 0;
+      next[col * ROWS + row] = (alive ? survival.includes(n) : birth.includes(n)) ? 1 : 0;
     }
   }
   return next;
@@ -55,6 +65,8 @@ function toFrame(grid: Uint8Array): Frame {
 export function createGolAnimation(opts?: GolOptions): Animation {
   const totalFrames = opts?.frames ?? 420;
   const loop = opts?.loop ?? true;
+  const birth: readonly number[] = opts?.birth ?? [3];
+  const survival: readonly number[] = opts?.survival ?? [2, 3];
   const rng = makePrng(opts?.seed ?? (Math.random() * 0xffffffff) >>> 0);
 
   let grid = seedGrid(rng);
@@ -72,7 +84,7 @@ export function createGolAnimation(opts?: GolOptions): Animation {
             count = 0;
           }
           const frame = toFrame(grid);
-          grid = step(grid);
+          grid = step(grid, birth, survival);
           count++;
           return { value: frame, done: false as const };
         },
