@@ -7,7 +7,7 @@ import { ROWS } from '../store.js';
 
 const EMPTY_9 = btoa(String.fromCharCode(...new Uint8Array(9 * ROWS)));
 
-type LibraryEntry = {
+export type LibraryEntry = {
   name: string;
   frames: string[];
   width: 9 | 18;
@@ -33,16 +33,25 @@ export interface LibraryPickerModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPick: (name: string, frame: string, width: 9 | 18) => void;
+  initialEntries?: LibraryEntry[];
 }
 
 type View = { step: 'grid' } | { step: 'frames'; entry: LibraryEntry };
 
-export function LibraryPickerModal({ open, onOpenChange, onPick }: LibraryPickerModalProps) {
+export function LibraryPickerModal({ open, onOpenChange, onPick, initialEntries }: LibraryPickerModalProps) {
   const [entries, setEntries] = useState<LibraryEntry[] | null>(null);
   const [view, setView] = useState<View>({ step: 'grid' });
 
   useEffect(() => {
     if (!open) return;
+    const initial = initialEntries;
+    if (initial) {
+      setEntries(initial);
+      setView(initial.length === 1 && initial[0]!.frames.length > 1
+        ? { step: 'frames', entry: initial[0]! }
+        : { step: 'grid' });
+      return;
+    }
     const controller = new AbortController();
     const { signal } = controller;
     setView({ step: 'grid' });

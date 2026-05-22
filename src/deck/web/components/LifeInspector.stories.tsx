@@ -59,9 +59,13 @@ const meta = {
       control: false,
       description: 'Called with density (0–1) when the randomize button is clicked.',
     },
-    onFromDesign: {
+    onOpenLibrary: {
       control: false,
-      description: 'Optional. When provided, a "library" button appears that opens the design picker.',
+      description: 'Optional. When provided, an "open" button appears that opens the library picker.',
+    },
+    onImportFile: {
+      control: false,
+      description: 'Optional. When provided, an "import" button appears that opens a file picker.',
     },
   },
   args: {
@@ -100,9 +104,10 @@ export const DayNightSelected: Story = {
   },
 };
 
-/** Library button visible — shown because onFromDesign is wired. */
-export const WithLibraryButton: Story = {
+/** Load design section visible — both open and import buttons shown. */
+export const WithLoadDesign: Story = {
   args: {
-    onFromDesign: fn(),
+    onOpenLibrary: fn(),
+    onImportFile: fn(),
   },
 };

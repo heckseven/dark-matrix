@@ -601,7 +601,7 @@ export function createDeckStore() {
     },
 
     restartLife() {
-      set(s => ({ lifeGeneration: s.lifeGeneration + 1, lifeIsPlaying: false, lifeStepCount: 0 }));
+      set(s => ({ lifeGeneration: s.lifeGeneration + 1, lifeStepCount: 0 }));
     },
 
     stepLifeForward() {

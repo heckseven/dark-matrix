@@ -6,5 +6,6 @@ export interface BiomePreset {
   name: string;
   algorithm: LifeAlgorithm;
   tickMs: number;
+  spawnRate?: number;
   gridSnapshot?: string;
 }

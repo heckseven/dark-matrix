@@ -263,6 +263,7 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCo
       state.current.grid = makeRandomGrid(cols);
     }
     schedulePaint();
+    onTickRef.current?.(encodeGrid(state.current.grid));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generation, biome?.name, cols]);
 
@@ -307,7 +308,14 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCo
     if (!playing || !biome) return;
     const { birth, survival } = LIFE_ALGORITHMS[biome.algorithm];
     const id = setInterval(() => {
-      const next = stepGrid(state.current.grid, state.current.cols, birth, survival);
+      let grid = state.current.grid;
+      const sr = biomeRef.current?.spawnRate ?? 0;
+      if (sr > 0) {
+        const g = new Uint8Array(grid) as Uint8Array<ArrayBuffer>;
+        for (let i = 0; i < sr; i++) g[Math.floor(Math.random() * g.length)] = 255;
+        grid = g;
+      }
+      const next = stepGrid(grid, state.current.cols, birth, survival);
       state.current.grid = next;
       schedulePaint();
       onTickRef.current?.(encodeGrid(next));

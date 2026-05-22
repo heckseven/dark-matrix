@@ -3,8 +3,9 @@ import { useDeckStore, deckStore, ROWS } from '../store.js';
 import { BiomeList } from './BiomeList.js';
 import { LifeCanvas, encodeGrid, makeRandomGrid } from './LifeCanvas.js';
 import { LifeInspector } from './LifeInspector.js';
-import { LibraryPickerModal } from './LibraryPickerModal.js';
+import { LibraryPickerModal, type LibraryEntry } from './LibraryPickerModal.js';
 import type { BiomePreset } from '../types/life-types.js';
+import type { DmxProject } from '../../format.js';
 
 function fitAssetFrame(firstFrame: string, srcWidth: 9 | 18, dstCols: 9 | 18): string {
   let bin: string;
@@ -31,6 +32,8 @@ function makeBiome(): BiomePreset {
 
 export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number; dualModule?: boolean }) {
   const [designPickerOpen, setDesignPickerOpen] = useState(false);
+  const [importEntries, setImportEntries] = useState<LibraryEntry[] | undefined>(undefined);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const biomePresets       = useDeckStore(s => s.biomePresets);
   const activeBiomeName    = useDeckStore(s => s.activeBiomeName);
   const selectedBiomeName  = useDeckStore(s => s.selectedBiomeName);
@@ -203,6 +206,35 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
     debouncedBiomeSave();
   }
 
+  // ── File import ───────────────────────────────────────────────────────
+
+  function handleImportFileClick() {
+    fileInputRef.current?.click();
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = evt => {
+      try {
+        const proj = JSON.parse(evt.target?.result as string) as DmxProject;
+        const frames = proj.frames.map(f => f.pixels);
+        const width = proj.width;
+        if (frames.length === 0) return;
+        if (frames.length === 1) {
+          handleImportDesign('', frames[0]!, width);
+        } else {
+          const name = file.name.replace(/\.dmx\.json$|\.json$/i, '');
+          setImportEntries([{ name, frames, width }]);
+          setDesignPickerOpen(true);
+        }
+      } catch { /* invalid file */ }
+    };
+    reader.readAsText(file);
+  }
+
   // ── Canvas handlers ───────────────────────────────────────────────────
 
   function handleGridChange(snapshot: string) {
@@ -265,7 +297,8 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
             biome={selectedBiome}
             onChange={handleBiomeChange}
             onRandomize={handleRandomize}
-            onFromDesign={() => setDesignPickerOpen(true)}
+            onOpenLibrary={() => { setImportEntries(undefined); setDesignPickerOpen(true); }}
+            onImportFile={handleImportFileClick}
           />
         ) : (
           <div className="p-4">
@@ -274,10 +307,21 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
         )}
       </aside>
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json,.dmx.json"
+        className="sr-only"
+        aria-hidden="true"
+        tabIndex={-1}
+        onChange={handleFileChange}
+      />
+
       <LibraryPickerModal
         open={designPickerOpen}
-        onOpenChange={setDesignPickerOpen}
+        onOpenChange={open => { setDesignPickerOpen(open); if (!open) setImportEntries(undefined); }}
         onPick={handleImportDesign}
+        {...(importEntries !== undefined ? { initialEntries: importEntries } : {})}
       />
     </div>
   );
