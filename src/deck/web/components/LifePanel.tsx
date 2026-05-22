@@ -217,9 +217,11 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
     e.target.value = '';
     if (!file) return;
     const reader = new FileReader();
+    reader.onerror = () => {};
     reader.onload = evt => {
       try {
         const proj = JSON.parse(evt.target?.result as string) as DmxProject;
+        if (!Array.isArray(proj?.frames) || (proj.width !== 9 && proj.width !== 18)) return;
         const frames = proj.frames.map(f => f.pixels);
         const width = proj.width;
         if (frames.length === 0) return;

@@ -62,8 +62,7 @@ export function LibraryPickerModal({ open, onOpenChange, onPick, initialEntries 
       .then(results => setEntries(results.filter((e): e is LibraryEntry => e !== null)))
       .catch(err => { if (err instanceof Error && err.name === 'AbortError') return; setEntries([]); });
     return () => controller.abort();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, initialEntries]);
 
   function handlePick(name: string, frame: string, width: 9 | 18) {
     onPick(name, frame, width);
