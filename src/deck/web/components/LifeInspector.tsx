@@ -119,7 +119,7 @@ export function LifeInspector({ biome, onChange, onRandomize, onOpenLibrary, onI
       {(onOpenLibrary ?? onImportFile) && (
         <section>
           <Text as="p" size="xs" variant="muted" className="mb-3 uppercase tracking-wider">load design</Text>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2">
             {onOpenLibrary && (
               <Button
                 variant="ghost"
