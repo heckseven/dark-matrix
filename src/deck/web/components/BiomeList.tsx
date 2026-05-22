@@ -2,18 +2,10 @@ import { useState, useRef, useEffect, Fragment } from 'react';
 import { Button } from './ui/button.js';
 import { MatrixPreview } from './MatrixPreview.js';
 import { Stack } from './ui/stack.js';
-import type { BiomePreset, LifeAlgorithm } from '../types/life-types.js';
+import type { BiomePreset } from '../types/life-types.js';
 
 const ROWS = 34;
 
-const ALGO_BADGE: Record<LifeAlgorithm, string> = {
-  conway:   'B3/S23',
-  highlife: 'B36/S23',
-  daynight: 'B3678/S34678',
-  maze:     'B3/S12345',
-  coral:    'B3/S45678',
-  anneal:   'B4678/S35678',
-};
 
 const EMPTY_9 = btoa(String.fromCharCode(...new Uint8Array(9 * ROWS)));
 
@@ -221,7 +213,6 @@ function BiomeCard({ biome, idx, biomeCount, isActive, isSelected, dropTarget, o
           onDoubleClick={e => { e.stopPropagation(); setDraft(biome.name); setEditing(true); }}
         >
           {biome.name}
-          <span className="ml-1 text-muted-foreground text-[10px]">{ALGO_BADGE[biome.algorithm]}</span>
         </span>
       )}
     </div>
