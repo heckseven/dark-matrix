@@ -189,7 +189,7 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'minmax(0,200px) 1fr minmax(0,220px)',
+        gridTemplateColumns: 'minmax(0,220px) 1fr minmax(0,220px)',
         height: '100%',
         width: '100%',
       }}
