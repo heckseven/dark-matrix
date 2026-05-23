@@ -8,7 +8,7 @@ import { spawn } from 'node:child_process';
 import { loadConfig, bootstrapConfig, watchConfig } from '../lib/config.js';
 import type { Config } from '../lib/config.js';
 import { startBrightnessLoop } from '../lib/brightness.js';
-import { watchSwitches } from '../lib/ec-switches.js';
+import { watchSwitches, readSwitches } from '../lib/ec-switches.js';
 import { watchVms } from '../lib/vm-source.js';
 import { parseClaudeHook } from '../lib/claude-source.js';
 import { parseProject, base64ToFrame } from '../deck/format.js';
@@ -262,18 +262,12 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       proc.on('close', () => {
         clearTimeout(timeout);
         if (settled) return;
-        if (role === '@DEFAULT_AUDIO_SINK@') {
-          // Use node name + .monitor to capture playback; node names are stable
-          // across WirePlumber graph rebuilds, unlike numeric node IDs.
-          const m = /node\.name\s*=\s*"([^"]+)"/.exec(out);
-          const name = m?.[1];
-          settle(name && /^[\w.\-]+$/.test(name) ? `${name}.monitor` : undefined);
-        } else {
-          // Source IDs: numeric ID is stable enough — sinks are more aggressively
-          // reassigned by WirePlumber due to monitor stream teardown.
-          const m = /^id (\d+)/.exec(out);
-          settle(m ? m[1] : undefined);
-        }
+        // Both roles resolve to a PipeWire node.name, which ffmpeg's pulse input
+        // accepts directly. Sinks get the ".monitor" suffix to capture playback.
+        const m = /node\.name\s*=\s*"([^"]+)"/.exec(out);
+        const name = m?.[1];
+        if (!name || !/^[\w.\-]+$/.test(name)) { settle(undefined); return; }
+        settle(role === '@DEFAULT_AUDIO_SINK@' ? `${name}.monitor` : name);
       });
       proc.on('error', () => { clearTimeout(timeout); settle(undefined); });
     });
@@ -1172,15 +1166,21 @@ export async function startDaemon(): Promise<() => Promise<void>> {
             case 'ping':
               socket.write(JSON.stringify({ ok: true, pong: true }) + '\n');
               break;
-            case 'status':
-              socket.write(JSON.stringify({
+            case 'status': {
+              const modulesPayload = {
                 ok: true,
                 modules: {
                   left:  deviceAvailable.get(currentConfig.modules.left)  ?? false,
                   right: deviceAvailable.get(currentConfig.modules.right) ?? false,
                 },
-              }) + '\n');
+              };
+              readSwitches().then(switches => {
+                socket.write(JSON.stringify({ ...modulesPayload, switches }) + '\n');
+              }).catch(() => {
+                socket.write(JSON.stringify(modulesPayload) + '\n');
+              });
               break;
+            }
             case 'brightness':
               socket.write(JSON.stringify({ ok: true, value: currentBrightness }) + '\n');
               break;
@@ -1360,19 +1360,14 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               const m = msg as { cmd: string; source?: string };
               const source: AudioSource = m.source === 'mic' ? 'mic' : 'monitor';
               socket.write(JSON.stringify({ ok: true }) + '\n');
-              if (hudHardwareActive) {
-                // HUD mode: never start a competing pw-record.
-                // If the loop is streaming audio with a different source, switch it.
-                if (hudAudioStreaming && source !== hudAudioSource) {
+              if (hudHardwareActive && hudAudioStreaming) {
+                // HUD loop is actively streaming audio — subscribe to its shared
+                // band stream to avoid a competing pw-record process.
+                if (source !== hudAudioSource) {
                   hudAudioSource = source;
                   stopAnim();
                   stopCurrentAnim = runHudOnModules();
-                } else {
-                  // Loop not yet streaming (clock widget) or source matches — just
-                  // record the preference so runHudOnModules picks it up when needed.
-                  hudAudioSource = source;
                 }
-                // Subscribe to the shared HUD band stream — no second pw-record
                 const key = Symbol();
                 hudAudioListeners.set(key, (ctx) => {
                   if (!socket.destroyed) socket.write(JSON.stringify({ type: 'audio-bands', ...ctx }) + '\n');
@@ -1381,6 +1376,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 socket.once('close', unsub);
                 socket.once('error', unsub);
               } else {
+                // HUD is not streaming audio (no audio widget), or HUD is not
+                // active — start an independent pw-record for this subscriber.
+                if (hudHardwareActive) hudAudioSource = source;
                 const stopViz = streamAudioBands(source, (ctx) => {
                   if (socket.destroyed) return;
                   socket.write(JSON.stringify({ type: 'audio-bands', ...ctx }) + '\n');

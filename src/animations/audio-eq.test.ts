@@ -156,7 +156,7 @@ describe('createAudioEqAnimation', () => {
     expect(r1.done).toBe(true);
   });
 
-  it('stop() kills the pw-record process and iterator returns done', async () => {
+  it('stop() kills the capture process and iterator returns done', async () => {
     const mockProc = makeMockProc();
     vi.mocked(spawn).mockReturnValue(mockProc as unknown as ChildProcess);
 
@@ -170,7 +170,7 @@ describe('createAudioEqAnimation', () => {
     expect(result.done).toBe(true);
   });
 
-  it('iterator ends when pw-record exits unexpectedly', async () => {
+  it('iterator ends when capture process exits unexpectedly', async () => {
     const mockProc = makeMockProc();
     vi.mocked(spawn).mockReturnValue(mockProc as unknown as ChildProcess);
 
@@ -184,7 +184,7 @@ describe('createAudioEqAnimation', () => {
     expect(result.done).toBe(true);
   });
 
-  it('passes target to pw-record when provided', () => {
+  it('passes target as ffmpeg pulse input when provided', () => {
     const mockProc = makeMockProc();
     vi.mocked(spawn).mockReturnValue(mockProc as unknown as ChildProcess);
 
@@ -192,23 +192,26 @@ describe('createAudioEqAnimation', () => {
     expect(anim.source).toBe('monitor');
 
     expect(vi.mocked(spawn)).toHaveBeenCalledWith(
-      'pw-record',
-      expect.arrayContaining(['--target', 'my-node-42']),
+      'ffmpeg',
+      expect.arrayContaining(['-f', 'pulse', '-i', 'my-node-42']),
       expect.anything(),
     );
 
     anim.stop();
   });
 
-  it('omits --target from pw-record when no target is provided', () => {
+  it('uses "default" pulse target when no target is provided', () => {
     const mockProc = makeMockProc();
     vi.mocked(spawn).mockReturnValue(mockProc as unknown as ChildProcess);
 
     const anim = createAudioEqAnimation({ source: 'mic' });
     expect(anim.source).toBe('mic');
 
-    const args = vi.mocked(spawn).mock.calls[0]?.[1] ?? [];
-    expect(args).not.toContain('--target');
+    expect(vi.mocked(spawn)).toHaveBeenCalledWith(
+      'ffmpeg',
+      expect.arrayContaining(['-f', 'pulse', '-i', 'default']),
+      expect.anything(),
+    );
 
     anim.stop();
   });

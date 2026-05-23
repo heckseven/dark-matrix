@@ -1212,9 +1212,15 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
 
     if (url === '/api/modules' && method === 'GET') {
       try {
-        const s = await sendToDaemon({ cmd: 'status' }) as { ok: boolean; modules: { left: boolean; right: boolean } };
+        const s = await sendToDaemon({ cmd: 'status' }) as {
+          ok: boolean;
+          modules: { left: boolean; right: boolean };
+          switches?: { mic: number; cam: number };
+        };
+        const modules = s.modules ?? { left: false, right: false };
+        const micSwitchOn = s.switches ? s.switches.mic === 0 : undefined;
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(s.modules ?? { left: false, right: false }));
+        res.end(JSON.stringify({ ...modules, ...(micSwitchOn !== undefined ? { micSwitchOn } : {}) }));
       } catch {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ left: false, right: false }));

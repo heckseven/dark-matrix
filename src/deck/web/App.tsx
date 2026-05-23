@@ -226,24 +226,15 @@ export function App() {
     const poll = async () => {
       try {
         const r = await fetch('/api/modules');
-        if (r.ok && alive) setModules(await r.json() as { left: boolean; right: boolean });
+        if (!r.ok || !alive) return;
+        const data = await r.json() as { left: boolean; right: boolean; micSwitchOn?: boolean };
+        setModules({ left: data.left, right: data.right });
+        if (data.micSwitchOn !== undefined) setHasMic(data.micSwitchOn);
       } catch { /* daemon not reachable */ }
     };
     void poll();
     const id = setInterval(() => void poll(), 2000);
     return () => { alive = false; clearInterval(id); };
-  }, []);
-
-  useEffect(() => {
-    const md = navigator.mediaDevices;
-    if (!md) return;
-    let alive = true;
-    const check = () => {
-      md.enumerateDevices().then(devs => { if (alive) setHasMic(devs.some(d => d.kind === 'audioinput')); }).catch(() => {});
-    };
-    check();
-    md.addEventListener('devicechange', check);
-    return () => { alive = false; md.removeEventListener('devicechange', check); };
   }, []);
 
   const isClockSelected = activeMode === 'hud' && (selectedPreset?.[hudSelectedSide]?.widget === 'clock' || hudClocksVisible);

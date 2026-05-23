@@ -68,7 +68,10 @@ interface BandStream {
 export function createAudioBandStream(opts?: Omit<AudioEqOptions, 'style'>): BandStream {
   const fftSize = opts?.fftSize ?? 2048;
   const gain = opts?.gain ?? 1.0;
-  const targetArgs = opts?.target ? ['--target', opts.target] : [];
+  // PulseAudio target syntax. ffmpeg's pulse input honors sink-monitor names
+  // like "<sink>.monitor"; pw-record's --target is overridden by WirePlumber's
+  // auto-link policy and silently routes monitor requests to the mic instead.
+  const pulseTarget = opts?.target ?? 'default';
 
   let stopped = false;
   let resolveChunk: ((ctx: RenderCtx | null) => void) | null = null;
@@ -77,8 +80,12 @@ export function createAudioBandStream(opts?: Omit<AudioEqOptions, 'style'>): Ban
   let procClosed = false;
 
   const proc = spawn(
-    'pw-record',
-    [...targetArgs, '--format=s16', '--rate=48000', '--channels=1', '-'],
+    'ffmpeg',
+    [
+      '-hide_banner', '-loglevel', 'error', '-nostdin',
+      '-f', 'pulse', '-i', pulseTarget,
+      '-ac', '1', '-ar', '48000', '-f', 's16le', '-',
+    ],
     { stdio: ['ignore', 'pipe', 'ignore'] },
   );
 
