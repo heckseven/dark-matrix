@@ -607,6 +607,7 @@ export function NotificationsTab({ value, onChange, dualModule = false }: Notifi
   function addRule() {
     onChange([...value, { animation: 'scroll' as const }]);
     idsRef.current = [...idsRef.current, crypto.randomUUID()];
+    setEditOpenIdx(value.length);
   }
 
   function updateRule(idx: number, rule: NotificationRule) {
