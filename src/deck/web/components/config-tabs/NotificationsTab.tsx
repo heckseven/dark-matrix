@@ -20,6 +20,7 @@ export type NotificationRule = {
   overlay_mode?: 'or' | 'replace' | 'xor' | 'halo';
   transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash';
   duration_ms_override?: number;
+  loop_count?: number;
   dmx_path?: string;
 };
 
@@ -68,6 +69,7 @@ function buildRule(base: NotificationRule, changes: RulePatch): NotificationRule
   if (needsAsset) {
     const assetVal = merged.asset_path ?? merged.dmx_path;
     if (assetVal !== undefined && assetVal !== '') result.asset_path = assetVal;
+    if (merged.loop_count !== undefined && merged.loop_count >= 1) result.loop_count = merged.loop_count;
   }
 
   if (anim !== 'none' && merged.composite !== undefined && merged.composite !== 'replace') {
@@ -108,6 +110,39 @@ function toSwitchGlob(prefix: 'MIC' | 'CAM', state: SwitchState): string {
   return `${prefix}*`;
 }
 
+type ClaudeEventKind = 'any' | 'tool' | 'agent' | 'idle' | 'input';
+
+function claudeEventKind(glob?: string): ClaudeEventKind {
+  if (!glob) return 'any';
+  if (glob === 'IDLE') return 'idle';
+  if (glob === 'INPUT') return 'input';
+  if (glob.startsWith('TOOL')) return 'tool';
+  if (glob.startsWith('AGENT')) return 'agent';
+  return 'any';
+}
+
+function claudeEventSuffix(glob?: string): string {
+  if (glob?.startsWith('TOOL ')) return glob.slice(5);
+  if (glob?.startsWith('AGENT ')) return glob.slice(6);
+  return '*';
+}
+
+function toClaudeGlob(kind: ClaudeEventKind, suffix: string): string | undefined {
+  if (kind === 'idle') return 'IDLE';
+  if (kind === 'input') return 'INPUT';
+  if (kind === 'tool') return `TOOL ${suffix || '*'}`;
+  if (kind === 'agent') return `AGENT ${suffix || '*'}`;
+  return undefined;
+}
+
+type TimingMode = 'default' | 'loops' | 'duration';
+
+function timingMode(rule: NotificationRule): TimingMode {
+  if (rule.loop_count !== undefined) return 'loops';
+  if (rule.duration_ms_override !== undefined) return 'duration';
+  return 'default';
+}
+
 // ── chip summary helpers ──────────────────────────────────────────────────────
 
 function srcLabel(r: NotificationRule): string {
@@ -118,7 +153,7 @@ function srcLabel(r: NotificationRule): string {
 
 function animLabel(r: NotificationRule): string {
   if (r.animation === 'none') return 'suppress';
-  if (r.animation === 'dmx') return r.asset_path?.replace('.dmx.json', '') ?? 'dmx';
+  if (r.animation === 'dmx') return r.asset_path?.replace(/^library\//, '').replace('.dmx.json', '') ?? 'dmx';
   return r.composite === 'overlay' ? 'scroll·overlay' : 'scroll';
 }
 
@@ -298,12 +333,15 @@ function FormRow({ label, children }: { label: string; children: React.ReactNode
 
 function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, editOpen, onEditOpenChange, onHoverEnter, onHoverLeave, rowRef, history, refreshHistory }: RowProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerOpenRef = useRef(false);
+  useEffect(() => { pickerOpenRef.current = pickerOpen; }, [pickerOpen]);
   const assetDisplay = rule.asset_path ?? rule.dmx_path ?? '';
   const durationDisplay = rule.duration_ms_override !== undefined ? String(rule.duration_ms_override) : '';
   const vSrc = virtualSource(rule);
   const isMicSwitch = vSrc === 'mic-switch';
   const isCamSwitch = vSrc === 'cam-switch';
   const isDesktop = rule.source === 'desktop-notification' || rule.source === undefined;
+  const isClaude = rule.source === 'claude';
 
   function handleSourceChange(newVirt: string) {
     if (newVirt === 'mic-switch') {
@@ -337,7 +375,8 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
         <span className="text-xs shrink-0">→</span>
         <Chip className="max-w-[10rem] overflow-hidden text-ellipsis inline-block shrink-0">{animLabel(rule)}</Chip>
         {rule.transition && <Chip className="shrink-0">{rule.transition}</Chip>}
-        {rule.duration_ms_override !== undefined && <Chip className="shrink-0">{rule.duration_ms_override}ms</Chip>}
+        {rule.loop_count !== undefined && <Chip className="shrink-0">{rule.loop_count}×</Chip>}
+        {rule.loop_count === undefined && rule.duration_ms_override !== undefined && <Chip className="shrink-0">{rule.duration_ms_override}ms</Chip>}
       </div>
 
       {/* reorder — hover visible */}
@@ -358,7 +397,7 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
             edit
           </Button>
         </PopoverTrigger>
-        <PopoverContent side="left" className="w-[360px] flex flex-col gap-3">
+        <PopoverContent side="left" className="w-[360px] flex flex-col gap-3" onInteractOutside={e => { if (pickerOpenRef.current) e.preventDefault(); }}>
           <div className="flex flex-col gap-2">
             {/* source */}
             <FormRow label="source">
@@ -430,8 +469,51 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
               </FormRow>
             )}
 
-            {/* content glob — non-desktop, non-switch */}
-            {!isDesktop && !isMicSwitch && !isCamSwitch && (
+            {/* claude event selector */}
+            {isClaude && (() => {
+              const kind = claudeEventKind(rule.content_glob);
+              const suffix = claudeEventSuffix(rule.content_glob);
+              const hasSuffix = kind === 'tool' || kind === 'agent';
+              return (
+                <>
+                  <FormRow label="event">
+                    <Select
+                      fluid
+                      aria-label="Claude event type"
+                      value={kind}
+                      options={[
+                        { value: 'any', label: 'any' },
+                        { value: 'tool', label: 'TOOL' },
+                        { value: 'agent', label: 'AGENT' },
+                        { value: 'idle', label: 'IDLE' },
+                        { value: 'input', label: 'INPUT' },
+                      ]}
+                      onValueChange={v => {
+                        const next = v as ClaudeEventKind;
+                        onUpdate(buildRule(rule, { content_glob: toClaudeGlob(next, suffix) }));
+                      }}
+                    />
+                  </FormRow>
+                  {hasSuffix && (
+                    <FormRow label="match">
+                      <Input
+                        fluid
+                        aria-label={`${kind === 'tool' ? 'Tool' : 'Agent'} name glob`}
+                        placeholder="* (any)"
+                        value={suffix === '*' ? '' : suffix}
+                        onChange={e => {
+                          onUpdate(buildRule(rule, { content_glob: toClaudeGlob(kind, e.target.value || '*') }));
+                        }}
+                        spellCheck={false}
+                      />
+                    </FormRow>
+                  )}
+                </>
+              );
+            })()}
+
+            {/* content glob — non-desktop, non-switch, non-claude */}
+            {!isDesktop && !isMicSwitch && !isCamSwitch && !isClaude && (
               <FormRow label="content">
                 <div className="flex items-center gap-1">
                   <Input
@@ -547,22 +629,83 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
               </FormRow>
             )}
 
-            {/* duration */}
-            <FormRow label="duration">
-              <Input
-                fluid
-                aria-label="Duration override ms"
-                type="number"
-                min="100"
-                placeholder="default"
-                value={durationDisplay}
-                suffix="ms"
-                onChange={e => {
-                  const n = parseInt(e.target.value, 10);
-                  onUpdate(buildRule(rule, { duration_ms_override: isNaN(n) || n <= 0 ? undefined : n }));
-                }}
-              />
-            </FormRow>
+            {/* timing — DMX: loops / duration / default */}
+            {rule.animation === 'dmx' && (() => {
+              const mode = timingMode(rule);
+              return (
+                <>
+                  <FormRow label="timing">
+                    <Select
+                      fluid
+                      aria-label="Timing mode"
+                      value={mode}
+                      options={[
+                        { value: 'default', label: 'default' },
+                        { value: 'loops', label: 'loops' },
+                        { value: 'duration', label: 'duration ms' },
+                      ]}
+                      onValueChange={v => {
+                        if (v === 'loops') onUpdate(buildRule(rule, { loop_count: rule.loop_count ?? 1, duration_ms_override: undefined }));
+                        else if (v === 'duration') onUpdate(buildRule(rule, { duration_ms_override: rule.duration_ms_override ?? 5000, loop_count: undefined }));
+                        else onUpdate(buildRule(rule, { loop_count: undefined, duration_ms_override: undefined }));
+                      }}
+                    />
+                  </FormRow>
+                  {mode === 'loops' && (
+                    <FormRow label="count">
+                      <Input
+                        fluid
+                        aria-label="Loop count"
+                        type="number"
+                        min="1"
+                        placeholder="1"
+                        value={rule.loop_count !== undefined ? String(rule.loop_count) : ''}
+                        onChange={e => {
+                          const n = parseInt(e.target.value, 10);
+                          onUpdate(buildRule(rule, { loop_count: isNaN(n) || n < 1 ? 1 : n }));
+                        }}
+                      />
+                    </FormRow>
+                  )}
+                  {mode === 'duration' && (
+                    <FormRow label="duration">
+                      <Input
+                        fluid
+                        aria-label="Duration override ms"
+                        type="number"
+                        min="100"
+                        placeholder="default"
+                        value={durationDisplay}
+                        suffix="ms"
+                        onChange={e => {
+                          const n = parseInt(e.target.value, 10);
+                          onUpdate(buildRule(rule, { duration_ms_override: isNaN(n) || n <= 0 ? undefined : n }));
+                        }}
+                      />
+                    </FormRow>
+                  )}
+                </>
+              );
+            })()}
+
+            {/* duration — scroll / none */}
+            {rule.animation !== 'dmx' && (
+              <FormRow label="duration">
+                <Input
+                  fluid
+                  aria-label="Duration override ms"
+                  type="number"
+                  min="100"
+                  placeholder="default"
+                  value={durationDisplay}
+                  suffix="ms"
+                  onChange={e => {
+                    const n = parseInt(e.target.value, 10);
+                    onUpdate(buildRule(rule, { duration_ms_override: isNaN(n) || n <= 0 ? undefined : n }));
+                  }}
+                />
+              </FormRow>
+            )}
           </div>
 
           <div className="flex gap-2 pt-2 border-t border-foreground/10">

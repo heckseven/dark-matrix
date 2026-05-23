@@ -4,11 +4,15 @@ import * as os from 'node:os';
 
 export type NotificationAssetHandle = { kind: 'dmx'; path: string };
 
-const ASSETS_DIR = path.join(os.homedir(), '.config', 'dark-matrix', 'assets');
+const CONFIG_DIR = path.join(os.homedir(), '.config', 'dark-matrix');
+const ASSETS_DIR = path.join(CONFIG_DIR, 'assets');
+const LIBRARY_DIR = path.join(CONFIG_DIR, 'library');
 
 export async function loadNotificationAsset(assetPath: string): Promise<NotificationAssetHandle> {
-  const sandboxRoot = ASSETS_DIR;
-  const resolved = path.resolve(sandboxRoot, assetPath);
+  const isLibrary = assetPath.startsWith('library/') || assetPath.startsWith('library\\');
+  const sandboxRoot = isLibrary ? LIBRARY_DIR : ASSETS_DIR;
+  const relativePath = isLibrary ? assetPath.slice('library/'.length) : assetPath;
+  const resolved = path.resolve(sandboxRoot, relativePath);
   if (!resolved.startsWith(sandboxRoot + path.sep) && resolved !== sandboxRoot) {
     throw new Error('asset path outside sandbox');
   }

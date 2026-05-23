@@ -1250,27 +1250,35 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
 
     // Assets list
     if (url === '/api/assets' && method === 'GET') {
-      const dir = assetsDir(configDir);
-      await fs.mkdir(dir, { recursive: true });
+      const aDir = assetsDir(configDir);
+      const lDir = libraryDir(configDir);
+      await fs.mkdir(aDir, { recursive: true });
       const assets: AssetMeta[] = [];
-      try {
-        const entries = await fs.readdir(dir);
-        for (const name of entries.filter(e => /\.dmx\.json$/i.test(e))) {
-          try {
-            const raw = await fs.readFile(path.join(dir, name), 'utf8');
-            const project = parseProject(raw);
-            if (!project.frames.length) continue;
-            assets.push({
-              name,
-              width: project.width,
-              frameCount: project.frames.length,
-              firstFrame: project.frames[0]!.pixels,
-              frames: project.frames.map(f => f.pixels),
-              delays: project.frames.map(f => f.delayMs),
-            });
-          } catch { /* skip invalid files silently */ }
-        }
-      } catch { /* readdir failed — return empty list */ }
+
+      async function scanDir(dir: string, prefix: string) {
+        try {
+          const entries = await fs.readdir(dir);
+          for (const name of entries.filter(e => /\.dmx\.json$/i.test(e))) {
+            try {
+              const raw = await fs.readFile(path.join(dir, name), 'utf8');
+              const project = parseProject(raw);
+              if (!project.frames.length) continue;
+              assets.push({
+                name: prefix + name,
+                width: project.width,
+                frameCount: project.frames.length,
+                firstFrame: project.frames[0]!.pixels,
+                frames: project.frames.map(f => f.pixels),
+                delays: project.frames.map(f => f.delayMs),
+              });
+            } catch { /* skip invalid files silently */ }
+          }
+        } catch { /* readdir failed — skip */ }
+      }
+
+      await scanDir(aDir, '');
+      await scanDir(lDir, 'library/');
+
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true, assets }));
       return;

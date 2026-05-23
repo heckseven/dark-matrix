@@ -32,6 +32,7 @@ export type NotificationRule = {
   overlay_mode?: 'or' | 'replace' | 'xor' | 'halo';
   transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash';
   duration_ms_override?: number;
+  loop_count?: number;
   dmx_path?: string;
 };
 

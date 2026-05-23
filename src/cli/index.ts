@@ -79,19 +79,26 @@ async function cmdInstallClaudeHooks() {
     ? settings['hooks'] as Record<string, unknown[]>
     : {};
 
-  const existing = (hooksObj['PostToolUse'] as unknown[] | undefined) ?? [];
-  const alreadyInstalled = existing.some(
-    (h) => typeof h === 'object' && h !== null && JSON.stringify(h).includes('dark-matrix'),
-  );
+  const isDarkMatrix = (h: unknown) =>
+    typeof h === 'object' && h !== null && JSON.stringify(h).includes('dark-matrix');
 
-  if (alreadyInstalled) {
-    process.stdout.write(`dark-matrix hook already present in ${settingsPath}\n`);
+  const hookTypes = ['PostToolUse', 'Stop', 'Notification'] as const;
+  let installed = 0;
+  for (const hookType of hookTypes) {
+    const existing = (hooksObj[hookType] as unknown[] | undefined) ?? [];
+    if (existing.some(isDarkMatrix)) continue;
+    hooksObj[hookType] = [...existing, hookEntry];
+    installed++;
+  }
+
+  if (installed === 0) {
+    process.stdout.write(`dark-matrix hooks already present in ${settingsPath}\n`);
     return;
   }
 
-  settings['hooks'] = { ...hooksObj, PostToolUse: [...existing, hookEntry] };
+  settings['hooks'] = hooksObj;
   await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf8');
-  process.stdout.write(`Installed PostToolUse hook in ${settingsPath}\n`);
+  process.stdout.write(`Installed ${installed} hook(s) (PostToolUse, Stop, Notification) in ${settingsPath}\n`);
   process.stdout.write(`Restart Claude Code to activate.\n`);
 }
 

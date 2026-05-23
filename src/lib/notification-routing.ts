@@ -36,7 +36,7 @@ export function matchesGlob(pattern: string, str: string): boolean {
 export function routeNotification(
   intent: DisplayIntent,
   rules: NotificationRule[],
-): { action: 'scroll' | 'dmx' | 'none'; assetPath?: string; composite: 'replace' | 'overlay'; overlayMode?: 'or' | 'replace' | 'xor' | 'halo'; transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash'; durationMs?: number } {
+): { action: 'scroll' | 'dmx' | 'none'; assetPath?: string; composite: 'replace' | 'overlay'; overlayMode?: 'or' | 'replace' | 'xor' | 'halo'; transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash'; durationMs?: number; loopCount?: number } {
   // TODO: populate urgency from dbus hints in dbus-notifications.ts (parseDbusMonitorLine
   // skips the hints array). Until then urgency-filtered rules never fire.
   const urgency = undefined as 'low' | 'normal' | 'critical' | undefined;
@@ -62,14 +62,15 @@ export function routeNotification(
     if (rule.content_glob !== undefined && !matchesGlob(rule.content_glob, intent.content)) continue;
 
     // All applicable checks passed — first match wins
-    const result: { action: 'scroll' | 'dmx' | 'none'; assetPath?: string; composite: 'replace' | 'overlay'; overlayMode?: 'or' | 'replace' | 'xor' | 'halo'; transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash'; durationMs?: number } = {
+    const result: { action: 'scroll' | 'dmx' | 'none'; assetPath?: string; composite: 'replace' | 'overlay'; overlayMode?: 'or' | 'replace' | 'xor' | 'halo'; transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash'; durationMs?: number; loopCount?: number } = {
       action: rule.animation,
       composite: rule.composite ?? 'replace',
     };
     if (rule.asset_path !== undefined) result.assetPath = rule.asset_path;
     if (rule.overlay_mode !== undefined) result.overlayMode = rule.overlay_mode;
     if (rule.transition !== undefined) result.transition = rule.transition;
-    if (rule.duration_ms_override !== undefined) result.durationMs = rule.duration_ms_override;
+    if (rule.loop_count !== undefined) result.loopCount = rule.loop_count;
+    else if (rule.duration_ms_override !== undefined) result.durationMs = rule.duration_ms_override;
     return result;
   }
 

@@ -5,6 +5,39 @@ import { Button } from './ui/button.js';
 import { MatrixPreview } from './MatrixPreview.js';
 import { AssetImportPanel } from './AssetImportPanel.js';
 
+type AssetGridProps = {
+  items: AssetMeta[];
+  animState: Record<string, { frameIdx: number; elapsed: number; lastTick: number | null }>;
+  current?: string;
+  onPick: (filename: string, meta: AssetMeta) => void;
+};
+
+function AssetGrid({ items, animState, current, onPick }: AssetGridProps) {
+  return (
+    <div className="grid grid-cols-3 gap-3">
+      {items.map(asset => {
+        const frameIdx = animState[asset.name]?.frameIdx ?? 0;
+        const pixels = asset.frames[frameIdx] ?? asset.firstFrame;
+        const active = asset.name === current;
+        const label = asset.name.replace(/^library\//, '').replace('.dmx.json', '');
+        return (
+          <button
+            key={asset.name}
+            type="button"
+            aria-label={active ? `${label}, selected` : label}
+            aria-pressed={active}
+            className={`relative flex flex-col gap-2 items-center p-2 w-full rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px] hover:bg-foreground/5${active ? ' outline outline-1 outline-white/40' : ''}${asset.width === 18 ? ' col-span-2' : ''}`}
+            onClick={() => onPick(asset.name, asset)}
+          >
+            <MatrixPreview width={asset.width} pixels={pixels} />
+            <span className="font-mono text-xs text-muted-foreground truncate max-w-full">{label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export interface AssetPickerModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -111,29 +144,21 @@ export function AssetPickerModal({ open, onOpenChange, current, onPick }: AssetP
                   {assets.length === 0 && (
                     <p className="font-mono text-xs text-muted-foreground">no assets — import one to get started</p>
                   )}
-                  {assets.length > 0 && (
-                    <div className="grid grid-cols-3 gap-3">
-                      {assets.map(asset => {
-                        const frameIdx = animRef.current[asset.name]?.frameIdx ?? 0;
-                        const pixels = asset.frames[frameIdx] ?? asset.firstFrame;
-                        const active = asset.name === current;
-                        const label = asset.name.replace('.dmx.json', '');
-                        return (
-                          <button
-                            key={asset.name}
-                            type="button"
-                            aria-label={active ? `${label}, selected` : label}
-                            aria-pressed={active}
-                            className={`relative flex flex-col gap-2 items-center p-2 w-full rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px] hover:bg-foreground/5${active ? ' outline outline-1 outline-white/40' : ''}${asset.width === 18 ? ' col-span-2' : ''}`}
-                            onClick={() => handlePick(asset.name, asset)}
-                          >
-                            <MatrixPreview width={asset.width} pixels={pixels} />
-                            <span className="font-mono text-xs text-muted-foreground truncate max-w-full">{label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+                  {assets.length > 0 && (() => {
+                    const assetFiles = assets.filter(a => !a.name.startsWith('library/'));
+                    const libraryFiles = assets.filter(a => a.name.startsWith('library/'));
+                    return (
+                      <>
+                        {assetFiles.length > 0 && <AssetGrid items={assetFiles} animState={animRef.current} current={current} onPick={handlePick} />}
+                        {libraryFiles.length > 0 && (
+                          <>
+                            <h3 className="font-mono text-xs text-muted-foreground/50 mt-1">library</h3>
+                            <AssetGrid items={libraryFiles} animState={animRef.current} current={current} onPick={handlePick} />
+                          </>
+                        )}
+                      </>
+                    );
+                  })()}
                   <Button
                     variant="ghost"
                     className="self-start font-mono text-xs"

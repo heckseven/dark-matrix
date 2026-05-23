@@ -19,6 +19,7 @@ export type DisplayIntent = {
   transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash';
   assetPath?: string;
   composite?: 'replace' | 'overlay';
+  loopCount?: number;
 };
 
 export type NotificationDisplayOptions = {
@@ -71,16 +72,29 @@ export function vmIntent(e: VmEvent): DisplayIntent {
 
 export function claudeIntent(e: ClaudeActivityEvent): DisplayIntent | null {
   if (e.type === 'unknown') return null;
-  const label = e.type === 'agent_spawn'
-    ? `AGENT ${e.subagent_type}`
-    : `TOOL ${e.tool}`;
+  let content: string;
+  let priority: number;
+  let durationMs: number;
+  if (e.type === 'idle') {
+    content = 'IDLE';
+    priority = PRIORITY.NORMAL;
+    durationMs = 5000;
+  } else if (e.type === 'input_needed') {
+    content = 'INPUT';
+    priority = PRIORITY.HIGH;
+    durationMs = 10000;
+  } else {
+    content = e.type === 'agent_spawn' ? `AGENT ${e.subagent_type}` : `TOOL ${e.tool}`;
+    priority = PRIORITY.NORMAL;
+    durationMs = 3000;
+  }
   return {
     id: nextId(),
     source: 'claude',
-    priority: PRIORITY.NORMAL,
-    content: label,
-    durationMs: 3000,
-    expiresAt: Date.now() + 3000,
+    priority,
+    content,
+    durationMs,
+    expiresAt: Date.now() + durationMs,
   };
 }
 

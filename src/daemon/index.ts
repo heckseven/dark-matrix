@@ -872,6 +872,13 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     if (dmxFrames.length === 0) { startTextNotification(intent, composite); return; }
 
+    const loopDurationMs = intent.loopCount !== undefined
+      ? dmxFrames.reduce((s, f) => s + f.delayMs, 0) * intent.loopCount
+      : undefined;
+    if (loopDurationMs !== undefined) {
+      intent.durationMs = Math.max(loopDurationMs, 50);
+      intent.expiresAt = Date.now() + intent.durationMs;
+    }
     const deadline = Date.now() + intent.durationMs;
     let stopped = false;
 
@@ -1090,7 +1097,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     if (route.assetPath !== undefined) intent.assetPath = route.assetPath;
     if (route.overlayMode !== undefined) intent.overlayMode = route.overlayMode;
     if (route.transition !== undefined) intent.transition = route.transition;
-    if (route.durationMs !== undefined) {
+    if (route.loopCount !== undefined) {
+      intent.loopCount = route.loopCount;
+    } else if (route.durationMs !== undefined) {
       intent.durationMs = route.durationMs;
       intent.expiresAt = Date.now() + route.durationMs;
     }
@@ -1167,8 +1176,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       if (body !== null) {
         const event = parseClaudeHook(body.trim());
         if (event && event.type !== 'unknown') {
-          const toolName = event.type === 'agent_spawn' ? 'Agent' : event.tool;
-          bumpTool(heatmapState, toolName);
+          if (event.type === 'tool_use' || event.type === 'agent_spawn') {
+            bumpTool(heatmapState, event.type === 'agent_spawn' ? 'Agent' : event.tool);
+          }
           const intent = claudeIntent(event);
           if (intent) routeAndPush(intent);
         }
