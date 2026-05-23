@@ -22,6 +22,7 @@ import { ConfigPanel } from './components/ConfigPanel.js';
 import { HudPanel, hudSendWsGlobal } from './components/HudPanel.js';
 import { VideoPanel, VideoHeader, VideoTransportControls, VideoSettingsToggle } from './components/VideoPanel.js';
 import { LifePanel, lifeTriggerSave } from './components/LifePanel.js';
+import { AssetManagerModal } from './components/AssetManagerModal.js';
 
 const MODE_LABEL = Object.fromEntries(MODES.map(m => [m.id, m.label])) as Record<AppMode, string>;
 
@@ -199,6 +200,7 @@ export function App() {
 
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [modePickerOpen, setModePickerOpen] = useState(false);
+  const [assetManagerOpen, setAssetManagerOpen] = useState(false);
   const [hasMic, setHasMic] = useState(false);
   const [hudNeedsAudio, setHudNeedsAudio] = useState(false);
   const [clockOverrideH, setClockOverrideH] = useState(() => new Date().getHours());
@@ -356,6 +358,17 @@ export function App() {
   return (
     <TooltipProvider>
       <ShortcutDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} dualModule={dualModule} />
+      <AssetManagerModal
+        open={assetManagerOpen}
+        onOpenChange={setAssetManagerOpen}
+        onOpenAsset={(name, project) => {
+          deckStore.getState().loadProject(project);
+          const baseName = name.replace(/^library\//, '').replace(/\.dmx\.json$/i, '');
+          deckStore.getState().setProjectTitle(baseName);
+          deckStore.getState().setLibraryPath(null);
+          setAssetManagerOpen(false);
+        }}
+      />
       {modePickerOpen && (
         <ModePicker
           activeMode={activeMode}
@@ -611,6 +624,7 @@ export function App() {
                     }}>duplicate</MenuItem>
                     <MenuSeparator />
                     <MenuItem onSelect={() => exportProject(storeCompat(), projectTitle)}>export</MenuItem>
+                    <MenuItem onSelect={() => setAssetManagerOpen(true)}>manage assets</MenuItem>
                   </MenuContent>
                 </Menu>
                 {dualModule && (
