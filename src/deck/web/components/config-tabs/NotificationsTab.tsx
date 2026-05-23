@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createScrollAnimation } from '../../../../animations/scroll.js';
 import type { ScrollFrame, ScrollSize } from '../../../../animations/scroll.js';
 import { MatrixPreview } from '../MatrixPreview.js';
@@ -42,6 +42,8 @@ type RowProps = {
   onHoverEnter: () => void;
   onHoverLeave: () => void;
   rowRef: (el: HTMLDivElement | null) => void;
+  history: Record<string, string[]>;
+  refreshHistory: () => Promise<void>;
 };
 
 type RulePatch = { [K in keyof NotificationRule]+?: NotificationRule[K] | undefined };
@@ -179,6 +181,110 @@ function RulePrev({ rule, dual }: { rule: NotificationRule; dual: boolean }) {
 
 // ── form helpers ──────────────────────────────────────────────────────────────
 
+type NotificationHistory = Record<string, string[]>;
+
+function isHistoryShape(v: unknown): v is NotificationHistory {
+  if (typeof v !== 'object' || v === null) return false;
+  for (const value of Object.values(v as Record<string, unknown>)) {
+    if (!Array.isArray(value) || !value.every(x => typeof x === 'string')) return false;
+  }
+  return true;
+}
+
+function useNotificationHistory(): { history: NotificationHistory; refresh: () => Promise<void> } {
+  const [history, setHistory] = useState<NotificationHistory>({});
+  const refresh = useCallback(async () => {
+    try {
+      const r = await fetch('/api/notification-history');
+      if (!r.ok) return;
+      const data: unknown = await r.json();
+      if (isHistoryShape(data)) setHistory(data);
+    } catch { /* daemon unreachable */ }
+  }, []);
+  useEffect(() => { void refresh(); }, [refresh]);
+  return { history, refresh };
+}
+
+function RecentExamplesButton({ items, onPick, refresh }: {
+  items: string[];
+  onPick: (value: string) => void;
+  refresh: () => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  function focusItem(idx: number) {
+    const len = items.length;
+    if (len === 0) return;
+    const wrapped = ((idx % len) + len) % len;
+    itemRefs.current[wrapped]?.focus();
+  }
+
+  return (
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o) void refresh(); }}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="shrink-0 px-2"
+          aria-label="Recent examples"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          title="Recent examples"
+        >
+          <span aria-hidden="true">recent</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="right"
+        align="start"
+        className="w-[260px] p-1"
+        onOpenAutoFocus={(e) => {
+          if (items.length > 0) {
+            e.preventDefault();
+            requestAnimationFrame(() => itemRefs.current[0]?.focus());
+          }
+        }}
+      >
+        {items.length === 0 ? (
+          <div role="status" className="px-2 py-1.5 font-mono text-xs text-muted-foreground">
+            no examples yet
+          </div>
+        ) : (
+          <ul
+            className="flex flex-col"
+            role="menu"
+            onKeyDown={(e) => {
+              const active = document.activeElement;
+              const idx = itemRefs.current.findIndex(b => b === active);
+              if (e.key === 'ArrowDown') { e.preventDefault(); focusItem(idx + 1); }
+              else if (e.key === 'ArrowUp') { e.preventDefault(); focusItem(idx - 1); }
+              else if (e.key === 'Home') { e.preventDefault(); focusItem(0); }
+              else if (e.key === 'End') { e.preventDefault(); focusItem(items.length - 1); }
+            }}
+          >
+            {items.map((item, i) => (
+              <li key={item} role="none">
+                <button
+                  ref={(el) => { itemRefs.current[i] = el; }}
+                  type="button"
+                  role="menuitem"
+                  className="w-full text-left font-mono text-xs px-2 py-1.5 rounded hover:bg-accent truncate"
+                  onClick={() => { onPick(item); setOpen(false); }}
+                  aria-label={item}
+                  title={item}
+                >
+                  {item}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function FormRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2">
@@ -190,7 +296,7 @@ function FormRow({ label, children }: { label: string; children: React.ReactNode
 
 // ── rule row ──────────────────────────────────────────────────────────────────
 
-function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, editOpen, onEditOpenChange, onHoverEnter, onHoverLeave, rowRef }: RowProps) {
+function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, editOpen, onEditOpenChange, onHoverEnter, onHoverLeave, rowRef, history, refreshHistory }: RowProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const assetDisplay = rule.asset_path ?? rule.dmx_path ?? '';
   const durationDisplay = rule.duration_ms_override !== undefined ? String(rule.duration_ms_override) : '';
@@ -276,14 +382,21 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
             {/* app glob */}
             {isDesktop && (
               <FormRow label="app">
-                <Input
-                  fluid
-                  aria-label="App name glob"
-                  placeholder="glob (*)"
-                  value={rule.app_name_glob ?? ''}
-                  onChange={e => onUpdate(buildRule(rule, { app_name_glob: e.target.value }))}
-                  spellCheck={false}
-                />
+                <div className="flex items-center gap-1">
+                  <Input
+                    fluid
+                    aria-label="App name glob"
+                    placeholder="glob (*)"
+                    value={rule.app_name_glob ?? ''}
+                    onChange={e => onUpdate(buildRule(rule, { app_name_glob: e.target.value }))}
+                    spellCheck={false}
+                  />
+                  <RecentExamplesButton
+                    items={history['desktop-notification'] ?? []}
+                    refresh={refreshHistory}
+                    onPick={(v) => onUpdate(buildRule(rule, { app_name_glob: v }))}
+                  />
+                </div>
               </FormRow>
             )}
 
@@ -320,14 +433,21 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
             {/* content glob — non-desktop, non-switch */}
             {!isDesktop && !isMicSwitch && !isCamSwitch && (
               <FormRow label="content">
-                <Input
-                  fluid
-                  aria-label="Content glob"
-                  placeholder="glob (*)"
-                  value={rule.content_glob ?? ''}
-                  onChange={e => onUpdate(buildRule(rule, { content_glob: e.target.value }))}
-                  spellCheck={false}
-                />
+                <div className="flex items-center gap-1">
+                  <Input
+                    fluid
+                    aria-label="Content glob"
+                    placeholder="glob (*)"
+                    value={rule.content_glob ?? ''}
+                    onChange={e => onUpdate(buildRule(rule, { content_glob: e.target.value }))}
+                    spellCheck={false}
+                  />
+                  <RecentExamplesButton
+                    items={history[rule.source ?? ''] ?? []}
+                    refresh={refreshHistory}
+                    onPick={(v) => onUpdate(buildRule(rule, { content_glob: v }))}
+                  />
+                </div>
               </FormRow>
             )}
 
@@ -482,6 +602,7 @@ export function NotificationsTab({ value, onChange, dualModule = false }: Notifi
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [hoverY, setHoverY] = useState<number | null>(null);
   const [editOpenIdx, setEditOpenIdx] = useState<number | null>(null);
+  const { history, refresh: refreshHistory } = useNotificationHistory();
 
   function addRule() {
     onChange([...value, { animation: 'scroll' as const }]);
@@ -538,6 +659,8 @@ export function NotificationsTab({ value, onChange, dualModule = false }: Notifi
               rule={rule}
               idx={idx}
               total={value.length}
+              history={history}
+              refreshHistory={refreshHistory}
               onUpdate={r => updateRule(idx, r)}
               onDelete={() => deleteRule(idx)}
               onMoveUp={() => moveRule(idx, idx - 1)}

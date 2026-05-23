@@ -15,7 +15,7 @@ import { parseProject, base64ToFrame } from '../deck/format.js';
 import type { DmxProject } from '../deck/format.js';
 import { watchDesktopNotifications } from '../lib/dbus-notifications.js';
 import { watchMic } from '../lib/mic-source.js';
-import { Dispatcher, ecSwitchIntent, vmIntent, notificationIntent } from '../lib/dispatcher.js';
+import { Dispatcher, ecSwitchIntent, vmIntent, claudeIntent, notificationIntent } from '../lib/dispatcher.js';
 import { routeNotification } from '../lib/notification-routing.js';
 import { SerialTransport } from '../lib/transport.js';
 import { runAnimation } from '../lib/animation.js';
@@ -35,7 +35,7 @@ import { watchProcStats } from '../lib/proc-source.js';
 import { createPresetTriggerEngine } from '../lib/preset-triggers.js';
 import { createGifAnimation } from '../animations/gif.js';
 import type { GifAnimation } from '../animations/gif.js';
-import type { DisplayIntent } from '../lib/dispatcher.js';
+import type { DisplayIntent, DisplaySource } from '../lib/dispatcher.js';
 import { packBW, FRAME_SIZE, FRAME_COLS, FRAME_ROWS, createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 import { getTransitionFrames } from '../animations/transitions.js';
@@ -98,6 +98,31 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   // Shared band listeners: audio-viz sockets subscribe here when HUD loop owns audio
   const hudAudioListeners = new Map<symbol, (ctx: { bands: number[]; fftSize: number; gain: number }) => void>();
   const heatmapState = createHeatmapState();
+
+  // Recent notification content per source, used by the deck UI to suggest
+  // glob examples. Most-recent first, deduplicated, capped per source.
+  const NOTIFICATION_HISTORY_SOURCES = ['desktop-notification', 'vm', 'claude', 'manual'] as const;
+  const NOTIFICATION_HISTORY_MAX = 7;
+  const NOTIFICATION_HISTORY_CONTENT_MAX = 512;
+  type NotificationHistorySource = typeof NOTIFICATION_HISTORY_SOURCES[number];
+  const notificationHistory = new Map<NotificationHistorySource, string[]>(
+    NOTIFICATION_HISTORY_SOURCES.map(s => [s, []]),
+  );
+  function isHistorySource(s: DisplaySource): s is NotificationHistorySource {
+    return (NOTIFICATION_HISTORY_SOURCES as readonly string[]).includes(s);
+  }
+  function recordNotificationExample(source: DisplaySource, content: string): void {
+    if (!isHistorySource(source)) return;
+    if (!content) return;
+    const list = notificationHistory.get(source);
+    if (!list) return;
+    const trimmed = content.length > NOTIFICATION_HISTORY_CONTENT_MAX
+      ? content.slice(0, NOTIFICATION_HISTORY_CONTENT_MAX) : content;
+    const existing = list.indexOf(trimmed);
+    if (existing !== -1) list.splice(existing, 1);
+    list.unshift(trimmed);
+    if (list.length > NOTIFICATION_HISTORY_MAX) list.length = NOTIFICATION_HISTORY_MAX;
+  }
 
   function getModulePaths(): string[] {
     const { left, right } = currentConfig.modules;
@@ -1057,6 +1082,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
   function routeAndPush(base: DisplayIntent): void {
     const route = routeNotification(base, currentConfig.notification_rules ?? []);
+    recordNotificationExample(base.source, base.content);
     if (route.action === 'none') return;
     const intent: DisplayIntent = { ...base };
     intent.style = route.action === 'scroll' ? 'text' : route.action;
@@ -1143,6 +1169,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         if (event && event.type !== 'unknown') {
           const toolName = event.type === 'agent_spawn' ? 'Agent' : event.tool;
           bumpTool(heatmapState, toolName);
+          const intent = claudeIntent(event);
+          if (intent) routeAndPush(intent);
         }
         socket.write('HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok');
         socket.end();
@@ -1196,6 +1224,12 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 socket.write(JSON.stringify({ ok: true }) + '\n');
               });
               break;
+            case 'notification-history': {
+              const history: Record<string, string[]> = {};
+              for (const [src, list] of notificationHistory) history[src] = [...list];
+              socket.write(JSON.stringify({ ok: true, history }) + '\n');
+              break;
+            }
             case 'scroll': {
               const m = msg as { cmd: string; text?: string; hold?: boolean; size?: string; speed?: string };
               if (typeof m.text !== 'string' || m.text.trim() === '') {

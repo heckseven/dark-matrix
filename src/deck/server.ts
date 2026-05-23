@@ -1210,6 +1210,26 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
       return;
     }
 
+    if (url === '/api/notification-history' && method === 'GET') {
+      try {
+        const s = await sendToDaemon({ cmd: 'notification-history' }) as { ok?: boolean; history?: unknown };
+        const history: Record<string, string[]> = {};
+        if (s.history && typeof s.history === 'object') {
+          for (const [src, list] of Object.entries(s.history as Record<string, unknown>)) {
+            if (Array.isArray(list) && list.every(x => typeof x === 'string')) {
+              history[src] = list as string[];
+            }
+          }
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(history));
+      } catch {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'daemon unreachable' }));
+      }
+      return;
+    }
+
     if (url === '/api/modules' && method === 'GET') {
       try {
         const s = await sendToDaemon({ cmd: 'status' }) as {
