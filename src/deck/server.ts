@@ -1326,13 +1326,18 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
         const stem = base.replace(/\.dmx\.json$/i, '');
         let copyBase = '';
         for (let i = 2; i < 1000; i++) {
-          const candidate = `${stem} ${i}.dmx.json`;
+          const candidate = `${stem}_${i}.dmx.json`;
           const candidatePath = path.resolve(dir, candidate);
           if (!candidatePath.startsWith(dir + path.sep)) continue;
-          try { await fs.access(candidatePath); } catch { copyBase = candidate; break; }
+          try {
+            await fs.writeFile(candidatePath, data, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+            copyBase = candidate;
+            break;
+          } catch (e) {
+            if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+          }
         }
         if (!copyBase) throw new Error('no unique name');
-        await fs.writeFile(path.resolve(dir, copyBase), data, { encoding: 'utf8', mode: 0o600 });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, name: isLib ? `library/${copyBase}` : copyBase }));
       } catch {
@@ -1365,6 +1370,7 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
       try {
         const raw = await fs.readFile(resolved, 'utf-8');
         if (new URLSearchParams(assetQueryStr).get('full') === '1') {
+          parseProject(raw); // validate before serving; throws on malformed file
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(raw);
           return;

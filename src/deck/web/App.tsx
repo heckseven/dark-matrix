@@ -365,7 +365,8 @@ export function App() {
           deckStore.getState().loadProject(project);
           const baseName = name.replace(/^library\//, '').replace(/\.dmx\.json$/i, '');
           deckStore.getState().setProjectTitle(baseName);
-          deckStore.getState().setLibraryPath(null);
+          const libPath = name.startsWith('library/') ? baseName : null;
+          deckStore.getState().setLibraryPath(libPath);
           setAssetManagerOpen(false);
         }}
       />

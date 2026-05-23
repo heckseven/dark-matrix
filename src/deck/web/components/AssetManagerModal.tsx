@@ -237,14 +237,14 @@ export function AssetManagerModal({ open, onOpenChange, onOpenAsset }: AssetMana
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: asset.name }),
     })
-      .then(r => r.json() as Promise<{ ok: boolean }>)
+      .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() as Promise<{ ok: boolean }>; })
       .then(d => { if (d.ok) void fetchAssets(); })
       .catch(console.error);
   }
 
   function handleDelete(asset: AssetMeta) {
     fetch(`/api/assets/${encodeURIComponent(asset.name)}`, { method: 'DELETE' })
-      .then(r => r.json() as Promise<{ ok: boolean }>)
+      .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() as Promise<{ ok: boolean }>; })
       .then(d => { if (d.ok) void fetchAssets(); })
       .catch(console.error);
   }
