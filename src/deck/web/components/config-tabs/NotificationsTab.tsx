@@ -15,6 +15,8 @@ export type NotificationRule = {
   urgency?: 'low' | 'normal' | 'critical' | 'any';
   content_glob?: string;
   animation: 'scroll' | 'dmx' | 'none';
+  scroll_text?: string;
+  scroll_size?: ScrollSize;
   asset_path?: string;
   composite?: 'replace' | 'overlay';
   overlay_mode?: 'or' | 'replace' | 'xor' | 'halo';
@@ -70,6 +72,11 @@ function buildRule(base: NotificationRule, changes: RulePatch): NotificationRule
     const assetVal = merged.asset_path ?? merged.dmx_path;
     if (assetVal !== undefined && assetVal !== '') result.asset_path = assetVal;
     if (merged.loop_count !== undefined && merged.loop_count >= 1) result.loop_count = merged.loop_count;
+  }
+
+  if (anim === 'scroll') {
+    if (merged.scroll_text !== undefined && merged.scroll_text !== '') result.scroll_text = merged.scroll_text;
+    if (merged.scroll_size !== undefined && merged.scroll_size !== 'small') result.scroll_size = merged.scroll_size;
   }
 
   if (anim !== 'none' && merged.composite !== undefined && merged.composite !== 'replace') {
@@ -185,7 +192,7 @@ function mergeFrames(left: Uint8Array, right: Uint8Array): Uint8Array {
   return out;
 }
 
-function ScrollPrev({ text, size = 'small', dual = false }: { text: string; size?: ScrollSize; dual?: boolean }) {
+function ScrollPrev({ text = 'test notification', size = 'small', dual = false }: { text?: string; size?: ScrollSize; dual?: boolean }) {
   const [px, setPx] = useState(() => blankB64(dual));
   useEffect(() => {
     setPx(blankB64(dual));
@@ -205,7 +212,7 @@ function ScrollPrev({ text, size = 'small', dual = false }: { text: string; size
 
 function RulePrev({ rule, dual }: { rule: NotificationRule; dual: boolean }) {
   const w = dual ? 91 : 43;
-  if (rule.animation === 'scroll') return <ScrollPrev text="test notification" dual={dual} />;
+  if (rule.animation === 'scroll') return <ScrollPrev {...(rule.scroll_text ? { text: rule.scroll_text } : {})} {...(rule.scroll_size ? { size: rule.scroll_size } : {})} dual={dual} />;
   if (rule.animation === 'dmx') return <DmxPreview filename={rule.asset_path} dual={dual} />;
   return (
     <div aria-hidden="true" className="flex items-center justify-center bg-black shrink-0" style={{ width: w, height: 168 }}>
@@ -549,6 +556,41 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
                 }}
               />
             </FormRow>
+
+            {/* scroll text — scroll only */}
+            {rule.animation === 'scroll' && (
+              <FormRow label="text">
+                <Input
+                  fluid
+                  aria-label="Scroll text"
+                  placeholder="notification text"
+                  value={rule.scroll_text ?? ''}
+                  onChange={e => onUpdate(buildRule(rule, { scroll_text: e.target.value }))}
+                  spellCheck={false}
+                />
+              </FormRow>
+            )}
+
+            {/* scroll size — scroll only */}
+            {rule.animation === 'scroll' && (
+              <FormRow label="size">
+                <Select
+                  fluid
+                  aria-label="Text size"
+                  value={rule.scroll_size ?? 'small'}
+                  options={[
+                    { value: 'tiny', label: 'tiny' },
+                    { value: 'small', label: 'small' },
+                    { value: 'medium', label: 'medium' },
+                    { value: 'large', label: 'large' },
+                  ]}
+                  onValueChange={v => {
+                    const s: ScrollSize | undefined = (v === 'tiny' || v === 'small' || v === 'medium' || v === 'large') ? v : undefined;
+                    onUpdate(buildRule(rule, { scroll_size: s }));
+                  }}
+                />
+              </FormRow>
+            )}
 
             {/* asset — dmx only */}
             {rule.animation === 'dmx' && (

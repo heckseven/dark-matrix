@@ -1,41 +1,83 @@
 import { useState, useEffect, useRef } from 'react';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
-import { Dialog, DialogContent, DialogTitle } from './ui/dialog.js';
+import { Dialog, DialogContent, DialogClose, DialogTitle } from './ui/dialog.js';
 import { Button } from './ui/button.js';
+import { Tooltip } from './ui/tooltip.js';
 import { MatrixPreview } from './MatrixPreview.js';
 import { AssetImportPanel } from './AssetImportPanel.js';
 
+function CornerBrackets({ active }: { active: boolean }) {
+  const c = { position: 'absolute' as const, width: 16, height: 16, pointerEvents: 'none' as const };
+  const b = `1px solid ${active ? 'white' : 'rgba(255,255,255,0.35)'}`;
+  return (
+    <div aria-hidden="true" className={`absolute inset-0 pointer-events-none transition-opacity ${active ? '' : 'opacity-0 group-hover:opacity-100'}`}>
+      <span style={{ ...c, top: 0,    left: 0,    borderTop: b, borderLeft: b }} />
+      <span style={{ ...c, top: 0,    right: 0,   borderTop: b, borderRight: b }} />
+      <span style={{ ...c, bottom: 0, left: 0,    borderBottom: b, borderLeft: b }} />
+      <span style={{ ...c, bottom: 0, right: 0,   borderBottom: b, borderRight: b }} />
+    </div>
+  );
+}
+
+type AnimState = Record<string, { frameIdx: number; elapsed: number; lastTick: number | null }>;
+
 type AssetGridProps = {
   items: AssetMeta[];
-  animState: Record<string, { frameIdx: number; elapsed: number; lastTick: number | null }>;
+  animState: AnimState;
   current?: string;
   onPick: (filename: string, meta: AssetMeta) => void;
 };
 
 function AssetGrid({ items, animState, current, onPick }: AssetGridProps) {
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="flex flex-wrap gap-3">
       {items.map(asset => {
         const frameIdx = animState[asset.name]?.frameIdx ?? 0;
         const pixels = asset.frames[frameIdx] ?? asset.firstFrame;
         const active = asset.name === current;
-        const label = asset.name.replace(/^library\//, '').replace('.dmx.json', '');
+        const slash = asset.name.lastIndexOf('/');
+        const filename = slash === -1 ? asset.name : asset.name.slice(slash + 1);
+        const label = filename.replace('.dmx.json', '');
+        const tooltipLabel = asset.name.replace('.dmx.json', '');
+        const previewW = asset.width === 18 ? 92 : 43;
         return (
-          <button
-            key={asset.name}
-            type="button"
-            aria-label={active ? `${label}, selected` : label}
-            aria-pressed={active}
-            className={`relative flex flex-col gap-2 items-center p-2 w-full rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px] hover:bg-foreground/5${active ? ' outline outline-1 outline-white/40' : ''}${asset.width === 18 ? ' col-span-2' : ''}`}
-            onClick={() => onPick(asset.name, asset)}
-          >
-            <MatrixPreview width={asset.width} pixels={pixels} />
-            <span className="font-mono text-xs text-muted-foreground truncate max-w-full">{label}</span>
-          </button>
+          <Tooltip key={asset.name} content={tooltipLabel} side="top" delayDuration={300}>
+            <button
+              type="button"
+              aria-label={active ? `${label}, selected` : label}
+              aria-pressed={active}
+              className="group relative flex flex-col gap-2 items-center p-2 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
+              onClick={() => onPick(asset.name, asset)}
+            >
+              <CornerBrackets active={active} />
+              <MatrixPreview width={asset.width} pixels={pixels} />
+              <span className="font-mono text-xs text-muted-foreground truncate" style={{ maxWidth: previewW }}>{label}</span>
+            </button>
+          </Tooltip>
         );
       })}
     </div>
   );
+}
+
+function groupByDir(assets: AssetMeta[]): { dir: string; items: AssetMeta[] }[] {
+  const map = new Map<string, AssetMeta[]>();
+  for (const asset of assets) {
+    const slash = asset.name.indexOf('/');
+    const dir = slash === -1 ? 'assets' : asset.name.slice(0, slash);
+    if (!map.has(dir)) map.set(dir, []);
+    map.get(dir)!.push(asset);
+  }
+  const order = ['assets', 'library'];
+  const dirs = [...map.keys()].sort((a, b) => {
+    const ai = order.indexOf(a);
+    const bi = order.indexOf(b);
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1;
+    if (bi !== -1) return 1;
+    return a.localeCompare(b);
+  });
+  return dirs.map(dir => ({ dir, items: map.get(dir) ?? [] }));
 }
 
 export interface AssetPickerModalProps {
@@ -48,7 +90,7 @@ export interface AssetPickerModalProps {
 export function AssetPickerModal({ open, onOpenChange, current, onPick }: AssetPickerModalProps) {
   const [assets, setAssets] = useState<AssetMeta[] | null>(null);
   const [view, setView] = useState<'grid' | 'import'>('grid');
-  const animRef = useRef<Record<string, { frameIdx: number; elapsed: number; lastTick: number | null }>>({});
+  const animRef = useRef<AnimState>({});
   const assetsRef = useRef(assets);
   assetsRef.current = assets;
   const [tick, setTick] = useState(0);
@@ -100,76 +142,76 @@ export function AssetPickerModal({ open, onOpenChange, current, onPick }: AssetP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[520px] max-h-[75vh] flex flex-col gap-0 p-0 overflow-hidden">
+      <DialogContent className="w-[calc(100vw-80px)] h-[calc(100vh-80px)] flex flex-col gap-0 p-0 overflow-hidden">
         <DialogTitle className="sr-only">
           {view === 'import' ? 'Import asset' : 'Pick asset'}
         </DialogTitle>
 
-        {/* header */}
-        <div className="relative flex items-center shrink-0 px-3 py-2 border-b border-foreground/15">
-          {view === 'import' ? (
-            <Button
-              variant="ghost"
-              className="text-foreground/60 text-xs"
-              aria-label="Back to library"
-              onClick={() => setView('grid')}
-            >
-              ‹ library
-            </Button>
-          ) : (
-            <span className="font-mono text-xs text-muted-foreground px-1">assets</span>
-          )}
-          <span className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
-            {view === 'import' ? 'import asset' : 'pick asset'}
-          </span>
-        </div>
-
-        {/* body */}
-        <div className="flex-1 overflow-y-auto p-3">
-          {view === 'import' ? (
-            <AssetImportPanel
-              onSaved={filename => {
-                void fetchAssets().then(list => {
-                  handlePick(filename, list.find(a => a.name === filename));
-                });
-              }}
-            />
-          ) : (
-            <div className="flex flex-col gap-3">
-              {assets === null && (
-                <span className="font-mono text-xs text-muted-foreground">loading…</span>
+        {/* scrollable body with sticky header so blur covers content as it scrolls */}
+        <div className="flex-1 overflow-y-auto">
+          {/* sticky header */}
+          <div
+            className="sticky top-0 z-10 flex items-center px-3 py-2"
+            style={{ backdropFilter: 'blur(4px)', backgroundColor: 'rgba(0,0,0,0.55)' }}
+          >
+            {view === 'import' && (
+              <Button
+                variant="ghost"
+                className="text-foreground/60 text-xs"
+                aria-label="Back to library"
+                onClick={() => setView('grid')}
+              >
+                ‹ library
+              </Button>
+            )}
+            <span className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
+              {view === 'import' ? 'import asset' : 'pick asset'}
+            </span>
+            <div className="ml-auto flex items-center gap-1">
+              {view === 'grid' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="font-mono text-xs"
+                  aria-label="Import asset"
+                  onClick={() => setView('import')}
+                >
+                  import
+                </Button>
               )}
-              {assets !== null && (
-                <>
-                  {assets.length === 0 && (
-                    <p className="font-mono text-xs text-muted-foreground">no assets — import one to get started</p>
-                  )}
-                  {assets.length > 0 && (() => {
-                    const assetFiles = assets.filter(a => !a.name.startsWith('library/'));
-                    const libraryFiles = assets.filter(a => a.name.startsWith('library/'));
-                    return (
-                      <>
-                        {assetFiles.length > 0 && <AssetGrid items={assetFiles} animState={animRef.current} current={current} onPick={handlePick} />}
-                        {libraryFiles.length > 0 && (
-                          <>
-                            <h3 className="font-mono text-xs text-muted-foreground/50 mt-1">library</h3>
-                            <AssetGrid items={libraryFiles} animState={animRef.current} current={current} onPick={handlePick} />
-                          </>
-                        )}
-                      </>
-                    );
-                  })()}
-                  <Button
-                    variant="ghost"
-                    className="self-start font-mono text-xs"
-                    onClick={() => setView('import')}
-                  >
-                    + import
-                  </Button>
-                </>
-              )}
+              <DialogClose asChild>
+                <Button variant="ghost" size="sm" aria-label="Close asset picker" tooltip="Close" tooltipSide="left">×</Button>
+              </DialogClose>
             </div>
-          )}
+          </div>
+
+          {/* content */}
+          <div className="p-3">
+            {view === 'import' ? (
+              <AssetImportPanel
+                onSaved={filename => {
+                  void fetchAssets().then(list => {
+                    handlePick(filename, list.find(a => a.name === filename));
+                  });
+                }}
+              />
+            ) : (
+              <div className="flex flex-col gap-6">
+                {assets === null && (
+                  <span role="status" className="font-mono text-xs text-muted-foreground">loading…</span>
+                )}
+                {assets !== null && assets.length === 0 && (
+                  <p className="font-mono text-xs text-muted-foreground">no assets — import one to get started</p>
+                )}
+                {assets !== null && assets.length > 0 && groupByDir(assets).map(({ dir, items }) => (
+                  <div key={dir} className="flex flex-col gap-3">
+                    <h2 className="font-mono text-xs text-muted-foreground/50">{dir}</h2>
+                    <AssetGrid items={items} animState={animRef.current} {...(current !== undefined ? { current } : {})} onPick={handlePick} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

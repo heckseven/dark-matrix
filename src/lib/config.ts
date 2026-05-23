@@ -38,6 +38,8 @@ const NotificationRuleSchema = z.object({
   app_name_glob: z.string().optional(),
   urgency: z.enum(['low', 'normal', 'critical', 'any']).optional(),
   animation: z.enum(['scroll', 'dmx', 'none']),
+  scroll_text: z.string().max(200).optional(),
+  scroll_size: z.enum(['tiny', 'small', 'medium', 'large']).optional(),
   dmx_path: z.string().regex(/\.dmx\.json$/i).optional(),
   source: z.enum(['ec-switch', 'vm', 'claude', 'desktop-notification', 'manual']).optional(),
   content_glob: z.string().optional(),
