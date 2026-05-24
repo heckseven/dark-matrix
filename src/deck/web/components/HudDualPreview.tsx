@@ -150,12 +150,21 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, 
       const frame = cached.frames[cached.frameIdx] ?? cached.frames[0]!;
       if (cached.width === 18) return extractHalf(frame, side);
       return frame;
-    } else {
-      const style = widget.style ?? 'line';
-      const frame = getDataRenderer(style).render();
+    } else if (widget.widget === 'life') {
+      const biomes = deckStore.getState().biomePresets;
+      const b = biomes.find(b => b.name === widget.biomeName);
+      if (!b?.gridSnapshot) return empty;
+      const raw = b64ToUint8(b.gridSnapshot, COLS * ROWS);
+      const out = new Uint8Array(COLS * ROWS);
+      for (let i = 0; i < out.length; i++) out[i] = raw[i]! > 0 ? 255 : 0;
+      return out;
+    } else if (widget.widget === 'data') {
+      const frame = getDataRenderer(widget.style ?? 'line').render();
       const out = new Uint8Array(COLS * ROWS);
       for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
       return out;
+    } else {
+      return empty;
     }
   } catch {
     return empty;

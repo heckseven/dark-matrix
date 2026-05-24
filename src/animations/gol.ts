@@ -69,6 +69,30 @@ function toFrame(grid: Uint8Array): Frame {
   return f;
 }
 
+export function createBiomeStep(algorithm: LifeAlgorithm): (grid: Uint8Array) => Uint8Array {
+  const { birth, survival } = LIFE_ALGORITHMS[algorithm];
+  return (grid) => step(grid, birth, survival);
+}
+
+export function createBiomeGrid(snapshot?: string, density = 0.35, seed?: number): Uint8Array {
+  if (snapshot) {
+    try {
+      const bin = atob(snapshot);
+      const grid = new Uint8Array(COLS * ROWS);
+      for (let i = 0; i < grid.length; i++) grid[i] = (i < bin.length ? bin.charCodeAt(i) : 0) > 127 ? 1 : 0;
+      return grid;
+    } catch { /* fall through to random */ }
+  }
+  const rng = makePrng(seed ?? (Math.random() * 0xffffffff) >>> 0);
+  const g = new Uint8Array(COLS * ROWS);
+  for (let i = 0; i < g.length; i++) g[i] = rng() < density ? 1 : 0;
+  return g;
+}
+
+export function gridToFrame(grid: Uint8Array): Frame {
+  return toFrame(grid);
+}
+
 export function createGolAnimation(opts?: GolOptions): Animation {
   const totalFrames = opts?.frames ?? 420;
   const loop = opts?.loop ?? true;

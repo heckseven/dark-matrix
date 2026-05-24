@@ -15,7 +15,9 @@ import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.
 import { createHeatmapState, bumpTool, tickHeatmap, renderHeatmap } from '../../../animations/heatmap.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
-import { deckStore } from '../store.js';
+import { Slider } from './ui/slider.js';
+import { Text } from './ui/text.js';
+import { deckStore, useDeckStore } from '../store.js';
 
 const COLS = 9;
 const ROWS = 34;
@@ -60,11 +62,14 @@ function categoryOfWidget(w: HudWidget): string {
   if (w.widget === 'heatmap') return 'ai';
   if (w.widget === 'audio')   return 'audio';
   if (w.widget === 'image')   return 'image';
+  if (w.widget === 'life')    return 'life';
   return 'data';
 }
 
 function widgetHasSettings(w: HudWidget): boolean {
-  return w.widget === 'data' && (w.style === 'line' || w.style === 'fill' || w.style === undefined);
+  if (w.widget === 'data') return w.style === 'line' || w.style === 'fill' || w.style === undefined;
+  if (w.widget === 'life') return w.biomeName === 'random';
+  return false;
 }
 
 // ── corner brackets ───────────────────────────────────────────────────────
@@ -77,6 +82,7 @@ const CATEGORIES = [
   { id: 'data',  label: 'data'  },
   { id: 'image', label: 'image' },
   { id: 'ai',    label: 'ai'    },
+  { id: 'life',  label: 'life'  },
 ] as const;
 
 function CategoryList({ currentWidget, onSelect }: {
@@ -294,6 +300,75 @@ function AiGrid({ currentWidget, onPick }: {
         isSelected={currentWidget?.widget === 'heatmap'}
         onSelect={() => onPick({ widget: 'heatmap' })}
       />
+    </div>
+  );
+}
+
+// ── Layer 2: Life grid ────────────────────────────────────────────────────
+
+function LifeGrid({ currentWidget, onPick, onSettings }: {
+  currentWidget: HudWidget | null;
+  onPick: (w: HudWidget) => void;
+  onSettings: (w: HudWidget) => void;
+}) {
+  const biomePresets = useDeckStore(s => s.biomePresets);
+  const randomSelected = currentWidget?.widget === 'life' && currentWidget.biomeName === 'random';
+
+  return (
+    <div role="group" aria-label="Life panels" className="grid grid-cols-3 gap-4 justify-items-center">
+      <MatrixItem
+        name="random"
+        aria-label={randomSelected ? 'random cycling, selected' : 'random cycling'}
+        width={9}
+        pixels={EMPTY_PIXELS}
+        isSelected={randomSelected}
+        onSelect={() => onSettings({ widget: 'life', biomeName: 'random', randomIntervalMs: 30000 })}
+      />
+      {biomePresets.map(b => {
+        const isSelected = currentWidget?.widget === 'life' && currentWidget.biomeName === b.name;
+        return (
+          <MatrixItem
+            key={b.name}
+            name={b.name}
+            aria-label={isSelected ? `${b.name} biome, selected` : `${b.name} biome`}
+            width={9}
+            pixels={b.gridSnapshot ?? EMPTY_PIXELS}
+            isSelected={isSelected}
+            onSelect={() => onPick({ widget: 'life', biomeName: b.name })}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Layer 3: Life random settings ─────────────────────────────────────────
+
+function LifeRandomSettings({ widget, onChange }: {
+  widget: HudWidget & { widget: 'life' };
+  onChange: (w: HudWidget) => void;
+}) {
+  const intervalMs = widget.randomIntervalMs ?? 30000;
+  const intervalSec = Math.round(intervalMs / 1000);
+  const label = intervalSec < 60 ? `${intervalSec}s` : `${Math.round(intervalSec / 60)}m`;
+  return (
+    <div role="group" aria-label="Life random settings" className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <label htmlFor="life-random-interval">
+            <Text as="span" size="xs">interval</Text>
+          </label>
+          <Text as="span" size="xs" variant="muted">{label}</Text>
+        </div>
+        <Slider
+          id="life-random-interval"
+          value={intervalSec}
+          min={5}
+          max={3600}
+          step={5}
+          onChange={e => onChange({ ...widget, randomIntervalMs: Number(e.target.value) * 1000 })}
+        />
+      </div>
     </div>
   );
 }
@@ -717,6 +792,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
               {activeCategory === 'data'   && <DataGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} />}
               {activeCategory === 'ai'     && <AiGrid    currentWidget={widget} onPick={handlePick} />}
               {activeCategory === 'audio'  && <AudioGrid currentWidget={widget} audioCtx={audioCtx} side={side} onPick={handlePick} onMount={handleAudioMount} onUnmount={handleAudioUnmount} />}
+              {activeCategory === 'life'   && <LifeGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} />}
               {activeCategory === 'image'  && (
                 <ImageGrid
                   currentWidget={widget}
@@ -734,7 +810,20 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
     );
   }
 
-  // ── Layer 3 (data settings only)
+  // ── Layer 3 (data settings or life random settings)
+  if (widget?.widget === 'life' && widget.biomeName === 'random') {
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        {header}
+        <div className="flex-1 overflow-y-auto">
+          <div className="py-4 px-2">
+            <LifeRandomSettings widget={widget} onChange={onChange} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (widget?.widget !== 'data') return null;
 
   return (

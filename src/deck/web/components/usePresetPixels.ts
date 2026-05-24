@@ -114,6 +114,11 @@ function renderWidgetToB64(
       const frameIdx = imageAnim?.[widget.file]?.frameIdx ?? 0;
       return extractHalfB64(asset, side, frameIdx);
     }
+    if (widget.widget === 'life') {
+      if (widget.biomeName === 'random') return empty;
+      const b = deckStore.getState().biomePresets.find(b => b.name === widget.biomeName);
+      return b?.gridSnapshot ?? empty;
+    }
     const style: DataStyle = widget.style ?? 'line';
     if (!_dataCache[style]) _dataCache[style] = createDataRenderer({ style });
     const frame = _dataCache[style]!.render();

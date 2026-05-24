@@ -401,7 +401,7 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCo
       }
 
       // Stasis detection on the visual state
-      if (stasisAction === 'inject') {
+      if (stasisAction === 'inject' || stasisAction === 'restart') {
         const prev  = state.current.prevGrid;
         const prev2 = state.current.prev2Grid;
         const stasis =
@@ -411,7 +411,21 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCo
         if (stasis) {
           state.current.stasisCount++;
           if (state.current.stasisCount >= stasisTicks) {
-            grid = applySpawn(grid, Math.max(9, sr * 3), mode, cols);
+            if (stasisAction === 'restart') {
+              const snap = b?.gridSnapshot;
+              const expectedBytes = cols * ROWS;
+              if (snap) {
+                const decoded = decodeGrid(snap);
+                grid = (decoded.length === expectedBytes ? decoded : makeRandomGrid(cols)) as Uint8Array<ArrayBuffer>;
+              } else {
+                grid = makeRandomGrid(cols) as Uint8Array<ArrayBuffer>;
+              }
+              state.current.prevGrid  = null;
+              state.current.prev2Grid = null;
+              state.current.phase = 'normal';
+            } else {
+              grid = applySpawn(grid, Math.max(9, sr * 3), mode, cols);
+            }
             state.current.stasisCount = 0;
           }
         } else {

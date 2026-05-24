@@ -1643,17 +1643,21 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
         }
         sendToDaemon({ cmd: 'hud-hardware-start' }).catch(() => {});
       } else if (type === 'hud-config') {
-        const leftFace        = typeof msg['leftFace']        === 'string' ? msg['leftFace']        : undefined;
-        const leftWidget      = typeof msg['leftWidget']      === 'string' ? msg['leftWidget']      : undefined;
-        const leftDataStyle   = typeof msg['leftDataStyle']   === 'string' ? msg['leftDataStyle']   : undefined;
-        const leftAudioStyle  = typeof msg['leftAudioStyle']  === 'string' ? msg['leftAudioStyle']  : undefined;
-        const leftFile        = typeof msg['leftFile']        === 'string' ? msg['leftFile']        : undefined;
-        const rightFace       = typeof msg['rightFace']       === 'string' ? msg['rightFace']       : undefined;
-        const rightWidget     = typeof msg['rightWidget']     === 'string' ? msg['rightWidget']     : undefined;
-        const rightDataStyle  = typeof msg['rightDataStyle']  === 'string' ? msg['rightDataStyle']  : undefined;
-        const rightAudioStyle = typeof msg['rightAudioStyle'] === 'string' ? msg['rightAudioStyle'] : undefined;
-        const rightFile       = typeof msg['rightFile']       === 'string' ? msg['rightFile']       : undefined;
-        sendToDaemon({ cmd: 'hud-config', leftFace, leftWidget, leftDataStyle, leftAudioStyle, leftFile, rightFace, rightWidget, rightDataStyle, rightAudioStyle, rightFile }).catch(() => {});
+        const leftFace               = typeof msg['leftFace']               === 'string' ? msg['leftFace']               : undefined;
+        const leftWidget             = typeof msg['leftWidget']             === 'string' ? msg['leftWidget']             : undefined;
+        const leftDataStyle          = typeof msg['leftDataStyle']          === 'string' ? msg['leftDataStyle']          : undefined;
+        const leftAudioStyle         = typeof msg['leftAudioStyle']         === 'string' ? msg['leftAudioStyle']         : undefined;
+        const leftFile               = typeof msg['leftFile']               === 'string' ? msg['leftFile']               : undefined;
+        const leftBiomeName          = typeof msg['leftBiomeName']          === 'string' ? msg['leftBiomeName']          : undefined;
+        const leftRandomIntervalMs   = typeof msg['leftRandomIntervalMs']   === 'number' ? Math.max(5000, Math.min(3_600_000, msg['leftRandomIntervalMs']))  : undefined;
+        const rightFace              = typeof msg['rightFace']              === 'string' ? msg['rightFace']              : undefined;
+        const rightWidget            = typeof msg['rightWidget']            === 'string' ? msg['rightWidget']            : undefined;
+        const rightDataStyle         = typeof msg['rightDataStyle']         === 'string' ? msg['rightDataStyle']         : undefined;
+        const rightAudioStyle        = typeof msg['rightAudioStyle']        === 'string' ? msg['rightAudioStyle']        : undefined;
+        const rightFile              = typeof msg['rightFile']              === 'string' ? msg['rightFile']              : undefined;
+        const rightBiomeName         = typeof msg['rightBiomeName']         === 'string' ? msg['rightBiomeName']         : undefined;
+        const rightRandomIntervalMs  = typeof msg['rightRandomIntervalMs']  === 'number' ? Math.max(5000, Math.min(3_600_000, msg['rightRandomIntervalMs'])) : undefined;
+        sendToDaemon({ cmd: 'hud-config', leftFace, leftWidget, leftDataStyle, leftAudioStyle, leftFile, leftBiomeName, leftRandomIntervalMs, rightFace, rightWidget, rightDataStyle, rightAudioStyle, rightFile, rightBiomeName, rightRandomIntervalMs }).catch(() => {});
       } else if (type === 'hud-presets-get') {
         void (async () => {
           try {

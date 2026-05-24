@@ -10,10 +10,13 @@ export interface BiomePreset {
   spawnMode?: 'scatter' | 'cluster' | 'edge';
   adaptiveSpawn?: boolean;
   adaptiveThreshold?: number;
-  stasisAction?: 'off' | 'inject';
+  stasisAction?: 'off' | 'inject' | 'restart';
   stasisTicks?: number;
   invertMode?: 'off' | 'threshold';
   invertAt?: number;
   restoreAt?: number;
   gridSnapshot?: string;
+  rerunMode?: 'off' | 'time' | 'generations';
+  rerunAfterMs?: number;
+  rerunAfterGenerations?: number;
 }

@@ -13,6 +13,7 @@ const HudWidgetSchema = z.discriminatedUnion('widget', [
   z.object({ widget: z.literal('heatmap') }),
   z.object({ widget: z.literal('audio'), style: z.enum(['vu-glitch', 'circuit', 'spirits', 'scope-dual', 'kick-d', 'waterfall', 'sparks', 'hex', 'specter', 'heat', 'dark-matter', 'spectrum-fall', 'neo', 'cipher', 'wake', 'rhythm', 'drop', 'life-erode-4', 'glitch-sort-b', 'spiral-d', 'strobe', 'glitch-corrupt']).optional() }),
   z.object({ widget: z.literal('image'), file: z.string().regex(/^[a-zA-Z0-9_\-]+\.dmx\.json$/i).max(73), speed: z.number().min(0.25).max(8).optional(), loop: z.boolean().optional() }),
+  z.object({ widget: z.literal('life'), biomeName: z.string().min(1).max(100), randomIntervalMs: z.number().int().min(5000).max(3_600_000).optional() }),
 ]);
 
 const HudTriggerSchema = z.discriminatedUnion('type', [
@@ -104,12 +105,15 @@ export const ConfigSchema = z.object({
     spawnMode: z.enum(['scatter', 'cluster', 'edge']).optional(),
     adaptiveSpawn: z.boolean().optional(),
     adaptiveThreshold: z.number().min(0.01).max(0.5).optional(),
-    stasisAction: z.enum(['off', 'inject']).optional(),
+    stasisAction: z.enum(['off', 'inject', 'restart']).optional(),
     stasisTicks: z.number().int().min(1).max(60).optional(),
     invertMode: z.enum(['off', 'threshold']).optional(),
     invertAt: z.number().min(0.1).max(0.99).optional(),
     restoreAt: z.number().min(0.01).max(0.9).optional(),
     gridSnapshot: z.string().max(820).optional(),
+    rerunMode: z.enum(['off', 'time', 'generations']).optional(),
+    rerunAfterMs: z.number().int().min(5000).max(3_600_000).optional(),
+    rerunAfterGenerations: z.number().int().min(50).max(10_000).optional(),
   })).optional().superRefine((presets, ctx) => {
     if (!presets) return;
     const names = presets.map(p => p.name);

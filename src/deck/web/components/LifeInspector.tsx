@@ -53,6 +53,9 @@ export function LifeInspector({ biome, onChange, onRandomize, onOpenLibrary, onI
   const adaptiveThresh = biome.adaptiveThreshold ?? 0.1;
   const stasisAction   = biome.stasisAction   ?? 'off';
   const stasisTicks    = biome.stasisTicks    ?? 5;
+  const rerunMode      = biome.rerunMode      ?? 'off';
+  const rerunAfterMs   = biome.rerunAfterMs   ?? 60000;
+  const rerunAfterGens = biome.rerunAfterGenerations ?? 500;
   const invertMode     = biome.invertMode     ?? 'off';
   const invertAt       = biome.invertAt       ?? 0.85;
   const restoreAt      = biome.restoreAt      ?? 0.30;
@@ -170,6 +173,7 @@ export function LifeInspector({ biome, onChange, onRandomize, onOpenLibrary, onI
         <SectionHeader label="stability" help={<>
           <p>Detects when the simulation gets stuck: dead grid, still-life (grid unchanged), or period-2 oscillator (same as 2 ticks ago).</p>
           <p><strong>inject</strong> — fires a burst of new cells after the set number of consecutive stasis ticks.</p>
+          <p><strong>restart</strong> — resets the grid from the saved snapshot after the set number of stasis ticks.</p>
         </>} />
 
         <div className="mb-4">
@@ -179,15 +183,16 @@ export function LifeInspector({ biome, onChange, onRandomize, onOpenLibrary, onI
           <Tabs
             aria-label="Stasis action"
             options={[
-              { value: 'off',    label: 'off'    },
-              { value: 'inject', label: 'inject' },
+              { value: 'off',     label: 'off'     },
+              { value: 'inject',  label: 'inject'  },
+              { value: 'restart', label: 'restart' },
             ]}
             value={stasisAction}
-            onChange={v => onChange({ ...biome, stasisAction: v as 'off' | 'inject' })}
+            onChange={v => onChange({ ...biome, stasisAction: v as 'off' | 'inject' | 'restart' })}
           />
         </div>
 
-        {stasisAction === 'inject' && (
+        {(stasisAction === 'inject' || stasisAction === 'restart') && (
           <div className="mb-4">
             <div className="flex items-center justify-between mb-1">
               <Text as="span" size="xs">after</Text>
@@ -200,6 +205,69 @@ export function LifeInspector({ biome, onChange, onRandomize, onOpenLibrary, onI
               max={60}
               step={1}
               onChange={e => onChange({ ...biome, stasisTicks: Number(e.target.value) })}
+            />
+          </div>
+        )}
+      </section>
+
+      {/* Rerun */}
+      <section>
+        <SectionHeader label="rerun" help={<>
+          <p>Automatically restart the simulation after a condition is met.</p>
+          <p><strong>time</strong> — restart after the set number of seconds.</p>
+          <p><strong>generations</strong> — restart after the set number of ticks.</p>
+          <p>Restarts from the saved snapshot, or a fresh random grid if none is saved.</p>
+        </>} />
+
+        <div className="mb-4">
+          <Tabs
+            aria-label="Rerun mode"
+            options={[
+              { value: 'off',         label: 'off'   },
+              { value: 'time',        label: 'time'  },
+              { value: 'generations', label: 'gens'  },
+            ]}
+            value={rerunMode}
+            onChange={v => onChange({ ...biome, rerunMode: v as 'off' | 'time' | 'generations' })}
+          />
+        </div>
+
+        {rerunMode === 'time' && (
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="rerun-interval-time">
+                <Text as="span" size="xs">after</Text>
+              </label>
+              <Text as="span" size="xs" variant="muted">
+                {rerunAfterMs < 60000 ? `${Math.round(rerunAfterMs / 1000)}s` : `${Math.round(rerunAfterMs / 60000)}m`}
+              </Text>
+            </div>
+            <Slider
+              id="rerun-interval-time"
+              value={Math.round(rerunAfterMs / 1000)}
+              min={5}
+              max={3600}
+              step={5}
+              onChange={e => onChange({ ...biome, rerunAfterMs: Number(e.target.value) * 1000 })}
+            />
+          </div>
+        )}
+
+        {rerunMode === 'generations' && (
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="rerun-interval-gens">
+                <Text as="span" size="xs">after</Text>
+              </label>
+              <Text as="span" size="xs" variant="muted">{rerunAfterGens} gens</Text>
+            </div>
+            <Slider
+              id="rerun-interval-gens"
+              value={rerunAfterGens}
+              min={50}
+              max={10000}
+              step={50}
+              onChange={e => onChange({ ...biome, rerunAfterGenerations: Number(e.target.value) })}
             />
           </div>
         )}

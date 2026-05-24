@@ -7,7 +7,8 @@ export type HudWidget =
   | { widget: 'data'; style?: DataStyle; top_left?: DataMetric; top_right?: DataMetric; bottom_left?: DataMetric; bottom_right?: DataMetric }
   | { widget: 'heatmap' }
   | { widget: 'audio'; style?: AudioStyle }
-  | { widget: 'image'; file: string; speed?: number; loop?: boolean };
+  | { widget: 'image'; file: string; speed?: number; loop?: boolean }
+  | { widget: 'life'; biomeName: string; randomIntervalMs?: number };
 
 export type HudTrigger =
   | { type: 'time'; from: string; to: string }
