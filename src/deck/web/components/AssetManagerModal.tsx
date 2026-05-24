@@ -256,7 +256,7 @@ export function AssetManagerModal({ open, onOpenChange, onOpenAsset }: AssetMana
             {view === 'import' ? (
               <AssetImportPanel
                 onSaved={() => {
-                  void fetchAssets().then(() => setView('grid')).catch(console.error);
+                  void fetchAssets().then(() => setView('grid'));
                 }}
               />
             ) : (

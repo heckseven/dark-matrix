@@ -144,7 +144,7 @@ export function MatrixItemList<T>({
   const overlap = gap === '2xl';
   const As = semantic ? 'ul' : 'div';
   const Item = semantic ? 'li' : 'div';
-  const listRole = semantic ? undefined : 'list';
+  const listRole = 'list';
   const itemRole = semantic ? undefined : 'listitem';
   const dragProps = (idx: number): MatrixItemDragProps => ({
     dragIdx: idx,
@@ -152,15 +152,11 @@ export function MatrixItemList<T>({
     onDrop: onMove,
   });
 
-  const outerStyle: React.CSSProperties = {};
-  if (topPadding != null) outerStyle.paddingTop = topPadding;
-  if (bottomPadding != null) outerStyle.paddingBottom = bottomPadding;
-
   return (
     <div
       ref={scrollRef}
       className="flex flex-col overflow-y-auto flex-1 min-h-0 pr-2 [scrollbar-gutter:stable]"
-      style={Object.keys(outerStyle).length ? outerStyle : undefined}
+      style={{ paddingTop: topPadding, paddingBottom: bottomPadding }}
       onDragLeave={(e: React.DragEvent) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropTarget(null);
       }}

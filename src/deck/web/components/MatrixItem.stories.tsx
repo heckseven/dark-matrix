@@ -135,6 +135,7 @@ export const NameOnly: Story = {
 
 /** No name — frame-strip style (unnamed cells). */
 export const NoName: Story = {
+  args: { onSelect: undefined },
   render: ({ controlsTop, controlsBottom, onSelect, isActive = false, isSelected = false }) => (
     <MatrixItem
       aria-label="Frame 1"
@@ -156,7 +157,7 @@ export const Renameable: Story = {
 
 /** Preview renders as a button (asset-manager style — no drag, no onSelect). */
 export const PreviewClickable: Story = {
-  args: { onPreviewClick: fn() },
+  args: { onPreviewClick: fn(), onSelect: undefined },
   render: ({ onPreviewClick }) => (
     <MatrixItem
       name="my-asset"
