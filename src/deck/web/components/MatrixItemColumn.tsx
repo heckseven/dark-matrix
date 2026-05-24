@@ -92,6 +92,7 @@ export function MatrixItemColumn<T>({
   semantic,
   gap,
 }: MatrixItemColumnProps<T>) {
+  // counter value unused; increment triggers a re-render
   const [, forceUpdate] = useReducer(c => c + 1, 0);
   const tickRef   = useRef(0);
   const onTickRef = useRef(onTick);
@@ -124,33 +125,37 @@ export function MatrixItemColumn<T>({
 
         const controlsTop = onMove ? (
           <>
-            <Button variant="ghost" className="w-8" aria-label="Move up" tooltip="Move up" tooltipSide="right"
+            <Button variant="ghost" className="w-8" aria-label={`Move ${label} up`} tooltip={`Move ${label} up`} tooltipSide="right"
               disabled={idx === 0}
               onClick={e => { e.stopPropagation(); onMove(idx, idx - 1); }}>↑</Button>
-            <Button variant="ghost" className="w-8" aria-label="Move down" tooltip="Move down" tooltipSide="right"
+            <Button variant="ghost" className="w-8" aria-label={`Move ${label} down`} tooltip={`Move ${label} down`} tooltipSide="right"
               disabled={idx === items.length - 1}
               onClick={e => { e.stopPropagation(); onMove(idx, idx + 1); }}>↓</Button>
           </>
         ) : undefined;
 
-        const hasBottom = Boolean(onActivate) || Boolean(extraControls)
-          || Boolean(onDuplicate) || (Boolean(onDelete) && items.length > 1);
+        const extraNode = extraControls?.(item, idx) ?? null;
+        const hasBottom = Boolean(onActivate)
+          || extraNode !== null
+          || Boolean(onDuplicate)
+          || (Boolean(onDelete) && items.length > 1);
         const controlsBottom = hasBottom ? (
           <>
             {onActivate && (active ? (
               <Button variant="primary" className="w-8" aria-label={activeLabel} tooltip={activeLabel} tooltipSide="right"
+                aria-pressed={true} aria-disabled={true}
                 onClick={e => e.stopPropagation()}>∗</Button>
             ) : (
               <Button variant="ghost" className="w-8" aria-label={activateLabel} tooltip={activateLabel} tooltipSide="right"
                 onClick={e => { e.stopPropagation(); onActivate(item); }}>•</Button>
             ))}
-            {extraControls?.(item, idx)}
+            {extraNode}
             {onDuplicate && (
-              <Button variant="ghost" className="w-8" aria-label="Clone" tooltip="Clone" tooltipSide="right"
+              <Button variant="ghost" className="w-8" aria-label={`Clone ${label}`} tooltip={`Clone ${label}`} tooltipSide="right"
                 onClick={e => { e.stopPropagation(); onDuplicate(item, idx); }}>⧉</Button>
             )}
             {onDelete && items.length > 1 && (
-              <Button variant="ghost" className="w-8" aria-label="Delete" tooltip="Delete" tooltipSide="right"
+              <Button variant="ghost" className="w-8" aria-label={`Delete ${label}`} tooltip={`Delete ${label}`} tooltipSide="right"
                 onClick={e => { e.stopPropagation(); onDelete(item, idx); }}>×</Button>
             )}
           </>
@@ -166,7 +171,7 @@ export function MatrixItemColumn<T>({
             {...(name !== undefined ? { name } : {})}
             {...(onSelect  ? { onSelect: () => onSelect(item, idx) } : {})}
             {...(onRename  ? { onRename: newName => onRename(item, newName) } : {})}
-            {...(onMove    ? { dragIdx: dragProps.dragIdx, onDragOver: dragProps.onDragOver, onDrop: dragProps.onDrop } : {})}
+            {...(onMove    ? { dragIdx: dragProps.dragIdx, count: dragProps.count, onDragOver: dragProps.onDragOver, onDrop: dragProps.onDrop } : {})}
             {...(controlsTop    !== undefined ? { controlsTop }    : {})}
             {...(controlsBottom !== undefined ? { controlsBottom } : {})}
           />

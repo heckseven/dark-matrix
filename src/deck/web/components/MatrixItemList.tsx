@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils.js';
 
 export type MatrixItemDragProps = {
   dragIdx: number;
+  count: number;
   onDragOver: (insertAt: number | null) => void;
   onDrop: (from: number, to: number) => void;
 };
@@ -153,6 +154,7 @@ export function MatrixItemList<T>({
   const itemRole = semantic ? undefined : 'listitem';
   const dragProps = (idx: number): MatrixItemDragProps => ({
     dragIdx: idx,
+    count: items.length,
     onDragOver: setDropTarget,
     onDrop: onMove,
   });
@@ -169,7 +171,6 @@ export function MatrixItemList<T>({
       }}
     >
       <As
-        aria-label={ariaLabel}
         role={listRole}
         className={`flex flex-col ${gapClass} pb-2 pt-2`}
         style={{ listStyle: 'none', padding: 0, margin: 0 }}

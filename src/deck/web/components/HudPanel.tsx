@@ -122,7 +122,7 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
   // ── WebSocket lifecycle ──────────────────────────────────────────────
 
   useEffect(() => {
-    const ws = new WebSocket(`ws://${location.host}/ws`);
+    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
     wsRef.current = ws;
     _moduleWs = ws;
 

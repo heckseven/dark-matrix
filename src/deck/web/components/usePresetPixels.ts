@@ -151,7 +151,7 @@ export function usePresetPixels(presets: HudPresetClient[], audioCtx: RenderCtx)
 
   useEffect(() => {
     const hasImage = presets.some(p => p.left?.widget === 'image' || p.right?.widget === 'image');
-    if (hasImage) void deckStore.getState().loadAssets();
+    if (hasImage) deckStore.getState().loadAssets().catch(err => console.error('[usePresetPixels] loadAssets failed:', err));
   }, [presets]);
 
   const onTick = useCallback((_tick: number) => {

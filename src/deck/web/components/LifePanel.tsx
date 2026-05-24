@@ -92,7 +92,7 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
   // ── WS lifecycle ──────────────────────────────────────────────────────
 
   useEffect(() => {
-    const ws = new WebSocket(`ws://${location.host}/ws`);
+    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
     wsRef.current = ws;
 
     ws.addEventListener('open', () => {
@@ -269,15 +269,7 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
           <MatrixItemColumn<BiomePreset>
             items={biomePresets}
             getKey={b => b.name}
-            getPixels={b => {
-              const snap = b.gridSnapshot;
-              if (!snap) return btoa(String.fromCharCode(...new Uint8Array(9 * ROWS)));
-              try {
-                return snap;
-              } catch {
-                return btoa(String.fromCharCode(...new Uint8Array(9 * ROWS)));
-              }
-            }}
+            getPixels={b => b.gridSnapshot ?? btoa(String.fromCharCode(...new Uint8Array(9 * ROWS)))}
             getWidth={b => {
               const snap = b.gridSnapshot;
               if (!snap) return 9;

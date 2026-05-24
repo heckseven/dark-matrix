@@ -29,6 +29,7 @@ export type MatrixItemProps = {
   controlsTop?: ReactNode;
   controlsBottom?: ReactNode;
   dragIdx?: number;
+  count?: number;
   onDragOver?: (insertAt: number | null) => void;
   onDrop?: (from: number, to: number) => void;
 };
@@ -46,6 +47,7 @@ export function MatrixItem({
   controlsTop,
   controlsBottom,
   dragIdx,
+  count,
   onDragOver,
   onDrop,
 }: MatrixItemProps) {
@@ -132,7 +134,7 @@ export function MatrixItem({
         const insertAt = insertAtRef.current;
         insertAtRef.current = null;
         onDragOver?.(null);
-        if (!Number.isInteger(from) || from < 0 || insertAt === null) return;
+        if (!Number.isInteger(from) || from < 0 || (count !== undefined && from >= count) || insertAt === null) return;
         const to = from < insertAt ? insertAt - 1 : insertAt;
         if (to !== from) onDrop?.(from, to);
       } : undefined}
