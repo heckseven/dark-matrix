@@ -77,6 +77,7 @@ export function FrameStrip({ topPadding = 0, bottomPadding = 0 }: { topPadding?:
       aria-label="Animation frames"
       semantic={false}
       gap="2xl"
+      sideAlign="start"
       topPadding={topPadding}
       bottomPadding={bottomPadding}
     />

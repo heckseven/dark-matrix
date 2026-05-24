@@ -17,7 +17,7 @@ function snapshotPixels(snap: string | undefined): { pixels: string; width: 9 | 
   }
 }
 
-export function BiomeList({ biomes, activeName, selectedName, onSelect, onActivate, onCreate, onInsert, onDelete, onDuplicate, onRename, onMove }: {
+export function BiomeList({ biomes, activeName, selectedName, onSelect, onActivate, onCreate, onInsert, onDelete, onDuplicate, onRename, onMove, sideAlign, topPadding, bottomPadding }: {
   biomes: BiomePreset[];
   activeName: string | null;
   selectedName: string | null;
@@ -29,6 +29,9 @@ export function BiomeList({ biomes, activeName, selectedName, onSelect, onActiva
   onDuplicate(name: string): void;
   onRename(oldName: string, newName: string): void;
   onMove(fromIdx: number, toIdx: number): void;
+  sideAlign?: 'start' | 'end';
+  topPadding?: number;
+  bottomPadding?: number;
 }) {
   return (
     <MatrixItemList
@@ -96,6 +99,9 @@ export function BiomeList({ biomes, activeName, selectedName, onSelect, onActiva
       addLabel="Add biome"
       emptyText="no biomes"
       aria-label="Biomes"
+      {...(sideAlign !== undefined ? { sideAlign } : {})}
+      {...(topPadding !== undefined ? { topPadding } : {})}
+      {...(bottomPadding !== undefined ? { bottomPadding } : {})}
     />
   );
 }

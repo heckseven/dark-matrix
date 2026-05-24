@@ -46,12 +46,34 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
   const cols: 9 | 18 = dualModule ? 18 : 9;
   const selectedBiome = biomePresets.find(b => b.name === selectedBiomeName) ?? null;
 
-  const wsRef     = useRef<WebSocket | null>(null);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const colsRef   = useRef<9 | 18>(cols);
-  const dualRef   = useRef(dualModule);
+  const wsRef      = useRef<WebSocket | null>(null);
+  const saveTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const colsRef    = useRef<9 | 18>(cols);
+  const dualRef    = useRef(dualModule);
+  const mainRef    = useRef<HTMLElement | null>(null);
+  const previewRef = useRef<HTMLDivElement | null>(null);
   colsRef.current = cols;
   dualRef.current = dualModule;
+
+  const [biomeTopPad, setBiomeTopPad] = useState(0);
+
+  // Keep biome list top edge aligned with the LifeCanvas top edge.
+  useEffect(() => {
+    const update = () => {
+      const main    = mainRef.current;
+      const preview = previewRef.current;
+      if (!main || !preview) return;
+      const mainRect    = main.getBoundingClientRect();
+      const previewRect = preview.getBoundingClientRect();
+      // +8: LifeCanvas has p-2 (8px), so canvas/brackets are 8px inside the wrapper.
+      setBiomeTopPad(Math.max(0, previewRect.top - mainRect.top - topPad + 8));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    if (mainRef.current)    ro.observe(mainRef.current);
+    if (previewRef.current) ro.observe(previewRef.current);
+    return () => ro.disconnect();
+  }, [topPad, selectedBiomeName, dualModule]);
 
   // ── WS helpers ────────────────────────────────────────────────────────
 
@@ -257,6 +279,7 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
         rightLabel="Life inspector"
         rightStyle={{ paddingTop: topPad }}
         centerClassName="overflow-hidden flex items-center justify-center"
+        centerRef={mainRef}
         left={
           <BiomeList
             biomes={biomePresets}
@@ -270,21 +293,25 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
             onDuplicate={handleDuplicate}
             onRename={handleRename}
             onMove={handleMove}
+            sideAlign="end"
+            topPadding={biomeTopPad}
           />
         }
         center={
           selectedBiome ? (
-            <LifeCanvas
-              biome={selectedBiome}
-              playing={lifeIsPlaying}
-              generation={lifeGeneration}
-              cols={cols}
-              stepForwardCount={lifeStepForwardCount}
-              stepBackCount={lifeStepBackCount}
-              onGridChange={handleGridChange}
-              onTick={sendPreviewFrame}
-              onStep={n => deckStore.getState().setLifeStepCount(n)}
-            />
+            <div ref={previewRef}>
+              <LifeCanvas
+                biome={selectedBiome}
+                playing={lifeIsPlaying}
+                generation={lifeGeneration}
+                cols={cols}
+                stepForwardCount={lifeStepForwardCount}
+                stepBackCount={lifeStepBackCount}
+                onGridChange={handleGridChange}
+                onTick={sendPreviewFrame}
+                onStep={n => deckStore.getState().setLifeStepCount(n)}
+              />
+            </div>
           ) : (
             <p className="font-mono text-xs text-muted-foreground">select a biome to begin</p>
           )

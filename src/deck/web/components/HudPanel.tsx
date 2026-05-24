@@ -243,12 +243,13 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
       rightLabel="Widget inspector"
       rightStyle={{ paddingTop: topPad }}
       left={
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', maxWidth: 208, marginLeft: 'auto', marginRight: 16, paddingTop: presetTopPad }}>
         <PresetList
           presets={hudPresets}
           activeName={activePresetName}
           selectedName={selectedPresetName}
           audioCtx={audioCtx}
+          sideAlign="end"
+          topPadding={presetTopPad}
           onSelect={(name) => {
             const { hudPresets, selectPreset } = deckStore.getState();
             const preset = hudPresets.find(p => p.name === name);
@@ -292,7 +293,6 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
           }}
           onEditTriggers={(name) => setTriggerPresetName(name)}
         />
-        </div>
       }
       centerRef={mainRef}
       center={

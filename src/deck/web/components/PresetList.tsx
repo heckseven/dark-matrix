@@ -137,6 +137,9 @@ export type PresetListProps = {
   onRename: (oldName: string, newName: string) => void;
   onMove: (fromIdx: number, toIdx: number) => void;
   onEditTriggers: (name: string) => void;
+  sideAlign?: 'start' | 'end';
+  topPadding?: number;
+  bottomPadding?: number;
 };
 
 export function PresetList({
@@ -153,6 +156,9 @@ export function PresetList({
   onRename,
   onMove,
   onEditTriggers,
+  sideAlign,
+  topPadding,
+  bottomPadding,
 }: PresetListProps) {
   const [, forceUpdate] = useReducer(c => c + 1, 0);
   const assetList = useDeckStore(s => s.assetList);
@@ -322,6 +328,9 @@ export function PresetList({
       addLabel="Add preset"
       emptyText="no presets"
       aria-label="Presets"
+      {...(sideAlign !== undefined ? { sideAlign } : {})}
+      {...(topPadding !== undefined ? { topPadding } : {})}
+      {...(bottomPadding !== undefined ? { bottomPadding } : {})}
     />
   );
 }

@@ -72,6 +72,7 @@ const meta: Meta<any> = {
     gap:           { control: 'radio',   options: ['sm', '2xl'], description: 'sm = gap-2 for sidebars; 2xl = gap-10 for frame-strip style.' },
     topPadding:    { control: 'number',  description: 'Pixel padding above the scroll container.' },
     bottomPadding: { control: 'number',  description: 'Pixel padding below the scroll container.' },
+    sideAlign:     { control: 'radio',   options: ['start', 'end'], description: 'Push items toward the panel edge nearest the center preview. Use "end" for left pane, "start" for right pane.' },
   },
   parameters: {
     layout: 'padded',
@@ -206,6 +207,116 @@ export const NoDrag: Story = {
       />
     </Shell>
   ),
+};
+
+/**
+ * sideAlign="end" — items hug the right side of the container.
+ * Use in a left pane so items sit flush against the center preview column.
+ * The column shrinks to the widest item; GapZone dividers still fill the
+ * column width.
+ */
+export const SideAlignEnd: Story = {
+  render: () => {
+    const [items, setItems] = useState<Item[]>(INITIAL);
+    const [selected, setSelected] = useState<string | null>(INITIAL[0]!.id);
+    return (
+      <Shell>
+        <MatrixItemList
+          items={items}
+          getKey={item => item.id}
+          renderItem={(item, idx, dragProps) => (
+            <MatrixItem
+              name={item.label}
+              aria-label={item.label}
+              width={9}
+              pixels={item.pixels}
+              isSelected={item.id === selected}
+              onSelect={() => setSelected(item.id)}
+              dragIdx={dragProps.dragIdx}
+              onDragOver={dragProps.onDragOver}
+              onDrop={dragProps.onDrop}
+              controlsTop={
+                <>
+                  <Button variant="ghost" className="w-8" aria-label="Move up" tooltip="Move up" tooltipSide="right"
+                    disabled={idx === 0}
+                    onClick={e => { e.stopPropagation(); setItems(m => moveArr(m, idx, idx - 1)); }}
+                  >↑</Button>
+                  <Button variant="ghost" className="w-8" aria-label="Move down" tooltip="Move down" tooltipSide="right"
+                    disabled={idx === items.length - 1}
+                    onClick={e => { e.stopPropagation(); setItems(m => moveArr(m, idx, idx + 1)); }}
+                  >↓</Button>
+                </>
+              }
+            />
+          )}
+          onMove={(from, to) => setItems(m => moveArr(m, from, to))}
+          onInsert={afterIdx => setItems(m => {
+            const next = [...m];
+            next.splice(afterIdx + 1, 0, freshItem(m.length));
+            return next;
+          })}
+          onAdd={() => setItems(m => [...m, freshItem(m.length)])}
+          addLabel="Add item"
+          sideAlign="end"
+          aria-label="Right-aligned list"
+        />
+      </Shell>
+    );
+  },
+};
+
+/**
+ * sideAlign="start" — items hug the left side of the container.
+ * Use in a right pane so items sit flush against the center preview column.
+ */
+export const SideAlignStart: Story = {
+  render: () => {
+    const [items, setItems] = useState<Item[]>(INITIAL);
+    const [selected, setSelected] = useState<string | null>(INITIAL[0]!.id);
+    return (
+      <Shell>
+        <MatrixItemList
+          items={items}
+          getKey={item => item.id}
+          renderItem={(item, idx, dragProps) => (
+            <MatrixItem
+              name={item.label}
+              aria-label={item.label}
+              width={9}
+              pixels={item.pixels}
+              isSelected={item.id === selected}
+              onSelect={() => setSelected(item.id)}
+              dragIdx={dragProps.dragIdx}
+              onDragOver={dragProps.onDragOver}
+              onDrop={dragProps.onDrop}
+              controlsTop={
+                <>
+                  <Button variant="ghost" className="w-8" aria-label="Move up" tooltip="Move up" tooltipSide="right"
+                    disabled={idx === 0}
+                    onClick={e => { e.stopPropagation(); setItems(m => moveArr(m, idx, idx - 1)); }}
+                  >↑</Button>
+                  <Button variant="ghost" className="w-8" aria-label="Move down" tooltip="Move down" tooltipSide="right"
+                    disabled={idx === items.length - 1}
+                    onClick={e => { e.stopPropagation(); setItems(m => moveArr(m, idx, idx + 1)); }}
+                  >↓</Button>
+                </>
+              }
+            />
+          )}
+          onMove={(from, to) => setItems(m => moveArr(m, from, to))}
+          onInsert={afterIdx => setItems(m => {
+            const next = [...m];
+            next.splice(afterIdx + 1, 0, freshItem(m.length));
+            return next;
+          })}
+          onAdd={() => setItems(m => [...m, freshItem(m.length)])}
+          addLabel="Add item"
+          sideAlign="start"
+          aria-label="Left-aligned list"
+        />
+      </Shell>
+    );
+  },
 };
 
 /**

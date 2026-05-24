@@ -32,6 +32,11 @@ const meta = {
       },
     },
   },
+  argTypes: {
+    sideAlign:    { control: 'radio', options: ['start', 'end'], description: 'Push items toward the panel edge nearest the center preview. Use "end" for left pane.' },
+    topPadding:   { control: 'number', description: 'Pixel offset from the pane top to align the first item with the center preview.' },
+    bottomPadding:{ control: 'number', description: 'Pixel padding at the bottom to clear a bottom toolbar.' },
+  },
   args: {
     presets: [PRESET_CLOCK, PRESET_MIXED, PRESET_DATA],
     activeName: 'clock duo',

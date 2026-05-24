@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, Fragment } from 'react';
 import type { Key, ReactNode } from 'react';
 import { Button } from './ui/button.js';
+import { cn } from '@/lib/utils.js';
 
 export type MatrixItemDragProps = {
   dragIdx: number;
@@ -77,6 +78,8 @@ export type MatrixItemListProps<T> = {
   gap?: 'sm' | '2xl';
   topPadding?: number;
   bottomPadding?: number;
+  /** Push items toward the panel edge nearest the center preview. Use 'end' for left pane, 'start' for right pane. */
+  sideAlign?: 'start' | 'end';
 };
 
 export function MatrixItemList<T>({
@@ -94,6 +97,7 @@ export function MatrixItemList<T>({
   gap = 'sm',
   topPadding,
   bottomPadding,
+  sideAlign,
 }: MatrixItemListProps<T>) {
   const [dropTarget, setDropTarget] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -142,6 +146,7 @@ export function MatrixItemList<T>({
 
   const gapClass = gap === '2xl' ? 'gap-10' : 'gap-2';
   const overlap = gap === '2xl';
+  const sideAlignClass = sideAlign === 'end' ? 'items-end' : sideAlign === 'start' ? 'items-start' : undefined;
   const As = semantic ? 'ul' : 'div';
   const Item = semantic ? 'li' : 'div';
   const listRole = 'list';
@@ -156,7 +161,8 @@ export function MatrixItemList<T>({
     <div
       ref={scrollRef}
       tabIndex={0}
-      className="flex flex-col overflow-y-auto flex-1 min-h-0 pr-2 [scrollbar-gutter:stable] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      aria-label={ariaLabel}
+      className={cn('flex flex-col overflow-y-auto flex-1 min-h-0 pr-2 [scrollbar-gutter:stable] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring', sideAlignClass)}
       style={{ paddingTop: topPadding, paddingBottom: bottomPadding }}
       onDragLeave={(e: React.DragEvent) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropTarget(null);
