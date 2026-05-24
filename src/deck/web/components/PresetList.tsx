@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useReducer, useRef, useEffect } from 'react';
 import { Button } from './ui/button.js';
 import { MatrixItemList } from './MatrixItemList.js';
 import { MatrixItem } from './MatrixItem.js';
@@ -11,10 +11,9 @@ import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.
 import { createHeatmapState, bumpTool, renderHeatmap } from '../../../animations/heatmap.js';
 import type { HudPresetClient, HudWidget } from '../types/hud-preset.js';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
-import { useDeckStore, deckStore } from '../store.js';
+import { useDeckStore, deckStore, ROWS } from '../store.js';
 
 const COLS = 9;
-const ROWS = 34;
 
 function b64ToUint8(b64: string, expectedBytes: number): Uint8Array {
   const bin = atob(b64);
@@ -155,7 +154,7 @@ export function PresetList({
   onMove,
   onEditTriggers,
 }: PresetListProps) {
-  const [tick, setTick] = useState(0);
+  const [, forceUpdate] = useReducer(c => c + 1, 0);
   const assetList = useDeckStore(s => s.assetList);
 
   const audioCtxRef  = useRef(audioCtx);
@@ -212,12 +211,10 @@ export function PresetList({
         }
       }
 
-      setTick(t => t + 1);
+      forceUpdate();
     }, 100);
     return () => clearInterval(id);
   }, []);
-
-  void tick;
 
   return (
     <MatrixItemList

@@ -31,7 +31,7 @@ function GapZone({ afterIdx, showDrop, onDragOver, count, onInsert, onMove, inse
       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver(afterIdx + 1); }}
       onDrop={e => {
         e.preventDefault();
-        const raw = e.dataTransfer.getData('text/plain');
+        const raw = e.dataTransfer.getData('application/x-dark-matrix-idx');
         if (!raw) return;
         const from = Number(raw);
         onDragOver(null);
@@ -101,7 +101,6 @@ export function MatrixItemList<T>({
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const node = el;
 
     let dir: 'up' | 'down' | null = null;
     let intervalId: ReturnType<typeof setInterval> | null = null;
@@ -112,7 +111,7 @@ export function MatrixItemList<T>({
       if (intervalId !== null) { clearInterval(intervalId); intervalId = null; }
       if (next !== null) {
         intervalId = setInterval(
-          () => node.scrollBy({ top: next === 'up' ? -SCROLL_SPEED : SCROLL_SPEED }),
+          () => el!.scrollBy({ top: next === 'up' ? -SCROLL_SPEED : SCROLL_SPEED }),
           SCROLL_TICK,
         );
       }
@@ -120,7 +119,7 @@ export function MatrixItemList<T>({
 
     function handleDragOver(e: DragEvent) {
       e.preventDefault();
-      const rect = node.getBoundingClientRect();
+      const rect = el!.getBoundingClientRect();
       const y = e.clientY - rect.top;
       if (y < SCROLL_ZONE) setDir('up');
       else if (y > rect.height - SCROLL_ZONE) setDir('down');
@@ -129,13 +128,13 @@ export function MatrixItemList<T>({
 
     function stop() { setDir(null); }
 
-    node.addEventListener('dragover', handleDragOver);
+    el.addEventListener('dragover', handleDragOver);
     document.addEventListener('dragend', stop);
     document.addEventListener('drop', stop);
 
     return () => {
       stop();
-      node.removeEventListener('dragover', handleDragOver);
+      el.removeEventListener('dragover', handleDragOver);
       document.removeEventListener('dragend', stop);
       document.removeEventListener('drop', stop);
     };
@@ -145,27 +144,32 @@ export function MatrixItemList<T>({
   const overlap = gap === '2xl';
   const As = semantic ? 'ul' : 'div';
   const Item = semantic ? 'li' : 'div';
+  const listRole = semantic ? undefined : 'list';
+  const itemRole = semantic ? undefined : 'listitem';
   const dragProps = (idx: number): MatrixItemDragProps => ({
     dragIdx: idx,
     onDragOver: setDropTarget,
     onDrop: onMove,
   });
 
+  const outerStyle: React.CSSProperties = {};
+  if (topPadding != null) outerStyle.paddingTop = topPadding;
+  if (bottomPadding != null) outerStyle.paddingBottom = bottomPadding;
+
   return (
     <div
       ref={scrollRef}
       className="flex flex-col overflow-y-auto flex-1 min-h-0 pr-2 [scrollbar-gutter:stable]"
-      style={topPadding != null || bottomPadding != null
-        ? { paddingTop: topPadding, paddingBottom: bottomPadding }
-        : undefined}
+      style={Object.keys(outerStyle).length ? outerStyle : undefined}
+      onDragLeave={(e: React.DragEvent) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropTarget(null);
+      }}
     >
       <As
         aria-label={ariaLabel}
+        role={listRole}
         className={`flex flex-col ${gapClass} pb-2 pt-2`}
         style={{ listStyle: 'none', padding: 0, margin: 0 }}
-        onDragLeave={(e: React.DragEvent) => {
-          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropTarget(null);
-        }}
       >
         {items.length === 0 && emptyText && (
           <Item className="font-mono text-xs text-muted-foreground px-2 py-4">{emptyText}</Item>
@@ -173,7 +177,7 @@ export function MatrixItemList<T>({
         {dropTarget === 0 && <DropLine />}
         {items.map((item, idx) => (
           <Fragment key={getKey(item, idx)}>
-            <Item {...(semantic && dropTarget === null ? {} : {})}>
+            <Item role={itemRole}>
               {renderItem(item, idx, dragProps(idx))}
             </Item>
             {idx < items.length - 1 && onInsert && (

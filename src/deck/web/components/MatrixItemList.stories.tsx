@@ -34,10 +34,8 @@ const INITIAL: Item[] = [
   { id: 'd', label: 'delta',   pixels: PX[3]! },
 ];
 
-let _uid = INITIAL.length;
-function freshItem(): Item {
-  const n = _uid++;
-  return { id: `fresh-${n}`, label: `item-${n + 1}`, pixels: PX[n % PX.length]! };
+function freshItem(n: number): Item {
+  return { id: `item-${n}-${Date.now()}`, label: `item-${n + 1}`, pixels: PX[n % PX.length]! };
 }
 
 function moveArr<T>(arr: T[], from: number, to: number): T[] {
@@ -59,6 +57,22 @@ function Shell({ height = 480, children }: { height?: number; children: ReactNod
 const meta: Meta<any> = {
   title: 'Components/MatrixItemList',
   tags: ['autodocs'],
+  argTypes: {
+    items:         { control: false,     description: 'The list data array.' },
+    getKey:        { control: false,     description: 'Returns a stable React key for each item.' },
+    renderItem:    { control: false,     description: 'Render prop — receives (item, idx, { dragIdx, onDragOver, onDrop }).' },
+    onMove:        { control: false,     description: 'Called with (from, to) when a drag or button-initiated move completes.' },
+    onInsert:      { control: false,     description: 'When provided, GapZone insert buttons appear between items.' },
+    insertLabel:   { control: false,     description: 'Callback returning the insert button label for a given afterIdx.' },
+    onAdd:         { control: false,     description: 'When provided, a + button renders below the list.' },
+    addLabel:      { control: 'text',    description: 'Accessible label for the add button. Include a noun ("Add preset").' },
+    emptyText:     { control: 'text',    description: 'Placeholder shown when items is empty.' },
+    'aria-label':  { control: 'text',    description: 'Accessible label for the list container.' },
+    semantic:      { control: 'boolean', description: 'true = ul/li (default); false = div/div with role="list"/"listitem".' },
+    gap:           { control: 'radio',   options: ['sm', '2xl'], description: 'sm = gap-2 for sidebars; 2xl = gap-10 for frame-strip style.' },
+    topPadding:    { control: 'number',  description: 'Pixel padding above the scroll container.' },
+    bottomPadding: { control: 'number',  description: 'Pixel padding below the scroll container.' },
+  },
   parameters: {
     layout: 'padded',
     docs: {
@@ -128,10 +142,10 @@ export const Playground: Story = {
           onMove={(from, to) => setItems(m => moveArr(m, from, to))}
           onInsert={afterIdx => setItems(m => {
             const next = [...m];
-            next.splice(afterIdx + 1, 0, freshItem());
+            next.splice(afterIdx + 1, 0, freshItem(m.length));
             return next;
           })}
-          onAdd={() => setItems(m => [...m, freshItem()])}
+          onAdd={() => setItems(m => [...m, freshItem(m.length)])}
           addLabel="Add item"
           emptyText="no items"
           aria-label="Demo list"
@@ -162,7 +176,7 @@ export const Empty: Story = {
             />
           )}
           onMove={() => {}}
-          onAdd={() => setItems(m => [...m, freshItem()])}
+          onAdd={() => setItems(m => [...m, freshItem(m.length)])}
           addLabel="Add item"
           emptyText="no items — add one below"
           aria-label="Empty list"
@@ -235,10 +249,10 @@ export const LargeGap: Story = {
           onMove={(from, to) => setItems(m => moveArr(m, from, to))}
           onInsert={afterIdx => setItems(m => {
             const next = [...m];
-            next.splice(afterIdx + 1, 0, freshItem());
+            next.splice(afterIdx + 1, 0, freshItem(m.length));
             return next;
           })}
-          onAdd={() => setItems(m => [...m, freshItem()])}
+          onAdd={() => setItems(m => [...m, freshItem(m.length)])}
           addLabel="Add item"
           gap="2xl"
           aria-label="Large gap list"

@@ -65,7 +65,6 @@ export function MatrixItem({
 
   function commitRename() {
     const next = draft.trim() || (name ?? '');
-    setDraft(next);
     setEditing(false);
     if (next !== name) onRename?.(next);
   }
@@ -77,7 +76,7 @@ export function MatrixItem({
       tabIndex={-1}
       onDragStart={e => {
         setDragging(true);
-        e.dataTransfer.setData('text/plain', String(dragIdx));
+        e.dataTransfer.setData('application/x-dark-matrix-idx', String(dragIdx));
         e.dataTransfer.effectAllowed = 'move';
       }}
       onDragEnd={() => {
@@ -105,23 +104,27 @@ export function MatrixItem({
   return (
     <div
       aria-label={ariaLabel}
-      tabIndex={onSelect ? 0 : undefined}
+      role={onSelect ? 'button' : undefined}
+      aria-pressed={onSelect ? (isSelected || isActive) : undefined}
+      tabIndex={(onSelect || onRename) ? 0 : undefined}
       className="group relative flex flex-col gap-2 p-2 rounded-sm w-fit focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       onClick={onSelect}
-      onKeyDown={onSelect ? e => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); }
+      onKeyDown={(onSelect || onRename) ? e => {
+        if (onSelect && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSelect(); }
+        if (onRename && !editing && e.key === 'F2') { e.preventDefault(); setDraft(name ?? ''); setEditing(true); }
       } : undefined}
       onDragOver={draggable ? e => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
+        const idx = dragIdx!;
         const rect = e.currentTarget.getBoundingClientRect();
-        const insertAt = e.clientY < rect.top + rect.height / 2 ? dragIdx! : dragIdx! + 1;
+        const insertAt = e.clientY < rect.top + rect.height / 2 ? idx : idx + 1;
         insertAtRef.current = insertAt;
         onDragOver?.(insertAt);
       } : undefined}
       onDrop={draggable ? e => {
         e.preventDefault();
-        const raw = e.dataTransfer.getData('text/plain');
+        const raw = e.dataTransfer.getData('application/x-dark-matrix-idx');
         if (!raw) return;
         const from = Number(raw);
         const insertAt = insertAtRef.current;
@@ -157,9 +160,10 @@ export function MatrixItem({
           editing ? (
             <input
               ref={inputRef}
-              aria-label={`Rename: ${name}`}
+              aria-label={`Rename ${name ?? 'item'}`}
               className="font-mono text-xs bg-transparent border-b border-white text-foreground outline-none w-full"
               value={draft}
+              maxLength={128}
               onChange={e => setDraft(e.target.value)}
               onBlur={commitRename}
               onKeyDown={e => {

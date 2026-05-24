@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useReducer, useEffect, useRef } from 'react';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
 import { Dialog, DialogContent, DialogClose, DialogTitle } from './ui/dialog.js';
 import { Button } from './ui/button.js';
@@ -12,8 +12,9 @@ function groupByDir(assets: AssetMeta[]): { dir: string; items: AssetMeta[] }[] 
   for (const asset of assets) {
     const slash = asset.name.indexOf('/');
     const dir = slash === -1 ? 'assets' : asset.name.slice(0, slash);
-    if (!map.has(dir)) map.set(dir, []);
-    map.get(dir)!.push(asset);
+    let list = map.get(dir);
+    if (!list) map.set(dir, list = []);
+    list.push(asset);
   }
   const order = ['assets', 'library'];
   const dirs = [...map.keys()].sort((a, b) => {
@@ -134,7 +135,7 @@ export function AssetManagerModal({ open, onOpenChange, onOpenAsset }: AssetMana
   const assetsRef = useRef(assets);
   assetsRef.current = assets;
   const activeKeyRef = useRef<string | null>(null);
-  const [tick, setTick] = useState(0);
+  const [, forceUpdate] = useReducer(c => c + 1, 0);
 
   function fetchAssets() {
     return fetch('/api/assets')
@@ -169,12 +170,10 @@ export function AssetManagerModal({ open, onOpenChange, onOpenAsset }: AssetMana
         s.elapsed -= asset.delays[s.frameIdx] ?? 100;
         s.frameIdx = s.frameIdx < asset.frames.length - 1 ? s.frameIdx + 1 : 0;
       }
-      setTick(t => t + 1);
+      forceUpdate();
     }, 100);
     return () => clearInterval(id);
   }, [open]);
-
-  void tick;
 
   function handleAnimReset(name: string) {
     animRef.current[name] = { frameIdx: 0, elapsed: 0, lastTick: null };
@@ -182,7 +181,7 @@ export function AssetManagerModal({ open, onOpenChange, onOpenAsset }: AssetMana
 
   function handleAnimClear(name: string) {
     if (animRef.current[name]) animRef.current[name]!.frameIdx = 0;
-    setTick(t => t + 1);
+    forceUpdate();
   }
 
   function handleOpen(asset: AssetMeta) {
@@ -257,7 +256,7 @@ export function AssetManagerModal({ open, onOpenChange, onOpenAsset }: AssetMana
             {view === 'import' ? (
               <AssetImportPanel
                 onSaved={() => {
-                  void fetchAssets().then(() => setView('grid'));
+                  void fetchAssets().then(() => setView('grid')).catch(console.error);
                 }}
               />
             ) : (
