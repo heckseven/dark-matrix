@@ -13,6 +13,8 @@ import type { DataStyle, DataMetric, DataRenderer } from '../../../animations/da
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { createHeatmapState, bumpTool, tickHeatmap, renderHeatmap } from '../../../animations/heatmap.js';
+import { CLAUDE_STYLES, createClaudeMatrixRenderer, createClaudeContextRenderer } from '../../../animations/claude-renderers.js';
+import type { ClaudeStyle } from '../../../animations/claude-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
 import { Slider } from './ui/slider.js';
@@ -60,6 +62,7 @@ function bayerToB64(frame: Uint8Array): string {
 function categoryOfWidget(w: HudWidget): string {
   if (w.widget === 'clock')   return 'time';
   if (w.widget === 'heatmap') return 'ai';
+  if (w.widget === 'claude')  return 'ai';
   if (w.widget === 'audio')   return 'audio';
   if (w.widget === 'image')   return 'image';
   if (w.widget === 'life')    return 'life';
@@ -272,23 +275,78 @@ const _heatmapGridState = (() => {
   return s;
 })();
 
+const _claudeMatrixRenderer = createClaudeMatrixRenderer();
+const _claudeContextRenderer = (() => {
+  const r = createClaudeContextRenderer();
+  // seed with fake events so the preview shows a partial fill
+  r.onEvent({ type: 'tool_use', tool: 'Read',   sessionId: 'preview', rawByteLen: 1200 });
+  r.onEvent({ type: 'tool_use', tool: 'Bash',   sessionId: 'preview', rawByteLen: 800  });
+  r.onEvent({ type: 'tool_use', tool: 'Edit',   sessionId: 'preview', rawByteLen: 600  });
+  r.onEvent({ type: 'tool_use', tool: 'Grep',   sessionId: 'preview', rawByteLen: 400  });
+  r.onEvent({ type: 'tool_use', tool: 'Read',   sessionId: 'preview', rawByteLen: 950  });
+  r.onEvent({ type: 'tool_use', tool: 'Write',  sessionId: 'preview', rawByteLen: 700  });
+  r.onEvent({ type: 'tool_use', tool: 'Bash',   sessionId: 'preview', rawByteLen: 1100 });
+  r.onEvent({ type: 'agent_spawn', sessionId: 'preview', rawByteLen: 300 });
+  return r;
+})();
+
+// Build a static usage preview frame (~50% fill)
+function makeUsagePreviewPixels(): string {
+  const frame = new Uint8Array(COLS * ROWS);
+  const filledRows = Math.round(0.5 * ROWS);
+  for (let col = 0; col < COLS; col++) {
+    for (let r = Math.max(0, ROWS - filledRows); r < ROWS; r++) {
+      frame[col * ROWS + r] = 255;
+    }
+  }
+  // Dim reset countdown dots in top row (3 of 9 cols)
+  for (let col = 0; col < 3; col++) {
+    frame[col * ROWS + 0] = 200;
+    frame[col * ROWS + 1] = 100;
+  }
+  return btoa(String.fromCharCode(...frame));
+}
+const USAGE_PREVIEW_PIXELS = makeUsagePreviewPixels();
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => { _claudeMatrixRenderer.stop(); _claudeContextRenderer.stop(); });
+}
+
 function AiGrid({ currentWidget, onPick }: {
   currentWidget: HudWidget | null;
   onPick: (w: HudWidget) => void;
 }) {
-  const [pixels, setPixels] = useState(() => {
+  const [heatmapPixels, setHeatmapPixels] = useState(() => {
     const [left] = renderHeatmap(_heatmapGridState);
     return bwToB64(left);
   });
+  const [matrixPixels, setMatrixPixels] = useState(() => bayerToB64(_claudeMatrixRenderer.render()));
+  const [contextPixels, setContextPixels] = useState(() => bayerToB64(_claudeContextRenderer.render()));
 
   useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let tick = 0;
     const iid = setInterval(() => {
+      tick++;
       tickHeatmap(_heatmapGridState);
       const [left] = renderHeatmap(_heatmapGridState);
-      setPixels(bwToB64(left));
+      setHeatmapPixels(bwToB64(left));
+
+      // Fire synthetic matrix events occasionally to show activity
+      if (tick % 8 === 0) {
+        const tools = ['Read', 'Bash', 'Edit', 'Grep', 'Write'];
+        _claudeMatrixRenderer.onEvent({ type: 'tool_use', tool: tools[tick % tools.length]!, sessionId: 'preview' });
+      }
+      if (tick % 40 === 0) {
+        _claudeMatrixRenderer.onEvent({ type: 'agent_spawn', sessionId: 'preview' });
+      }
+      setMatrixPixels(bayerToB64(_claudeMatrixRenderer.render()));
+      setContextPixels(bayerToB64(_claudeContextRenderer.render()));
     }, 100);
     return () => clearInterval(iid);
   }, []);
+
+  const claudeStyle = currentWidget?.widget === 'claude' ? (currentWidget.style ?? 'matrix') : null;
 
   return (
     <div role="group" aria-label="AI panels" className="grid grid-cols-3 gap-4 justify-items-center">
@@ -296,10 +354,24 @@ function AiGrid({ currentWidget, onPick }: {
         name="tool heatmap"
         aria-label="tool heatmap"
         width={9}
-        pixels={pixels}
+        pixels={heatmapPixels}
         isSelected={currentWidget?.widget === 'heatmap'}
         onSelect={() => onPick({ widget: 'heatmap' })}
       />
+      {CLAUDE_STYLES.map(({ id, label }) => {
+        const preview = id === 'matrix' ? matrixPixels : id === 'context' ? contextPixels : USAGE_PREVIEW_PIXELS;
+        return (
+          <MatrixItem
+            key={id}
+            name={label}
+            aria-label={label}
+            width={9}
+            pixels={preview}
+            isSelected={claudeStyle === id}
+            onSelect={() => onPick({ widget: 'claude', style: id })}
+          />
+        );
+      })}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import type { ClockFace } from '../../../animations/clock-renderers.js';
 import type { DataStyle, DataMetric } from '../../../animations/data-renderers.js';
 import type { AudioStyle } from '../../../animations/audio-renderers.js';
+import type { ClaudeStyle } from '../../../animations/claude-renderers.js';
 
 export type HudWidget =
   | { widget: 'clock'; face?: ClockFace }
@@ -8,7 +9,8 @@ export type HudWidget =
   | { widget: 'heatmap' }
   | { widget: 'audio'; style?: AudioStyle }
   | { widget: 'image'; file: string; speed?: number; loop?: boolean }
-  | { widget: 'life'; biomeName: string; randomIntervalMs?: number };
+  | { widget: 'life'; biomeName: string; randomIntervalMs?: number }
+  | { widget: 'claude'; style?: ClaudeStyle };
 
 export type HudTrigger =
   | { type: 'time'; from: string; to: string }

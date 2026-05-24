@@ -139,6 +139,7 @@ function renderWidgetToB64(
       if (!b?.gridSnapshot) return empty;
       return extractLifeHalf(b.gridSnapshot, side);
     }
+    if (widget.widget === 'claude') return empty;
     const style: DataStyle = widget.style ?? 'line';
     if (!_dataCache[style]) _dataCache[style] = createDataRenderer({ style });
     const frame = _dataCache[style]!.render();

@@ -1,4 +1,5 @@
 import net from 'node:net';
+import https from 'node:https';
 import fs from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -31,6 +32,8 @@ import { createClockRenderer, isClockFace } from '../animations/clock-renderers.
 import { createDataRenderer } from '../animations/data-renderers.js';
 import { DATA_STYLES } from '../animations/data-renderers.js';
 import type { DataStyle, DataWidgetConfig, DataRenderer } from '../animations/data-renderers.js';
+import { createClaudeMatrixRenderer, createClaudeContextRenderer, CLAUDE_STYLES } from '../animations/claude-renderers.js';
+import type { ClaudeStyle, ClaudeRendererApi } from '../animations/claude-renderers.js';
 import { watchProcStats } from '../lib/proc-source.js';
 import { createPresetTriggerEngine } from '../lib/preset-triggers.js';
 import { createGifAnimation } from '../animations/gif.js';
@@ -98,6 +101,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   // Shared band listeners: audio-viz sockets subscribe here when HUD loop owns audio
   const hudAudioListeners = new Map<symbol, (ctx: { bands: number[]; fftSize: number; gain: number }) => void>();
   const heatmapState = createHeatmapState();
+  const claudeRenderers = new Set<ClaudeRendererApi>();
 
   // Recent notification content per source, used by the deck UI to suggest
   // glob examples. Most-recent first, deduplicated, capped per source.
@@ -373,6 +377,116 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     stop(): void;
   }
 
+  function createClaudeUsageRenderer(): ClaudeRendererApi {
+    const POLL_MS = 60_000;
+    const CREDS_PATH = path.join(os.homedir(), '.claude', '.credentials.json');
+    let util: number | null = null;
+    let resetAt: number | null = null;
+    let fetchTimer: ReturnType<typeof setTimeout> | null = null;
+    let stopped = false;
+    let pulsePhase = 0;
+
+    function schedulePoll(delayMs: number): void {
+      if (stopped) return;
+      if (fetchTimer) clearTimeout(fetchTimer);
+      fetchTimer = setTimeout(() => { void fetchUsage(); }, delayMs);
+    }
+
+    async function fetchUsage(): Promise<void> {
+      if (stopped) return;
+      try {
+        const raw = await fs.readFile(CREDS_PATH, 'utf-8');
+        const creds = JSON.parse(raw) as { claudeAiOauth?: { accessToken?: string; expiresAt?: number } };
+        const oauth = creds.claudeAiOauth ?? {};
+        const token = oauth.accessToken;
+        const expiresAt = oauth.expiresAt;
+        // expiresAt is stored in milliseconds (matches Date.now() units)
+        if (typeof token !== 'string' || (expiresAt !== undefined && expiresAt < Date.now())) { schedulePoll(POLL_MS); return; }
+
+        const payload = JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 1,
+          messages: [{ role: 'user', content: 'x' }],
+        });
+
+        const result = await new Promise<{ util: number; resetAt: number | null } | null>((resolve) => {
+          const req = https.request({
+            hostname: 'api.anthropic.com',
+            path: '/v1/messages',
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+              'anthropic-version': '2023-06-01',
+              'anthropic-beta': 'oauth-2025-04-20',
+              'Content-Length': Buffer.byteLength(payload),
+            },
+          }, (res) => {
+            res.resume();
+            const u = res.headers['anthropic-ratelimit-unified-5h-utilization'];
+            const r = res.headers['anthropic-ratelimit-unified-5h-reset'];
+            const utilVal = typeof u === 'string' ? parseFloat(u) : null;
+            const resetVal = typeof r === 'string' ? parseInt(r, 10) : null;
+            resolve(utilVal !== null && !isNaN(utilVal) ? { util: utilVal, resetAt: resetVal } : null);
+          });
+          req.on('error', () => resolve(null));
+          req.setTimeout(5000, () => { req.destroy(); resolve(null); });
+          req.write(payload);
+          req.end();
+        });
+
+        if (result !== null) { util = result.util; resetAt = result.resetAt; }
+      } catch { /* ignore — retain last known value */ }
+      if (!stopped) schedulePoll(POLL_MS);
+    }
+
+    schedulePoll(0);
+
+    return {
+      onEvent(_e) { /* usage is polled, not event-driven */ },
+
+      render(): Frame {
+        const frame = createFrame();
+        pulsePhase += 0.08;
+
+        if (util === null) {
+          const rows = Math.round((0.3 + 0.25 * Math.sin(pulsePhase)) * FRAME_ROWS);
+          for (let r = FRAME_ROWS - 1; r >= Math.max(0, FRAME_ROWS - rows); r--) {
+            frame[4 * FRAME_ROWS + r] = 160;
+          }
+          return frame;
+        }
+
+        const filledRows = Math.round(util * FRAME_ROWS);
+        for (let col = 0; col < FRAME_COLS; col++) {
+          for (let r = Math.max(0, FRAME_ROWS - filledRows); r < FRAME_ROWS; r++) {
+            frame[col * FRAME_ROWS + r] = util > 0.9
+              ? (Math.random() < 0.35 + util * 0.4 ? 255 : 160)
+              : 255;
+          }
+        }
+
+        if (resetAt !== null && util > 0.5) {
+          const totalSecs = 5 * 60 * 60;
+          const secsLeft = Math.max(0, resetAt - Math.floor(Date.now() / 1000));
+          const countFrac = secsLeft / totalSecs;
+          const countCols = Math.round(countFrac * FRAME_COLS);
+          for (let col = 0; col < countCols && col < FRAME_COLS; col++) {
+            frame[col * FRAME_ROWS + 0] = 200;
+            frame[col * FRAME_ROWS + 1] = 100;
+          }
+        }
+
+        return frame;
+      },
+
+      stop() {
+        stopped = true;
+        if (fetchTimer) { clearTimeout(fetchTimer); fetchTimer = null; }
+      },
+    };
+  }
+
   function createWidgetRenderer(
     widget: NonNullable<NonNullable<Config['hud']>['left']>,
     side: 'left' | 'right',
@@ -632,6 +746,19 @@ export async function startDaemon(): Promise<() => Promise<void>> {
             return gridToFrame(grid);
           },
           stop() { /* stateless */ },
+        };
+      }
+      case 'claude': {
+        const claudeStyle: ClaudeStyle = widget.style ?? 'matrix';
+        const claudeRenderer: ClaudeRendererApi = claudeStyle === 'usage'
+          ? createClaudeUsageRenderer()
+          : claudeStyle === 'context'
+            ? createClaudeContextRenderer()
+            : createClaudeMatrixRenderer();
+        claudeRenderers.add(claudeRenderer);
+        return {
+          render(_now, _audioCtx) { return claudeRenderer.render(); },
+          stop() { claudeRenderer.stop(); claudeRenderers.delete(claudeRenderer); },
         };
       }
       default: {
@@ -1323,6 +1450,14 @@ export async function startDaemon(): Promise<() => Promise<void>> {
           if (event.type === 'tool_use' || event.type === 'agent_spawn') {
             bumpTool(heatmapState, event.type === 'agent_spawn' ? 'Agent' : event.tool);
           }
+          for (const r of claudeRenderers) {
+            r.onEvent({
+              type: event.type,
+              ...(event.type === 'tool_use' ? { tool: event.tool } : {}),
+              sessionId: event.session_id,
+              rawByteLen: body.length,
+            });
+          }
           const intent = claudeIntent(event);
           if (intent) routeAndPush(intent);
         }
@@ -1618,7 +1753,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               break;
             }
             case 'hud-config': {
-              const m = msg as { cmd: string; leftFace?: string; leftWidget?: string; leftDataStyle?: string; leftAudioStyle?: string; leftFile?: string; leftBiomeName?: string; leftRandomIntervalMs?: number; rightFace?: string; rightWidget?: string; rightDataStyle?: string; rightAudioStyle?: string; rightFile?: string; rightBiomeName?: string; rightRandomIntervalMs?: number };
+              const m = msg as { cmd: string; leftFace?: string; leftWidget?: string; leftDataStyle?: string; leftAudioStyle?: string; leftClaudeStyle?: string; leftFile?: string; leftBiomeName?: string; leftRandomIntervalMs?: number; rightFace?: string; rightWidget?: string; rightDataStyle?: string; rightAudioStyle?: string; rightClaudeStyle?: string; rightFile?: string; rightBiomeName?: string; rightRandomIntervalMs?: number };
               const biomeNames = new Set((currentConfig.biome_presets ?? []).map(b => b.name));
               const validBiome = (name: string) => name === 'random' || biomeNames.has(name);
               if (m.leftWidget === 'life' && typeof m.leftBiomeName === 'string' && !validBiome(m.leftBiomeName)) {
@@ -1642,6 +1777,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 newHud.left = { widget: 'image', file: m.leftFile };
               } else if (m.leftWidget === 'life' && typeof m.leftBiomeName === 'string') {
                 newHud.left = { widget: 'life', biomeName: m.leftBiomeName, ...(m.leftRandomIntervalMs !== undefined ? { randomIntervalMs: m.leftRandomIntervalMs } : {}) };
+              } else if (m.leftWidget === 'claude') {
+                const style = CLAUDE_STYLES.find(s => s.id === m.leftClaudeStyle)?.id;
+                newHud.left = { widget: 'claude', ...(style ? { style } : {}) };
               } else if (typeof m.leftFace === 'string') {
                 const face = isClockFace(m.leftFace) ? m.leftFace : 'elegant';
                 newHud.left = { widget: 'clock', face };
@@ -1658,6 +1796,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 newHud.right = { widget: 'image', file: m.rightFile };
               } else if (m.rightWidget === 'life' && typeof m.rightBiomeName === 'string') {
                 newHud.right = { widget: 'life', biomeName: m.rightBiomeName, ...(m.rightRandomIntervalMs !== undefined ? { randomIntervalMs: m.rightRandomIntervalMs } : {}) };
+              } else if (m.rightWidget === 'claude') {
+                const style = CLAUDE_STYLES.find(s => s.id === m.rightClaudeStyle)?.id;
+                newHud.right = { widget: 'claude', ...(style ? { style } : {}) };
               } else if (typeof m.rightFace === 'string') {
                 const face = isClockFace(m.rightFace) ? m.rightFace : 'elegant';
                 newHud.right = { widget: 'clock', face };
