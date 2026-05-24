@@ -217,6 +217,12 @@ export function App() {
     return () => { alive = false; clearInterval(id); };
   }, []);
 
+  useEffect(() => {
+    if (!hasMic && deckStore.getState().audioSource === 'mic') {
+      deckStore.getState().setAudioSource('monitor');
+    }
+  }, [hasMic]);
+
   const isClockSelected = activeMode === 'hud' && (selectedPreset?.[hudSelectedSide]?.widget === 'clock' || hudClocksVisible);
 
   useEffect(() => {
@@ -541,20 +547,22 @@ export function App() {
               ) : undefined
             ) : activeMode === 'config' ? (
               <Button variant="ghost" disabled={!configDirty} onClick={() => void saveConfig()}>save</Button>
-            ) : activeMode === 'audio' && hasMic ? (
-              <div className="flex items-center gap-2">
-                {audioSource === 'mic' && (
-                  <Slider aria-label="Mic sensitivity" value={micSensitivity} min={0} max={100} className="w-36" onChange={e => deckStore.getState().setMicSensitivity(Number(e.target.value))} />
-                )}
-                <Toggle
-                  pressed={audioSource === 'mic'}
-                  onPressedChange={(on) => deckStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
-                  title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
-                  aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
-                >
-                  <span aria-hidden="true">mic</span>
-                </Toggle>
-              </div>
+            ) : activeMode === 'audio' ? (
+              hasMic ? (
+                <div className="flex items-center gap-2">
+                  {audioSource === 'mic' && (
+                    <Slider aria-label="Mic sensitivity" value={micSensitivity} min={0} max={100} className="w-36" onChange={e => deckStore.getState().setMicSensitivity(Number(e.target.value))} />
+                  )}
+                  <Toggle
+                    pressed={audioSource === 'mic'}
+                    onPressedChange={(on) => deckStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
+                    title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                    aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                  >
+                    <span aria-hidden="true">mic</span>
+                  </Toggle>
+                </div>
+              ) : undefined
             ) : activeMode === 'video' ? (
               <div className="flex items-center gap-1">
                 <VideoTransportControls />
