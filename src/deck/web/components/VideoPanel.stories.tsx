@@ -1,5 +1,6 @@
 import * as React from 'react';
 import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import { expect, userEvent, waitFor } from 'storybook/test';
 import { VideoPanel, VideoHeader, VideoTransportControls, VideoSettingsToggle, resetVStore, useVStore } from './VideoPanel.js';
 
 // Installs a mock WebSocket for the duration of a story's mount.
@@ -137,4 +138,46 @@ export const TransportEnabled: Story = {
       return <Story />;
     },
   ],
+};
+
+// Self-contained wrapper that wires the settingsToggleRef between the toggle and the panel.
+function FocusReturnLayout() {
+  const settingsToggleRef = React.useRef<HTMLButtonElement>(null);
+  return (
+    <MockWsProvider>
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#000' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 8px', height: 44, borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
+          <div style={{ marginLeft: 'auto' }}>
+            <VideoSettingsToggle ref={settingsToggleRef} />
+          </div>
+        </div>
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <VideoPanel settingsToggleRef={settingsToggleRef} />
+        </div>
+      </div>
+    </MockWsProvider>
+  );
+}
+
+/** Focus returns to the settings toggle button when the settings panel is closed. */
+export const FocusReturn: Story = {
+  decorators: [
+    // Story not rendered — FocusReturnLayout owns both the toggle and panel
+    // so it can wire settingsToggleRef between them directly.
+    () => { resetVStore(); return <FocusReturnLayout />; },
+  ],
+  play: async ({ canvas }) => {
+    const toggle = await canvas.findByRole('button', { name: /video settings/i });
+
+    await userEvent.click(toggle);
+    await waitFor(() => {
+      expect(document.activeElement).toHaveAttribute('aria-label', 'Video settings');
+      expect(document.activeElement).toHaveAttribute('tabindex', '-1');
+    });
+
+    await userEvent.click(toggle);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(toggle);
+    });
+  },
 };

@@ -193,6 +193,7 @@ export function App() {
   const headerRef = useRef<HTMLElement>(null);
   const footerRef = useRef<HTMLElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const settingsToggleRef = useRef<HTMLButtonElement>(null);
   const [topPad, setTopPad] = useState(0);
   const [bottomPad, setBottomPad] = useState(0);
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -567,7 +568,7 @@ export function App() {
               <div className="flex items-center gap-1">
                 <VideoTransportControls />
                 <span className="w-4 shrink-0" aria-hidden="true" />
-                <VideoSettingsToggle />
+                <VideoSettingsToggle ref={settingsToggleRef} />
               </div>
             ) : activeMode === 'life' ? (
               <div className="flex items-center gap-2">
@@ -591,7 +592,7 @@ export function App() {
           </div>
         ) : activeMode === 'video' ? (
           <div className="h-full flex">
-            <VideoPanel topPad={headerHeight} />
+            <VideoPanel topPad={headerHeight} settingsToggleRef={settingsToggleRef} />
           </div>
         ) : activeMode === 'audio' ? (
           <div className="h-full flex">

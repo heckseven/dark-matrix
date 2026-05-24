@@ -149,11 +149,12 @@ export function VideoHeader() {
 
 // ── VideoSettingsToggle ────────────────────────────────────────────────────
 
-export function VideoSettingsToggle() {
+export const VideoSettingsToggle = React.forwardRef<HTMLButtonElement>(function VideoSettingsToggle(_, ref) {
   const settingsOpen = useVStore(s => s.settingsOpen);
   const { setSettingsOpen } = useVStore.getState();
   return (
     <Button
+      ref={ref}
       variant="ghost"
       aria-label="Video settings"
       tooltip="video settings"
@@ -164,7 +165,7 @@ export function VideoSettingsToggle() {
       ⚙
     </Button>
   );
-}
+});
 
 // ── VideoTransportControls ─────────────────────────────────────────────────
 
@@ -217,7 +218,7 @@ export function VideoTransportControls() {
 
 // ── VideoPanel ─────────────────────────────────────────────────────────────
 
-export function VideoPanel({ topPad = 0 }: { topPad?: number }) {
+export function VideoPanel({ topPad = 0, settingsToggleRef }: { topPad?: number; settingsToggleRef?: React.RefObject<HTMLButtonElement | null> }) {
   const src = useVStore(s => s.src);
   const playing = useVStore(s => s.playing);
   const controls = useVStore(s => s.controls);
@@ -252,8 +253,10 @@ export function VideoPanel({ topPad = 0 }: { topPad?: number }) {
   }, []);
 
   React.useEffect(() => {
-    if (settingsOpen) settingsPanelRef.current?.focus();
-  }, [settingsOpen]);
+    if (!settingsOpen) return;
+    settingsPanelRef.current?.focus();
+    return () => { settingsToggleRef?.current?.focus(); };
+  }, [settingsOpen, settingsToggleRef]);
 
   React.useEffect(() => {
     bridgeRef.current = createPreviewBridge(`ws://${location.host}/ws`);
