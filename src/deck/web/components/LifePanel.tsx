@@ -4,6 +4,7 @@ import { BiomeList } from './BiomeList.js';
 import { LifeCanvas, encodeGrid, makeRandomGrid } from './LifeCanvas.js';
 import { LifeInspector } from './LifeInspector.js';
 import { LibraryPickerModal, type LibraryEntry } from './LibraryPickerModal.js';
+import { ThreePanelLayout } from './ThreePanelLayout.js';
 import type { BiomePreset } from '../types/life-types.js';
 import type { DmxProject } from '../../format.js';
 
@@ -248,67 +249,62 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
   // ── Render ────────────────────────────────────────────────────────────
 
   return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0,220px) 1fr minmax(0,220px)',
-        height: '100%',
-        width: '100%',
-      }}
-    >
-      {/* Left: biome list */}
-      <aside aria-label="Biome list" style={{ overflow: 'hidden', paddingTop: topPad, display: 'flex', flexDirection: 'column' }}>
-        <BiomeList
-          biomes={biomePresets}
-          activeName={activeBiomeName}
-          selectedName={selectedBiomeName}
-          onSelect={handleSelect}
-          onActivate={handleActivate}
-          onCreate={handleCreate}
-          onInsert={handleInsert}
-          onDelete={handleDelete}
-          onDuplicate={handleDuplicate}
-          onRename={handleRename}
-          onMove={handleMove}
-        />
-      </aside>
-
-      {/* Center: simulation canvas */}
-      <main style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-        {selectedBiome ? (
-          <LifeCanvas
-            biome={selectedBiome}
-            playing={lifeIsPlaying}
-            generation={lifeGeneration}
-            cols={cols}
-            stepForwardCount={lifeStepForwardCount}
-            stepBackCount={lifeStepBackCount}
-            onGridChange={handleGridChange}
-            onTick={sendPreviewFrame}
-            onStep={n => deckStore.getState().setLifeStepCount(n)}
+    <>
+      <ThreePanelLayout
+        columns="minmax(0,220px) 1fr minmax(0,220px)"
+        leftLabel="Biome list"
+        leftStyle={{ paddingTop: topPad }}
+        rightLabel="Life inspector"
+        rightStyle={{ paddingTop: topPad }}
+        centerClassName="overflow-hidden flex items-center justify-center"
+        left={
+          <BiomeList
+            biomes={biomePresets}
+            activeName={activeBiomeName}
+            selectedName={selectedBiomeName}
+            onSelect={handleSelect}
+            onActivate={handleActivate}
+            onCreate={handleCreate}
+            onInsert={handleInsert}
+            onDelete={handleDelete}
+            onDuplicate={handleDuplicate}
+            onRename={handleRename}
+            onMove={handleMove}
           />
-        ) : (
-          <p className="font-mono text-xs text-muted-foreground">select a biome to begin</p>
-        )}
-      </main>
-
-      {/* Right: inspector */}
-      <aside aria-label="Life inspector" style={{ overflow: 'hidden', paddingTop: topPad }}>
-        {selectedBiome ? (
-          <LifeInspector
-            biome={selectedBiome}
-            onChange={handleBiomeChange}
-            onRandomize={handleRandomize}
-            onOpenLibrary={() => { setImportEntries(undefined); setDesignPickerOpen(true); }}
-            onImportFile={handleImportFileClick}
-          />
-        ) : (
-          <div className="p-4">
-            <p className="font-mono text-xs text-muted-foreground">no biome selected</p>
-          </div>
-        )}
-      </aside>
-
+        }
+        center={
+          selectedBiome ? (
+            <LifeCanvas
+              biome={selectedBiome}
+              playing={lifeIsPlaying}
+              generation={lifeGeneration}
+              cols={cols}
+              stepForwardCount={lifeStepForwardCount}
+              stepBackCount={lifeStepBackCount}
+              onGridChange={handleGridChange}
+              onTick={sendPreviewFrame}
+              onStep={n => deckStore.getState().setLifeStepCount(n)}
+            />
+          ) : (
+            <p className="font-mono text-xs text-muted-foreground">select a biome to begin</p>
+          )
+        }
+        right={
+          selectedBiome ? (
+            <LifeInspector
+              biome={selectedBiome}
+              onChange={handleBiomeChange}
+              onRandomize={handleRandomize}
+              onOpenLibrary={() => { setImportEntries(undefined); setDesignPickerOpen(true); }}
+              onImportFile={handleImportFileClick}
+            />
+          ) : (
+            <div className="p-4">
+              <p className="font-mono text-xs text-muted-foreground">no biome selected</p>
+            </div>
+          )
+        }
+      />
       <input
         ref={fileInputRef}
         type="file"
@@ -318,13 +314,12 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
         tabIndex={-1}
         onChange={handleFileChange}
       />
-
       <LibraryPickerModal
         open={designPickerOpen}
         onOpenChange={open => { setDesignPickerOpen(open); if (!open) setImportEntries(undefined); }}
         onPick={handleImportDesign}
         {...(importEntries !== undefined ? { initialEntries: importEntries } : {})}
       />
-    </div>
+    </>
   );
 }

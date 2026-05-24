@@ -5,6 +5,7 @@ import { Button } from './ui/button.js';
 import { Tooltip } from './ui/tooltip.js';
 import { MatrixPreview } from './MatrixPreview.js';
 import { AssetImportPanel } from './AssetImportPanel.js';
+import { PanelBar } from './PanelBar.js';
 
 function CornerBrackets({ active }: { active: boolean }) {
   const c = { position: 'absolute' as const, width: 16, height: 16, pointerEvents: 'none' as const };
@@ -149,41 +150,32 @@ export function AssetPickerModal({ open, onOpenChange, current, onPick }: AssetP
 
         {/* scrollable body with sticky header so blur covers content as it scrolls */}
         <div className="flex-1 overflow-y-auto">
-          {/* sticky header */}
-          <div
-            className="sticky top-0 z-10 flex items-center px-3 py-2"
-            style={{ backdropFilter: 'blur(4px)', backgroundColor: 'rgba(0,0,0,0.55)' }}
-          >
-            {view === 'import' && (
-              <Button
-                variant="ghost"
-                className="text-foreground/60 text-xs"
-                aria-label="Back to library"
-                onClick={() => setView('grid')}
-              >
+          <PanelBar
+            sticky
+            className="px-3 py-2"
+            left={view === 'import' ? (
+              <Button variant="ghost" className="text-foreground/60 text-xs" aria-label="Back to library" onClick={() => setView('grid')}>
                 ‹ library
               </Button>
-            )}
-            <span className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
-              {view === 'import' ? 'import asset' : 'pick asset'}
-            </span>
-            <div className="ml-auto flex items-center gap-1">
-              {view === 'grid' && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="font-mono text-xs"
-                  aria-label="Import asset"
-                  onClick={() => setView('import')}
-                >
-                  import
-                </Button>
-              )}
-              <DialogClose asChild>
-                <Button variant="ghost" size="sm" aria-label="Close asset picker" tooltip="Close" tooltipSide="left">×</Button>
-              </DialogClose>
-            </div>
-          </div>
+            ) : undefined}
+            center={
+              <span className="font-mono text-xs text-foreground">
+                {view === 'import' ? 'import asset' : 'pick asset'}
+              </span>
+            }
+            right={
+              <div className="flex items-center gap-1">
+                {view === 'grid' && (
+                  <Button variant="ghost" size="sm" className="font-mono text-xs" aria-label="Import asset" onClick={() => setView('import')}>
+                    import
+                  </Button>
+                )}
+                <DialogClose asChild>
+                  <Button variant="ghost" size="sm" aria-label="Close asset picker" tooltip="Close" tooltipSide="left">×</Button>
+                </DialogClose>
+              </div>
+            }
+          />
 
           {/* content */}
           <div className="p-3">

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { MatrixPreview } from './MatrixPreview.js';
 import { useDeckStore, deckStore } from '../store.js';
+import { MatrixItem } from './MatrixItem.js';
 import type { AudioStyle, AudioSource } from '../store.js';
 import { AUDIO_STYLES, createRenderer } from '../../../animations/audio-renderers.js';
 import type { RenderCtx } from '../../../animations/audio-renderers.js';
@@ -71,42 +71,6 @@ function mirrorFrame(b64: string): string {
   return btoa(String.fromCharCode(...dst));
 }
 
-function AudioStyleCard({
-  label,
-  active,
-  pixels,
-  dualModule,
-  onSelect,
-}: {
-  label: string;
-  active: boolean;
-  pixels: string;
-  dualModule: boolean;
-  onSelect: () => void;
-}) {
-  const c = { position: 'absolute' as const, width: 16, height: 16, pointerEvents: 'none' as const };
-  const b = `1px solid ${active ? 'white' : 'rgba(255,255,255,0.35)'}`;
-
-  return (
-    <button
-      type="button"
-      aria-label={`${label} visualizer`}
-      aria-pressed={active}
-      className="group relative flex flex-col gap-3 items-center rounded-sm p-3 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-      onClick={onSelect}
-    >
-      <div aria-hidden="true" className={`absolute inset-0 pointer-events-none transition-opacity ${active ? '' : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'}`}>
-        <span style={{ ...c, top: 0,    left: 0,    borderTop: b, borderLeft: b }} />
-        <span style={{ ...c, top: 0,    right: 0,   borderTop: b, borderRight: b }} />
-        <span style={{ ...c, bottom: 0, left: 0,    borderBottom: b, borderLeft: b }} />
-        <span style={{ ...c, bottom: 0, right: 0,   borderBottom: b, borderRight: b }} />
-      </div>
-      <MatrixPreview pixels={pixels} width={dualModule ? 18 : 9} />
-      <span className="font-mono text-xs text-foreground">{label}</span>
-    </button>
-  );
-}
-
 export function AudioPanel({ dualModule = false }: { dualModule?: boolean }) {
   const audioStyle = useDeckStore(s => s.audioStyle);
   const audioSource = useDeckStore(s => s.audioSource);
@@ -167,18 +131,19 @@ export function AudioPanel({ dualModule = false }: { dualModule?: boolean }) {
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-10 px-8 py-8 overflow-y-auto">
-      <div role="group" aria-label="Audio visualizer style" className="grid grid-cols-7 gap-6">
+      <div role="group" aria-label="Audio visualizer style" className="grid grid-cols-7 gap-6 justify-items-center">
         {AUDIO_STYLES.map(({ id, label }) => {
           const active = audioStyle === id;
           const base = livePixels[id as AudioStyle] ?? PLACEHOLDER[id as AudioStyle]!;
           const pixels = dualModule ? mirrorFrame(base) : base;
           return (
-            <AudioStyleCard
+            <MatrixItem
               key={id}
-              label={label}
-              active={active}
+              name={label}
+              aria-label={`${label} visualizer`}
+              width={dualModule ? 18 : 9}
               pixels={pixels}
-              dualModule={dualModule}
+              isSelected={active}
               onSelect={() => deckStore.getState().setAudioStyle(id as AudioStyle)}
             />
           );

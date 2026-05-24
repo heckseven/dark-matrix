@@ -23,6 +23,8 @@ import { HudPanel, hudSendWsGlobal } from './components/HudPanel.js';
 import { VideoPanel, VideoHeader, VideoTransportControls, VideoSettingsToggle } from './components/VideoPanel.js';
 import { LifePanel, lifeTriggerSave } from './components/LifePanel.js';
 import { AssetManagerModal } from './components/AssetManagerModal.js';
+import { ThreePanelLayout } from './components/ThreePanelLayout.js';
+import { PanelBar } from './components/PanelBar.js';
 
 const MODE_LABEL = Object.fromEntries(MODES.map(m => [m.id, m.label])) as Record<AppMode, string>;
 
@@ -147,32 +149,6 @@ function LivePreviewToggle({ on, onToggle }: { on: boolean; onToggle: () => void
   );
 }
 
-function ConfigHeading() {
-  const configDirty = useDeckStore(s => s.configDirty);
-  const saveConfig = useDeckStore(s => s.saveConfig);
-
-  return (
-    <>
-      <div aria-live="polite" aria-atomic="true" className="sr-only">
-        {configDirty ? 'Config has unsaved changes' : ''}
-      </div>
-      <div className="absolute inset-x-0 flex justify-center pointer-events-none">
-        <span className="flex items-center gap-2 font-mono text-xs text-foreground">
-          config
-          {configDirty && <span role="img" aria-label="unsaved changes" className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />}
-        </span>
-      </div>
-      <Button
-        variant="ghost"
-        disabled={!configDirty}
-        onClick={() => void saveConfig()}
-        className="ml-auto"
-      >
-        save
-      </Button>
-    </>
-  );
-}
 
 export function App() {
   const activeColor = useDeckStore(s => s.activeColor);
@@ -193,6 +169,8 @@ export function App() {
   const selectedBiomeName  = useDeckStore(s => s.selectedBiomeName);
   const lifeIsPlaying      = useDeckStore(s => s.lifeIsPlaying);
   const lifeStepCount      = useDeckStore(s => s.lifeStepCount);
+  const configDirty        = useDeckStore(s => s.configDirty);
+  const saveConfig         = useDeckStore(s => s.saveConfig);
 
   useEffect(() => {
     document.title = activeMode ? `dark-matrix - ${MODE_LABEL[activeMode]}` : 'dark-matrix';
@@ -402,181 +380,14 @@ export function App() {
           }}
         />
 
-        <header ref={headerRef} className="absolute top-0 inset-x-0 z-10 flex items-center gap-4 pl-7 pr-5 py-4" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-          {activeMode === 'hud' ? (
-            <>
-              <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
-              <div className="absolute inset-x-0 flex justify-center pointer-events-none">
-                <div className="pointer-events-auto">
-                  {selectedPreset ? (
-                    <ProjectTitle
-                      value={selectedPreset.name}
-                      onChange={hudRenameSelected}
-                    />
-                  ) : (
-                    <span className="font-mono text-xs text-muted-foreground">no preset selected</span>
-                  )}
-                </div>
-              </div>
-              {(isClockSelected || (hasMic && hudNeedsAudio)) && (
-                <div className="ml-auto flex items-center gap-2">
-                  {isClockSelected && (
-                    <>
-                      <ScrubInput
-                        aria-label="Clock hours"
-                        value={clockOverrideH}
-                        min={0}
-                        max={23}
-                        onChange={setClockOverrideH}
-                      />
-                      <ScrubInput
-                        aria-label="Clock minutes"
-                        value={clockOverrideM}
-                        min={0}
-                        max={59}
-                        onChange={setClockOverrideM}
-                      />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label="Reset to current time"
-                        onClick={() => { const n = new Date(); setClockOverrideH(n.getHours()); setClockOverrideM(n.getMinutes()); }}
-                      >
-                        now
-                      </Button>
-                      <Tooltip content="fast forward">
-                        <Toggle
-                          pressed={clockFastForward}
-                          onPressedChange={setClockFastForward}
-                          aria-label="Fast forward clock"
-                        >
-                          <span aria-hidden="true">»</span>
-                        </Toggle>
-                      </Tooltip>
-                    </>
-                  )}
-                  {isClockSelected && hasMic && hudNeedsAudio && (
-                    <span aria-hidden="true" className="w-px h-4 bg-foreground/20" />
-                  )}
-                  {hasMic && hudNeedsAudio && (
-                    <Toggle
-                      pressed={audioSource === 'mic'}
-                      onPressedChange={(on) => deckStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
-                      title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
-                      aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
-                    >
-                      <span aria-hidden="true">mic</span>
-                    </Toggle>
-                  )}
-                </div>
-              )}
-            </>
-          ) : activeMode === 'config' ? (
-            <>
-              <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
-              <ConfigHeading />
-            </>
-          ) : activeMode === 'audio' ? (
-            <>
-              <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
-              <div className="absolute inset-x-0 flex justify-center pointer-events-none">
-                <span className="font-mono text-xs text-foreground">audio</span>
-              </div>
-              {hasMic && (
-                <div className="ml-auto flex items-center gap-2">
-                  {audioSource === 'mic' && (
-                    <Slider
-                      aria-label="Mic sensitivity"
-                      value={micSensitivity}
-                      min={0}
-                      max={100}
-                      className="w-36"
-                      onChange={e => deckStore.getState().setMicSensitivity(Number(e.target.value))}
-                    />
-                  )}
-                  <Toggle
-                    pressed={audioSource === 'mic'}
-                    onPressedChange={(on) => deckStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
-                    title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
-                    aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
-                  >
-                    <span aria-hidden="true">mic</span>
-                  </Toggle>
-                </div>
-              )}
-            </>
-          ) : activeMode === 'video' ? (
-            <>
-              <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
-              <VideoHeader />
-              <div className="ml-auto flex items-center gap-1">
-                <VideoTransportControls />
-                <span className="w-4 shrink-0" aria-hidden="true" />
-                <VideoSettingsToggle />
-              </div>
-            </>
-          ) : activeMode === 'life' ? (
-            <>
-              <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
-              <div className="absolute inset-x-0 flex justify-center pointer-events-none">
-                <div className="pointer-events-auto">
-                  {selectedBiomeName ? (
-                    <ProjectTitle
-                      value={selectedBiomeName}
-                      onChange={newName => {
-                        deckStore.getState().renameBiome(selectedBiomeName, newName);
-                        lifeTriggerSave();
-                      }}
-                    />
-                  ) : (
-                    <span className="font-mono text-xs text-muted-foreground">no biome selected</span>
-                  )}
-                </div>
-              </div>
-              <div className="ml-auto flex items-center gap-2">
-                {selectedBiomeName && (
-                  <span className="font-mono text-xs text-muted-foreground tabular-nums w-12 text-right">{lifeStepCount}</span>
-                )}
-                <Button
-                  variant="ghost"
-                  aria-label="Step back"
-                  tooltip="step back"
-                  disabled={lifeIsPlaying || !selectedBiomeName}
-                  onClick={() => deckStore.getState().stepLifeBack()}
-                >
-                  ◁
-                </Button>
-                <Button
-                  variant="ghost"
-                  aria-label="Restart simulation"
-                  tooltip="restart"
-                  disabled={!selectedBiomeName}
-                  onClick={() => deckStore.getState().restartLife()}
-                >
-                  ↺
-                </Button>
-                <Button
-                  variant="ghost"
-                  aria-label="Step forward"
-                  tooltip="step forward"
-                  disabled={lifeIsPlaying || !selectedBiomeName}
-                  onClick={() => deckStore.getState().stepLifeForward()}
-                >
-                  ▷
-                </Button>
-                <Button
-                  variant="ghost"
-                  aria-label={lifeIsPlaying ? 'Pause simulation' : 'Play simulation'}
-                  tooltip={lifeIsPlaying ? 'pause' : 'play'}
-                  disabled={!selectedBiomeName}
-                  onClick={() => deckStore.getState().setLifePlaying(!lifeIsPlaying)}
-                >
-                  <span className="inline-block w-[1em] text-center">{lifeIsPlaying ? '⏸' : '▶'}</span>
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
+        <PanelBar
+          as="header"
+          ref={headerRef}
+          blur={false}
+          className="absolute top-0 inset-x-0 z-10 gap-4 pl-7 pr-5 py-4"
+          style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}
+          left={
+            activeMode !== 'hud' && activeMode !== 'config' && activeMode !== 'audio' && activeMode !== 'video' && activeMode !== 'life' ? (
               <div className="flex items-center gap-1">
                 <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
                 <Menu>
@@ -647,25 +458,124 @@ export function App() {
                   </Menu>
                 )}
               </div>
-              <div className="absolute inset-x-0 flex justify-center pointer-events-none">
-                <div className="pointer-events-auto">
-                  <ProjectTitle value={projectTitle} onChange={v => {
-                    const { libraryPath: lp } = deckStore.getState();
-                    deckStore.getState().setProjectTitle(v);
-                    if (lp !== null) {
-                      const normalized = deckStore.getState().projectTitle;
-                      renameLibraryFile(lp, normalized)
-                        .then(newName => deckStore.getState().setLibraryPath(newName))
-                        .catch(console.error);
-                    }
-                  }} />
+            ) : (
+              <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
+            )
+          }
+          center={
+            activeMode === 'hud' ? (
+              selectedPreset ? (
+                <ProjectTitle value={selectedPreset.name} onChange={hudRenameSelected} />
+              ) : (
+                <span className="font-mono text-xs text-muted-foreground">no preset selected</span>
+              )
+            ) : activeMode === 'config' ? (
+              <>
+                <div aria-live="polite" aria-atomic="true" className="sr-only">
+                  {configDirty ? 'Config has unsaved changes' : ''}
                 </div>
+                <span className="flex items-center gap-2 font-mono text-xs text-foreground">
+                  config
+                  {configDirty && <span role="img" aria-label="unsaved changes" className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />}
+                </span>
+              </>
+            ) : activeMode === 'audio' ? (
+              <span className="font-mono text-xs text-foreground">audio</span>
+            ) : activeMode === 'video' ? (
+              <VideoHeader />
+            ) : activeMode === 'life' ? (
+              selectedBiomeName ? (
+                <ProjectTitle
+                  value={selectedBiomeName}
+                  onChange={newName => {
+                    deckStore.getState().renameBiome(selectedBiomeName, newName);
+                    lifeTriggerSave();
+                  }}
+                />
+              ) : (
+                <span className="font-mono text-xs text-muted-foreground">no biome selected</span>
+              )
+            ) : (
+              <ProjectTitle value={projectTitle} onChange={v => {
+                const { libraryPath: lp } = deckStore.getState();
+                deckStore.getState().setProjectTitle(v);
+                if (lp !== null) {
+                  const normalized = deckStore.getState().projectTitle;
+                  renameLibraryFile(lp, normalized)
+                    .then(newName => deckStore.getState().setLibraryPath(newName))
+                    .catch(console.error);
+                }
+              }} />
+            )
+          }
+          right={
+            activeMode === 'hud' ? (
+              (isClockSelected || (hasMic && hudNeedsAudio)) ? (
+                <div className="flex items-center gap-2">
+                  {isClockSelected && (
+                    <>
+                      <ScrubInput aria-label="Clock hours" value={clockOverrideH} min={0} max={23} onChange={setClockOverrideH} />
+                      <ScrubInput aria-label="Clock minutes" value={clockOverrideM} min={0} max={59} onChange={setClockOverrideM} />
+                      <Button variant="ghost" size="sm" aria-label="Reset to current time" onClick={() => { const n = new Date(); setClockOverrideH(n.getHours()); setClockOverrideM(n.getMinutes()); }}>
+                        now
+                      </Button>
+                      <Tooltip content="fast forward">
+                        <Toggle pressed={clockFastForward} onPressedChange={setClockFastForward} aria-label="Fast forward clock">
+                          <span aria-hidden="true">»</span>
+                        </Toggle>
+                      </Tooltip>
+                    </>
+                  )}
+                  {isClockSelected && hasMic && hudNeedsAudio && <span aria-hidden="true" className="w-px h-4 bg-foreground/20" />}
+                  {hasMic && hudNeedsAudio && (
+                    <Toggle
+                      pressed={audioSource === 'mic'}
+                      onPressedChange={(on) => deckStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
+                      title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                      aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                    >
+                      <span aria-hidden="true">mic</span>
+                    </Toggle>
+                  )}
+                </div>
+              ) : undefined
+            ) : activeMode === 'config' ? (
+              <Button variant="ghost" disabled={!configDirty} onClick={() => void saveConfig()}>save</Button>
+            ) : activeMode === 'audio' && hasMic ? (
+              <div className="flex items-center gap-2">
+                {audioSource === 'mic' && (
+                  <Slider aria-label="Mic sensitivity" value={micSensitivity} min={0} max={100} className="w-36" onChange={e => deckStore.getState().setMicSensitivity(Number(e.target.value))} />
+                )}
+                <Toggle
+                  pressed={audioSource === 'mic'}
+                  onPressedChange={(on) => deckStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
+                  title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                  aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                >
+                  <span aria-hidden="true">mic</span>
+                </Toggle>
               </div>
-              <div className="flex-1" />
+            ) : activeMode === 'video' ? (
+              <div className="flex items-center gap-1">
+                <VideoTransportControls />
+                <span className="w-4 shrink-0" aria-hidden="true" />
+                <VideoSettingsToggle />
+              </div>
+            ) : activeMode === 'life' ? (
+              <div className="flex items-center gap-2">
+                {selectedBiomeName && <span className="font-mono text-xs text-muted-foreground tabular-nums w-12 text-right">{lifeStepCount}</span>}
+                <Button variant="ghost" aria-label="Step back" tooltip="step back" disabled={lifeIsPlaying || !selectedBiomeName} onClick={() => deckStore.getState().stepLifeBack()}>◁</Button>
+                <Button variant="ghost" aria-label="Restart simulation" tooltip="restart" disabled={!selectedBiomeName} onClick={() => deckStore.getState().restartLife()}>↺</Button>
+                <Button variant="ghost" aria-label="Step forward" tooltip="step forward" disabled={lifeIsPlaying || !selectedBiomeName} onClick={() => deckStore.getState().stepLifeForward()}>▷</Button>
+                <Button variant="ghost" aria-label={lifeIsPlaying ? 'Pause simulation' : 'Play simulation'} tooltip={lifeIsPlaying ? 'pause' : 'play'} disabled={!selectedBiomeName} onClick={() => deckStore.getState().setLifePlaying(!lifeIsPlaying)}>
+                  <span className="inline-block w-[1em] text-center">{lifeIsPlaying ? '⏸' : '▶'}</span>
+                </Button>
+              </div>
+            ) : (
               <TransportControls />
-            </>
-          )}
-        </header>
+            )
+          }
+        />
 
         {activeMode === 'hud' ? (
           <div className="h-full flex">
@@ -688,21 +598,16 @@ export function App() {
             <LifePanel topPad={headerHeight} dualModule={dualModule} />
           </div>
         ) : (
-          <div className="h-full grid overflow-hidden" style={{ gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)' }}>
-            <aside aria-label="Color palette" className="overflow-hidden flex items-start justify-end pl-4" style={{ paddingTop: topPad }}>
-              <ColorPalette value={activeColor} onChange={pickColor} />
-            </aside>
-
-            <main className="px-10 overflow-y-auto">
-              <div style={{ paddingTop: topPad }}>
-                <PixelCanvas onCursorMove={(col, row) => setCursor({ col, row })} />
-              </div>
-            </main>
-
-            <aside aria-label="Animation frames" className="overflow-hidden flex flex-col">
-              <FrameStrip topPadding={topPad} bottomPadding={bottomPad} />
-            </aside>
-          </div>
+          <ThreePanelLayout
+            leftLabel="Color palette"
+            leftClassName="overflow-hidden flex items-start justify-end pl-4"
+            leftStyle={{ paddingTop: topPad }}
+            centerClassName="overflow-y-auto px-10"
+            rightLabel="Animation frames"
+            left={<ColorPalette value={activeColor} onChange={pickColor} />}
+            center={<div style={{ paddingTop: topPad }}><PixelCanvas onCursorMove={(col, row) => setCursor({ col, row })} /></div>}
+            right={<FrameStrip topPadding={topPad} bottomPadding={bottomPad} />}
+          />
         )}
 
         {activeMode !== 'audio' && activeMode !== 'hud' && activeMode !== 'config' && activeMode !== 'video' && activeMode !== 'life' && <footer ref={footerRef} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>

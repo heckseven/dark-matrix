@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog.js';
 import { Button } from './ui/button.js';
 import { MatrixPreview } from './MatrixPreview.js';
+import { PanelBar } from './PanelBar.js';
 import type { DmxProject } from '../../format.js';
 import { ROWS } from '../store.js';
 
@@ -78,24 +79,23 @@ export function LibraryPickerModal({ open, onOpenChange, onPick, initialEntries 
           {inFrames ? `Pick frame — ${view.entry.name}` : 'Pick design'}
         </DialogTitle>
 
-        {/* header */}
-        <div className="relative flex items-center shrink-0 px-3 py-2 border-b border-foreground/15">
-          {inFrames ? (
-            <Button
-              variant="ghost"
-              className="text-foreground/60 text-xs"
-              aria-label="Back to library"
-              onClick={() => setView({ step: 'grid' })}
-            >
+        <PanelBar
+          blur={false}
+          border
+          className="relative shrink-0 px-3 py-2"
+          left={inFrames ? (
+            <Button variant="ghost" className="text-foreground/60 text-xs" aria-label="Back to library" onClick={() => setView({ step: 'grid' })}>
               ‹ library
             </Button>
           ) : (
             <span className="font-mono text-xs text-muted-foreground px-1">library</span>
           )}
-          <span className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
-            {inFrames ? view.entry.name : 'pick design'}
-          </span>
-        </div>
+          center={
+            <span className="font-mono text-xs text-foreground">
+              {inFrames ? view.entry.name : 'pick design'}
+            </span>
+          }
+        />
 
         {/* body */}
         <div className="flex-1 overflow-y-auto p-3">

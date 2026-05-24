@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogClose, DialogTitle } from './ui/dialog.js'
 import { Button } from './ui/button.js';
 import { MatrixItem } from './MatrixItem.js';
 import { AssetImportPanel } from './AssetImportPanel.js';
+import { PanelBar } from './PanelBar.js';
 
 type AnimState = Record<string, { frameIdx: number; elapsed: number; lastTick: number | null }>;
 
@@ -217,40 +218,32 @@ export function AssetManagerModal({ open, onOpenChange, onOpenAsset }: AssetMana
         </DialogTitle>
 
         <div className="flex-1 overflow-y-auto">
-          <div
-            className="sticky top-0 z-10 flex items-center px-3 py-2"
-            style={{ backdropFilter: 'blur(4px)', backgroundColor: 'rgba(0,0,0,0.55)' }}
-          >
-            {view === 'import' && (
-              <Button
-                variant="ghost"
-                className="text-foreground/60 text-xs"
-                aria-label="Back to assets"
-                onClick={() => setView('grid')}
-              >
+          <PanelBar
+            sticky
+            className="px-3 py-2"
+            left={view === 'import' ? (
+              <Button variant="ghost" className="text-foreground/60 text-xs" aria-label="Back to assets" onClick={() => setView('grid')}>
                 ‹ assets
               </Button>
-            )}
-            <span className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
-              {view === 'import' ? 'import asset' : 'assets'}
-            </span>
-            <div className="ml-auto flex items-center gap-1">
-              {view === 'grid' && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="font-mono text-xs"
-                  aria-label="Import asset"
-                  onClick={() => setView('import')}
-                >
-                  import
-                </Button>
-              )}
-              <DialogClose asChild>
-                <Button variant="ghost" size="sm" aria-label="Close asset manager" tooltip="Close" tooltipSide="left">×</Button>
-              </DialogClose>
-            </div>
-          </div>
+            ) : undefined}
+            center={
+              <span className="font-mono text-xs text-foreground">
+                {view === 'import' ? 'import asset' : 'assets'}
+              </span>
+            }
+            right={
+              <div className="flex items-center gap-1">
+                {view === 'grid' && (
+                  <Button variant="ghost" size="sm" className="font-mono text-xs" aria-label="Import asset" onClick={() => setView('import')}>
+                    import
+                  </Button>
+                )}
+                <DialogClose asChild>
+                  <Button variant="ghost" size="sm" aria-label="Close asset manager" tooltip="Close" tooltipSide="left">×</Button>
+                </DialogClose>
+              </div>
+            }
+          />
 
           <div className="p-10">
             {view === 'import' ? (

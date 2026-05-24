@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useId, useCallback } from 'react';
 import { MatrixPreview } from './MatrixPreview.js';
+import { MatrixItem } from './MatrixItem.js';
 import { Tabs } from './ui/tabs.js';
 import { Select } from './ui/select.js';
 import { Button } from './ui/button.js';
@@ -81,27 +82,6 @@ function CornerBrackets({ active }: { active: boolean }) {
   );
 }
 
-function WidgetTile({ label, pixels, active, onClick }: {
-  label: string;
-  pixels: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      aria-pressed={active}
-      className="group relative flex flex-col gap-2 items-center rounded-sm p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
-      onClick={onClick}
-    >
-      <CornerBrackets active={active} />
-      <MatrixPreview pixels={pixels} width={9} />
-      <span className="font-mono text-xs text-foreground">{label}</span>
-    </button>
-  );
-}
-
 // ── Layer 1: Category list ────────────────────────────────────────────────
 
 const CATEGORIES = [
@@ -170,14 +150,16 @@ function ClockGrid({ currentWidget, onPick }: {
   }, []);
 
   return (
-    <div role="group" aria-label="Clock panels" className="grid grid-cols-3 gap-4">
+    <div role="group" aria-label="Clock panels" className="grid grid-cols-3 gap-4 justify-items-center">
       {CLOCK_FACES.map(({ id, label }) => (
-        <WidgetTile
+        <MatrixItem
           key={id}
-          label={label}
+          name={label}
+          aria-label={label}
+          width={9}
           pixels={pixels[id] ?? EMPTY_PIXELS}
-          active={currentWidget?.widget === 'clock' && (currentWidget.face ?? 'elegant') === id}
-          onClick={() => onPick({ widget: 'clock', face: id })}
+          isSelected={currentWidget?.widget === 'clock' && (currentWidget.face ?? 'elegant') === id}
+          onSelect={() => onPick({ widget: 'clock', face: id })}
         />
       ))}
     </div>
@@ -268,16 +250,18 @@ function DataGrid({ currentWidget, onPick, onSettings }: {
   }, []);
 
   return (
-    <div role="group" aria-label="Data panels" className="grid grid-cols-3 gap-4">
+    <div role="group" aria-label="Data panels" className="grid grid-cols-3 gap-4 justify-items-center">
       {DATA_PRESETS.map(preset => {
         const hasSettings = preset.style === 'line' || preset.style === 'fill';
         return (
-          <WidgetTile
+          <MatrixItem
             key={preset.id}
-            label={preset.label}
+            name={preset.label}
+            aria-label={preset.label}
+            width={9}
             pixels={pixels[preset.style]}
-            active={currentWidget?.widget === 'data' && (currentWidget.style ?? 'line') === preset.style}
-            onClick={() => hasSettings ? onSettings(preset.widget) : onPick(preset.widget)}
+            isSelected={currentWidget?.widget === 'data' && (currentWidget.style ?? 'line') === preset.style}
+            onSelect={() => hasSettings ? onSettings(preset.widget) : onPick(preset.widget)}
           />
         );
       })}
@@ -314,12 +298,14 @@ function AiGrid({ currentWidget, onPick }: {
   }, []);
 
   return (
-    <div role="group" aria-label="AI panels" className="grid grid-cols-3 gap-4">
-      <WidgetTile
-        label="tool heatmap"
+    <div role="group" aria-label="AI panels" className="grid grid-cols-3 gap-4 justify-items-center">
+      <MatrixItem
+        name="tool heatmap"
+        aria-label="tool heatmap"
+        width={9}
         pixels={pixels}
-        active={currentWidget?.widget === 'heatmap'}
-        onClick={() => onPick({ widget: 'heatmap' })}
+        isSelected={currentWidget?.widget === 'heatmap'}
+        onSelect={() => onPick({ widget: 'heatmap' })}
       />
     </div>
   );
@@ -378,14 +364,16 @@ function AudioGrid({ currentWidget, audioCtx, side, onPick, onMount, onUnmount }
   }, []);
 
   return (
-    <div role="group" aria-label="Audio panels" className="grid grid-cols-3 gap-4">
+    <div role="group" aria-label="Audio panels" className="grid grid-cols-3 gap-4 justify-items-center">
       {AUDIO_STYLES.map(({ id, label }) => (
-        <WidgetTile
+        <MatrixItem
           key={id}
-          label={label}
+          name={label}
+          aria-label={label}
+          width={9}
           pixels={pixels[id] ?? EMPTY_PIXELS}
-          active={currentWidget?.widget === 'audio' && (currentWidget.style ?? AUDIO_STYLES[0]!.id) === id}
-          onClick={() => onPick({ widget: 'audio', style: id })}
+          isSelected={currentWidget?.widget === 'audio' && (currentWidget.style ?? AUDIO_STYLES[0]!.id) === id}
+          onSelect={() => onPick({ widget: 'audio', style: id })}
         />
       ))}
     </div>

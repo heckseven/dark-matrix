@@ -9,6 +9,7 @@ import { PresetList } from './PresetList.js';
 import { HudDualPreview } from './HudDualPreview.js';
 import { HudInspector } from './HudInspector.js';
 import { TriggerView } from './TriggerView.js';
+import { ThreePanelLayout } from './ThreePanelLayout.js';
 
 // ── module-level WS send (shared with App header) ────────────────────────
 
@@ -77,7 +78,7 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
   const previewHasAudio = selectedPreset?.left?.widget === 'audio' || selectedPreset?.right?.widget === 'audio';
   const needsAudio = previewHasAudio || inspectorNeedsAudio;
 
-  const mainRef    = useRef<HTMLElement>(null);
+  const mainRef    = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const [presetTopPad, setPresetTopPad] = useState(0);
   const [inspectorTopPad, setInspectorTopPad] = useState(0);
@@ -234,9 +235,14 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
   // ── render ───────────────────────────────────────────────────────────
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)', gap: '1rem', height: '100%', width: '100%' }}>
-      {/* Left: preset list */}
-      <aside aria-label="Preset list" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', paddingTop: topPad }}>
+    <>
+    <ThreePanelLayout
+      gap="1rem"
+      leftLabel="Preset list"
+      leftStyle={{ paddingTop: topPad }}
+      rightLabel="Widget inspector"
+      rightStyle={{ paddingTop: topPad }}
+      left={
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', maxWidth: 208, marginLeft: 'auto', marginRight: 16, paddingTop: presetTopPad }}>
         <PresetList
           presets={hudPresets}
@@ -287,24 +293,22 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
           onEditTriggers={(name) => setTriggerPresetName(name)}
         />
         </div>
-      </aside>
-
-      {/* Center: dual preview + trigger editor */}
-      <main ref={mainRef} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-        <div ref={previewRef} style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <HudDualPreview
-            leftWidget={selectedPreset?.left ?? null}
-            rightWidget={selectedPreset?.right ?? null}
-            selectedSide={hudSelectedSide}
-            onSelectSide={(side) => deckStore.getState().selectSide(side)}
-            audioCtx={audioCtx}
-            {...(clockNow !== undefined ? { clockNow } : {})}
-          />
+      }
+      center={
+        <div ref={mainRef} className="h-full flex items-center justify-center overflow-hidden">
+          <div ref={previewRef} style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <HudDualPreview
+              leftWidget={selectedPreset?.left ?? null}
+              rightWidget={selectedPreset?.right ?? null}
+              selectedSide={hudSelectedSide}
+              onSelectSide={(side) => deckStore.getState().selectSide(side)}
+              audioCtx={audioCtx}
+              {...(clockNow !== undefined ? { clockNow } : {})}
+            />
+          </div>
         </div>
-      </main>
-
-      {/* Right: widget inspector */}
-      <aside aria-label="Widget inspector" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', paddingTop: topPad }}>
+      }
+      right={
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingTop: inspectorTopPad }}>
           <HudInspector
             key={`${hudSelectedSide}-${selectedPresetName ?? 'none'}`}
@@ -325,27 +329,27 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
             }}
           />
         </div>
-      </aside>
-
-      {triggerPresetName !== null && (() => {
-        const tp = hudPresets.find(p => p.name === triggerPresetName);
-        if (!tp) return null;
-        return (
-          <TriggerView
-            key={triggerPresetName}
-            preset={tp}
-            onDone={() => setTriggerPresetName(null)}
-            onChange={(triggers) => {
-              deckStore.getState().updatePresetTriggers(tp.name, triggers);
-              debouncedSave();
-            }}
-            onMatchChange={(match) => {
-              deckStore.getState().updatePresetMatch(tp.name, match);
-              debouncedSave();
-            }}
-          />
-        );
-      })()}
-    </div>
+      }
+    />
+    {triggerPresetName !== null && (() => {
+      const tp = hudPresets.find(p => p.name === triggerPresetName);
+      if (!tp) return null;
+      return (
+        <TriggerView
+          key={triggerPresetName}
+          preset={tp}
+          onDone={() => setTriggerPresetName(null)}
+          onChange={(triggers) => {
+            deckStore.getState().updatePresetTriggers(tp.name, triggers);
+            debouncedSave();
+          }}
+          onMatchChange={(match) => {
+            deckStore.getState().updatePresetMatch(tp.name, match);
+            debouncedSave();
+          }}
+        />
+      );
+    })()}
+    </>
   );
 }
