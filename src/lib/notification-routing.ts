@@ -36,6 +36,7 @@ export function matchesGlob(pattern: string, str: string): boolean {
 export function routeNotification(
   intent: DisplayIntent,
   rules: NotificationRule[],
+  noMatchAction: 'scroll' | 'none' = 'none',
 ): { action: 'scroll' | 'dmx' | 'none'; assetPath?: string; composite: 'replace' | 'overlay'; overlayMode?: 'or' | 'replace' | 'xor' | 'halo'; transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash'; durationMs?: number; loopCount?: number } {
   // TODO: populate urgency from dbus hints in dbus-notifications.ts (parseDbusMonitorLine
   // skips the hints array). Until then urgency-filtered rules never fire.
@@ -74,5 +75,5 @@ export function routeNotification(
     return result;
   }
 
-  return { action: 'scroll', composite: 'replace' };
+  return { action: noMatchAction, composite: 'replace' };
 }

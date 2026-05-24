@@ -1688,7 +1688,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               };
               const n = { appName: m.appName ?? 'test', summary: m.summary ?? 'test notification', body: m.body ?? '' };
               const base = notificationIntent(n);
-              const route = routeNotification(base, currentConfig.notification_rules ?? []);
+              const route = routeNotification(base, currentConfig.notification_rules ?? [], 'scroll');
               const effectiveAction = m.style === 'text' ? 'scroll' : (m.style ?? route.action);
               if (effectiveAction !== 'none') {
                 const intent: DisplayIntent = { ...base };
