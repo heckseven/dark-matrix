@@ -2,8 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
 import { Dialog, DialogContent, DialogClose, DialogTitle } from './ui/dialog.js';
 import { Button } from './ui/button.js';
-import { Tooltip } from './ui/tooltip.js';
-import { MatrixPreview } from './MatrixPreview.js';
+import { MatrixItem } from './MatrixItem.js';
 import { AssetImportPanel } from './AssetImportPanel.js';
 
 type AnimState = Record<string, { frameIdx: number; elapsed: number; lastTick: number | null }>;
@@ -26,87 +25,6 @@ function groupByDir(assets: AssetMeta[]): { dir: string; items: AssetMeta[] }[] 
     return a.localeCompare(b);
   });
   return dirs.map(dir => ({ dir, items: map.get(dir) ?? [] }));
-}
-
-type AssetCardProps = {
-  asset: AssetMeta;
-  frameIdx: number;
-  confirmingDelete: boolean;
-  activeKeyRef: React.MutableRefObject<string | null>;
-  onAnimReset: (name: string) => void;
-  onAnimClear: (name: string) => void;
-  onOpen: () => void;
-  onCopy: () => void;
-  onDeleteRequest: () => void;
-};
-
-function AssetCard({ asset, frameIdx, confirmingDelete, activeKeyRef, onAnimReset, onAnimClear, onOpen, onCopy, onDeleteRequest }: AssetCardProps) {
-  const pixels = asset.frames[frameIdx] ?? asset.firstFrame;
-  const slash = asset.name.lastIndexOf('/');
-  const filename = slash === -1 ? asset.name : asset.name.slice(slash + 1);
-  const label = filename.replace('.dmx.json', '');
-
-  function activate() {
-    activeKeyRef.current = asset.name;
-    onAnimReset(asset.name);
-  }
-  function deactivate() {
-    if (activeKeyRef.current === asset.name) {
-      activeKeyRef.current = null;
-      onAnimClear(asset.name);
-    }
-  }
-
-  return (
-    <div
-      className="flex flex-col gap-1 p-2 rounded-sm"
-      onMouseEnter={activate}
-      onMouseLeave={deactivate}
-      onFocusCapture={activate}
-      onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) deactivate(); }}
-    >
-      {/* Top row: preview (left) + button column (right) */}
-      <div className="flex flex-row gap-2 items-start">
-        <Tooltip content="open in editor" side="top" delayDuration={300}>
-          <button
-            type="button"
-            aria-label={`Open ${label} in editor`}
-            className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 rounded-sm"
-            onClick={onOpen}
-          >
-            <MatrixPreview width={asset.width} pixels={pixels} />
-          </button>
-        </Tooltip>
-
-        <div className="flex flex-col">
-          <Button
-            variant="ghost"
-            className="w-8"
-            aria-label={`Duplicate ${label}`}
-            tooltip="Duplicate"
-            tooltipSide="right"
-            onClick={onCopy}
-          >⎘</Button>
-          <Button
-            variant="ghost"
-            className={`w-8 ${confirmingDelete ? 'text-red-400' : ''}`}
-            aria-label={confirmingDelete ? `Confirm delete ${label}` : `Delete ${label}`}
-            tooltip={confirmingDelete ? 'click again to confirm' : 'Delete'}
-            tooltipSide="right"
-            onClick={onDeleteRequest}
-          >{confirmingDelete ? '?' : '×'}</Button>
-        </div>
-      </div>
-
-      {/* Name below */}
-      <span
-        className="font-mono text-xs text-foreground truncate pl-0.5"
-        style={{ maxWidth: asset.width === 18 ? 132 : 83 }}
-      >
-        {label}
-      </span>
-    </div>
-  );
 }
 
 type AssetManagerGridProps = {
@@ -140,20 +58,65 @@ function AssetManagerGrid({ items, animState, activeKeyRef, onAnimReset, onAnimC
 
   return (
     <div className="flex flex-wrap gap-6">
-      {items.map(asset => (
-        <AssetCard
-          key={asset.name}
-          asset={asset}
-          frameIdx={animState[asset.name]?.frameIdx ?? 0}
-          confirmingDelete={confirmDelete === asset.name}
-          activeKeyRef={activeKeyRef}
-          onAnimReset={onAnimReset}
-          onAnimClear={onAnimClear}
-          onOpen={() => onOpen(asset)}
-          onCopy={() => onCopy(asset)}
-          onDeleteRequest={() => requestDelete(asset)}
-        />
-      ))}
+      {items.map(asset => {
+        const frameIdx = animState[asset.name]?.frameIdx ?? 0;
+        const pixels = asset.frames[frameIdx] ?? asset.firstFrame;
+        const slash = asset.name.lastIndexOf('/');
+        const filename = slash === -1 ? asset.name : asset.name.slice(slash + 1);
+        const label = filename.replace('.dmx.json', '');
+        const confirmingDelete = confirmDelete === asset.name;
+
+        function activate() {
+          activeKeyRef.current = asset.name;
+          onAnimReset(asset.name);
+        }
+        function deactivate() {
+          if (activeKeyRef.current === asset.name) {
+            activeKeyRef.current = null;
+            onAnimClear(asset.name);
+          }
+        }
+
+        return (
+          <div
+            key={asset.name}
+            onMouseEnter={activate}
+            onMouseLeave={deactivate}
+            onFocusCapture={activate}
+            onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) deactivate(); }}
+          >
+            <MatrixItem
+              name={label}
+              aria-label={label}
+              width={asset.width}
+              pixels={pixels}
+              onPreviewClick={() => onOpen(asset)}
+              controlsTop={
+                <Button
+                  variant="ghost"
+                  className="w-8"
+                  aria-label={`Duplicate ${label}`}
+                  tooltip="Duplicate"
+                  tooltipSide="right"
+                  onClick={() => onCopy(asset)}
+                >⎘</Button>
+              }
+              controlsBottom={
+                <Button
+                  variant="ghost"
+                  className={`w-8 ${confirmingDelete ? 'text-red-400' : ''}`}
+                  aria-label={confirmingDelete ? `Confirm delete ${label}` : `Delete ${label}`}
+                  tooltip={confirmingDelete ? 'click again to confirm' : 'Delete'}
+                  tooltipSide="right"
+                  onClick={() => requestDelete(asset)}
+                >
+                  {confirmingDelete ? '?' : '×'}
+                </Button>
+              }
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -187,7 +150,6 @@ export function AssetManagerModal({ open, onOpenChange, onOpenAsset }: AssetMana
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Animation: only advance the hovered/focused asset
   useEffect(() => {
     if (!open) return;
     const id = setInterval(() => {
@@ -219,7 +181,6 @@ export function AssetManagerModal({ open, onOpenChange, onOpenAsset }: AssetMana
   }
 
   function handleAnimClear(name: string) {
-    // Snap back to first frame on leave
     if (animRef.current[name]) animRef.current[name]!.frameIdx = 0;
     setTick(t => t + 1);
   }

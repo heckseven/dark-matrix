@@ -1,15 +1,10 @@
-import { useState, useRef, useEffect, Fragment } from 'react';
 import { Button } from './ui/button.js';
-import { MatrixPreview } from './MatrixPreview.js';
-import { Stack } from './ui/stack.js';
+import { MatrixItem } from './MatrixItem.js';
+import { MatrixItemList } from './MatrixItemList.js';
 import type { BiomePreset } from '../types/life-types.js';
 import { ROWS } from '../store.js';
 
 const EMPTY_9 = btoa(String.fromCharCode(...new Uint8Array(9 * ROWS)));
-
-function resolveDropIndex(from: number, target: number): number {
-  return from < target ? target - 1 : target;
-}
 
 function snapshotPixels(snap: string | undefined): { pixels: string; width: 9 | 18 } {
   if (!snap) return { pixels: EMPTY_9, width: 9 };
@@ -20,205 +15,6 @@ function snapshotPixels(snap: string | undefined): { pixels: string; width: 9 | 
   } catch {
     return { pixels: EMPTY_9, width: 9 };
   }
-}
-
-function CornerBrackets({ active }: { active: boolean }) {
-  const c = { position: 'absolute' as const, width: 16, height: 16, pointerEvents: 'none' as const };
-  const b = `1px solid ${active ? 'white' : 'rgba(255,255,255,0.35)'}`;
-  return (
-    <div aria-hidden="true" className={`absolute inset-0 pointer-events-none transition-opacity ${active ? '' : 'opacity-0 group-hover:opacity-100'}`}>
-      <span style={{ ...c, top: 0,    left: 0,    borderTop: b, borderLeft: b }} />
-      <span style={{ ...c, top: 0,    right: 0,   borderTop: b, borderRight: b }} />
-      <span style={{ ...c, bottom: 0, left: 0,    borderBottom: b, borderLeft: b }} />
-      <span style={{ ...c, bottom: 0, right: 0,   borderBottom: b, borderRight: b }} />
-    </div>
-  );
-}
-
-function GapZone({ afterIdx, showDrop, setDropTarget, biomeCount, onInsert, onMove }: {
-  afterIdx: number;
-  showDrop: boolean;
-  setDropTarget: (v: number | null) => void;
-  biomeCount: number;
-  onInsert(): void;
-  onMove(from: number, to: number): void;
-}) {
-  return (
-    <div
-      className={`h-10 flex items-center gap-1 px-1 transition-opacity ${showDrop ? '' : 'opacity-0 hover:opacity-100 focus-within:opacity-100'}`}
-      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropTarget(afterIdx + 1); }}
-      onDrop={e => {
-        e.preventDefault();
-        const raw = e.dataTransfer.getData('text/plain');
-        if (!raw) return;
-        const from = Number(raw);
-        setDropTarget(null);
-        if (!Number.isInteger(from) || from < 0 || from >= biomeCount) return;
-        const target = afterIdx + 1;
-        const to = resolveDropIndex(from, target);
-        if (to !== from) onMove(from, to);
-      }}
-    >
-      {showDrop ? (
-        <div className="flex-1 h-0.5 bg-green-500 rounded-full pointer-events-none" />
-      ) : (
-        <>
-          <div className="flex-1 h-px bg-border" />
-          <Button
-            variant="ghost"
-            aria-label={`Insert biome after position ${afterIdx + 1}`}
-            tooltip={`Insert after ${afterIdx + 1}`}
-            onClick={onInsert}
-          >
-            +
-          </Button>
-          <div className="flex-1 h-px bg-border" />
-        </>
-      )}
-    </div>
-  );
-}
-
-function BiomeCard({ biome, idx, biomeCount, isActive, isSelected, dropTarget, onSelect, onActivate, onDelete, onDuplicate, onRename, onMoveUp, onMoveDown, setDropTarget, onDrop }: {
-  biome: BiomePreset;
-  idx: number;
-  biomeCount: number;
-  isActive: boolean;
-  isSelected: boolean;
-  dropTarget: number | null;
-  onSelect(): void;
-  onActivate(): void;
-  onDelete(): void;
-  onDuplicate(): void;
-  onRename(name: string): void;
-  onMoveUp(): void;
-  onMoveDown(): void;
-  setDropTarget(v: number | null): void;
-  onDrop(from: number, onto: number): void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
-  const [dragging, setDragging] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (editing) inputRef.current?.focus();
-  }, [editing]);
-
-  function commitRename() {
-    const next = draft.trim() || biome.name;
-    setDraft(next);
-    setEditing(false);
-    if (next !== biome.name) onRename(next);
-  }
-
-  const { pixels, width } = snapshotPixels(biome.gridSnapshot);
-
-  return (
-    <div
-      aria-label={isActive ? `${biome.name} (active)` : biome.name}
-      tabIndex={0}
-      className="group relative flex flex-col gap-1 p-2 rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-      onClick={onSelect}
-      onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); }
-      }}
-      onDragOver={e => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        const rect = e.currentTarget.getBoundingClientRect();
-        setDropTarget(e.clientY < rect.top + rect.height / 2 ? idx : idx + 1);
-      }}
-      onDrop={e => {
-        e.preventDefault();
-        const raw = e.dataTransfer.getData('text/plain');
-        if (!raw) return;
-        const from = Number(raw);
-        const target = dropTarget;
-        setDropTarget(null);
-        if (!Number.isInteger(from) || from < 0 || from >= biomeCount || target === null) return;
-        const to = resolveDropIndex(from, target);
-        if (to !== from) onDrop(from, to);
-      }}
-    >
-      <CornerBrackets active={isSelected || isActive} />
-
-      {/* Top row: thumbnail (left) + button column (right) */}
-      <div className="flex flex-row gap-3">
-        {/* Draggable thumbnail */}
-        <div
-          draggable
-          aria-hidden="true"
-          tabIndex={-1}
-          onDragStart={e => { setDragging(true); e.dataTransfer.setData('text/plain', String(idx)); e.dataTransfer.effectAllowed = 'move'; }}
-          onDragEnd={() => { setDragging(false); setDropTarget(null); }}
-          style={{ cursor: dragging ? 'grabbing' : 'grab' }}
-        >
-          <MatrixPreview pixels={pixels} width={width} />
-        </div>
-
-        {/* Button column */}
-        <Stack justify="between" align="start" className="flex-1 min-w-0">
-          <Stack direction="col" gap="none" align="start">
-            <Button
-              variant="ghost"
-              className="w-8"
-              aria-label="Move biome up"
-              tooltip="Move up"
-              tooltipSide="right"
-              disabled={idx === 0}
-              onClick={e => { e.stopPropagation(); onMoveUp(); }}
-            >↑</Button>
-            <Button
-              variant="ghost"
-              className="w-8"
-              aria-label="Move biome down"
-              tooltip="Move down"
-              tooltipSide="right"
-              disabled={idx === biomeCount - 1}
-              onClick={e => { e.stopPropagation(); onMoveDown(); }}
-            >↓</Button>
-          </Stack>
-          <Stack direction="col" gap="none" align="start">
-            {isActive ? (
-              <Button variant="primary" className="w-8" aria-label="Active biome" tooltip="Active biome" tooltipSide="right" onClick={e => e.stopPropagation()}>∗</Button>
-            ) : (
-              <Button variant="ghost" className="w-8" aria-label="Set as active" tooltip="Set as active" tooltipSide="right" onClick={e => { e.stopPropagation(); onActivate(); }}>•</Button>
-            )}
-            <Button variant="ghost" className="w-8" aria-label="Clone biome" tooltip="Clone" tooltipSide="right" onClick={e => { e.stopPropagation(); onDuplicate(); }}>⧉</Button>
-            {biomeCount > 1 && (
-              <Button variant="ghost" className="w-8" aria-label="Delete biome" tooltip="Delete" tooltipSide="right" onClick={e => { e.stopPropagation(); onDelete(); }}>×</Button>
-            )}
-          </Stack>
-        </Stack>
-      </div>
-
-      {/* Name row */}
-      {editing ? (
-        <input
-          ref={inputRef}
-          aria-label={`Rename: ${biome.name}`}
-          className="font-mono text-xs bg-transparent border-b border-white text-foreground outline-none w-full"
-          value={draft}
-          onChange={e => setDraft(e.target.value)}
-          onBlur={commitRename}
-          onKeyDown={e => {
-            e.stopPropagation();
-            if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
-            if (e.key === 'Escape') { setDraft(biome.name); setEditing(false); }
-          }}
-          onClick={e => e.stopPropagation()}
-        />
-      ) : (
-        <span
-          className="font-mono text-xs text-foreground pl-1 block truncate"
-          onDoubleClick={e => { e.stopPropagation(); setDraft(biome.name); setEditing(true); }}
-        >
-          {biome.name}
-        </span>
-      )}
-    </div>
-  );
 }
 
 export function BiomeList({ biomes, activeName, selectedName, onSelect, onActivate, onCreate, onInsert, onDelete, onDuplicate, onRename, onMove }: {
@@ -234,62 +30,72 @@ export function BiomeList({ biomes, activeName, selectedName, onSelect, onActiva
   onRename(oldName: string, newName: string): void;
   onMove(fromIdx: number, toIdx: number): void;
 }) {
-  const [dropTarget, setDropTarget] = useState<number | null>(null);
-
   return (
-    <div
-      className="flex flex-col overflow-y-auto flex-1 min-h-0 pr-2 [scrollbar-gutter:stable]"
-      onDragLeave={e => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropTarget(null);
+    <MatrixItemList
+      items={biomes}
+      getKey={biome => biome.name}
+      renderItem={(biome, idx, dragProps) => {
+        const { pixels, width } = snapshotPixels(biome.gridSnapshot);
+        const isActive   = activeName === biome.name;
+        const isSelected = selectedName === biome.name;
+        return (
+          <MatrixItem
+            name={biome.name}
+            aria-label={isActive ? `${biome.name} (active)` : biome.name}
+            width={width}
+            pixels={pixels}
+            isActive={isActive}
+            isSelected={isSelected}
+            onSelect={() => onSelect(biome.name)}
+            onRename={newName => onRename(biome.name, newName)}
+            dragIdx={dragProps.dragIdx}
+            onDragOver={dragProps.onDragOver}
+            onDrop={dragProps.onDrop}
+            controlsTop={
+              <>
+                <Button
+                  variant="ghost"
+                  className="w-8"
+                  aria-label="Move biome up"
+                  tooltip="Move up"
+                  tooltipSide="right"
+                  disabled={idx === 0}
+                  onClick={e => { e.stopPropagation(); onMove(idx, idx - 1); }}
+                >↑</Button>
+                <Button
+                  variant="ghost"
+                  className="w-8"
+                  aria-label="Move biome down"
+                  tooltip="Move down"
+                  tooltipSide="right"
+                  disabled={idx === biomes.length - 1}
+                  onClick={e => { e.stopPropagation(); onMove(idx, idx + 1); }}
+                >↓</Button>
+              </>
+            }
+            controlsBottom={
+              <>
+                {isActive ? (
+                  <Button variant="primary" className="w-8" aria-label="Active biome" tooltip="Active biome" tooltipSide="right" onClick={e => e.stopPropagation()}>∗</Button>
+                ) : (
+                  <Button variant="ghost" className="w-8" aria-label="Set as active" tooltip="Set as active" tooltipSide="right" onClick={e => { e.stopPropagation(); onActivate(biome.name); }}>•</Button>
+                )}
+                <Button variant="ghost" className="w-8" aria-label="Clone biome" tooltip="Clone" tooltipSide="right" onClick={e => { e.stopPropagation(); onDuplicate(biome.name); }}>⧉</Button>
+                {biomes.length > 1 && (
+                  <Button variant="ghost" className="w-8" aria-label="Delete biome" tooltip="Delete" tooltipSide="right" onClick={e => { e.stopPropagation(); onDelete(biome.name); }}>×</Button>
+                )}
+              </>
+            }
+          />
+        );
       }}
-    >
-      <ul aria-label="Biomes" className="flex flex-col gap-2" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-        {biomes.length === 0 && (
-          <li className="font-mono text-xs text-muted-foreground px-2 py-4">no biomes</li>
-        )}
-        {dropTarget === 0 && (
-          <li aria-hidden="true" className="-my-[19px] h-0.5 bg-green-500 rounded-full pointer-events-none" />
-        )}
-        {biomes.map((biome, idx) => (
-          <Fragment key={biome.name}>
-            <li {...(selectedName === biome.name ? { 'aria-current': 'true' as const } : {})}>
-              <BiomeCard
-                biome={biome}
-                idx={idx}
-                biomeCount={biomes.length}
-                isActive={activeName === biome.name}
-                isSelected={selectedName === biome.name}
-                dropTarget={dropTarget}
-                onSelect={() => onSelect(biome.name)}
-                onActivate={() => onActivate(biome.name)}
-                onDelete={() => onDelete(biome.name)}
-                onDuplicate={() => onDuplicate(biome.name)}
-                onRename={newName => onRename(biome.name, newName)}
-                onMoveUp={() => onMove(idx, idx - 1)}
-                onMoveDown={() => onMove(idx, idx + 1)}
-                setDropTarget={setDropTarget}
-                onDrop={onMove}
-              />
-            </li>
-            {idx < biomes.length - 1 && (
-              <li>
-                <GapZone
-                  afterIdx={idx}
-                  showDrop={dropTarget === idx + 1}
-                  setDropTarget={setDropTarget}
-                  biomeCount={biomes.length}
-                  onInsert={() => onInsert(idx)}
-                  onMove={onMove}
-                />
-              </li>
-            )}
-          </Fragment>
-        ))}
-        {dropTarget === biomes.length && (
-          <li aria-hidden="true" className="-my-[19px] h-0.5 bg-green-500 rounded-full pointer-events-none" />
-        )}
-      </ul>
-      <Button variant="ghost" aria-label="Add biome" tooltip="Add biome" onClick={onCreate}>+</Button>
-    </div>
+      onMove={onMove}
+      onInsert={onInsert}
+      insertLabel={idx => `Insert biome after ${idx + 1}`}
+      onAdd={onCreate}
+      addLabel="Add biome"
+      emptyText="no biomes"
+      aria-label="Biomes"
+    />
   );
 }
