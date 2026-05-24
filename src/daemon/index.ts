@@ -1619,6 +1619,16 @@ export async function startDaemon(): Promise<() => Promise<void>> {
             }
             case 'hud-config': {
               const m = msg as { cmd: string; leftFace?: string; leftWidget?: string; leftDataStyle?: string; leftAudioStyle?: string; leftFile?: string; leftBiomeName?: string; leftRandomIntervalMs?: number; rightFace?: string; rightWidget?: string; rightDataStyle?: string; rightAudioStyle?: string; rightFile?: string; rightBiomeName?: string; rightRandomIntervalMs?: number };
+              const biomeNames = new Set((currentConfig.biome_presets ?? []).map(b => b.name));
+              const validBiome = (name: string) => name === 'random' || biomeNames.has(name);
+              if (m.leftWidget === 'life' && typeof m.leftBiomeName === 'string' && !validBiome(m.leftBiomeName)) {
+                socket.write(JSON.stringify({ ok: false, error: `unknown biome: "${m.leftBiomeName}"` }) + '\n');
+                break;
+              }
+              if (m.rightWidget === 'life' && typeof m.rightBiomeName === 'string' && !validBiome(m.rightBiomeName)) {
+                socket.write(JSON.stringify({ ok: false, error: `unknown biome: "${m.rightBiomeName}"` }) + '\n');
+                break;
+              }
               const newHud = { ...currentConfig.hud };
               if (m.leftWidget === 'heatmap') {
                 newHud.left = { widget: 'heatmap' };

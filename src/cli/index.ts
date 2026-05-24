@@ -317,19 +317,18 @@ async function cmdLife(args: string[]): Promise<void> {
   const sub = args[0];
 
   if (sub === 'list') {
-    let config;
     try {
-      config = await loadConfig();
+      const config = await loadConfig();
+      const biomes = config.biome_presets ?? [];
+      if (biomes.length === 0) {
+        process.stdout.write('No biomes configured. Add biomes via: dark-matrix ui\n');
+      } else {
+        process.stdout.write('random\n');
+        for (const b of biomes) process.stdout.write(`${b.name}\n`);
+      }
     } catch (err) {
       process.stderr.write(`Error reading config: ${(err as Error).message}\n`);
       process.exit(1);
-    }
-    const biomes = config.biome_presets ?? [];
-    if (biomes.length === 0) {
-      process.stdout.write('No biomes configured. Add biomes via: dark-matrix ui\n');
-    } else {
-      process.stdout.write('random\n');
-      for (const b of biomes) process.stdout.write(`${b.name}\n`);
     }
     return;
   }
@@ -351,15 +350,16 @@ async function cmdLife(args: string[]): Promise<void> {
   }
 
   if (name !== 'random') {
-    let config;
-    try { config = await loadConfig(); } catch { config = null; }
-    if (config) {
+    try {
+      const config = await loadConfig();
       const biomes = config.biome_presets ?? [];
       if (!biomes.some(b => b.name === name)) {
-        const available = ['random', ...biomes.map(b => b.name)].join(', ') || 'random';
+        const available = ['random', ...biomes.map(b => b.name)].join(', ');
         process.stderr.write(`Unknown biome "${name}". Available: ${available}\n`);
         process.exit(1);
       }
+    } catch (err) {
+      process.stderr.write(`Warning: could not read config: ${(err as Error).message}\n`);
     }
   }
 
