@@ -68,7 +68,7 @@ export const ScrollableCenter: Story = {
   args: {
     centerClassName: 'overflow-y-auto px-10',
     center: (
-      <div>
+      <div tabIndex={0} className="focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm">
         {Array.from({ length: 20 }, (_, i) => (
           <p key={i} className="font-mono text-xs text-muted-foreground py-2">row {i + 1}</p>
         ))}

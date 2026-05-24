@@ -155,7 +155,8 @@ export function MatrixItemList<T>({
   return (
     <div
       ref={scrollRef}
-      className="flex flex-col overflow-y-auto flex-1 min-h-0 pr-2 [scrollbar-gutter:stable]"
+      tabIndex={0}
+      className="flex flex-col overflow-y-auto flex-1 min-h-0 pr-2 [scrollbar-gutter:stable] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       style={{ paddingTop: topPadding, paddingBottom: bottomPadding }}
       onDragLeave={(e: React.DragEvent) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropTarget(null);
@@ -177,7 +178,7 @@ export function MatrixItemList<T>({
               {renderItem(item, idx, dragProps(idx))}
             </Item>
             {idx < items.length - 1 && onInsert && (
-              <Item>
+              <Item role={itemRole}>
                 <GapZone
                   afterIdx={idx}
                   showDrop={dropTarget === idx + 1}

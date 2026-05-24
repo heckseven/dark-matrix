@@ -1,12 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { ChildProcess } from 'node:child_process';
-import { EventEmitter } from 'node:events';
 
 vi.mock('node:fs/promises');
-vi.mock('node:child_process');
+vi.mock('serialport', () => ({ SerialPort: { list: vi.fn() } }));
 
 import fs from 'node:fs/promises';
-import * as cp from 'node:child_process';
+import { SerialPort } from 'serialport';
 import {
   resolveModules,
   enumerateMatrixModules,
@@ -21,22 +19,7 @@ const RIGHT_RESOLVED = '/dev/ttyACM1';
 
 const mockRealpath = vi.mocked(fs.realpath);
 const mockReaddir = vi.mocked(fs.readdir);
-const mockSpawn = vi.mocked(cp.spawn);
-
-function makeSpawnMock(stdout: string, exitCode = 0): ChildProcess {
-  const proc = new EventEmitter() as ChildProcess;
-  const stdoutEmitter = new EventEmitter();
-  (proc as unknown as Record<string, unknown>).stdout = stdoutEmitter;
-  (proc as unknown as Record<string, unknown>).stdin = null;
-  (proc as unknown as Record<string, unknown>).stderr = null;
-
-  setImmediate(() => {
-    stdoutEmitter.emit('data', Buffer.from(stdout));
-    proc.emit('close', exitCode);
-  });
-
-  return proc;
-}
+const mockSerialPortList = vi.mocked(SerialPort.list);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -83,18 +66,13 @@ describe('resolveModules', () => {
 });
 
 describe('enumerateMatrixModules', () => {
-  const FRAMEWORK_OUTPUT = [
-    'ID_VENDOR=Framework',
-    'ID_SERIAL_SHORT=FRAKDEBZ0100000000',
-    'ID_USB_DRIVER=cdc_acm',
-  ].join('\n');
+  it('returns only paths matching LED matrix VID/PID', async () => {
+    mockSerialPortList.mockResolvedValue([
+      { path: '/dev/ttyACM0', vendorId: '32AC', productId: '0020' },
+      { path: '/dev/ttyACM1', vendorId: '32AC', productId: '0020' },
+      { path: '/dev/ttyUSB0', vendorId: '2341', productId: '0043' },
+    ] as Awaited<ReturnType<typeof SerialPort.list>>);
 
-  const NON_FRAMEWORK_OUTPUT = [
-    'ID_VENDOR=Arduino',
-    'ID_SERIAL_SHORT=ABC1234',
-  ].join('\n');
-
-  it('returns only paths with correct ID_SERIAL_SHORT', async () => {
     mockReaddir.mockResolvedValue([
       'pci-0000:c5:00.3-usb-0:3.3:1.0',
       'pci-0000:c5:00.3-usb-0:4.2:1.0',
@@ -106,24 +84,14 @@ describe('enumerateMatrixModules', () => {
       .mockResolvedValueOnce('/dev/ttyACM1')
       .mockResolvedValueOnce('/dev/ttyUSB0');
 
-    mockSpawn
-      .mockReturnValueOnce(makeSpawnMock(FRAMEWORK_OUTPUT))
-      .mockReturnValueOnce(makeSpawnMock(FRAMEWORK_OUTPUT))
-      .mockReturnValueOnce(makeSpawnMock(NON_FRAMEWORK_OUTPUT));
-
     const result = await enumerateMatrixModules();
     expect(result).toHaveLength(2);
     expect(result).toContain('/dev/serial/by-path/pci-0000:c5:00.3-usb-0:3.3:1.0');
     expect(result).toContain('/dev/serial/by-path/pci-0000:c5:00.3-usb-0:4.2:1.0');
   });
 
-  it('returns empty array if no Framework modules found', async () => {
-    mockReaddir.mockResolvedValue([
-      'pci-0000:c5:00.3-usb-0:5.1:1.0',
-    ] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
-
-    mockRealpath.mockResolvedValueOnce('/dev/ttyACM0');
-    mockSpawn.mockReturnValueOnce(makeSpawnMock(NON_FRAMEWORK_OUTPUT));
+  it('returns empty array if no LED matrix modules found', async () => {
+    mockSerialPortList.mockResolvedValue([]);
 
     const result = await enumerateMatrixModules();
     expect(result).toEqual([]);

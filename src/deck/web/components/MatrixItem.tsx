@@ -58,6 +58,8 @@ export function MatrixItem({
   const draggable = dragIdx !== undefined;
   const hasControls = controlsTop != null || controlsBottom != null;
   const highlighted = isActive || isSelected;
+  // role="button" causes axe nested-interactive when control buttons are present
+  const isKeyboardButton = onSelect != null && !hasControls;
 
   useEffect(() => {
     if (editing) inputRef.current?.focus();
@@ -104,9 +106,9 @@ export function MatrixItem({
   return (
     <div
       aria-label={ariaLabel}
-      role={onSelect ? 'button' : undefined}
-      aria-pressed={onSelect ? (isSelected || isActive) : undefined}
-      tabIndex={(onSelect || onRename) ? 0 : undefined}
+      role={isKeyboardButton ? 'button' : undefined}
+      aria-pressed={isKeyboardButton ? (isSelected || isActive) : undefined}
+      tabIndex={(isKeyboardButton || onRename) ? 0 : undefined}
       className="group relative flex flex-col gap-2 p-2 rounded-sm w-fit focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       onClick={onSelect}
       onKeyDown={(onSelect || onRename) ? e => {
