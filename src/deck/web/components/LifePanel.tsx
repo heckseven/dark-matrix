@@ -167,10 +167,10 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
 
   function handleDuplicate(name: string) {
     const store = deckStore.getState();
-    const src = store.biomePresets.find(b => b.name === name);
-    if (!src) return;
-    const copy: BiomePreset = { ...src, name: `${src.name}-${Date.now().toString(36)}` };
-    store.createBiome(copy);
+    const idx = store.biomePresets.findIndex(b => b.name === name);
+    if (idx === -1) return;
+    const copy: BiomePreset = { ...store.biomePresets[idx]!, name: `${store.biomePresets[idx]!.name}-${Date.now().toString(36)}` };
+    store.insertBiome(copy, idx);
     store.selectBiome(copy.name);
     debouncedBiomeSave();
   }
@@ -257,7 +257,7 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
       }}
     >
       {/* Left: biome list */}
-      <aside aria-label="Biome list" style={{ overflow: 'hidden', paddingTop: topPad }}>
+      <aside aria-label="Biome list" style={{ overflow: 'hidden', paddingTop: topPad, display: 'flex', flexDirection: 'column' }}>
         <BiomeList
           biomes={biomePresets}
           activeName={activeBiomeName}

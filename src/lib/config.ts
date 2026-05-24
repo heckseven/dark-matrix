@@ -101,6 +101,14 @@ export const ConfigSchema = z.object({
     algorithm: z.enum(['conway', 'highlife', 'daynight', 'maze', 'coral', 'anneal', 'morley', '2x2', 'stains', 'diamoeba']),
     tickMs: z.number().int().min(16).max(2000),
     spawnRate: z.number().int().min(0).max(20).optional(),
+    spawnMode: z.enum(['scatter', 'cluster', 'edge']).optional(),
+    adaptiveSpawn: z.boolean().optional(),
+    adaptiveThreshold: z.number().min(0.01).max(0.5).optional(),
+    stasisAction: z.enum(['off', 'inject']).optional(),
+    stasisTicks: z.number().int().min(1).max(60).optional(),
+    invertMode: z.enum(['off', 'threshold']).optional(),
+    invertAt: z.number().min(0.1).max(0.99).optional(),
+    restoreAt: z.number().min(0.01).max(0.9).optional(),
     gridSnapshot: z.string().max(820).optional(),
   })).optional().superRefine((presets, ctx) => {
     if (!presets) return;

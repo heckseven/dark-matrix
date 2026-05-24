@@ -91,6 +91,52 @@ export function makeRandomGrid(cols: number, density = 0.35): Uint8Array<ArrayBu
   return g;
 }
 
+function invertGrid(grid: Uint8Array): Uint8Array<ArrayBuffer> {
+  const g = new Uint8Array(grid.length) as Uint8Array<ArrayBuffer>;
+  for (let i = 0; i < grid.length; i++) g[i] = (grid[i]! > 0) ? 0 : 255;
+  return g;
+}
+
+function gridsEqual(a: Uint8Array, b: Uint8Array): boolean {
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+function applySpawn(
+  grid: Uint8Array,
+  rate: number,
+  mode: 'scatter' | 'cluster' | 'edge',
+  cols: number,
+): Uint8Array<ArrayBuffer> {
+  const total = cols * ROWS;
+  const g = new Uint8Array(grid) as Uint8Array<ArrayBuffer>;
+  if (mode === 'cluster') {
+    const clusters = Math.max(1, Math.ceil(rate / 5));
+    for (let i = 0; i < clusters; i++) {
+      const col = Math.floor(Math.random() * cols);
+      const row = Math.floor(Math.random() * ROWS);
+      for (let dc = -1; dc <= 1; dc++) {
+        for (let dr = -1; dr <= 1; dr++) {
+          g[((col + dc + cols) % cols) * ROWS + ((row + dr + ROWS) % ROWS)] = 255;
+        }
+      }
+    }
+  } else if (mode === 'edge') {
+    for (let i = 0; i < rate; i++) {
+      if (Math.random() < 0.5) {
+        const col = Math.floor(Math.random() * cols);
+        for (let row = 0; row < ROWS; row++) { if (Math.random() < 0.5) g[col * ROWS + row] = 255; }
+      } else {
+        const row = Math.floor(Math.random() * ROWS);
+        for (let col = 0; col < cols; col++) { if (Math.random() < 0.5) g[col * ROWS + row] = 255; }
+      }
+    }
+  } else {
+    for (let i = 0; i < rate; i++) g[Math.floor(Math.random() * total)] = 255;
+  }
+  return g;
+}
+
 function stepGrid(grid: Uint8Array, cols: number, birth: readonly number[], survival: readonly number[]): Uint8Array<ArrayBuffer> {
   const next = new Uint8Array(cols * ROWS) as Uint8Array<ArrayBuffer>;
   for (let col = 0; col < cols; col++) {
@@ -140,6 +186,10 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCo
 
   const state = useRef({
     grid: new Uint8Array(cols * ROWS) as Uint8Array<ArrayBuffer>,
+    prevGrid: null as Uint8Array<ArrayBuffer> | null,
+    prev2Grid: null as Uint8Array<ArrayBuffer> | null,
+    stasisCount: 0,
+    phase: 'normal' as 'normal' | 'inverted',
     hovered: null as { col: number; row: number } | null,
     cursor: { col: 0, row: 0 },
     painting: false,
@@ -252,6 +302,10 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCo
     prevStepFwdRef.current = stepForwardCount;
     prevStepBackRef.current = stepBackCount;
     stepCountRef.current = 0;
+    state.current.prevGrid = null;
+    state.current.prev2Grid = null;
+    state.current.stasisCount = 0;
+    state.current.phase = 'normal';
     onStepRef.current?.(0);
     const expectedBytes = cols * ROWS;
     const snapshot = biome?.gridSnapshot;
@@ -306,16 +360,80 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCo
 
   useEffect(() => {
     if (!playing || !biome) return;
+    state.current.prevGrid = null;
+    state.current.prev2Grid = null;
+    state.current.stasisCount = 0;
+    state.current.phase = 'normal';
     const { birth, survival } = LIFE_ALGORITHMS[biome.algorithm];
     const id = setInterval(() => {
+      const b = biomeRef.current;
+      const cols = state.current.cols;
+      const total = cols * ROWS;
       let grid = state.current.grid;
-      const sr = biomeRef.current?.spawnRate ?? 0;
-      if (sr > 0) {
-        const g = new Uint8Array(grid) as Uint8Array<ArrayBuffer>;
-        for (let i = 0; i < sr; i++) g[Math.floor(Math.random() * g.length)] = 255;
-        grid = g;
+
+      const sr           = b?.spawnRate        ?? 0;
+      const mode         = b?.spawnMode        ?? 'scatter';
+      const adaptive     = b?.adaptiveSpawn    ?? false;
+      const threshold    = b?.adaptiveThreshold ?? 0.1;
+      const stasisAction = b?.stasisAction     ?? 'off';
+      const stasisTicks  = b?.stasisTicks      ?? 5;
+      const invertMode   = b?.invertMode       ?? 'off';
+      const invertAt     = b?.invertAt         ?? 0.85;
+      const restoreAt    = b?.restoreAt        ?? 0.30;
+
+      // Population of the visual (canonical) state
+      const pop = grid.reduce((n, v) => n + (v > 0 ? 1 : 0), 0);
+
+      // Phase transitions: switch between normal and inverted simulation
+      if (invertMode === 'threshold') {
+        const ratio = pop / total;
+        if (state.current.phase === 'normal' && ratio >= invertAt) {
+          state.current.phase     = 'inverted';
+          state.current.prevGrid  = null;
+          state.current.prev2Grid = null;
+          state.current.stasisCount = 0;
+        } else if (state.current.phase === 'inverted' && ratio <= restoreAt) {
+          state.current.phase     = 'normal';
+          state.current.prevGrid  = null;
+          state.current.prev2Grid = null;
+          state.current.stasisCount = 0;
+        }
       }
-      const next = stepGrid(grid, state.current.cols, birth, survival);
+
+      // Stasis detection on the visual state
+      if (stasisAction === 'inject') {
+        const prev  = state.current.prevGrid;
+        const prev2 = state.current.prev2Grid;
+        const stasis =
+          pop === 0 ||
+          (prev  !== null && gridsEqual(grid, prev)) ||
+          (prev2 !== null && gridsEqual(grid, prev2));
+        if (stasis) {
+          state.current.stasisCount++;
+          if (state.current.stasisCount >= stasisTicks) {
+            grid = applySpawn(grid, Math.max(9, sr * 3), mode, cols);
+            state.current.stasisCount = 0;
+          }
+        } else {
+          state.current.stasisCount = 0;
+        }
+      }
+
+      // Regular spawn with optional adaptive boost on low population
+      let rate = sr;
+      if (adaptive && sr > 0 && pop / total < threshold) rate = Math.max(rate, 5);
+      if (rate > 0) grid = applySpawn(grid, rate, mode, cols);
+
+      state.current.prev2Grid = state.current.prevGrid;
+      state.current.prevGrid  = new Uint8Array(grid) as Uint8Array<ArrayBuffer>;
+
+      // Step — complement before/after when in inverted phase.
+      // state.current.grid stores the visual state, so invert(step(invert(visual)))
+      // gives a visual result where dark-as-alive rules apply.
+      const next = state.current.phase === 'inverted'
+        ? invertGrid(stepGrid(invertGrid(grid), cols, birth, survival))
+        : stepGrid(grid, cols, birth, survival);
+
       state.current.grid = next;
       schedulePaint();
       onTickRef.current?.(encodeGrid(next));
@@ -323,6 +441,8 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCo
       onStepRef.current?.(count);
     }, biome.tickMs);
     return () => clearInterval(id);
+  // biome behavior fields (spawnRate, spawnMode, stasisAction, invertMode, …) are read via
+  // biomeRef.current inside the interval; only algorithm/tickMs require restarting the interval.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, biome?.algorithm, biome?.tickMs, cols]);
 

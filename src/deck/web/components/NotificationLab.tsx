@@ -301,10 +301,8 @@ export function NotificationLab() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-5 font-mono">
+    <div className="p-5">
       <div className="flex items-center gap-4 mb-5">
-        <a href="?lab" className="text-xs text-muted-foreground hover:text-foreground transition-colors">← back to audio lab</a>
-        <span className="text-xs text-muted-foreground">notification lab</span>
         <Button variant="default" size="sm" aria-label="Add notification cell" onClick={addCell}>+ add cell</Button>
         <span className="text-xs text-muted-foreground ml-auto">text: live preview · dmx: fire to hardware</span>
       </div>

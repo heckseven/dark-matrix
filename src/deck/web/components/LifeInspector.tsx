@@ -1,7 +1,11 @@
 import { useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Button } from './ui/button.js';
+import { Popover, PopoverTrigger, PopoverContent } from './ui/popover.js';
 import { Slider } from './ui/slider.js';
+import { Tabs } from './ui/tabs.js';
 import { Text } from './ui/text.js';
+import { Toggle } from './ui/toggle.js';
 import { Radio } from './ui/radio.js';
 import { Tooltip } from './ui/tooltip.js';
 import type { BiomePreset, LifeAlgorithm } from '../types/life-types.js';
@@ -19,6 +23,22 @@ const ALGORITHMS: { id: LifeAlgorithm; label: string; notation: string; tag: str
   { id: 'diamoeba', label: 'Diamoeba',  notation: 'B35678/S5678',    tag: 'amoeba'      },
 ];
 
+function SectionHeader({ label, help }: { label: string; help: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between mb-3">
+      <Text as="p" size="xs" variant="muted" className="uppercase tracking-wider">{label}</Text>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="sm" aria-label={`Help: ${label}`}>?</Button>
+        </PopoverTrigger>
+        <PopoverContent side="left" className="max-w-[200px] flex flex-col gap-2">
+          {help}
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 export function LifeInspector({ biome, onChange, onRandomize, onOpenLibrary, onImportFile }: {
   biome: BiomePreset;
   onChange(b: BiomePreset): void;
@@ -27,14 +47,25 @@ export function LifeInspector({ biome, onChange, onRandomize, onOpenLibrary, onI
   onImportFile?(): void;
 }) {
   const [density, setDensity] = useState(35);
-  const spawnRate = biome.spawnRate ?? 0;
+  const spawnRate      = biome.spawnRate      ?? 0;
+  const spawnMode      = biome.spawnMode      ?? 'scatter';
+  const adaptiveSpawn  = biome.adaptiveSpawn  ?? false;
+  const adaptiveThresh = biome.adaptiveThreshold ?? 0.1;
+  const stasisAction   = biome.stasisAction   ?? 'off';
+  const stasisTicks    = biome.stasisTicks    ?? 5;
+  const invertMode     = biome.invertMode     ?? 'off';
+  const invertAt       = biome.invertAt       ?? 0.85;
+  const restoreAt      = biome.restoreAt      ?? 0.30;
 
   return (
     <div className="flex flex-col gap-6 p-4 font-mono text-xs overflow-y-auto h-full">
 
       {/* Algorithm */}
       <section>
-        <Text as="p" size="xs" variant="muted" className="mb-3 uppercase tracking-wider">algorithm</Text>
+        <SectionHeader label="algorithm" help={<>
+          <p>Birth/survival rule for each cell. <strong>B</strong> = neighbour counts that create a new cell. <strong>S</strong> = counts that keep a live cell alive.</p>
+          <p>Hover any rule to see its notation.</p>
+        </>} />
         <div className="flex flex-col gap-2">
           {ALGORITHMS.map(a => (
             <Tooltip key={a.id} content={`${a.notation} · ${a.tag}`} side="left">
@@ -54,7 +85,12 @@ export function LifeInspector({ biome, onChange, onRandomize, onOpenLibrary, onI
 
       {/* Parameters */}
       <section>
-        <Text as="p" size="xs" variant="muted" className="mb-3 uppercase tracking-wider">parameters</Text>
+        <SectionHeader label="parameters" help={<>
+          <p><strong>tick speed</strong> — how often the simulation advances. Lower ms = faster.</p>
+          <p><strong>spawn rate</strong> — live cells injected every tick, outside the normal rules.</p>
+          <p><strong>spawn mode</strong> — scatter: single cells · cluster: 3×3 blocks · edge: full column or row.</p>
+          <p><strong>adaptive</strong> — spikes spawn automatically when population drops below the threshold.</p>
+        </>} />
 
         <div className="mb-4">
           <div className="flex items-center justify-between mb-1">
@@ -85,11 +121,150 @@ export function LifeInspector({ biome, onChange, onRandomize, onOpenLibrary, onI
             onChange={e => onChange({ ...biome, spawnRate: Number(e.target.value) })}
           />
         </div>
+
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <Text as="span" size="xs">spawn mode</Text>
+          </div>
+          <Tabs
+            aria-label="Spawn mode"
+            options={[
+              { value: 'scatter', label: 'scatter' },
+              { value: 'cluster', label: 'cluster' },
+              { value: 'edge',    label: 'edge'    },
+            ]}
+            value={spawnMode}
+            onChange={v => onChange({ ...biome, spawnMode: v as 'scatter' | 'cluster' | 'edge' })}
+          />
+        </div>
+
+        <div className="mb-2 flex items-center gap-3">
+          <Toggle
+            pressed={adaptiveSpawn}
+            onPressedChange={pressed => onChange({ ...biome, adaptiveSpawn: pressed })}
+            className="font-mono text-xs"
+          >
+            adaptive
+          </Toggle>
+          {adaptiveSpawn && (
+            <Text as="span" size="xs" variant="muted">boost at &lt;{Math.round(adaptiveThresh * 100)}%</Text>
+          )}
+        </div>
+
+        {adaptiveSpawn && (
+          <div className="mb-4">
+            <Slider
+              aria-label="Adaptive spawn threshold percentage"
+              value={Math.round(adaptiveThresh * 100)}
+              min={2}
+              max={30}
+              step={1}
+              onChange={e => onChange({ ...biome, adaptiveThreshold: Number(e.target.value) / 100 })}
+            />
+          </div>
+        )}
+      </section>
+
+      {/* Stability */}
+      <section>
+        <SectionHeader label="stability" help={<>
+          <p>Detects when the simulation gets stuck: dead grid, still-life (grid unchanged), or period-2 oscillator (same as 2 ticks ago).</p>
+          <p><strong>inject</strong> — fires a burst of new cells after the set number of consecutive stasis ticks.</p>
+        </>} />
+
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <Text as="span" size="xs">stasis</Text>
+          </div>
+          <Tabs
+            aria-label="Stasis action"
+            options={[
+              { value: 'off',    label: 'off'    },
+              { value: 'inject', label: 'inject' },
+            ]}
+            value={stasisAction}
+            onChange={v => onChange({ ...biome, stasisAction: v as 'off' | 'inject' })}
+          />
+        </div>
+
+        {stasisAction === 'inject' && (
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-1">
+              <Text as="span" size="xs">after</Text>
+              <Text as="span" size="xs" variant="muted">{stasisTicks} ticks</Text>
+            </div>
+            <Slider
+              aria-label="Stasis detection window in ticks"
+              value={stasisTicks}
+              min={1}
+              max={60}
+              step={1}
+              onChange={e => onChange({ ...biome, stasisTicks: Number(e.target.value) })}
+            />
+          </div>
+        )}
+      </section>
+
+      {/* Inversion */}
+      <section>
+        <SectionHeader label="inversion" help={<>
+          <p>Runs the simulation on the complement of the grid — lit cells become dead, dark cells become alive — then flips the result back.</p>
+          <p><strong>invert at</strong> — enters inverted phase when population exceeds this %.</p>
+          <p><strong>restore at</strong> — returns to normal when population drops back below this %.</p>
+          <p>Good for algorithms that fill and die (Maze, Coral, Day&Night).</p>
+        </>} />
+
+        <div className="mb-4">
+          <Tabs
+            aria-label="Inversion mode"
+            options={[
+              { value: 'off',       label: 'off'       },
+              { value: 'threshold', label: 'threshold' },
+            ]}
+            value={invertMode}
+            onChange={v => onChange({ ...biome, invertMode: v as 'off' | 'threshold' })}
+          />
+        </div>
+
+        {invertMode === 'threshold' && (<>
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-1">
+              <Text as="span" size="xs">invert at</Text>
+              <Text as="span" size="xs" variant="muted">{Math.round(invertAt * 100)}%</Text>
+            </div>
+            <Slider
+              aria-label="Population threshold to enter inverted phase"
+              value={Math.round(invertAt * 100)}
+              min={30}
+              max={99}
+              step={1}
+              onChange={e => onChange({ ...biome, invertAt: Number(e.target.value) / 100 })}
+            />
+          </div>
+
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-1">
+              <Text as="span" size="xs">restore at</Text>
+              <Text as="span" size="xs" variant="muted">{Math.round(restoreAt * 100)}%</Text>
+            </div>
+            <Slider
+              aria-label="Population threshold to exit inverted phase"
+              value={Math.round(restoreAt * 100)}
+              min={1}
+              max={60}
+              step={1}
+              onChange={e => onChange({ ...biome, restoreAt: Number(e.target.value) / 100 })}
+            />
+          </div>
+        </>)}
       </section>
 
       {/* Generate */}
       <section>
-        <Text as="p" size="xs" variant="muted" className="mb-3 uppercase tracking-wider">generate</Text>
+        <SectionHeader label="generate" help={<>
+          <p><strong>density</strong> — percentage of cells that start alive when randomizing.</p>
+          <p><strong>randomize</strong> — seeds the grid fresh. Takes effect immediately.</p>
+        </>} />
 
         <div className="mb-4">
           <div className="flex items-center justify-between mb-1">
@@ -118,7 +293,10 @@ export function LifeInspector({ biome, onChange, onRandomize, onOpenLibrary, onI
       {/* Load design */}
       {(onOpenLibrary ?? onImportFile) && (
         <section>
-          <Text as="p" size="xs" variant="muted" className="mb-3 uppercase tracking-wider">load design</Text>
+          <SectionHeader label="load design" help={<>
+            <p><strong>open</strong> — pick a frame from the asset library to use as the starting grid.</p>
+            <p><strong>import</strong> — load a .dmx.json file from disk.</p>
+          </>} />
           <div className="flex flex-col gap-2">
             {onOpenLibrary && (
               <Button

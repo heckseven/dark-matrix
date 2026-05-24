@@ -7,5 +7,13 @@ export interface BiomePreset {
   algorithm: LifeAlgorithm;
   tickMs: number;
   spawnRate?: number;
+  spawnMode?: 'scatter' | 'cluster' | 'edge';
+  adaptiveSpawn?: boolean;
+  adaptiveThreshold?: number;
+  stasisAction?: 'off' | 'inject';
+  stasisTicks?: number;
+  invertMode?: 'off' | 'threshold';
+  invertAt?: number;
+  restoreAt?: number;
   gridSnapshot?: string;
 }

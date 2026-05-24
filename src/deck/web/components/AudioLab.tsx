@@ -202,9 +202,8 @@ export function AudioLab() {
   const statusDot = wsStatus === 'live' ? 'text-green-400' : wsStatus === 'connecting' ? 'text-yellow-400' : 'text-muted-foreground';
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-5 font-mono">
+    <div className="p-5">
       <div className="flex items-center gap-4 mb-5">
-        <span className="text-xs text-muted-foreground">audio lab</span>
         <span className={`text-xs ${statusDot}`}>● {wsStatus}</span>
         <Select
           value={source}
@@ -213,7 +212,6 @@ export function AudioLab() {
         />
         <Button variant="default" size="sm" onClick={addCell}>+ add cell</Button>
         <span className="text-xs text-muted-foreground ml-auto">raw grayscale · hardware thresholds at 128</span>
-        <a href="?lab=notifications" className="text-xs text-muted-foreground hover:text-foreground transition-colors">notification lab →</a>
       </div>
 
       <div className="flex flex-wrap gap-3 items-start">
