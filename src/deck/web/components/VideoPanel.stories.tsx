@@ -58,8 +58,9 @@ const meta = {
     },
   },
   decorators: [
-    (Story) => {
+    (Story, { parameters }) => {
       resetVStore();
+      if (parameters.noLayout) return <Story />;
       return (
         <Layout>
           <Story />
@@ -161,6 +162,7 @@ function FocusReturnLayout() {
 
 /** Focus returns to the settings toggle button when the settings panel is closed. */
 export const FocusReturn: Story = {
+  parameters: { noLayout: true },
   decorators: [
     // Story not rendered — FocusReturnLayout owns both the toggle and panel
     // so it can wire settingsToggleRef between them directly.
