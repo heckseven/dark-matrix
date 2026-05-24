@@ -5,7 +5,10 @@ import type { DataStats } from '../../../animations/data-renderers.js';
 import { AUDIO_STYLES } from '../../../animations/audio-renderers.js';
 import type { RenderCtx } from '../../../animations/audio-renderers.js';
 import type { HudPresetClient } from '../types/hud-preset.js';
-import { PresetList } from './PresetList.js';
+import { MatrixItemColumn } from './MatrixItemColumn.js';
+import { usePresetPixels } from './usePresetPixels.js';
+import { useAlignedTopPad } from './useAlignedTopPad.js';
+import { Button } from './ui/button.js';
 import { HudDualPreview } from './HudDualPreview.js';
 import { HudInspector } from './HudInspector.js';
 import { TriggerView } from './TriggerView.js';
@@ -80,8 +83,13 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
 
   const mainRef    = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
-  const [presetTopPad, setPresetTopPad] = useState(0);
-  const [inspectorTopPad, setInspectorTopPad] = useState(0);
+
+  // +8: preview canvas is inset p-2 = 8px inside its wrapper, aligning bracket edges.
+  // -36: inspector header (28px) + grid py-4 (16px) - preview p-2 (8px) net offset.
+  const presetTopPad    = useAlignedTopPad(mainRef, previewRef, topPad,  8);
+  const inspectorTopPad = useAlignedTopPad(mainRef, previewRef, topPad, -36);
+
+  const { getPixels: getPresetPixels, onTick: onPresetTick } = usePresetPixels(hudPresets, audioCtx);
 
   const wsRef = useRef<WebSocket | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -205,29 +213,6 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
     onNeedsAudioChange?.(needsAudio);
   }, [needsAudio, onNeedsAudioChange]);
 
-  // Keep preset list top edge aligned with the preview top edge.
-  // The preview is flexbox-centered inside <main>; the gap above it changes with window height.
-  useEffect(() => {
-    const update = () => {
-      const main    = mainRef.current;
-      const preview = previewRef.current;
-      if (!main || !preview) return;
-      const mainRect    = main.getBoundingClientRect();
-      const previewRect = preview.getBoundingClientRect();
-      // +8 aligns the card's outer bracket edge with the preview's canvas bracket
-      // (preview canvas is inset p-2 = 8px inside its wrapper).
-      setPresetTopPad(Math.max(0, previewRect.top - mainRect.top - topPad + 8));
-      // Inspector bracket offset: header bar (py-1 div=8px + sm button=20px → 28px)
-      // + grid content py-4 (16px) = 44px above the first tile bracket.
-      // Subtract 44 then add back preview's p-2 (8px) → net -36.
-      setInspectorTopPad(Math.max(0, previewRect.top - mainRect.top - topPad - 36));
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    if (mainRef.current) ro.observe(mainRef.current);
-    return () => ro.disconnect();
-  }, [topPad]);
-
   useEffect(() => {
     onClocksVisibleChange?.(inspectorClocksVisible);
   }, [inspectorClocksVisible, onClocksVisibleChange]);
@@ -243,55 +228,68 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
       rightLabel="Widget inspector"
       rightStyle={{ paddingTop: topPad }}
       left={
-        <PresetList
-          presets={hudPresets}
-          activeName={activePresetName}
-          selectedName={selectedPresetName}
-          audioCtx={audioCtx}
-          sideAlign="end"
-          topPadding={presetTopPad}
-          onSelect={(name) => {
+        <MatrixItemColumn<HudPresetClient>
+          items={hudPresets}
+          getKey={p => p.name}
+          getPixels={getPresetPixels}
+          getWidth={_ => 18}
+          getName={p => p.name}
+          getAriaLabel={(p, isActive) => isActive ? `${p.name} (default)` : p.name}
+          isSelected={p => p.name === selectedPresetName}
+          isActive={p => p.name === activePresetName}
+          onSelect={(p) => {
             const { hudPresets, selectPreset } = deckStore.getState();
-            const preset = hudPresets.find(p => p.name === name);
-            selectPreset(name);
+            const preset = hudPresets.find(q => q.name === p.name);
+            selectPreset(p.name);
             if (preset) sendWs(buildPresetConfigPayload(preset));
           }}
-          onActivate={(name) => {
-            deckStore.getState().selectPreset(name);
-            sendWs({ type: 'hud-preset-activate', name });
-          }}
-          onCreate={() => {
-            const p = makeDefaultPreset();
-            deckStore.getState().createPreset(p);
+          onAdd={() => {
+            const preset = makeDefaultPreset();
+            deckStore.getState().createPreset(preset);
             debouncedSave();
           }}
           onInsert={(afterIdx) => {
-            const p = makeDefaultPreset();
-            deckStore.getState().insertPreset(p, afterIdx);
+            const preset = makeDefaultPreset();
+            deckStore.getState().insertPreset(preset, afterIdx);
             debouncedSave();
           }}
-          onDelete={(name) => {
-            deckStore.getState().deletePreset(name);
+          insertLabel={idx => `Insert preset after position ${idx + 1}`}
+          onDelete={(p) => {
+            deckStore.getState().deletePreset(p.name);
             debouncedSave();
           }}
-          onDuplicate={(name) => {
+          onDuplicate={(p, idx) => {
             const state = deckStore.getState();
-            const idx = state.hudPresets.findIndex(p => p.name === name);
-            if (idx === -1) return;
-            const src = state.hudPresets[idx]!;
+            const src   = state.hudPresets[idx]!;
             const copy: HudPresetClient = { ...src, name: `${src.name} copy` };
             state.insertPreset(copy, idx);
             debouncedSave();
           }}
-          onRename={(old, next) => {
-            deckStore.getState().renamePreset(old, next);
+          onRename={(p, next) => {
+            deckStore.getState().renamePreset(p.name, next);
             debouncedSave();
           }}
           onMove={(from, to) => {
             deckStore.getState().movePreset(from, to);
             debouncedSave();
           }}
-          onEditTriggers={(name) => setTriggerPresetName(name)}
+          onActivate={(p) => {
+            deckStore.getState().selectPreset(p.name);
+            sendWs({ type: 'hud-preset-activate', name: p.name });
+          }}
+          activateLabel="Set as default"
+          activeLabel="Default preset"
+          extraControls={(p) => (
+            <Button variant="ghost" className="w-8" aria-label="Edit triggers" tooltip="Edit triggers" tooltipSide="right"
+              onClick={e => { e.stopPropagation(); setTriggerPresetName(p.name); }}>if</Button>
+          )}
+          animated={true}
+          onTick={onPresetTick}
+          addLabel="Add preset"
+          emptyText="no presets"
+          aria-label="Presets"
+          sideAlign="end"
+          topPadding={presetTopPad}
         />
       }
       centerRef={mainRef}

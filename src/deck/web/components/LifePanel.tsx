@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useDeckStore, deckStore, ROWS } from '../store.js';
-import { BiomeList } from './BiomeList.js';
+import { MatrixItemColumn } from './MatrixItemColumn.js';
+import { useAlignedTopPad } from './useAlignedTopPad.js';
 import { LifeCanvas, encodeGrid, makeRandomGrid } from './LifeCanvas.js';
 import { LifeInspector } from './LifeInspector.js';
 import { LibraryPickerModal, type LibraryEntry } from './LibraryPickerModal.js';
@@ -55,25 +56,9 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
   colsRef.current = cols;
   dualRef.current = dualModule;
 
-  const [biomeTopPad, setBiomeTopPad] = useState(0);
-
-  // Keep biome list top edge aligned with the LifeCanvas top edge.
-  useEffect(() => {
-    const update = () => {
-      const main    = mainRef.current;
-      const preview = previewRef.current;
-      if (!main || !preview) return;
-      const mainRect    = main.getBoundingClientRect();
-      const previewRect = preview.getBoundingClientRect();
-      // +8: LifeCanvas has p-2 (8px), so canvas/brackets are 8px inside the wrapper.
-      setBiomeTopPad(Math.max(0, previewRect.top - mainRect.top - topPad + 8));
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    if (mainRef.current)    ro.observe(mainRef.current);
-    if (previewRef.current) ro.observe(previewRef.current);
-    return () => ro.disconnect();
-  }, [topPad, selectedBiomeName, dualModule]);
+  // +8: LifeCanvas has p-2 (8px), so canvas/brackets are 8px inside the wrapper.
+  // Re-measure when selectedBiomeName changes (canvas mounts/unmounts) or dualModule changes (width changes).
+  const biomeTopPad = useAlignedTopPad(mainRef, previewRef, topPad, 8, [selectedBiomeName, dualModule]);
 
   // ── WS helpers ────────────────────────────────────────────────────────
 
@@ -281,18 +266,41 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
         centerClassName="overflow-hidden flex items-center justify-center"
         centerRef={mainRef}
         left={
-          <BiomeList
-            biomes={biomePresets}
-            activeName={activeBiomeName}
-            selectedName={selectedBiomeName}
-            onSelect={handleSelect}
-            onActivate={handleActivate}
-            onCreate={handleCreate}
+          <MatrixItemColumn<BiomePreset>
+            items={biomePresets}
+            getKey={b => b.name}
+            getPixels={b => {
+              const snap = b.gridSnapshot;
+              if (!snap) return btoa(String.fromCharCode(...new Uint8Array(9 * ROWS)));
+              try {
+                return snap;
+              } catch {
+                return btoa(String.fromCharCode(...new Uint8Array(9 * ROWS)));
+              }
+            }}
+            getWidth={b => {
+              const snap = b.gridSnapshot;
+              if (!snap) return 9;
+              try { return atob(snap).length === 18 * ROWS ? 18 : 9; } catch { return 9; }
+            }}
+            getName={b => b.name}
+            getAriaLabel={(b, isActive) => isActive ? `${b.name} (active)` : b.name}
+            isSelected={b => b.name === selectedBiomeName}
+            isActive={b => b.name === activeBiomeName}
+            onSelect={(b) => handleSelect(b.name)}
+            onActivate={(b) => handleActivate(b.name)}
+            activateLabel="Set as active"
+            activeLabel="Active biome"
+            onAdd={handleCreate}
             onInsert={handleInsert}
-            onDelete={handleDelete}
-            onDuplicate={handleDuplicate}
-            onRename={handleRename}
+            insertLabel={idx => `Insert biome after ${idx + 1}`}
+            onDelete={(b) => handleDelete(b.name)}
+            onDuplicate={(b) => handleDuplicate(b.name)}
+            onRename={(b, newName) => handleRename(b.name, newName)}
             onMove={handleMove}
+            addLabel="Add biome"
+            emptyText="no biomes"
+            aria-label="Biomes"
             sideAlign="end"
             topPadding={biomeTopPad}
           />
