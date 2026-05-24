@@ -79,5 +79,4 @@ export type Config = {
   notification_rules?: NotificationRule[];
   hud_presets?: HudPreset[];
   biome_presets?: BiomePresetConfig[];
-  active_biome_preset?: string;
 };

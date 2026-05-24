@@ -10,6 +10,7 @@ import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
 import { sendToDaemon } from '../lib/daemon-client.js';
+import { loadConfig } from '../lib/config.js';
 
 function staticAnim(frame: Frame) {
   let stopped = false;
@@ -312,6 +313,75 @@ async function cmdPlay(args: string[]) {
   }
 }
 
+async function cmdLife(args: string[]): Promise<void> {
+  const sub = args[0];
+
+  if (sub === 'list') {
+    let config;
+    try {
+      config = await loadConfig();
+    } catch (err) {
+      process.stderr.write(`Error reading config: ${(err as Error).message}\n`);
+      process.exit(1);
+    }
+    const biomes = config.biome_presets ?? [];
+    if (biomes.length === 0) {
+      process.stdout.write('No biomes configured. Add biomes via: dark-matrix ui\n');
+    } else {
+      process.stdout.write('random\n');
+      for (const b of biomes) process.stdout.write(`${b.name}\n`);
+    }
+    return;
+  }
+
+  let side: 'left' | 'right' | 'both';
+  let name: string | undefined;
+
+  if (sub === 'left' || sub === 'right') {
+    side = sub;
+    name = args[1];
+  } else {
+    side = 'both';
+    name = sub;
+  }
+
+  if (!name) {
+    process.stderr.write('Usage: dark-matrix life list\n       dark-matrix life [left|right] <biome|random>\n');
+    process.exit(1);
+  }
+
+  if (name !== 'random') {
+    let config;
+    try { config = await loadConfig(); } catch { config = null; }
+    if (config) {
+      const biomes = config.biome_presets ?? [];
+      if (!biomes.some(b => b.name === name)) {
+        const available = ['random', ...biomes.map(b => b.name)].join(', ') || 'random';
+        process.stderr.write(`Unknown biome "${name}". Available: ${available}\n`);
+        process.exit(1);
+      }
+    }
+  }
+
+  const cmd: Record<string, unknown> = { cmd: 'hud-config' };
+  if (side === 'left'  || side === 'both') { cmd['leftWidget']  = 'life'; cmd['leftBiomeName']  = name; }
+  if (side === 'right' || side === 'both') { cmd['rightWidget'] = 'life'; cmd['rightBiomeName'] = name; }
+
+  try {
+    const res = await sendToDaemon(cmd);
+    if (res['ok']) {
+      const target = side === 'both' ? 'both sides' : side;
+      process.stdout.write(`Set ${target} to life: ${name}\n`);
+    } else {
+      process.stderr.write(`Error: ${res['error'] ?? JSON.stringify(res)}\n`);
+      process.exit(1);
+    }
+  } catch (err) {
+    process.stderr.write(`${(err as Error).message}\n`);
+    process.exit(1);
+  }
+}
+
 async function cmdDeck(args: string[]): Promise<void> {
   const portIdx = args.indexOf('--port');
   const port = portIdx !== -1 ? parseInt(args[portIdx + 1] ?? '7340', 10) : 7340;
@@ -435,6 +505,7 @@ switch (cmd) {
     }
     break;
   }
+  case 'life':  await cmdLife(args); break;
   case 'hud': {
     const sub = args[0];
     if (sub === 'preset') {
@@ -473,6 +544,8 @@ switch (cmd) {
       '  ui [--port <n>]',
       '  scroll [--hold] [--size tiny|small|medium|large] [--speed slow|normal|fast] <text>',
       '  animate gif [--hold] [--dual] [--mode bw|gray] <path>',
+      '  life list',
+      '  life [left|right] <biome|random>',
       '  hud preset <name>',
       '  calibrate',
       '  ping',

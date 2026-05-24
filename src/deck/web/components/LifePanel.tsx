@@ -37,7 +37,6 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
   const [importEntries, setImportEntries] = useState<LibraryEntry[] | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const biomePresets       = useDeckStore(s => s.biomePresets);
-  const activeBiomeName    = useDeckStore(s => s.activeBiomeName);
   const selectedBiomeName  = useDeckStore(s => s.selectedBiomeName);
   const lifeIsPlaying      = useDeckStore(s => s.lifeIsPlaying);
   const lifeGeneration     = useDeckStore(s => s.lifeGeneration);
@@ -102,11 +101,9 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
 
     ws.addEventListener('message', (e: MessageEvent<string>) => {
       try {
-        const msg = JSON.parse(e.data) as { type: string; presets?: BiomePreset[]; activeName?: string | null; name?: string };
+        const msg = JSON.parse(e.data) as { type: string; presets?: BiomePreset[] };
         if (msg.type === 'biome-presets') {
-          deckStore.getState().loadBiomes(msg.presets ?? [], msg.activeName ?? null);
-        } else if (msg.type === 'biome-preset-activated') {
-          deckStore.getState().setActiveBiome(msg.name ?? null);
+          deckStore.getState().loadBiomes(msg.presets ?? []);
         }
       } catch { /* ignore */ }
     });
@@ -140,11 +137,6 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
   function handleSelect(name: string) {
     deckStore.getState().selectBiome(name);
     deckStore.getState().setLifePlaying(false);
-  }
-
-  function handleActivate(name: string) {
-    deckStore.getState().setActiveBiome(name);
-    sendWs({ type: 'biome-preset-activate', name });
   }
 
   function handleCreate() {
@@ -276,13 +268,9 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
               try { return atob(snap).length === 18 * ROWS ? 18 : 9; } catch { return 9; }
             }}
             getName={b => b.name}
-            getAriaLabel={(b, isActive) => isActive ? `${b.name} (active)` : b.name}
+            getAriaLabel={(b) => b.name}
             isSelected={b => b.name === selectedBiomeName}
-            isActive={b => b.name === activeBiomeName}
             onSelect={(b) => handleSelect(b.name)}
-            onActivate={(b) => handleActivate(b.name)}
-            activateLabel="Set as active"
-            activeLabel="Active biome"
             onAdd={handleCreate}
             onInsert={handleInsert}
             insertLabel={idx => `Insert biome after ${idx + 1}`}

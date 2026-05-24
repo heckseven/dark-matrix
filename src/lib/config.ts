@@ -96,7 +96,6 @@ export const ConfigSchema = z.object({
     const dupes = names.filter((n, i) => names.indexOf(n) !== i);
     for (const d of dupes) ctx.addIssue({ code: 'custom', message: `duplicate preset name: "${d}"`, path: [] });
   }),
-  active_biome_preset: z.string().optional(),
   biome_presets: z.array(z.object({
     name: z.string().min(1),
     algorithm: z.enum(['conway', 'highlife', 'daynight', 'maze', 'coral', 'anneal', 'morley', '2x2', 'stains', 'diamoeba']),

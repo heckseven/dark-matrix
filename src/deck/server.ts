@@ -1722,10 +1722,9 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
         void (async () => {
           try {
             const config = await loadConfig(configFilePath(configDir));
-            const activeName = config.active_biome_preset ?? null;
-            ws.send(JSON.stringify({ type: 'biome-presets', presets: config.biome_presets ?? [], activeName }));
+            ws.send(JSON.stringify({ type: 'biome-presets', presets: config.biome_presets ?? [] }));
           } catch {
-            ws.send(JSON.stringify({ type: 'biome-presets', presets: [], activeName: null }));
+            ws.send(JSON.stringify({ type: 'biome-presets', presets: [] }));
           }
         })();
       } else if (type === 'biome-preset-save') {
@@ -1748,29 +1747,6 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
             ws.send(JSON.stringify({ type: 'error', error: String(err) }));
           }
         })();
-      } else if (type === 'biome-preset-activate') {
-        const name = msg['name'];
-        if (typeof name !== 'string' || !name) {
-          ws.send(JSON.stringify({ type: 'error', error: 'invalid payload' }));
-        } else {
-          void (async () => {
-            try {
-              const cfgPath = configFilePath(configDir);
-              const cfg = await loadConfig(cfgPath);
-              if (!cfg.biome_presets?.some(p => p.name === name)) {
-                ws.send(JSON.stringify({ type: 'error', error: 'biome not found' }));
-                return;
-              }
-              const tmp = cfgPath + '.tmp';
-              await fs.writeFile(tmp, JSON.stringify({ ...cfg, active_biome_preset: name }, null, 2) + '\n', { mode: 0o600 });
-              await fs.rename(tmp, cfgPath);
-              sendToDaemon({ cmd: 'reload' }).catch(() => {});
-              ws.send(JSON.stringify({ type: 'biome-preset-activated', name }));
-            } catch (err) {
-              ws.send(JSON.stringify({ type: 'error', error: String(err) }));
-            }
-          })();
-        }
       } else if (type === 'life-mode-stop') {
         sendToDaemon({ cmd: 'life-hardware-stop' }).catch(() => {});
       }
