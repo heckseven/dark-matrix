@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { createBiomeGrid, createBiomeStep } from '../../../animations/gol.js';
 import { createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
 import { getDataRenderer } from '../data-renderer-pool.js';
@@ -70,6 +71,34 @@ function b64ToUint8(b64: string, expectedBytes: number): Uint8Array {
   return arr;
 }
 
+type LifeState = {
+  biomeName: string;
+  grid: Uint8Array;
+  step: (g: Uint8Array) => Uint8Array;
+  tickMs: number;
+  lastStepAt: number;
+};
+
+// Return the 9-col half of a snapshot as a base64 string (handles 9- or 18-col snapshots).
+function snapshotHalf(snapshot: string, side: 'left' | 'right'): string {
+  try {
+    const bin = atob(snapshot);
+    if (bin.length === COLS * ROWS) return snapshot;
+    const full = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) full[i] = bin.charCodeAt(i);
+    const out = new Uint8Array(COLS * ROWS);
+    const colOffset = side === 'right' ? COLS : 0;
+    for (let col = 0; col < COLS; col++) {
+      for (let row = 0; row < ROWS; row++) {
+        out[col * ROWS + row] = full[(col + colOffset) * ROWS + row] ?? 0;
+      }
+    }
+    return btoa(String.fromCharCode(...out));
+  } catch {
+    return btoa(String.fromCharCode(...new Uint8Array(COLS * ROWS)));
+  }
+}
+
 // Extract one 9-col half from an 18-wide pixel buffer (col-major, 34 rows)
 function extractHalf(full: Uint8Array, side: 'left' | 'right'): Uint8Array {
   const out = new Uint8Array(COLS * ROWS);
@@ -122,7 +151,7 @@ function advanceImages(imageCache: ImagePixelsCache, now: Date): void {
   }
 }
 
-function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, audioCtx: RenderCtx, imageCache: ImagePixelsCache): Uint8Array {
+function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, audioCtx: RenderCtx, imageCache: ImagePixelsCache, lifeGrid?: Uint8Array): Uint8Array {
   const empty = new Uint8Array(COLS * ROWS);
   if (!widget) return empty;
   try {
@@ -151,10 +180,15 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, 
       if (cached.width === 18) return extractHalf(frame, side);
       return frame;
     } else if (widget.widget === 'life') {
+      if (lifeGrid) {
+        const out = new Uint8Array(COLS * ROWS);
+        for (let i = 0; i < out.length; i++) out[i] = lifeGrid[i]! > 0 ? 255 : 0;
+        return out;
+      }
       const biomes = deckStore.getState().biomePresets;
       const b = biomes.find(b => b.name === widget.biomeName);
       if (!b?.gridSnapshot) return empty;
-      const raw = b64ToUint8(b.gridSnapshot, COLS * ROWS);
+      const raw = b64ToUint8(snapshotHalf(b.gridSnapshot, side), COLS * ROWS);
       const out = new Uint8Array(COLS * ROWS);
       for (let i = 0; i < out.length; i++) out[i] = raw[i]! > 0 ? 255 : 0;
       return out;
@@ -227,6 +261,8 @@ export function HudDualPreview({
   const clockNowRef = useRef<Date | undefined>(clockNow);
   clockNowRef.current = clockNow;
   const imageCacheRef = useRef<ImagePixelsCache>({});
+  const lifeStateL = useRef<LifeState | null>(null);
+  const lifeStateR = useRef<LifeState | null>(null);
 
   // Load assets when an image widget is present
   const leftFile  = leftWidget?.widget  === 'image' ? leftWidget.file  : null;
@@ -272,11 +308,46 @@ export function HudDualPreview({
     const ctx = canvas?.getContext('2d');
     if (!ctx) return;
     const now = clockNowRef.current ?? new Date();
+    const nowMs = now.getTime();
     const audioCtx = audioCtxRef.current;
     const imageCache = imageCacheRef.current;
     advanceImages(imageCache, now);
-    drawModule(ctx, getPixels(leftWidget,  'left',  now, audioCtx, imageCache), 0);
-    drawModule(ctx, getPixels(rightWidget, 'right', now, audioCtx, imageCache), RIGHT_X);
+
+    function advanceLifeSide(
+      stateRef: { current: LifeState | null },
+      widget: HudWidget | null,
+      side: 'left' | 'right',
+    ): Uint8Array | undefined {
+      if (!widget || widget.widget !== 'life' || widget.biomeName === 'random') {
+        stateRef.current = null;
+        return undefined;
+      }
+      const biomeName = widget.biomeName;
+      const b = deckStore.getState().biomePresets.find(bm => bm.name === biomeName);
+      if (!b || !b.gridSnapshot) { stateRef.current = null; return undefined; }
+      let state = stateRef.current;
+      if (!state || state.biomeName !== biomeName) {
+        state = {
+          biomeName,
+          grid: createBiomeGrid(snapshotHalf(b.gridSnapshot, side)),
+          step: createBiomeStep(b.algorithm),
+          tickMs: b.tickMs,
+          lastStepAt: nowMs,
+        };
+        stateRef.current = state;
+      } else {
+        while (nowMs - state.lastStepAt >= state.tickMs) {
+          state.grid = state.step(state.grid);
+          state.lastStepAt += state.tickMs;
+        }
+      }
+      return state.grid;
+    }
+
+    const leftLifeGrid  = advanceLifeSide(lifeStateL, leftWidget,  'left');
+    const rightLifeGrid = advanceLifeSide(lifeStateR, rightWidget, 'right');
+    drawModule(ctx, getPixels(leftWidget,  'left',  now, audioCtx, imageCache, leftLifeGrid),  0);
+    drawModule(ctx, getPixels(rightWidget, 'right', now, audioCtx, imageCache, rightLifeGrid), RIGHT_X);
     // Bracket around the selected side
     if (selectedSide === 'left') {
       drawBrackets(ctx, 0.5, 0.5, HALF_W - 0.5, CANVAS_H - 0.5);

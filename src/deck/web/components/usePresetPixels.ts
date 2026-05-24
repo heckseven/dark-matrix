@@ -35,6 +35,25 @@ if (import.meta.hot) {
 
 // ── pixel helpers ─────────────────────────────────────────────────────────────
 
+function extractLifeHalf(snapshot: string, side: 'left' | 'right'): string {
+  try {
+    const bin = atob(snapshot);
+    if (bin.length === COLS * ROWS) return snapshot;
+    const full = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) full[i] = bin.charCodeAt(i);
+    const out = new Uint8Array(COLS * ROWS);
+    const colOffset = side === 'right' ? COLS : 0;
+    for (let col = 0; col < COLS; col++) {
+      for (let row = 0; row < ROWS; row++) {
+        out[col * ROWS + row] = full[(col + colOffset) * ROWS + row] ?? 0;
+      }
+    }
+    return btoa(String.fromCharCode(...out));
+  } catch {
+    return btoa(String.fromCharCode(...new Uint8Array(COLS * ROWS)));
+  }
+}
+
 type AudioFrames    = Partial<Record<AudioStyle, { left: string; right: string }>>;
 type ImageAnimState = { frameIdx: number; elapsed: number; lastTick: number | null };
 
@@ -117,7 +136,8 @@ function renderWidgetToB64(
     if (widget.widget === 'life') {
       if (widget.biomeName === 'random') return empty;
       const b = deckStore.getState().biomePresets.find(b => b.name === widget.biomeName);
-      return b?.gridSnapshot ?? empty;
+      if (!b?.gridSnapshot) return empty;
+      return extractLifeHalf(b.gridSnapshot, side);
     }
     const style: DataStyle = widget.style ?? 'line';
     if (!_dataCache[style]) _dataCache[style] = createDataRenderer({ style });
