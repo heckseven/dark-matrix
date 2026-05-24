@@ -8,7 +8,7 @@ const Panel = ({ label }: { label: string }) => (
 );
 
 const meta = {
-  title: 'Components/ThreePanelLayout',
+  title: 'Layout/ThreePanelLayout',
   component: ThreePanelLayout,
   tags: ['autodocs'],
   parameters: {
@@ -26,8 +26,12 @@ const meta = {
     centerLabel:   { control: 'text',    description: 'aria-label for the main.' },
     rightLabel:    { control: 'text',    description: 'aria-label for the right aside.' },
     leftClassName: { control: 'text',    description: 'className for the left aside.' },
-    centerClassName: { control: 'text', description: 'className for the main.' },
+    centerClassName: { control: 'text', description: 'className for the center section.' },
     rightClassName: { control: 'text',  description: 'className for the right aside.' },
+    leftStyle:   { control: false, description: 'Inline style for the left aside. Use for dynamic values like paddingTop.' },
+    centerStyle: { control: false, description: 'Inline style for the center section.' },
+    rightStyle:  { control: false, description: 'Inline style for the right aside. Use for dynamic values like paddingTop.' },
+    centerRef: { control: false },
     left:   { control: false },
     center: { control: false },
     right:  { control: false },

@@ -294,8 +294,9 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
         />
         </div>
       }
+      centerRef={mainRef}
       center={
-        <div ref={mainRef} className="h-full flex items-center justify-center overflow-hidden">
+        <div className="h-full flex items-center justify-center overflow-hidden">
           <div ref={previewRef} style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <HudDualPreview
               leftWidget={selectedPreset?.left ?? null}

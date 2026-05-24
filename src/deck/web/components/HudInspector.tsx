@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useId, useCallback } from 'react';
 import { MatrixPreview } from './MatrixPreview.js';
-import { MatrixItem } from './MatrixItem.js';
+import { MatrixItem, CornerBrackets } from './MatrixItem.js';
 import { Tabs } from './ui/tabs.js';
 import { Select } from './ui/select.js';
 import { Button } from './ui/button.js';
@@ -68,19 +68,6 @@ function widgetHasSettings(w: HudWidget): boolean {
 }
 
 // ── corner brackets ───────────────────────────────────────────────────────
-
-function CornerBrackets({ active }: { active: boolean }) {
-  const c = { position: 'absolute' as const, width: 16, height: 16, pointerEvents: 'none' as const };
-  const b = `1px solid ${active ? 'white' : 'rgba(255,255,255,0.35)'}`;
-  return (
-    <div aria-hidden="true" className={`absolute inset-0 pointer-events-none transition-opacity ${active ? '' : 'opacity-0 group-hover:opacity-100'}`}>
-      <span style={{ ...c, top: 0,    left: 0,    borderTop: b, borderLeft: b }} />
-      <span style={{ ...c, top: 0,    right: 0,   borderTop: b, borderRight: b }} />
-      <span style={{ ...c, bottom: 0, left: 0,    borderBottom: b, borderLeft: b }} />
-      <span style={{ ...c, bottom: 0, right: 0,   borderBottom: b, borderRight: b }} />
-    </div>
-  );
-}
 
 // ── Layer 1: Category list ────────────────────────────────────────────────
 
@@ -612,7 +599,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
     fetch('/api/assets')
       .then(r => r.json() as Promise<{ ok: boolean; assets: AssetMeta[] }>)
       .then(d => { if (!cancelled) setAssets(d.assets ?? []); })
-      .catch(() => { if (!cancelled) setAssets([]); });
+      .catch(err => { if (!cancelled) { console.error('Failed to load assets:', err); setAssets([]); } });
     return () => { cancelled = true; };
   }, [activeCategory]);
 
@@ -652,13 +639,13 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
     fetch('/api/assets')
       .then(r => r.json() as Promise<{ ok: boolean; assets: AssetMeta[] }>)
       .then(d => { if (mountedRef.current) setAssets(d.assets ?? []); })
-      .catch(() => {});
+      .catch(err => console.error('Failed to refresh assets:', err));
   }
 
   function handleDeleteAsset(name: string) {
     fetch(`/api/assets/${encodeURIComponent(name)}`, { method: 'DELETE' })
       .then(() => refreshAssets())
-      .catch(() => {});
+      .catch(err => console.error('Failed to delete asset:', err));
   }
 
   function getPresetCount(name: string): number {

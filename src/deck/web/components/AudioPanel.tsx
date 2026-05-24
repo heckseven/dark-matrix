@@ -101,7 +101,8 @@ export function AudioPanel({ dualModule = false }: { dualModule?: boolean }) {
 
     ws.onmessage = (e) => {
       try {
-        const msg = JSON.parse(e.data as string) as { type: string; bands?: number[]; fftSize?: number; gain?: number };
+        if (typeof e.data !== 'string') return;
+        const msg = JSON.parse(e.data) as { type: string; bands?: number[]; fftSize?: number; gain?: number };
         if (msg.type === 'audio-bands' && msg.bands) {
           const ctx: RenderCtx = { bands: msg.bands, fftSize: msg.fftSize ?? 2048, gain: msg.gain ?? 1.0 };
           const renderers = renderersRef.current!;

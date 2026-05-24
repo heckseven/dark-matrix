@@ -1,4 +1,4 @@
-import type { ReactNode, CSSProperties } from 'react';
+import type { ReactNode, CSSProperties, Ref } from 'react';
 
 export type ThreePanelLayoutProps = {
   left: ReactNode;
@@ -13,7 +13,9 @@ export type ThreePanelLayoutProps = {
   centerClassName?: string;
   rightClassName?: string;
   leftStyle?: CSSProperties;
+  centerStyle?: CSSProperties;
   rightStyle?: CSSProperties;
+  centerRef?: Ref<HTMLElement>;
 };
 
 export function ThreePanelLayout({
@@ -29,16 +31,18 @@ export function ThreePanelLayout({
   centerClassName = 'overflow-hidden',
   rightClassName = 'overflow-hidden flex flex-col',
   leftStyle,
+  centerStyle,
   rightStyle,
+  centerRef,
 }: ThreePanelLayoutProps) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: columns, gap, height: '100%', width: '100%', overflow: 'hidden' }}>
       <aside aria-label={leftLabel} className={leftClassName} style={leftStyle}>
         {left}
       </aside>
-      <main aria-label={centerLabel} className={centerClassName}>
+      <section ref={centerRef} aria-label={centerLabel} className={centerClassName} style={centerStyle}>
         {center}
-      </main>
+      </section>
       <aside aria-label={rightLabel} className={rightClassName} style={rightStyle}>
         {right}
       </aside>

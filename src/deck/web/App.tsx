@@ -472,11 +472,11 @@ export function App() {
             ) : activeMode === 'config' ? (
               <>
                 <div aria-live="polite" aria-atomic="true" className="sr-only">
-                  {configDirty ? 'Config has unsaved changes' : ''}
+                  {configDirty ? 'Config has unsaved changes' : 'Config saved'}
                 </div>
                 <span className="flex items-center gap-2 font-mono text-xs text-foreground">
                   config
-                  {configDirty && <span role="img" aria-label="unsaved changes" className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />}
+                  {configDirty && <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />}
                 </span>
               </>
             ) : activeMode === 'audio' ? (

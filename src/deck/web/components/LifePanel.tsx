@@ -310,7 +310,6 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
         type="file"
         accept=".json,.dmx.json"
         className="sr-only"
-        aria-hidden="true"
         tabIndex={-1}
         onChange={handleFileChange}
       />

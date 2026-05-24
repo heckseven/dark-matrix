@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { MatrixPreview } from './MatrixPreview.js';
 import { Stack } from './ui/stack.js';
 
-function CornerBrackets({ active }: { active: boolean }) {
+export function CornerBrackets({ active }: { active: boolean }) {
   const c = { position: 'absolute' as const, width: 16, height: 16, pointerEvents: 'none' as const };
   const b = `1px solid ${active ? 'white' : 'rgba(255,255,255,0.35)'}`;
   return (
