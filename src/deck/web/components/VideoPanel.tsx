@@ -10,13 +10,11 @@ import { Toggle } from './ui/toggle.js';
 
 // ── constants ──────────────────────────────────────────────────────────────
 const CELL = 20;
-const PITCH = 21;
 const HW_COLS = 18;
 const HW_ROWS = 34;
-const MIN_L = 48;
 const FPS = 20;
-const FONT = '14px monospace';
 const BAYER4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]] as const;
+const SVG_DOT = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${CELL}" height="${CELL}"><circle cx="${CELL / 2}" cy="${CELL / 2}" r="3" fill="#303030"/></svg>`)}")`;
 
 // ── shared store ───────────────────────────────────────────────────────────
 type Controls = { brightness: number; contrast: number; invert: boolean; dither: boolean };
@@ -130,7 +128,7 @@ export function VideoHeader() {
 
   return (
     <>
-      <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={handleFile} />
+      <input ref={fileInputRef} type="file" accept="video/*" aria-label="Choose video file" className="hidden" onChange={handleFile} />
       <Select
         options={SOURCE_OPTIONS}
         value={sourceMode}
@@ -139,7 +137,7 @@ export function VideoHeader() {
       />
       {sourceMode === 'youtube' ? (
         <form className="flex items-center gap-2" onSubmit={handleSubmit}>
-          <Input className="w-48" placeholder="url" value={inputUrl} onChange={e => setInputUrl(e.target.value)} />
+          <Input className="w-48" placeholder="url" aria-label="YouTube URL" value={inputUrl} onChange={e => setInputUrl(e.target.value)} />
           <Button type="submit" variant="ghost" size="sm" disabled={!inputUrl.trim()}>watch</Button>
         </form>
       ) : (
@@ -234,7 +232,10 @@ export function VideoPanel({ topPad = 0 }: { topPad?: number }) {
 
   const containerRef = React.useRef<HTMLDivElement>(null);
   const videoRef = React.useRef<HTMLVideoElement>(null);
-  const displayCanvasRef = React.useRef<HTMLCanvasElement>(null);
+  const displayDivRef = React.useRef<HTMLDivElement>(null);
+  const settingsPanelRef = React.useRef<HTMLElement>(null);
+  const cellsRef = React.useRef<HTMLSpanElement[]>([]);
+  const cellStatesRef = React.useRef<boolean[]>([]);
   const bridgeRef = React.useRef<ReturnType<typeof createPreviewBridge> | null>(null);
   const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
   const captureCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
@@ -242,14 +243,17 @@ export function VideoPanel({ topPad = 0 }: { topPad?: number }) {
   const hwCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const hwCtxRef = React.useRef<CanvasRenderingContext2D | null>(null);
   const gridRef = React.useRef({ cols: 0, rows: 0 });
-  const controlsRef = React.useRef<Controls>(null!);
+  const controlsRef = React.useRef<Controls>(useVStore.getState().controls);
   const srcRef = React.useRef(src);
   srcRef.current = src;
 
   React.useEffect(() => {
-    controlsRef.current = useVStore.getState().controls;
     return useVStore.subscribe(s => { controlsRef.current = s.controls; });
   }, []);
+
+  React.useEffect(() => {
+    if (settingsOpen) settingsPanelRef.current?.focus();
+  }, [settingsOpen]);
 
   React.useEffect(() => {
     bridgeRef.current = createPreviewBridge(`ws://${location.host}/ws`);
@@ -328,21 +332,48 @@ export function VideoPanel({ topPad = 0 }: { topPad?: number }) {
 
   function recomputeGrid() {
     const container = containerRef.current;
+    const displayDiv = displayDivRef.current;
     const video = videoRef.current;
-    if (!container || !video || !video.videoWidth) return;
+    if (!container || !displayDiv || !video || !video.videoWidth) return;
     const { width: w, height: h } = container.getBoundingClientRect();
-    const maxCols = Math.floor(w / PITCH);
-    const maxRows = Math.floor(h / PITCH);
+    const maxCols = Math.floor(w / CELL);
+    const maxRows = Math.floor(h / CELL);
     if (maxCols < 1 || maxRows < 1) return;
     const ar = video.videoWidth / video.videoHeight;
     const cols = Math.min(maxCols, Math.floor(maxRows * ar));
     const rows = Math.max(1, Math.floor(cols / ar));
     gridRef.current = { cols, rows };
+
+    const totalCells = cols * rows;
+    const cells = cellsRef.current;
+    displayDiv.style.gridTemplateColumns = `repeat(${cols}, ${CELL}px)`;
+    displayDiv.style.width = `${cols * CELL}px`;
+    displayDiv.style.height = `${rows * CELL}px`;
+
+    while (cells.length < totalCells) {
+      const span = document.createElement('span');
+      span.textContent = '∗';
+      span.style.cssText = 'display:flex;align-items:center;justify-content:center;overflow:hidden;';
+      span.style.color = 'transparent';
+      span.style.background = 'transparent';
+      span.setAttribute('aria-hidden', 'true');
+      displayDiv.appendChild(span);
+      cells.push(span);
+    }
+    while (cells.length > totalCells) {
+      const span = cells.pop();
+      if (span && span.parentNode === displayDiv) displayDiv.removeChild(span);
+    }
+
+    cellStatesRef.current = new Array(totalCells).fill(false);
+    for (const span of cells) {
+      span.style.color = 'transparent';
+      span.style.background = 'transparent';
+    }
   }
 
   function tick() {
     const video = videoRef.current;
-    const displayCanvas = displayCanvasRef.current;
     const capCanvas = captureCanvasRef.current;
     const capCtx = captureCtxRef.current;
     const hwCanvas = hwCanvasRef.current;
@@ -357,33 +388,23 @@ export function VideoPanel({ topPad = 0 }: { topPad?: number }) {
     capCtx.drawImage(video, 0, 0, cols, rows);
     const { data } = capCtx.getImageData(0, 0, cols, rows);
 
-    if (displayCanvas) {
-      const dpr = window.devicePixelRatio || 1;
-      const cw = cols * PITCH;
-      const ch = rows * PITCH;
-      const pw = Math.round(cw * dpr);
-      const ph = Math.round(ch * dpr);
-      if (displayCanvas.width !== pw) displayCanvas.width = pw;
-      if (displayCanvas.height !== ph) displayCanvas.height = ph;
-      displayCanvas.style.width = `${cw}px`;
-      displayCanvas.style.height = `${ch}px`;
-      const ctx = displayCanvas.getContext('2d')!;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, cw, ch);
-      ctx.font = FONT;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const OFF_COLOR = `rgb(${MIN_L},${MIN_L},${MIN_L})`;
-      let curStyle = '';
-      for (let row = 0; row < rows; row++) {
-        for (let col = 0; col < cols; col++) {
-          const i = (row * cols + col) * 4;
-          const gray = data[i]! * 0.299 + data[i + 1]! * 0.587 + data[i + 2]! * 0.114;
-          const bw = bwValue(processGray(gray, ctrl), row, col, ctrl.dither);
-          const s = bw > 0 ? '#fff' : OFF_COLOR;
-          if (s !== curStyle) { ctx.fillStyle = s; curStyle = s; }
-          ctx.fillText(bw > 0 ? '∗' : '•', col * PITCH + CELL / 2, row * PITCH + CELL / 2 + 1);
+    const cells = cellsRef.current;
+    const states = cellStatesRef.current;
+    if (cells.length !== cols * rows || states.length !== cols * rows) return;
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        const ci = row * cols + col;
+        const i = ci * 4;
+        const gray = data[i]! * 0.299 + data[i + 1]! * 0.587 + data[i + 2]! * 0.114;
+        const lit = bwValue(processGray(gray, ctrl), row, col, ctrl.dither) > 0;
+        if (states[ci] !== lit) {
+          states[ci] = lit;
+          const cell = cells[ci];
+          if (cell) {
+            cell.style.color = lit ? '#fff' : 'transparent';
+            // '#000' covers the SVG dot background on the parent; transparent reveals it
+            cell.style.background = lit ? '#000' : 'transparent';
+          }
         }
       }
     }
@@ -398,8 +419,7 @@ export function VideoPanel({ topPad = 0 }: { topPad?: number }) {
         frame[col * HW_ROWS + row] = bwValue(processGray(gray, ctrl), row, col, ctrl.dither);
       }
     }
-    let frameStr = '';
-    for (const b of frame) frameStr += String.fromCharCode(b);
+    const frameStr = Array.from(frame, b => String.fromCharCode(b)).join('');
     bridgeRef.current?.sendFrame(btoa(frameStr), 'bw', 18, 'both');
   }
 
@@ -422,16 +442,32 @@ export function VideoPanel({ topPad = 0 }: { topPad?: number }) {
     <div className="relative flex h-full w-full">
       {/* ── video canvas area ─────────────────────────────── */}
       <div ref={containerRef} className="relative flex-1 flex items-center justify-center overflow-hidden bg-black">
-        <canvas ref={displayCanvasRef} />
+        <div
+          ref={displayDivRef}
+          role="img"
+          aria-label={src ? 'Video output' : 'No source loaded'}
+          style={{
+            display: 'grid',
+            backgroundImage: SVG_DOT,
+            backgroundSize: `${CELL}px ${CELL}px`,
+            backgroundRepeat: 'repeat',
+            fontSize: '14px',
+            fontFamily: 'monospace',
+            userSelect: 'none',
+          }}
+        />
 
-        {buffering && playing && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <span className="text-muted-foreground text-xs font-mono animate-pulse">···</span>
-          </div>
-        )}
+        <div role="status" aria-live="polite" className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          {buffering && playing && (
+            <>
+              <span aria-hidden="true" className="text-muted-foreground text-xs font-mono animate-pulse">···</span>
+              <span className="sr-only">Buffering</span>
+            </>
+          )}
+        </div>
 
         {ytError && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-8">
+          <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-8">
             <span className="text-red-400 text-sm font-mono">{ytError}</span>
             {ytError.includes('yt-dlp') && (
               <span className="text-muted-foreground text-xs font-mono">install: sudo apt install yt-dlp</span>
@@ -450,6 +486,7 @@ export function VideoPanel({ topPad = 0 }: { topPad?: number }) {
               value={currentTime}
               className="flex-1"
               aria-label="Seek"
+              aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
               onChange={e => { const v = videoRef.current; if (v) v.currentTime = Number(e.target.value); }}
             />
             <span className="font-mono text-foreground tabular-nums shrink-0">{formatTime(duration)}</span>
@@ -480,12 +517,15 @@ export function VideoPanel({ topPad = 0 }: { topPad?: number }) {
       {/* ── settings panel — in-flow, never covers toolbar ── */}
       {settingsOpen && (
         <aside
+          ref={settingsPanelRef}
+          aria-label="Video settings"
+          tabIndex={-1}
           className="absolute right-0 top-0 h-full w-60 flex flex-col gap-4 overflow-y-auto p-4"
           style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)', paddingTop: (topPad || 0) + 16 }}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground font-mono uppercase tracking-wide">video settings</span>
-            <Button variant="ghost" size="sm" onClick={() => updateControls(DEFAULT_CONTROLS)}>reset</Button>
+            <Button variant="ghost" size="sm" aria-label="Reset video settings" onClick={() => updateControls(DEFAULT_CONTROLS)}>reset</Button>
           </div>
           <label className="flex flex-col gap-1">
             <span className="text-xs text-muted-foreground">brightness</span>
