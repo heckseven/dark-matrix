@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, memo, type MutableRefObject } from 'react';
 import { MatrixPreview } from './MatrixPreview.js';
 import { Slider } from './ui/slider.js';
 import { Button } from './ui/button.js';
@@ -82,6 +82,8 @@ const AnimatedPreview = memo(function AnimatedPreview({
 
 export interface AssetImportPanelProps {
   onSaved: (filename: string) => void;
+  onHasFileChange?: (hasFile: boolean) => void;
+  saveRef?: MutableRefObject<(() => void) | null>;
 }
 
 const ALLOWED_FILENAME_RE = /^[a-zA-Z0-9_\-]+$/;
@@ -108,12 +110,13 @@ async function fileToBase64(file: File): Promise<string> {
   });
 }
 
-export function AssetImportPanel({ onSaved }: AssetImportPanelProps) {
+export function AssetImportPanel({ onSaved, onHasFileChange, saveRef }: AssetImportPanelProps) {
   const [file, setFile] = useState<File | null>(null);
   const [width, setWidth] = useState<9 | 18>(18);
   const [fit, setFit] = useState<'contain' | 'cover' | 'fill'>('contain');
   const [brightness, setBrightness] = useState(0);
   const [contrast, setContrast] = useState(1);
+  const [invert, setInvert] = useState(false);
   const [filename, setFilename] = useState('');
   const [playing, setPlaying] = useState(true);
   const [preview, setPreview] = useState<{ frames: string[]; delays: number[]; width: 9 | 18 } | null>(null);
@@ -132,7 +135,7 @@ export function AssetImportPanel({ onSaved }: AssetImportPanelProps) {
 
   const fetchPreview = useCallback(async (f: File, opts: {
     width: 9 | 18; fit: 'contain' | 'cover' | 'fill';
-    brightness: number; contrast: number;
+    brightness: number; contrast: number; invert: boolean;
   }) => {
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -156,6 +159,7 @@ export function AssetImportPanel({ onSaved }: AssetImportPanelProps) {
           fit: opts.fit,
           brightness: opts.brightness,
           contrast: opts.contrast,
+          invert: opts.invert,
         }),
       });
       if (!res.ok) {
@@ -181,12 +185,12 @@ export function AssetImportPanel({ onSaved }: AssetImportPanelProps) {
   }, [fetchPreview]);
 
   useEffect(() => () => { abortRef.current?.abort(); }, []);
+  useEffect(() => () => { onHasFileChange?.(false); }, [onHasFileChange]);
 
   useEffect(() => {
     if (!file) return;
-    schedulePreview(file, { width, fit, brightness, contrast });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file, width, fit, brightness, contrast]);
+    schedulePreview(file, { width, fit, brightness, contrast, invert });
+  }, [file, width, fit, brightness, contrast, invert, schedulePreview]);
 
   function handleFileChange(f: File) {
     if (f.size > MAX_FILE_BYTES) {
@@ -198,6 +202,7 @@ export function AssetImportPanel({ onSaved }: AssetImportPanelProps) {
     setFilename(sanitizeFilename(f.name));
     setPreview(null);
     setError(null);
+    onHasFileChange?.(true);
   }
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -226,7 +231,7 @@ export function AssetImportPanel({ onSaved }: AssetImportPanelProps) {
       const res = await fetch('/api/assets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename, sourceBase64: b64, width, mode: 'bw', fit, brightness, contrast }),
+        body: JSON.stringify({ filename, sourceBase64: b64, width, mode: 'bw', fit, brightness, contrast, invert }),
       });
       if (!res.ok) {
         const text = await res.text().catch(() => 'save failed');
@@ -240,6 +245,8 @@ export function AssetImportPanel({ onSaved }: AssetImportPanelProps) {
       setSaving(false);
     }
   }
+
+  useLayoutEffect(() => { if (saveRef) saveRef.current = file ? handleSave : null; });
 
   // ── no file: show drop zone ────────────────────────────────────────────
   if (!file) {
@@ -334,6 +341,12 @@ export function AssetImportPanel({ onSaved }: AssetImportPanelProps) {
         />
       </div>
 
+      {/* Invert */}
+      <label className="flex items-center gap-3 cursor-pointer">
+        <span className="font-mono text-xs text-muted-foreground w-20 shrink-0">invert</span>
+        <Checkbox aria-label="Invert" checked={invert} onChange={e => setInvert(e.target.checked)} />
+      </label>
+
       {/* Filename */}
       <div className="flex items-center gap-3">
         <span className="font-mono text-xs text-muted-foreground w-20 shrink-0">filename</span>
@@ -347,18 +360,6 @@ export function AssetImportPanel({ onSaved }: AssetImportPanelProps) {
       </div>
 
       {error && <span role="alert" className="font-mono text-xs text-red-400">{error}</span>}
-
-      {/* Actions */}
-      <div className="flex gap-2">
-        <Button
-          variant="default"
-          className="font-mono text-xs"
-          onClick={handleSave}
-          disabled={saving || !filename.trim()}
-        >
-          {saving ? 'saving…' : 'save'}
-        </Button>
-      </div>
     </div>
   );
 }

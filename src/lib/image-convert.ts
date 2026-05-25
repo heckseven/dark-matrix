@@ -52,14 +52,20 @@ export async function convertImage(imagePath: string, opts?: ConvertOptions): Pr
 
 const GIF_MAX_FRAMES = 240;
 
+export function applyPixelValue(v: number, mode: 'bw' | 'gray', invert: boolean): number {
+  if (mode === 'bw') return (v >= 128) !== invert ? 255 : 0;
+  return invert ? 255 - v : v;
+}
+
 export async function convertGifToDmx(buf: Buffer, opts: {
   width: 9 | 18;
   mode: 'bw' | 'gray';
   fit: 'contain' | 'cover' | 'fill';
   brightness: number;
   contrast: number;
+  invert?: boolean;
 }): Promise<DmxProject> {
-  const { width, mode, fit, brightness, contrast } = opts;
+  const { width, mode, fit, brightness, contrast, invert = false } = opts;
   const FRAME_H = 34;
 
   const meta = await sharp(buf, { animated: true }).metadata();
@@ -82,8 +88,7 @@ export async function convertGifToDmx(buf: Buffer, opts: {
     const pixels = new Uint8Array(bytesPerFrame);
     for (let col = 0; col < width; col++) {
       for (let row = 0; row < FRAME_H; row++) {
-        const v = slice[row * width + col] ?? 0;
-        pixels[col * FRAME_H + row] = mode === 'bw' ? (v >= 128 ? 255 : 0) : v;
+        pixels[col * FRAME_H + row] = applyPixelValue(slice[row * width + col] ?? 0, mode, invert);
       }
     }
     frames.push({ delayMs: delays[i] ?? 100, pixels: Buffer.from(pixels).toString('base64') });

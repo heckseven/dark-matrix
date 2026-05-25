@@ -11,7 +11,7 @@ import sharp from 'sharp';
 import { parseProject, frameToBase64 } from './format.js';
 import type { DmxProject } from './format.js';
 import type { AssetMeta } from '../lib/asset-meta.js';
-import { convertGifToDmx } from '../lib/image-convert.js';
+import { convertGifToDmx, applyPixelValue } from '../lib/image-convert.js';
 import { sendToDaemon, PersistentDaemonClient, daemonSocketPath } from '../lib/daemon-client.js';
 import { loadConfig, ConfigSchema } from '../lib/config.js';
 import { enumerateMatrixModules } from '../lib/modules.js';
@@ -465,6 +465,7 @@ async function convertSourceToProject(
   fit: 'contain' | 'cover' | 'fill',
   brightness: number,
   contrast: number,
+  invert = false,
 ): Promise<DmxProject> {
   // Detect .dmx.json: starts with '{' and parses as dark-matrix JSON
   const head = sourceBuf.slice(0, 1).toString();
@@ -482,7 +483,7 @@ async function convertSourceToProject(
     sourceBuf[0] === 0x47 && sourceBuf[1] === 0x49 && sourceBuf[2] === 0x46;
 
   if (isGif) {
-    return convertGifToDmx(sourceBuf, { width, mode, fit, brightness, contrast });
+    return convertGifToDmx(sourceBuf, { width, mode, fit, brightness, contrast, invert });
   }
 
   // PNG/JPEG: single frame
@@ -497,8 +498,7 @@ async function convertSourceToProject(
   const pixels = new Uint8Array(width * 34);
   for (let col = 0; col < width; col++) {
     for (let row = 0; row < 34; row++) {
-      const v = raw[row * width + col] ?? 0;
-      pixels[col * 34 + row] = mode === 'bw' ? (v >= 128 ? 255 : 0) : v;
+      pixels[col * 34 + row] = applyPixelValue(raw[row * width + col] ?? 0, mode, invert);
     }
   }
 
@@ -584,6 +584,7 @@ async function handleAssetsImport(
 
   const brightness = clamp(typeof p['brightness'] === 'number' ? p['brightness'] : 0, -1, 1);
   const contrast = clamp(typeof p['contrast'] === 'number' ? p['contrast'] : 1, 0.5, 2);
+  const invert = p['invert'] === true;
   const overwrite = p['overwrite'] === true;
 
   // Path traversal check
@@ -608,7 +609,7 @@ async function handleAssetsImport(
 
   try {
     const sourceBuf = Buffer.from(p['sourceBase64'] as string, 'base64');
-    const project = await convertSourceToProject(sourceBuf, width, mode, fit, brightness, contrast);
+    const project = await convertSourceToProject(sourceBuf, width, mode, fit, brightness, contrast, invert);
 
     await fs.mkdir(aDir, { recursive: true });
     const tmp = outputPath + '.tmp';
@@ -682,10 +683,11 @@ async function handleAssetsPreview(
 
   const brightness = clamp(typeof p['brightness'] === 'number' ? p['brightness'] : 0, -1, 1);
   const contrast = clamp(typeof p['contrast'] === 'number' ? p['contrast'] : 1, 0.5, 2);
+  const invert = p['invert'] === true;
 
   try {
     const sourceBuf = Buffer.from(p['sourceBase64'] as string, 'base64');
-    const project = await convertSourceToProject(sourceBuf, width, mode, fit, brightness, contrast);
+    const project = await convertSourceToProject(sourceBuf, width, mode, fit, brightness, contrast, invert);
     const frames = project.frames.map(f => f.pixels);
     const delays = project.frames.map(f => f.delayMs);
 

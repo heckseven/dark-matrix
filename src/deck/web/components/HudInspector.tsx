@@ -629,12 +629,14 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, getP
           );
         })}
       </div>
-      <Button
-        variant={assets.length === 0 ? 'primary' : 'default'}
-        aria-label="Import image"
-        className="font-mono text-xs mt-1 self-start"
-        onClick={onShowImport}
-      >+ import</Button>
+      {assets.length === 0 && (
+        <Button
+          variant="primary"
+          aria-label="Import image"
+          className="font-mono text-xs mt-1 self-start"
+          onClick={onShowImport}
+        >+ import</Button>
+      )}
     </div>
   );
 }
@@ -736,6 +738,8 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
   // Image assets
   const [assets, setAssets] = useState<AssetMeta[] | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [importHasFile, setImportHasFile] = useState(false);
+  const importSaveRef = useRef<(() => void) | null>(null);
   const mountedRef = useRef(true);
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
@@ -828,7 +832,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
   const header = (
     <div className="relative flex items-center shrink-0 px-2 py-1">
       {showImportHeader ? (
-        <Button variant="ghost" className="text-foreground/60 text-xs" aria-label="Cancel import" tooltip="Cancel import" onClick={() => setShowImport(false)}>
+        <Button variant="ghost" className="text-foreground/60 text-xs" aria-label="Cancel import" tooltip="Cancel import" onClick={() => { setImportHasFile(false); setShowImport(false); }}>
           <span aria-hidden="true">‹</span>
         </Button>
       ) : (
@@ -836,9 +840,21 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
           <span aria-hidden="true">{backLabel}</span>
         </Button>
       )}
-      <span className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
+      <span role="heading" aria-level={2} className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
         {showImportHeader ? 'import image' : (activeCategory ?? '')}
       </span>
+      <div aria-live="polite" aria-atomic="true" className="ml-auto">
+        {showImportHeader && importHasFile && (
+          <Button variant="default" size="sm" className="font-mono text-xs" aria-label="Save imported asset" onClick={() => importSaveRef.current?.()}>
+            import
+          </Button>
+        )}
+        {!showImportHeader && activeCategory === 'image' && assets !== null && assets.length > 0 && (
+          <Button variant="ghost" size="sm" className="font-mono text-xs" aria-label="Import image" onClick={() => { setImportHasFile(false); setShowImport(true); }}>
+            + import
+          </Button>
+        )}
+      </div>
     </div>
   );
 
@@ -851,10 +867,13 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
           <div className="flex-1 overflow-y-auto">
             <AssetImportPanel
               onSaved={(savedFilename) => {
+                setImportHasFile(false);
                 setShowImport(false);
                 handlePick({ widget: 'image', file: savedFilename });
                 refreshAssets();
               }}
+              onHasFileChange={setImportHasFile}
+              saveRef={importSaveRef}
             />
           </div>
         ) : (
@@ -870,7 +889,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
                   currentWidget={widget}
                   assets={assets}
                   onPick={handlePick}
-                  onShowImport={() => setShowImport(true)}
+                  onShowImport={() => { setImportHasFile(false); setShowImport(true); }}
                   onDelete={handleDeleteAsset}
                   getPresetCount={getPresetCount}
                 />

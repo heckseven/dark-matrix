@@ -109,6 +109,8 @@ export interface AssetManagerModalProps {
 export function AssetManagerModal({ open, onOpenChange, onOpenAsset }: AssetManagerModalProps) {
   const [assets, setAssets] = useState<AssetMeta[] | null>(null);
   const [view, setView] = useState<'grid' | 'import'>('grid');
+  const [importHasFile, setImportHasFile] = useState(false);
+  const importSaveRef = useRef<(() => void) | null>(null);
   const animRef = useRef<AnimState>({});
   const assetsRef = useRef(assets);
   assetsRef.current = assets;
@@ -211,10 +213,17 @@ export function AssetManagerModal({ open, onOpenChange, onOpenAsset }: AssetMana
             right={
               <div className="flex items-center gap-1">
                 {view === 'grid' && (
-                  <Button variant="ghost" size="sm" className="font-mono text-xs" aria-label="Import asset" onClick={() => setView('import')}>
+                  <Button variant="ghost" size="sm" className="font-mono text-xs" aria-label="Import asset" onClick={() => { setImportHasFile(false); setView('import'); }}>
                     import
                   </Button>
                 )}
+                <div aria-live="polite" aria-atomic="true">
+                  {view === 'import' && importHasFile && (
+                    <Button variant="default" size="sm" className="font-mono text-xs" aria-label="Save imported asset" onClick={() => importSaveRef.current?.()}>
+                      import
+                    </Button>
+                  )}
+                </div>
                 <DialogClose asChild>
                   <Button variant="ghost" size="sm" aria-label="Close asset manager" tooltip="Close" tooltipSide="left">×</Button>
                 </DialogClose>
@@ -228,6 +237,8 @@ export function AssetManagerModal({ open, onOpenChange, onOpenAsset }: AssetMana
                 onSaved={() => {
                   void fetchAssets().then(() => setView('grid'));
                 }}
+                onHasFileChange={setImportHasFile}
+                saveRef={importSaveRef}
               />
             ) : (
               <div className="flex flex-col gap-6">
