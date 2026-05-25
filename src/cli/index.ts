@@ -11,7 +11,8 @@ import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
 import { sendToDaemon } from '../lib/daemon-client.js';
-import { loadConfig } from '../lib/config.js';
+import { loadConfig, DEFAULT_CONFIG, resolveConfigPath } from '../lib/config.js';
+import { enumerateMatrixModules } from '../lib/modules.js';
 
 function staticAnim(frame: Frame) {
   let stopped = false;
@@ -297,6 +298,13 @@ async function cmdImage(args: string[]) {
 }
 
 async function cmdCalibrate() {
+  const modules = await enumerateMatrixModules();
+  if (modules.length < 2) {
+    process.stderr.write(`Error: found ${modules.length} module(s), need at least 2 to calibrate.\n`);
+    return;
+  }
+  const [devA, devB] = [modules[0]!, modules[1]!];
+
   // Release daemon's port handles if it's running
   try {
     await sendToDaemon({ cmd: 'release' });
@@ -312,7 +320,6 @@ async function cmdCalibrate() {
 
   const transport = new SerialTransport();
 
-  // Send all-lit to left candidate, blank to right
   const litFrame = createFrame();
   litFrame.fill(255);
   const blankFrame = createFrame();
@@ -321,23 +328,42 @@ async function cmdCalibrate() {
   const animBlank = staticAnim(blankFrame);
 
   process.stdout.write('Calibrating module sides...\n');
-  process.stdout.write(`Sending solid white to: ${LEFT_DEV}\n`);
-  process.stdout.write(`Sending blank to:       ${RIGHT_DEV}\n\n`);
+  process.stdout.write(`Sending solid white to: ${devA}\n`);
+  process.stdout.write(`Sending blank to:       ${devB}\n\n`);
 
-  const stopA = runAnimation(animLit,   { transport, devicePath: LEFT_DEV,  mode: 'bw' });
-  const stopB = runAnimation(animBlank, { transport, devicePath: RIGHT_DEV, mode: 'bw' });
+  const stopA = runAnimation(animLit,   { transport, devicePath: devA, mode: 'bw' });
+  const stopB = runAnimation(animBlank, { transport, devicePath: devB, mode: 'bw' });
 
   const answer = await ask('Which side is lit? [left/right]: ');
   stopA(); stopB();
+  rl.close();
+
+  await transport.close();
 
   const leftIsA = answer.trim().toLowerCase() === 'left';
-  const leftDev  = leftIsA ? LEFT_DEV  : RIGHT_DEV;
-  const rightDev = leftIsA ? RIGHT_DEV : LEFT_DEV;
+  const leftDev  = leftIsA ? devA : devB;
+  const rightDev = leftIsA ? devB : devA;
 
-  process.stdout.write(`\nLeft module:  ${leftDev}\nRight module: ${rightDev}\n`);
-  process.stdout.write('Update your config.json modules.left and modules.right with these paths.\n');
+  const configPath = resolveConfigPath();
+  let config: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(await fs.readFile(configPath, 'utf-8'));
+    config = (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed))
+      ? (parsed as Record<string, unknown>)
+      : { ...DEFAULT_CONFIG };
+  } catch {
+    config = { ...DEFAULT_CONFIG };
+  }
 
-  rl.close();
+  config['modules'] = { left: leftDev, right: rightDev };
+  config['uncalibrated'] = false;
+
+  await fs.mkdir(path.dirname(configPath), { recursive: true });
+  await fs.writeFile(configPath, JSON.stringify(config, null, 2), { mode: 0o600 });
+
+  await run('systemctl', ['--user', 'restart', 'dark-matrix']).catch(() => {});
+
+  process.stdout.write(`Left: ${leftDev}\nRight: ${rightDev}\nConfig updated. Daemon reloaded.\n`);
 }
 
 async function cmdPlay(args: string[]) {

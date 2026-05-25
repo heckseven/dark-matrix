@@ -1,7 +1,5 @@
 import { spawn } from 'node:child_process';
 
-const DEFAULT_ECTOOL = `${process.env['HOME']}/projects/EmbeddedController/build/host/util/ectool`;
-
 export type SwitchState = { cam: number; mic: number };
 
 export type SwitchEvent = {
@@ -39,7 +37,7 @@ function gpioGet(ectoolPath: string, gpioName: string): Promise<number> {
 }
 
 export async function readSwitches(ectoolPath?: string): Promise<SwitchState> {
-  const bin = ectoolPath ?? DEFAULT_ECTOOL;
+  const bin = ectoolPath ?? 'ectool';
   const [cam, mic] = await Promise.all([
     gpioGet(bin, 'CAM_SW'),
     gpioGet(bin, 'MIC_SW'),
@@ -52,14 +50,15 @@ export function watchSwitches(
   opts?: { intervalMs?: number; ectoolPath?: string }
 ): () => void {
   const intervalMs = opts?.intervalMs ?? 500;
-  const ectoolPath = opts?.ectoolPath ?? DEFAULT_ECTOOL;
+  const ectoolPath = opts?.ectoolPath ?? 'ectool';
 
   let prev: SwitchState | null = null;
   let polling = false;
+  let notFound = false;
   let handle: ReturnType<typeof setInterval> | null = null;
 
   handle = setInterval(async () => {
-    if (polling) return;
+    if (polling || notFound) return;
     polling = true;
     try {
       const next = await readSwitches(ectoolPath);
@@ -71,7 +70,13 @@ export function watchSwitches(
       if (next.mic !== prev.mic) onEvent({ type: 'mic', value: next.mic, prev: prev.mic });
       prev = next;
     } catch (err: unknown) {
-      process.stderr.write(`ec-switches: ectool error: ${String(err)}\n`);
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        notFound = true;
+        process.stderr.write(`ec-switches: ectool not found on PATH, skipping EC switch feature\n`);
+        if (handle !== null) { clearInterval(handle); handle = null; }
+      } else {
+        process.stderr.write(`ec-switches: ectool error: ${String(err)}\n`);
+      }
     } finally {
       polling = false;
     }

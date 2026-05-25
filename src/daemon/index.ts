@@ -1379,7 +1379,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
   disposeWatches.push(watchSwitches((e) => {
     routeAndPush(ecSwitchIntent(e));
-  }, { intervalMs: 500 }));
+  }, { intervalMs: 500, ...(currentConfig.ectool_path !== undefined ? { ectoolPath: currentConfig.ectool_path } : {}) }));
 
   disposeWatches.push(watchVms((e) => {
     routeAndPush(vmIntent(e));
@@ -1491,7 +1491,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                   right: deviceAvailable.get(currentConfig.modules.right) ?? false,
                 },
               };
-              readSwitches().then(switches => {
+              readSwitches(currentConfig.ectool_path).then(switches => {
                 socket.write(JSON.stringify({ ...modulesPayload, switches }) + '\n');
               }).catch(() => {
                 socket.write(JSON.stringify(modulesPayload) + '\n');

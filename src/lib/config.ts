@@ -95,6 +95,7 @@ export const ConfigSchema = z.object({
     left:  HudWidgetSchema.optional(),
     right: HudWidgetSchema.optional(),
   }).optional(),
+  ectool_path: z.string().regex(/^\/[a-zA-Z0-9_\-.\/]+$/).optional(),
   notification_rules: z.array(NotificationRuleSchema).optional(),
   active_hud_preset: z.string().optional(),
   hud_presets: z.array(HudPresetSchema).optional().superRefine((presets, ctx) => {
@@ -169,7 +170,7 @@ export class ConfigError extends Error {
   }
 }
 
-function resolveConfigPath(p?: string): string {
+export function resolveConfigPath(p?: string): string {
   return (
     p ??
     process.env['DARK_MATRIX_CONFIG_PATH'] ??
@@ -205,9 +206,36 @@ export async function bootstrapConfig(p?: string): Promise<void> {
   const modules = found.length === 2
     ? { left: found[0]!, right: found[1]! }
     : DEFAULT_CONFIG.modules;
+
+  const IIO_DIR = '/sys/bus/iio/devices';
+  const entries = await fs.readdir(IIO_DIR).catch(() => [] as string[]);
+  let sensorPath: string | undefined;
+  for (const entry of entries) {
+    if (!entry.startsWith('iio:device')) continue;
+    const candidate = `${IIO_DIR}/${entry}/in_illuminance_raw`;
+    if (!SENSOR_PATH_RE.test(candidate)) continue;
+    try {
+      await fs.access(candidate);
+      sensorPath = candidate;
+      break;
+    } catch {
+      // not accessible, try next
+    }
+  }
+
+  let brightness: Config['brightness'];
+  if (sensorPath !== undefined) {
+    process.stdout.write(`Detected sensor at ${sensorPath}\n`);
+    brightness = { ...DEFAULT_CONFIG.brightness, mode: 'sensor', sensor_path: sensorPath };
+  } else {
+    process.stdout.write('No IIO sensor found, defaulting to manual brightness\n');
+    const { sensor_path: _sp, ...rest } = DEFAULT_CONFIG.brightness;
+    brightness = { ...rest, mode: 'manual' };
+  }
+
   const filePath = resolveConfigPath(p);
   await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, JSON.stringify({ ...DEFAULT_CONFIG, modules }, null, 2), { mode: 0o600 });
+  await fs.writeFile(filePath, JSON.stringify({ ...DEFAULT_CONFIG, modules, brightness, uncalibrated: true }, null, 2), { mode: 0o600 });
 }
 
 export function watchConfig(onReload: (c: Config) => void): () => void {

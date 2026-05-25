@@ -22,25 +22,31 @@ serial by a persistent TypeScript/Node.js daemon, with a CLI and a browser-based
 - Node 24+ (nvm)
 - pnpm
 - `inputmodule-control` at `~/scripts/inputmodule-control.sh`
-- User in `libvirt` group (for VM source)
+- `ffmpeg` (with PulseAudio/PipeWire support, i.e. compiled with `-f pulse`) — audio pipeline
+- `wpctl` (from `wireplumber`) — audio source selection
+- `pw-dump` (from `pipewire-utils`) — audio device enumeration
+- User in `dialout` group — required for serial port access to `/dev/ttyACM*`
+
+  ```sh
+  sudo usermod -aG dialout $USER
+  ```
+
+  Some distros use `uucp` instead of `dialout`.
+
+**Optional:**
+
+- User in `libvirt` group — only needed for VM state detection
+
+  ```sh
+  sudo usermod -aG libvirt $USER
+  ```
+
+- `ectool` — only needed for EC privacy switch (mic/camera lid) detection; installed via `sudo node dist/cli/index.js install --ec-access`
+- `dbus-monitor` (from `dbus` or `dbus-x11` depending on distro) — only needed for desktop notification watching; `DBUS_SESSION_BUS_ADDRESS` is set automatically when running as a systemd user service
 
 ### Install
 
-```sh
-git clone <repo> ~/projects/dark-matrix
-cd ~/projects/dark-matrix
-pnpm install
-pnpm build
-
-# Install systemd user service
-node dist/cli/index.js install --user-systemd
-
-# Enable /dev/cros_ec access (privacy switches)
-sudo node dist/cli/index.js install --ec-access
-
-# Install Claude Code PostToolUse hook (optional)
-node dist/cli/index.js install --claude-hooks
-```
+A one-liner installer is planned. For now, see the [Development](#development) section below.
 
 ### First-run calibration
 
@@ -210,6 +216,15 @@ Generated on first run. Send `SIGHUP` to daemon to hot-reload without restart.
 
 ---
 
+## Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `DARK_MATRIX_SOCKET` | `/run/user/<uid>/dark-matrix.sock` | Overrides the Unix socket path used for CLI-to-daemon IPC |
+| `DARK_MATRIX_CONFIG_PATH` | `~/.config/dark-matrix/config.json` | Overrides the config file path |
+
+---
+
 ## Daemon Behavior
 
 The daemon runs as a systemd user service. It:
@@ -319,7 +334,38 @@ Wire format for BW frames is row-major — `packBW` handles the transposition.
 
 ---
 
-## Dev
+## Troubleshooting
+
+```sh
+# View daemon logs
+journalctl --user -u dark-matrix -f
+
+# Check service status
+systemctl --user status dark-matrix
+
+# Reload config without restart
+systemctl --user kill --signal=HUP dark-matrix
+```
+
+---
+
+## Development
+
+```sh
+git clone <repo> ~/projects/dark-matrix
+cd ~/projects/dark-matrix
+pnpm install
+pnpm build
+
+# Install systemd user service
+node dist/cli/index.js install --user-systemd
+
+# Enable /dev/cros_ec access (privacy switches)
+sudo node dist/cli/index.js install --ec-access
+
+# Install Claude Code PostToolUse hook (optional)
+node dist/cli/index.js install --claude-hooks
+```
 
 ```sh
 pnpm build          # compile TS → dist/
