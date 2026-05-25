@@ -146,7 +146,7 @@ function ClockGrid({ currentWidget, onPick }: {
   }, []);
 
   return (
-    <div role="group" aria-label="Clock panels" className="grid grid-cols-3 gap-4 justify-items-center">
+    <div role="group" aria-label="Clock panels" className="flex flex-wrap gap-6">
       {CLOCK_FACES.map(({ id, label }) => (
         <MatrixItem
           key={id}
@@ -246,7 +246,7 @@ function DataGrid({ currentWidget, onPick, onSettings }: {
   }, []);
 
   return (
-    <div role="group" aria-label="Data panels" className="grid grid-cols-3 gap-4 justify-items-center">
+    <div role="group" aria-label="Data panels" className="flex flex-wrap gap-6">
       {DATA_PRESETS.map(preset => {
         const hasSettings = preset.style === 'line' || preset.style === 'fill';
         return (
@@ -349,7 +349,7 @@ function AiGrid({ currentWidget, onPick }: {
   const claudeStyle = currentWidget?.widget === 'claude' ? (currentWidget.style ?? 'matrix') : null;
 
   return (
-    <div role="group" aria-label="AI panels" className="grid grid-cols-3 gap-4 justify-items-center">
+    <div role="group" aria-label="AI panels" className="flex flex-wrap gap-6">
       <MatrixItem
         name="tool heatmap"
         aria-label="tool heatmap"
@@ -387,7 +387,7 @@ function LifeGrid({ currentWidget, onPick, onSettings }: {
   const randomSelected = currentWidget?.widget === 'life' && currentWidget.biomeName === 'random';
 
   return (
-    <div role="group" aria-label="Life panels" className="grid grid-cols-3 gap-4 justify-items-center">
+    <div role="group" aria-label="Life panels" className="flex flex-wrap gap-6">
       <MatrixItem
         name="random"
         aria-label={randomSelected ? 'random cycling, selected' : 'random cycling'}
@@ -498,7 +498,7 @@ function AudioGrid({ currentWidget, audioCtx, side, onPick, onMount, onUnmount }
   }, []);
 
   return (
-    <div role="group" aria-label="Audio panels" className="grid grid-cols-3 gap-4 justify-items-center">
+    <div role="group" aria-label="Audio panels" className="flex flex-wrap gap-6">
       {AUDIO_STYLES.map(({ id, label }) => (
         <MatrixItem
           key={id}
@@ -563,7 +563,7 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, getP
       {assets.length === 0 && (
         <p className="font-mono text-xs text-muted-foreground">no assets — import one to get started</p>
       )}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="flex flex-wrap gap-6">
         {assets.map(asset => {
           const frameIdx = animRef.current[asset.name]?.frameIdx ?? 0;
           const pixels = asset.frames[frameIdx] ?? asset.firstFrame;
@@ -573,13 +573,13 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, getP
           return (
             <div
               key={asset.name}
-              className={`group relative${asset.width === 18 ? ' col-span-2' : ''}`}
+              className="group relative"
             >
               <button
                 type="button"
                 aria-label={active ? `${label}, selected` : label}
                 aria-pressed={active}
-                className="relative flex flex-col gap-2 items-center rounded-sm p-2 w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
+                className="relative flex flex-col gap-2 items-center rounded-sm p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
                 onClick={() => onPick({ widget: 'image', file: asset.name })}
               >
                 <CornerBrackets active={active} />
