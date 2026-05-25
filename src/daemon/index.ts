@@ -2,6 +2,7 @@ import net from 'node:net';
 import https from 'node:https';
 import fs from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import os from 'node:os';
 import process from 'node:process';
@@ -49,6 +50,13 @@ import { loadNotificationAsset } from '../lib/notification-assets.js';
 
 const SCROLL_MAX_LEN = 120;
 const MAX_NOTIFY_DURATION_MS = 30_000;
+const DAEMON_VERSION: string = (() => {
+  try {
+    const pkgPath = fileURLToPath(new URL('../../package.json', import.meta.url));
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as { version?: string };
+    return pkg.version ?? '0.0.0';
+  } catch { return '0.0.0'; }
+})();
 
 let activeOverlay: NotifyOverlay | null = null;
 export function setActiveOverlay(o: NotifyOverlay | null): void { activeOverlay = o; }
@@ -87,7 +95,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     if (activePreset) currentConfig = { ...currentConfig, hud: { left: activePreset.left, right: activePreset.right } };
   }
 
+  const daemonStartedAt = Date.now();
   let currentBrightness = 0;
+  let currentAnimName = 'idle';
   const transport = new SerialTransport();
   const dispatcher = new Dispatcher();
   let stopCurrentAnim: (() => void) | null = null;
@@ -770,6 +780,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   }
 
   function runHudOnModules(): () => void {
+    currentAnimName = 'hud';
     const { left, right } = currentConfig.modules;
     let stopped = false;
 
@@ -1013,6 +1024,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     triggerEngine.notifyIdle();
     stopAnim();
     const idleName = currentConfig.daemon.idle_animation;
+    currentAnimName = idleName;
     if (idleName === 'none') return;
 
     if (idleName === 'heatmap') {
@@ -1328,6 +1340,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   }
 
   function startNotificationAnimation(intent: DisplayIntent): void {
+    currentAnimName = 'notification';
     stopOverlay();
     const composite = intent.composite ?? 'replace';
     if (intent.style === 'dmx') {
@@ -1481,7 +1494,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
           }
           switch (msg.cmd) {
             case 'ping':
-              socket.write(JSON.stringify({ ok: true, pong: true }) + '\n');
+              socket.write(JSON.stringify({ ok: true, pong: true, version: DAEMON_VERSION }) + '\n');
               break;
             case 'status': {
               const modulesPayload = {
@@ -1490,6 +1503,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                   left:  deviceAvailable.get(currentConfig.modules.left)  ?? false,
                   right: deviceAvailable.get(currentConfig.modules.right) ?? false,
                 },
+                uptimeMs: Date.now() - daemonStartedAt,
+                animationName: currentAnimName,
+                brightnessValue: currentBrightness,
+                brightnessMode: currentConfig.brightness.mode,
+                version: DAEMON_VERSION,
               };
               readSwitches(currentConfig.ectool_path).then(switches => {
                 socket.write(JSON.stringify({ ...modulesPayload, switches }) + '\n');

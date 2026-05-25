@@ -145,6 +145,7 @@ dark-matrix <command>
 | `install --ec-access` | Install udev rule for `/dev/cros_ec` (requires sudo) |
 | `install --claude-hooks` | Add PostToolUse hook to `~/.claude/settings.json` |
 | `ping` | Check if daemon is running |
+| `status` | Show daemon version, uptime, current animation, and hardware state |
 | `release` | Release serial port handles (for compatibility with `matrix.sh`) |
 | `calibrate` | Confirm left/right module assignment |
 | `ui [--port <n>]` | Launch the Deck UI (default port 7340) |

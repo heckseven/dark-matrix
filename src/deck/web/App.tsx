@@ -25,6 +25,7 @@ import { LifePanel, lifeTriggerSave } from './components/LifePanel.js';
 import { AssetManagerModal } from './components/AssetManagerModal.js';
 import { ThreePanelLayout } from './components/ThreePanelLayout.js';
 import { PanelBar } from './components/PanelBar.js';
+import { WelcomeScreen } from './components/WelcomeScreen.js';
 
 const MODE_LABEL = Object.fromEntries(MODES.map(m => [m.id, m.label])) as Record<AppMode, string>;
 
@@ -198,6 +199,10 @@ export function App() {
   const [bottomPad, setBottomPad] = useState(0);
   const [headerHeight, setHeaderHeight] = useState(0);
   const [modules, setModules] = useState({ left: true, right: true });
+  const [daemonOnline, setDaemonOnline] = useState(true);
+  const [uncalibrated, setUncalibrated] = useState(false);
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
+  const showWelcome = uncalibrated && !welcomeDismissed;
   const dualModule = modules.left && modules.right;
   const dualModuleRef = useRef(true);
   dualModuleRef.current = dualModule;
@@ -208,10 +213,12 @@ export function App() {
       try {
         const r = await fetch('/api/modules');
         if (!r.ok || !alive) return;
-        const data = await r.json() as { left: boolean; right: boolean; micSwitchOn?: boolean };
+        const data = await r.json() as { left: boolean; right: boolean; daemonOnline?: boolean; uncalibrated?: boolean; micSwitchOn?: boolean };
         setModules({ left: data.left, right: data.right });
+        setDaemonOnline(data.daemonOnline ?? true);
+        setUncalibrated(data.uncalibrated ?? false);
         if (data.micSwitchOn !== undefined) setHasMic(data.micSwitchOn);
-      } catch { /* daemon not reachable */ }
+      } catch { /* deck server unreachable */ }
     };
     void poll();
     const id = setInterval(() => void poll(), 2000);
@@ -643,6 +650,50 @@ export function App() {
           </div>
         </footer>}
 
+        {(() => {
+          if (uncalibrated) {
+            return (
+              <button
+                className="absolute top-3 right-4 z-20 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-mono bg-amber-400/10 text-amber-400 border border-amber-400/30 hover:bg-amber-400/20 transition-colors"
+                onClick={() => setWelcomeDismissed(false)}
+                aria-label="Setup required — open setup guide"
+              >
+                <span aria-hidden="true">⚠</span> Setup required
+              </button>
+            );
+          }
+          if (!daemonOnline) {
+            return (
+              <button
+                className="absolute top-3 right-4 z-20 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-mono bg-red-500/10 text-red-400 border border-red-400/30 hover:bg-red-400/20 transition-colors"
+                onClick={() => deckStore.getState().setActiveMode('config')}
+                aria-label="Daemon offline — open config"
+              >
+                <span aria-hidden="true">✕</span> Daemon offline
+              </button>
+            );
+          }
+          if (!modules.left && !modules.right) {
+            return (
+              <button
+                className="absolute top-3 right-4 z-20 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-mono bg-orange-500/10 text-orange-400 border border-orange-400/30 hover:bg-orange-400/20 transition-colors"
+                onClick={() => deckStore.getState().setActiveMode('config')}
+                aria-label="No hardware detected — open config"
+              >
+                <span aria-hidden="true">○</span> No hardware
+              </button>
+            );
+          }
+          return null;
+        })()}
+
+        {showWelcome && (
+          <WelcomeScreen
+            daemonOnline={daemonOnline}
+            hardwareOnline={modules.left || modules.right}
+            onDismiss={() => setWelcomeDismissed(true)}
+          />
+        )}
       </div>
     </TooltipProvider>
   );

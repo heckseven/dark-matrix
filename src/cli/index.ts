@@ -503,7 +503,30 @@ switch (cmd) {
   case 'ping': {
     try {
       const res = await sendToDaemon({ cmd: 'ping' });
-      process.stdout.write(res['pong'] ? 'pong\n' : `unexpected: ${JSON.stringify(res)}\n`);
+      process.stdout.write(res['pong'] ? `pong  version: ${res['version'] ?? 'unknown'}\n` : `unexpected: ${JSON.stringify(res)}\n`);
+    } catch (err) {
+      process.stderr.write(`${(err as Error).message}\n`);
+      process.exit(1);
+    }
+    break;
+  }
+  case 'status': {
+    try {
+      const res = await sendToDaemon({ cmd: 'status' }) as Record<string, unknown>;
+      const mods = res['modules'] as { left: boolean; right: boolean } | undefined;
+      const uptimeMs = typeof res['uptimeMs'] === 'number' ? res['uptimeMs'] : null;
+      const uptimeSec = uptimeMs !== null ? Math.floor(uptimeMs / 1000) : null;
+      const uptimeStr = uptimeSec !== null
+        ? `${Math.floor(uptimeSec / 3600)}h ${Math.floor((uptimeSec % 3600) / 60)}m ${uptimeSec % 60}s`
+        : 'unknown';
+      process.stdout.write(
+        `version:    ${res['version'] ?? 'unknown'}\n` +
+        `uptime:     ${uptimeStr}\n` +
+        `animation:  ${res['animationName'] ?? 'unknown'}\n` +
+        `brightness: ${res['brightnessValue'] ?? '?'} (${res['brightnessMode'] ?? '?'})\n` +
+        `left:       ${mods?.left ? 'online' : 'offline'}\n` +
+        `right:      ${mods?.right ? 'online' : 'offline'}\n`
+      );
     } catch (err) {
       process.stderr.write(`${(err as Error).message}\n`);
       process.exit(1);
@@ -627,6 +650,7 @@ switch (cmd) {
       '  hud preset <name>',
       '  calibrate',
       '  ping',
+      '  status',
       '  release',
     ].join('\n') + '\n');
     if (cmd !== undefined) process.exit(1);

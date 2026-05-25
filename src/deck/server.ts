@@ -35,10 +35,11 @@ const MIME: Record<string, string> = {
 };
 
 const PrefsSchema = z.object({
-  lastFile:    z.string().optional(),
-  port:        z.number().int().min(1).max(65535).optional(),
-  activeColor: z.number().int().min(0).max(255).optional(),
-  activeMode:  z.enum(['bw', 'gray']).optional(),
+  lastFile:      z.string().optional(),
+  port:          z.number().int().min(1).max(65535).optional(),
+  activeColor:   z.number().int().min(0).max(255).optional(),
+  activeMode:    z.enum(['bw', 'gray']).optional(),
+  setupComplete: z.boolean().optional(),
 });
 
 export type DeckPrefs = z.infer<typeof PrefsSchema>;
@@ -906,6 +907,22 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
       return;
     }
 
+    // Feature check — probe optional binaries on PATH
+    if (url === '/api/feature-check' && method === 'GET') {
+      const probe = (bin: string): Promise<boolean> =>
+        new Promise(resolve => {
+          const c = spawn(bin, ['--version'], { stdio: 'ignore' });
+          c.on('close', code => resolve(code === 0));
+          c.on('error', () => resolve(false));
+        });
+      const [ffmpeg, wpctl, pwDump, ytDlp, dbusMonitor] = await Promise.all([
+        probe('ffmpeg'), probe('wpctl'), probe('pw-dump'), probe('yt-dlp'), probe('dbus-monitor'),
+      ]);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ffmpeg, wpctl, pwDump, ytDlp, dbusMonitor }));
+      return;
+    }
+
     // Config GET
     if (url === '/api/config' && method === 'GET') {
       try {
@@ -1229,6 +1246,11 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
     }
 
     if (url === '/api/modules' && method === 'GET') {
+      let uncalibrated = false;
+      try {
+        const cfg = await loadConfig(configFilePath(configDir));
+        uncalibrated = cfg.uncalibrated ?? false;
+      } catch { /* config unreadable — treat as calibrated */ }
       try {
         const s = await sendToDaemon({ cmd: 'status' }) as {
           ok: boolean;
@@ -1238,10 +1260,10 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
         const modules = s.modules ?? { left: false, right: false };
         const micSwitchOn = s.switches ? s.switches.mic === 0 : undefined;
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ...modules, ...(micSwitchOn !== undefined ? { micSwitchOn } : {}) }));
+        res.end(JSON.stringify({ ...modules, daemonOnline: true, uncalibrated, ...(micSwitchOn !== undefined ? { micSwitchOn } : {}) }));
       } catch {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ left: false, right: false }));
+        res.end(JSON.stringify({ left: false, right: false, daemonOnline: false, uncalibrated }));
       }
       return;
     }
