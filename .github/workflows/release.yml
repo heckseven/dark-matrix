@@ -1,0 +1,123 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.arch }})
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            os: ubuntu-24.04
+            node_platform: linux-x64
+          - arch: arm64
+            os: ubuntu-24.04-arm
+            node_platform: linux-arm64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build TypeScript + Vite
+        run: pnpm build
+
+      - name: Bundle with esbuild
+        run: |
+          mkdir -p dist/bundles
+          node_modules/.bin/esbuild dist/daemon/index.js \
+            --bundle --platform=node --format=esm \
+            --external:serialport '--external:@serialport/*' \
+            --external:sharp '--external:@img/sharp-*' \
+            --outfile=dist/bundles/daemon.js
+          node_modules/.bin/esbuild dist/cli/index.js \
+            --bundle --platform=node --format=esm \
+            --external:serialport '--external:@serialport/*' \
+            --external:sharp '--external:@img/sharp-*' \
+            --outfile=dist/bundles/cli.js
+
+      - name: Package runtime node_modules (serialport + sharp)
+        run: |
+          mkdir -p _runtime
+          # Minimal package.json — only runtime deps that are external to bundles
+          cat > _runtime/package.json << 'EOF'
+          {
+            "name": "dm-runtime",
+            "version": "1.0.0",
+            "dependencies": {
+              "serialport": "12.0.0",
+              "sharp": "0.34.5"
+            }
+          }
+          EOF
+          # pnpm will detect the current arch and install the matching @img/sharp-* package
+          pnpm install --prod --frozen-lockfile=false --node-linker=hoisted --dir _runtime
+
+      - name: Download pinned Node binary
+        run: |
+          # Use same major version as the build environment
+          NODE_VER=$(node --version)
+          curl -fsSL "https://nodejs.org/dist/${NODE_VER}/node-${NODE_VER}-${{ matrix.node_platform }}.tar.gz" \
+            | tar -xz --strip-components=2 -C _runtime -- "node-${NODE_VER}-${{ matrix.node_platform }}/bin/node"
+          chmod 0755 _runtime/node
+
+      - name: Assemble tarball
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          STAGE="dark-matrix"
+          mkdir -p "$STAGE/dist/bundles" "$STAGE/dist/deck"
+
+          echo "$VERSION" > "$STAGE/version.txt"
+          cp _runtime/node "$STAGE/node"
+          cp dist/bundles/daemon.js dist/bundles/cli.js "$STAGE/dist/bundles/"
+          cp -r dist/deck/web "$STAGE/dist/deck/"
+          cp -r _runtime/node_modules "$STAGE/"
+          cp -r systemd "$STAGE/"
+          cp -r udev "$STAGE/"
+
+          tar -czf "dark-matrix-${VERSION}-linux-${{ matrix.arch }}.tar.gz" "$STAGE"
+
+      - name: Upload tarball artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tarball-${{ matrix.arch }}
+          path: dark-matrix-*-linux-${{ matrix.arch }}.tar.gz
+          retention-days: 1
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tarball-*
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dark-matrix-*-linux-*.tar.gz
+            scripts/install.sh
+          generate_release_notes: true

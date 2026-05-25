@@ -45,6 +45,7 @@ async function cmdInstallUserSystemd() {
   const unitSrc = path.resolve(__dirname, '../../systemd', UNIT_NAME);
   const pkgSrc = path.resolve(__dirname, '../../package.json');
   const lockSrc = path.resolve(__dirname, '../../pnpm-lock.yaml');
+  const esbuildBin = path.resolve(__dirname, '../../node_modules/.bin/esbuild');
   const wrapperPath = path.join(WRAPPER_DIR, 'dark-matrix');
 
   // Stop service before replacing files (non-fatal — may not be installed yet)
@@ -64,14 +65,33 @@ async function cmdInstallUserSystemd() {
   // Remove stale artifact from earlier installs
   await fs.rm(path.join(INSTALL_DIR, 'daemon.mjs'), { force: true });
 
-  // Install production dependencies
+  // Install production dependencies (serialport + sharp runtime, not bundled)
   await run('pnpm', ['install', '--prod', '--frozen-lockfile', '--node-linker=hoisted'], { cwd: INSTALL_DIR });
+
+  // Bundle daemon and CLI so the install doesn't depend on the full node_modules tree at runtime
+  const bundleDir = path.join(INSTALL_DIR, 'dist', 'bundles');
+  await fs.mkdir(bundleDir, { recursive: true });
+  const esbuildArgs = [
+    '--bundle', '--platform=node', '--format=esm',
+    '--external:serialport', '--external:@serialport/*',
+    '--external:sharp', '--external:@img/sharp-*',
+  ];
+  await run(esbuildBin, [
+    path.join(INSTALL_DIR, 'dist', 'daemon', 'index.js'),
+    ...esbuildArgs,
+    `--outfile=${path.join(bundleDir, 'daemon.js')}`,
+  ]);
+  await run(esbuildBin, [
+    path.join(INSTALL_DIR, 'dist', 'cli', 'index.js'),
+    ...esbuildArgs,
+    `--outfile=${path.join(bundleDir, 'cli.js')}`,
+  ]);
 
   // Write shell wrapper so `dark-matrix` is available on PATH
   const wrapper = [
     '#!/bin/sh',
     `exec "${path.join(INSTALL_DIR, 'node')}" \\`,
-    `     "${path.join(INSTALL_DIR, 'dist', 'cli', 'index.js')}" "$@"`,
+    `     "${path.join(INSTALL_DIR, 'dist', 'bundles', 'cli.js')}" "$@"`,
   ].join('\n') + '\n';
   await fs.writeFile(wrapperPath, wrapper, 'utf8');
   await fs.chmod(wrapperPath, 0o755);

@@ -4,7 +4,7 @@ After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=%h/.local/share/dark-matrix/node %h/.local/share/dark-matrix/dist/daemon/index.js
+ExecStart=%h/.local/share/dark-matrix/node %h/.local/share/dark-matrix/dist/bundles/daemon.js
 Restart=on-failure
 RestartSec=3
 StandardOutput=journal

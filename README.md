@@ -46,7 +46,13 @@ serial by a persistent TypeScript/Node.js daemon, with a CLI and a browser-based
 
 ### Install
 
-A one-liner installer is planned. For now, see the [Development](#development) section below.
+```sh
+curl -fsSL https://raw.githubusercontent.com/heckseven/dark-matrix/main/scripts/install.sh | sh
+```
+
+Installs to `~/.local/share/dark-matrix/`, enables the systemd user service, and writes a `dark-matrix` wrapper to `~/.local/bin/`.
+
+To install a specific version: `DM_VERSION=v0.2.0 curl -fsSL ... | sh`
 
 ### First-run calibration
 
