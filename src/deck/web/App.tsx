@@ -201,8 +201,9 @@ export function App() {
   const [modules, setModules] = useState({ left: true, right: true });
   const [daemonOnline, setDaemonOnline] = useState(true);
   const [uncalibrated, setUncalibrated] = useState(false);
+  const forceWelcome = new URLSearchParams(window.location.search).has('welcome');
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
-  const showWelcome = uncalibrated && !welcomeDismissed;
+  const showWelcome = (uncalibrated || forceWelcome) && !welcomeDismissed;
   const dualModule = modules.left && modules.right;
   const dualModuleRef = useRef(true);
   dualModuleRef.current = dualModule;
