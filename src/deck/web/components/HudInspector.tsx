@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useId, useCallback } from 'react';
+import { useState, useEffect, useRef, useId, useCallback, useReducer } from 'react';
 import { MatrixPreview } from './MatrixPreview.js';
 import { MatrixItem, CornerBrackets } from './MatrixItem.js';
 import { Tabs } from './ui/tabs.js';
@@ -527,7 +527,7 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, getP
   const animRef = useRef<Record<string, { frameIdx: number; elapsed: number; lastTick: number | null }>>({});
   const assetsRef = useRef(assets);
   assetsRef.current = assets;
-  const [tick, setTick] = useState(0);
+  const [, forceUpdate] = useReducer(c => c + 1, 0);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -547,12 +547,10 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, getP
           s.frameIdx = s.frameIdx < asset.frames.length - 1 ? s.frameIdx + 1 : 0;
         }
       }
-      setTick(t => t + 1);
+      forceUpdate();
     }, 100);
     return () => clearInterval(id);
   }, []);
-
-  void tick;
 
   if (assets === null) {
     return <div className="font-mono text-xs text-muted-foreground p-4">loading…</div>;
@@ -840,7 +838,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
           <span aria-hidden="true">{backLabel}</span>
         </Button>
       )}
-      <span role="heading" aria-level={2} className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
+      <span className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
         {showImportHeader ? 'import image' : (activeCategory ?? '')}
       </span>
       <div aria-live="polite" aria-atomic="true" className="ml-auto">

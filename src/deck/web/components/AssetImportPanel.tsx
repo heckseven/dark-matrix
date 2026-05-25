@@ -185,7 +185,8 @@ export function AssetImportPanel({ onSaved, onHasFileChange, saveRef }: AssetImp
   }, [fetchPreview]);
 
   useEffect(() => () => { abortRef.current?.abort(); }, []);
-  useEffect(() => () => { onHasFileChange?.(false); }, [onHasFileChange]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => () => { onHasFileChange?.(false); }, []);
 
   useEffect(() => {
     if (!file) return;
