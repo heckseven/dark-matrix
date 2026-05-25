@@ -21,7 +21,6 @@ serial by a persistent TypeScript/Node.js daemon, with a CLI and a browser-based
 
 - Node 24+ (nvm)
 - pnpm
-- `inputmodule-control` at `~/scripts/inputmodule-control.sh`
 - `ffmpeg` (with PulseAudio/PipeWire support, i.e. compiled with `-f pulse`) — audio pipeline
 - `wpctl` (from `wireplumber`) — audio source selection
 - `pw-dump` (from `pipewire-utils`) — audio device enumeration
@@ -316,9 +315,10 @@ src/
 ```
 
 **Transport modes:**
-- `BinaryTransport` — shells out to `inputmodule-control` per command. Safe for one-shot use.
+- `BinaryTransport` — shells out to a control binary per command. Safe for one-shot use.
 - `SerialTransport` — holds the serial port open for animation. Acquired on animation start,
-  released on stop. Use `dark-matrix release` to reclaim the port for `matrix.sh`.
+  released on stop. Brightness is sent as a native serial packet. Use `dark-matrix release`
+  to reclaim the port for `matrix.sh`.
 
 **Frame storage:** column-major `Uint8Array` (`frame[col * 34 + row]`).
 Wire format for BW frames is row-major — `packBW` handles the transposition.

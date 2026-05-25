@@ -6,6 +6,7 @@ const FRAME_ROWS = 34;
 const FRAME_COLS = 9;
 
 const FWK_MAGIC = [0x32, 0xac] as const;
+const CMD_BRIGHTNESS = 0x00;
 const CMD_DISPLAY_BW = 0x06;
 const CMD_SEND_COL = 0x07;
 const CMD_COMMIT_COLS = 0x08;
@@ -22,6 +23,15 @@ export class InvalidDevicePathError extends Error {
 
 function validatePath(path: string): void {
   if (!DEVICE_PATH_RE.test(path)) throw new InvalidDevicePathError(path);
+}
+
+function buildBrightnessPacket(pct: number): Uint8Array {
+  const buf = new Uint8Array(4);
+  buf[0] = FWK_MAGIC[0];
+  buf[1] = FWK_MAGIC[1];
+  buf[2] = CMD_BRIGHTNESS;
+  buf[3] = Math.max(0, Math.min(100, Math.round(pct)));
+  return buf;
 }
 
 function buildBwPacket(packed: Uint8Array): Uint8Array {
@@ -53,7 +63,6 @@ function buildGrayPackets(frame: Frame): Uint8Array[] {
 export interface MatrixTransport {
   frameBw(packed: Uint8Array, devicePath: string): Promise<void>;
   frameGray(frame: Frame, devicePath: string): Promise<void>;
-  command(devicePath: string, subcommand: string, args: string[]): Promise<void>;
   brightness(devicePath: string, pct: number): Promise<void>;
   release(devicePath: string): Promise<void>;
   close(): Promise<void>;
@@ -232,13 +241,10 @@ export class SerialTransport implements MatrixTransport {
     });
   }
 
-  async command(devicePath: string, subcommand: string, args: string[]): Promise<void> {
-    validatePath(devicePath);
-    await runSpawn('inputmodule-control', ['--serial-dev', devicePath, subcommand, ...args]);
-  }
-
   async brightness(devicePath: string, pct: number): Promise<void> {
-    await this.command(devicePath, 'led-matrix', ['--brightness', String(Math.round(pct))]);
+    validatePath(devicePath);
+    const port = await this.getPort(devicePath);
+    return this.enqueue(devicePath, () => writePort(port, buildBrightnessPacket(pct)));
   }
 
   async release(devicePath: string): Promise<void> {

@@ -197,6 +197,49 @@ describe('BW frame byte construction', () => {
 });
 
 // ---------------------------------------------------------------------------
+// SerialTransport — brightness native packet
+// ---------------------------------------------------------------------------
+describe('SerialTransport brightness', () => {
+  it('writes 4-byte brightness packet: magic + 0x00 + clamped pct', async () => {
+    const { SerialPort: MockSP, _mockPort } = serialportMod as unknown as {
+      SerialPort: ReturnType<typeof vi.fn>;
+      _mockPort: ReturnType<typeof makeMockPort>;
+    };
+    MockSP.mockClear();
+    _mockPort.open.mockImplementation((cb: (err?: Error) => void) => cb());
+    _mockPort.write.mockClear();
+    _mockPort.write.mockImplementation((data: unknown, cb: (err?: Error) => void) => cb());
+    _mockPort.drain.mockImplementation((cb: (err?: Error) => void) => cb());
+    _mockPort.close.mockImplementation((cb: (err?: Error) => void) => cb());
+
+    const t = new SerialTransport();
+    await t.brightness(VALID_PATH, 75);
+
+    expect(_mockPort.write).toHaveBeenCalledOnce();
+    const written: Buffer = _mockPort.write.mock.calls[0]![0] as Buffer;
+    expect(written.length).toBe(4);
+    expect(written[0]).toBe(0x32);
+    expect(written[1]).toBe(0xac);
+    expect(written[2]).toBe(0x00);
+    expect(written[3]).toBe(75);
+  });
+
+  it('clamps brightness to [0, 100]', async () => {
+    const { _mockPort } = serialportMod as unknown as {
+      _mockPort: ReturnType<typeof makeMockPort>;
+    };
+    _mockPort.write.mockClear();
+    _mockPort.write.mockImplementation((data: unknown, cb: (err?: Error) => void) => cb());
+    _mockPort.drain.mockImplementation((cb: (err?: Error) => void) => cb());
+
+    const t = new SerialTransport();
+    await t.brightness(VALID_PATH, 150);
+    const written: Buffer = _mockPort.write.mock.calls[0]![0] as Buffer;
+    expect(written[3]).toBe(100);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Helpers for type narrowing
 // ---------------------------------------------------------------------------
 function makeMockPort() {
