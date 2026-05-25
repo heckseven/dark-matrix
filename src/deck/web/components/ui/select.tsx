@@ -57,7 +57,7 @@ export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
           )}>
             <SelectPrimitive.Value placeholder={placeholder} />
           </span>
-          <span aria-hidden="true" className="select-none">{' ▾]'}</span>
+          <span aria-hidden="true" className="select-none">{' ▿]'}</span>
         </SelectPrimitive.Trigger>
 
         <SelectPrimitive.Portal>

@@ -63,7 +63,21 @@ function buildPresetConfigPayload(preset: HudPresetClient) {
 
 // ── main component ────────────────────────────────────────────────────────
 
-const MOCK_AUDIO_CTX: RenderCtx = { bands: [200, 150, 100, 70, 40, 20, 10, 5, 2], fftSize: 2048, gain: 1.5 };
+const INITIAL_AUDIO_CTX: RenderCtx = { bands: [200, 150, 100, 70, 40, 20, 10, 5, 2], fftSize: 2048, gain: 1.5 };
+
+function makeSimCtx(frame: number): RenderCtx {
+  const bands = Array.from({ length: 9 }, (_, i) => {
+    const t = frame * 0.05;
+    const base = 0.7 - i * 0.05;
+    const level = Math.max(0, Math.min(1,
+      base + 0.2 * Math.sin(t * (0.5 + i * 0.11) + i * 1.2)
+           + 0.08 * Math.sin(t * 2.1 + i * 2.5)
+    ));
+    const db = level * 60 - 60;
+    return Math.round((1024 / 1.5) * Math.pow(10, db / 20));
+  });
+  return { bands, fftSize: 2048, gain: 1.5 };
+}
 
 export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, onClocksVisibleChange, clockNow }: {
   dualModule?: boolean;
@@ -80,7 +94,7 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
 
   const selectedPreset = hudPresets.find(p => p.name === selectedPresetName) ?? null;
 
-  const [audioCtx, setAudioCtx] = useState<RenderCtx>(MOCK_AUDIO_CTX);
+  const [audioCtx, setAudioCtx] = useState<RenderCtx>(INITIAL_AUDIO_CTX);
   const [inspectorNeedsAudio, setInspectorNeedsAudio] = useState(false);
   const [inspectorClocksVisible, setInspectorClocksVisible] = useState(false);
   const [triggerPresetName, setTriggerPresetName] = useState<string | null>(null);
@@ -91,10 +105,11 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
   const mainRef    = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
-  // +8: preview canvas is inset p-2 = 8px inside its wrapper, aligning bracket edges.
-  // -36: inspector header (28px) + grid py-4 (16px) - preview p-2 (8px) net offset.
+  // +8: preset list — preview canvas is inset p-2 = 8px, aligning bracket edges.
+  // -2: inspector — header py-1 (4px) + trigger p-1 (4px) + half-leading (2px) = 10px offset;
+  //     subtract 2 so the visual glyph top lands on the bracket at canvas y=0 (p-2 + 8px).
   const presetTopPad    = useAlignedTopPad(mainRef, previewRef, topPad,  8);
-  const inspectorTopPad = useAlignedTopPad(mainRef, previewRef, topPad, -36);
+  const inspectorTopPad = useAlignedTopPad(mainRef, previewRef, topPad, -2);
 
   const { getPixels: getPresetPixels, onTick: onPresetTick } = usePresetPixels(hudPresets, audioCtx);
 
@@ -103,6 +118,8 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
   const needsAudioRef = useRef(needsAudio);
   const audioSourceRef = useRef(audioSource);
   const sentInitialHudConfigRef = useRef(false);
+  const simFrameRef = useRef(0);
+  const lastRealAudioRef = useRef(0);
   needsAudioRef.current = needsAudio;
   audioSourceRef.current = audioSource;
 
@@ -185,7 +202,12 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
           };
           updateAllDataRenderers(stats);
         } else if (msg.type === 'audio-bands' && msg.bands) {
-          setAudioCtx({ bands: msg.bands, fftSize: msg.fftSize ?? 2048, gain: msg.gain ?? 1.0 });
+          // Threshold >= 5 is intentional: quiet real audio (1–4) defers to simulation,
+          // which is preferable to a barely-moving visualisation.
+          if (msg.bands.reduce((m: number, v: number) => v > m ? v : m, -Infinity) >= 5) {
+            lastRealAudioRef.current = Date.now();
+            setAudioCtx({ bands: msg.bands, fftSize: msg.fftSize ?? 2048, gain: msg.gain ?? 1.0 });
+          }
         }
       } catch { /* ignore */ }
     });
@@ -214,9 +236,20 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
       ws.send(JSON.stringify({ type: 'hud-audio-bands-subscribe', source: audioSource }));
     } else {
       ws.send(JSON.stringify({ type: 'hud-audio-bands-unsubscribe' }));
-      setAudioCtx(MOCK_AUDIO_CTX);
     }
   }, [needsAudio, audioSource]);
+
+  // Simulate animated audio when real audio is silent or not subscribed
+  useEffect(() => {
+    if (!needsAudio) return;
+    const id = setInterval(() => {
+      if (Date.now() - lastRealAudioRef.current > 400) {
+        simFrameRef.current++;
+        setAudioCtx(makeSimCtx(simFrameRef.current));
+      }
+    }, 100);
+    return () => clearInterval(id);
+  }, [needsAudio]);
 
   // Tell App whether to show the mic toggle
   useEffect(() => {
