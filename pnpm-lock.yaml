@@ -56,9 +56,6 @@ importers:
       ws:
         specifier: ^8.18.0
         version: 8.20.0
-      youtubei.js:
-        specifier: ^17.0.1
-        version: 17.0.1
       zod:
         specifier: ^4.0.0
         version: 4.4.1
@@ -257,9 +254,6 @@ packages:
   '@bramus/specificity@2.4.2':
     resolution: {integrity: sha512-ctxtJ/eA+t+6q2++vj5j7FYX3nRu311q1wfYH3xjlLOsczhlhxAg2FWNUXhpGvAw3BWo1xBcvOV6/YLc2r5FJw==}
     hasBin: true
-
-  '@bufbuild/protobuf@2.12.0':
-    resolution: {integrity: sha512-B/XlCaFIP8LOwzo+bz5uFzATYokcwCKQcghqnlfwSmM5eX/qTkvDBnDPs+gXtX/RyjxJ4DRikECcPJbyALA8FA==}
 
   '@chromatic-com/storybook@5.2.0-next.0':
     resolution: {integrity: sha512-kgOhFKjmqJHB/Fkg75z16lisD17KxG8k17yBsoMzUy7kxo4KNWAwPPfEF3Glvj4qHkldU1NoFJ3iMBgni+YQvg==}
@@ -2408,10 +2402,6 @@ packages:
   mdn-data@2.27.1:
     resolution: {integrity: sha512-9Yubnt3e8A0OKwxYSXyhLymGW4sCufcLG6VdiDdUGVkPhpqLxlvP5vl1983gQjJl3tqbrM731mjaZaP68AgosQ==}
 
-  meriyah@6.1.4:
-    resolution: {integrity: sha512-Sz8FzjzI0kN13GK/6MVEsVzMZEPvOhnmmI1lU5+/1cGOiK3QUahntrNNtdVeihrO7t9JpoH75iMNXg6R6uWflQ==}
-    engines: {node: '>=18.0.0'}
-
   min-indent@1.0.1:
     resolution: {integrity: sha512-I9jwMn07Sy/IwOj3zVkVik2JTvgpaykDZEigL6Rx6N9LbMywwUSMtxET+7lVoDLLd3O3IXwJwvuuns8UB/HeAg==}
     engines: {node: '>=4'}
@@ -3033,9 +3023,6 @@ packages:
     resolution: {integrity: sha512-7dSzzRQ++CKnNI/krKnYRV7JKKPUXMEh61soaHKg9mrWEhzFWhFnxPxGl+69cD1Ou63C13NUPCnmIcrvqCuM6w==}
     engines: {node: '>=12'}
 
-  youtubei.js@17.0.1:
-    resolution: {integrity: sha512-1lO4b8UqMDzE0oh2qEGzbBOd4UYRdxn/4PdpRM7BGTHxM6ddsEsKZTu90jp8V9FHVgC2h1UirQyqoqLiKwl+Zg==}
-
   zod@4.4.1:
     resolution: {integrity: sha512-a6ENMBBGZBsnlSebQ/eKCguSBeGKSf4O7BPnqVPmYGtpBYI7VSqoVqw+QcB7kPRjbqPwhYTpFbVj/RqNz/CT0Q==}
 
@@ -3205,8 +3192,6 @@ snapshots:
   '@bramus/specificity@2.4.2':
     dependencies:
       css-tree: 3.2.1
-
-  '@bufbuild/protobuf@2.12.0': {}
 
   '@chromatic-com/storybook@5.2.0-next.0(storybook@10.4.0-alpha.18(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@testing-library/dom@10.4.1)(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))':
     dependencies:
@@ -5076,8 +5061,6 @@ snapshots:
 
   mdn-data@2.27.1: {}
 
-  meriyah@6.1.4: {}
-
   min-indent@1.0.1: {}
 
   minimatch@10.2.5:
@@ -5753,11 +5736,6 @@ snapshots:
       string-width: 4.2.3
       y18n: 5.0.8
       yargs-parser: 21.1.1
-
-  youtubei.js@17.0.1:
-    dependencies:
-      '@bufbuild/protobuf': 2.12.0
-      meriyah: 6.1.4
 
   zod@4.4.1: {}
 

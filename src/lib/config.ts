@@ -54,19 +54,25 @@ const NotificationRuleSchema = z.object({
 });
 
 export const ConfigSchema = z.object({
+  version: z.literal(1).default(1),
+  uncalibrated: z.boolean().optional(),
   modules: z.object({
     left: z.string().regex(BY_PATH_RE),
     right: z.string().regex(BY_PATH_RE),
   }),
   brightness: z.object({
     mode: z.enum(['sensor', 'time', 'manual']),
-    sensor_path: z.string().regex(SENSOR_PATH_RE),
+    sensor_path: z.string().regex(SENSOR_PATH_RE).optional(),
     multiplier: z.number().min(0).max(10),
     offset: z.number().min(0).max(255),
     min: z.number().int().min(0).max(255),
     max: z.number().int().min(0).max(255),
     hysteresis: z.number().int().min(0),
     manual_value: z.number().int().min(0).max(255),
+  }).superRefine((b, ctx) => {
+    if (b.mode === 'sensor' && !b.sensor_path) {
+      ctx.addIssue({ code: 'custom', message: 'sensor_path is required when mode is "sensor"', path: ['sensor_path'] });
+    }
   }),
   startup: z.object({
     animation: z.enum(['gol-random', 'scroll', 'dmx', 'none']),
@@ -128,6 +134,7 @@ export type HudTrigger = z.infer<typeof HudTriggerSchema>;
 export type NotificationRule = z.infer<typeof NotificationRuleSchema>;
 
 export const DEFAULT_CONFIG: Config = {
+  version: 1,
   modules: {
     left: '/dev/serial/by-path/pci-0000:c5:00.3-usb-0:4.2:1.0',
     right: '/dev/serial/by-path/pci-0000:c5:00.3-usb-0:3.3:1.0',
@@ -173,13 +180,16 @@ function resolveConfigPath(p?: string): string {
 export async function loadConfig(p?: string): Promise<Config> {
   const filePath = resolveConfigPath(p);
   const raw = await fs.readFile(filePath, 'utf-8');
-  let parsed: unknown;
+  let rawParsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    rawParsed = JSON.parse(raw);
   } catch {
     throw new ConfigError([{ code: 'custom', message: 'Invalid JSON', path: [] }]);
   }
-  const result = ConfigSchema.safeParse(parsed);
+  if (typeof rawParsed !== 'object' || rawParsed === null || Array.isArray(rawParsed)) {
+    throw new ConfigError([{ code: 'custom', message: 'Config must be a JSON object', path: [] }]);
+  }
+  const result = ConfigSchema.safeParse(rawParsed);
   if (!result.success) throw new ConfigError(result.error.issues);
   return result.data;
 }

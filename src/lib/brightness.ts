@@ -24,7 +24,9 @@ export function startBrightnessLoop(
   if (cfg.brightness.mode === 'sensor') {
     let handle: ReturnType<typeof setInterval> | null = setInterval(async () => {
       try {
-        const lux = await readLux(cfg.brightness.sensor_path);
+        const sensorPath = cfg.brightness.sensor_path;
+        if (!sensorPath) return;
+        const lux = await readLux(sensorPath);
         onBrightness(toPct(computeBrightness(lux, cfg.brightness)));
       } catch {
         // sensor read failures are non-fatal
