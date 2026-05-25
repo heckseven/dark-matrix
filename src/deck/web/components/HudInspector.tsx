@@ -400,12 +400,17 @@ function LifeGrid({ currentWidget, onPick, onSettings, onDeleteBiome, onEditBiom
       />
       {biomePresets.map(b => {
         const isSelected = currentWidget?.widget === 'life' && currentWidget.biomeName === b.name;
+        const biomeWidth: 9 | 18 = (() => {
+          const snap = b.gridSnapshot;
+          if (!snap) return 9;
+          try { return atob(snap).length === 18 * ROWS ? 18 : 9; } catch { return 9; }
+        })();
         return (
           <MatrixItem
             key={b.name}
             name={b.name}
             aria-label={isSelected ? `${b.name} biome, selected` : `${b.name} biome`}
-            width={9}
+            width={biomeWidth}
             pixels={b.gridSnapshot ?? EMPTY_PIXELS}
             isSelected={isSelected}
             onSelect={() => onPick({ widget: 'life', biomeName: b.name })}
@@ -419,7 +424,7 @@ function LifeGrid({ currentWidget, onPick, onSettings, onDeleteBiome, onEditBiom
                     tooltipSide="right"
                     className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                     onClick={e => { e.stopPropagation(); onEditBiome(b.name); }}
-                  >✎</Button>
+                  >↗</Button>
                 )}
                 {onDeleteBiome && (
                   <Button
@@ -652,7 +657,7 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, onEd
                     tooltipSide="right"
                     className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                     onClick={e => { e.stopPropagation(); onEdit(asset.name); }}
-                  >✎</Button>
+                  >↗</Button>
                   {deleteControl}
                 </>
               }

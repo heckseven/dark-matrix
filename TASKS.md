@@ -38,3 +38,5 @@
 - [ ] Data widget display variations — new styles beyond line/bars; candidates: radial gauges, sparklines, digit readouts, dot-matrix counters; selectable per-quadrant in HudInspector
 - [ ] AI data sources — GPU utilization (nvidia-smi/ROCm: GPU%, VRAM%, temp) and local inference stats (Ollama API: active model, tokens/sec, context size); new daemon proc-source variants; exposed as selectable metrics in HUD data quadrants alongside CPU/RAM/net
 - [ ] Runes HUD widget — third widget type alongside clock and data; configurable glyph or animated rune sequence per module; face-style picker in HudInspector; stored in preset left/right slots
+- [ ] HUD image delete confirm: remove `DialogClose asChild` from the confirm button so the dialog stays open until the delete call succeeds; surface errors via aria-live or toast rather than silent dismissal
+- [ ] HUD image delete confirm: show `DialogTitle` visibly (not `sr-only`) so sighted users see the dialog heading alongside the "used in N presets" description
