@@ -110,6 +110,11 @@ async function cmdInstallClaudeHooks() {
   const socketPath = process.env['DARK_MATRIX_SOCKET']
     ?? `/run/user/${process.getuid!()}/dark-matrix.sock`;
 
+  if (!/^\/[a-zA-Z0-9_\-.\/]+\.sock$/.test(socketPath)) {
+    process.stderr.write(`Error: DARK_MATRIX_SOCKET path contains unsafe characters: ${socketPath}\n`);
+    process.exit(1);
+  }
+
   let settings: Record<string, unknown> = {};
   try {
     settings = JSON.parse(await fs.readFile(settingsPath, 'utf8')) as Record<string, unknown>;
