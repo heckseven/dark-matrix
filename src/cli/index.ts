@@ -173,6 +173,27 @@ async function cmdSelfUpdate() {
   }
 }
 
+async function cmdUninstall(purge: boolean) {
+  const wrapperPath = path.join(WRAPPER_DIR, 'dark-matrix');
+  const unitPath = path.join(UNIT_DIR, UNIT_NAME);
+  const configDir = path.join(os.homedir(), '.config', 'dark-matrix');
+
+  await run('systemctl', ['--user', 'disable', '--now', 'dark-matrix']).catch(() => {});
+  await run('systemctl', ['--user', 'daemon-reload']).catch(() => {});
+
+  await fs.rm(wrapperPath, { force: true });
+  await fs.rm(unitPath, { force: true });
+  await fs.rm(INSTALL_DIR, { recursive: true, force: true });
+
+  if (purge) {
+    await fs.rm(configDir, { recursive: true, force: true });
+    process.stdout.write(`Removed ${INSTALL_DIR}, ${wrapperPath}, ${unitPath}, ${configDir}\n`);
+  } else {
+    process.stdout.write(`Removed ${INSTALL_DIR}, ${wrapperPath}, ${unitPath}\n`);
+    process.stdout.write(`Config preserved at ${configDir}. Run with --purge to also remove it.\n`);
+  }
+}
+
 async function cmdInstallEcAccess() {
   const ruleSrc = path.resolve(__dirname, '../../udev/99-cros-ec-user.rules');
   const dest = '/etc/udev/rules.d/99-cros-ec-user.rules';
@@ -575,6 +596,7 @@ switch (cmd) {
     }
     break;
   case 'self-update': await cmdSelfUpdate(); break;
+  case 'uninstall':   await cmdUninstall(args.includes('--purge')); break;
   case 'play':       await cmdPlay(args); break;
   case 'ui':         await cmdDeck(args); break;
   case 'show':       await cmdShow(args); break;
@@ -720,6 +742,7 @@ switch (cmd) {
       'Usage: dark-matrix <command>',
       '  install [--user-systemd|--ec-access|--claude-hooks]',
       '  self-update',
+      '  uninstall [--purge]',
       '  show <image> [--device <path>] [--mode bw|gray]',
       '  show-split <left> <right> [--mode bw|gray]',
       '  display [yeah|runes|0x07|panic]',
