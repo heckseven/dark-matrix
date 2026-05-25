@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
+import { spawn } from 'node:child_process';
 import { convertImage, renderPreview } from '../lib/image-convert.js';
 import { SerialTransport } from '../lib/transport.js';
 import { runAnimation } from '../lib/animation.js';
@@ -27,22 +28,67 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UNIT_NAME = 'dark-matrix.service';
 const INSTALL_DIR = path.join(os.homedir(), '.local', 'share', 'dark-matrix');
 const UNIT_DIR = path.join(os.homedir(), '.config', 'systemd', 'user');
+const WRAPPER_DIR = path.join(os.homedir(), '.local', 'bin');
+
+function run(cmd: string, args: string[], opts?: { cwd?: string }): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { stdio: 'inherit', ...opts });
+    child.on('close', (code, signal) => code === 0 ? resolve() : reject(new Error(`${cmd} exited with ${code ?? `signal:${signal}`}`)));
+    child.on('error', reject);
+  });
+}
 
 async function cmdInstallUserSystemd() {
   const nodeBin = process.execPath;
   const distSrc = path.resolve(__dirname, '..');
   const unitSrc = path.resolve(__dirname, '../../systemd', UNIT_NAME);
+  const pkgSrc = path.resolve(__dirname, '../../package.json');
+  const lockSrc = path.resolve(__dirname, '../../pnpm-lock.yaml');
+  const wrapperPath = path.join(WRAPPER_DIR, 'dark-matrix');
 
-  await fs.mkdir(INSTALL_DIR, { recursive: true });
+  // Stop service before replacing files (non-fatal — may not be installed yet)
+  await run('systemctl', ['--user', 'stop', 'dark-matrix']).catch(() => {});
+
+  await fs.mkdir(INSTALL_DIR, { recursive: true, mode: 0o700 });
   await fs.mkdir(UNIT_DIR, { recursive: true });
+  await fs.mkdir(WRAPPER_DIR, { recursive: true });
 
   await fs.copyFile(nodeBin, path.join(INSTALL_DIR, 'node'));
   await fs.chmod(path.join(INSTALL_DIR, 'node'), 0o755);
   await fs.cp(distSrc, path.join(INSTALL_DIR, 'dist'), { recursive: true });
+  await fs.copyFile(pkgSrc, path.join(INSTALL_DIR, 'package.json'));
+  await fs.copyFile(lockSrc, path.join(INSTALL_DIR, 'pnpm-lock.yaml'));
   await fs.copyFile(unitSrc, path.join(UNIT_DIR, UNIT_NAME));
 
-  process.stdout.write(`Installed ${UNIT_NAME} to ${UNIT_DIR}\n`);
-  process.stdout.write(`Run: systemctl --user daemon-reload && systemctl --user enable --now dark-matrix\n`);
+  // Remove stale artifact from earlier installs
+  await fs.rm(path.join(INSTALL_DIR, 'daemon.mjs'), { force: true });
+
+  // Install production dependencies
+  await run('pnpm', ['install', '--prod', '--frozen-lockfile', '--node-linker=hoisted'], { cwd: INSTALL_DIR });
+
+  // Write shell wrapper so `dark-matrix` is available on PATH
+  const wrapper = [
+    '#!/bin/sh',
+    `exec "${path.join(INSTALL_DIR, 'node')}" \\`,
+    `     "${path.join(INSTALL_DIR, 'dist', 'cli', 'index.js')}" "$@"`,
+  ].join('\n') + '\n';
+  await fs.writeFile(wrapperPath, wrapper, 'utf8');
+  await fs.chmod(wrapperPath, 0o755);
+
+  const pathDirs = (process.env['PATH'] ?? '').split(':');
+  if (!pathDirs.includes(WRAPPER_DIR)) {
+    process.stdout.write(`Note: add ${WRAPPER_DIR} to PATH to use the dark-matrix command\n`);
+  }
+
+  // Enable and start service
+  try {
+    await run('systemctl', ['--user', 'daemon-reload']);
+    await run('systemctl', ['--user', 'enable', '--now', 'dark-matrix']);
+    process.stdout.write(`Service enabled and started. Run: dark-matrix ping\n`);
+  } catch (err) {
+    process.stderr.write(`systemctl failed: ${(err as Error).message}\n`);
+    process.stdout.write(`Run manually: systemctl --user daemon-reload && systemctl --user enable --now dark-matrix\n`);
+  }
 }
 
 async function cmdInstallEcAccess() {
@@ -52,6 +98,8 @@ async function cmdInstallEcAccess() {
   process.stdout.write(`# To enable /dev/cros_ec user access, run as root:\n`);
   process.stdout.write(`sudo tee ${dest} <<'EOF'\n${rule}EOF\n`);
   process.stdout.write(`sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=ec\n`);
+  process.stdout.write(`sudo usermod -aG plugdev $USER\n`);
+  process.stdout.write(`# Log out and back in for the group change to take effect\n`);
   process.stdout.write(`\n# Then install ectool (build from chromium-ec or use Framework's package):\n`);
   process.stdout.write(`# https://github.com/FrameworkComputer/EmbeddedController\n`);
 }
@@ -393,7 +441,6 @@ async function cmdDeck(args: string[]): Promise<void> {
   const opener = process.platform === 'darwin' ? 'open'
     : process.platform === 'win32' ? 'start'
     : 'xdg-open';
-  const { spawn } = await import('node:child_process');
   const child = spawn(opener, [openUrl], { stdio: 'ignore', detached: true });
   child.unref();
 

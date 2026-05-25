@@ -1,1 +1,1 @@
-KERNEL=="cros_ec", OWNER="heckseven", MODE="0660"
+KERNEL=="cros_ec", GROUP="plugdev", MODE="0660"
