@@ -8,27 +8,6 @@ import { PanelBar } from './PanelBar.js';
 
 type AnimState = Record<string, { frameIdx: number; elapsed: number; lastTick: number | null }>;
 
-function groupByDir(assets: AssetMeta[]): { dir: string; items: AssetMeta[] }[] {
-  const map = new Map<string, AssetMeta[]>();
-  for (const asset of assets) {
-    const slash = asset.name.indexOf('/');
-    const dir = slash === -1 ? 'assets' : asset.name.slice(0, slash);
-    let list = map.get(dir);
-    if (!list) map.set(dir, list = []);
-    list.push(asset);
-  }
-  const order = ['assets', 'library'];
-  const dirs = [...map.keys()].sort((a, b) => {
-    const ai = order.indexOf(a);
-    const bi = order.indexOf(b);
-    if (ai !== -1 && bi !== -1) return ai - bi;
-    if (ai !== -1) return -1;
-    if (bi !== -1) return 1;
-    return a.localeCompare(b);
-  });
-  return dirs.map(dir => ({ dir, items: map.get(dir) ?? [] }));
-}
-
 type AssetManagerGridProps = {
   items: AssetMeta[];
   animState: AnimState;
@@ -63,9 +42,7 @@ function AssetManagerGrid({ items, animState, activeKeyRef, onAnimReset, onAnimC
       {items.map(asset => {
         const frameIdx = animState[asset.name]?.frameIdx ?? 0;
         const pixels = asset.frames[frameIdx] ?? asset.firstFrame;
-        const slash = asset.name.lastIndexOf('/');
-        const filename = slash === -1 ? asset.name : asset.name.slice(slash + 1);
-        const label = filename.replace('.dmx.json', '');
+        const label = asset.name.replace(/\.dmx\.json$/i, '');
         const confirmingDelete = confirmDelete === asset.name;
 
         function activate() {
@@ -260,21 +237,18 @@ export function AssetManagerModal({ open, onOpenChange, onOpenAsset }: AssetMana
                 {assets !== null && assets.length === 0 && (
                   <p className="font-mono text-xs text-muted-foreground">no assets — import one to get started</p>
                 )}
-                {assets !== null && assets.length > 0 && groupByDir(assets).map(({ dir, items }) => (
-                  <div key={dir} className="flex flex-col gap-3">
-                    <h2 className="font-mono text-xs text-muted-foreground">{dir}</h2>
-                    <AssetManagerGrid
-                      items={items}
-                      animState={animRef.current}
-                      activeKeyRef={activeKeyRef}
-                      onAnimReset={handleAnimReset}
-                      onAnimClear={handleAnimClear}
-                      onOpen={handleOpen}
-                      onCopy={handleCopy}
-                      onDelete={handleDelete}
-                    />
-                  </div>
-                ))}
+                {assets !== null && assets.length > 0 && (
+                  <AssetManagerGrid
+                    items={assets}
+                    animState={animRef.current}
+                    activeKeyRef={activeKeyRef}
+                    onAnimReset={handleAnimReset}
+                    onAnimClear={handleAnimClear}
+                    onOpen={handleOpen}
+                    onCopy={handleCopy}
+                    onDelete={handleDelete}
+                  />
+                )}
               </div>
             )}
           </div>

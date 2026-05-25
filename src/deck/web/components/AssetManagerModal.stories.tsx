@@ -92,26 +92,6 @@ const ASSETS: AssetMeta[] = [
   },
 ];
 
-const LIBRARY_ASSETS: AssetMeta[] = [
-  {
-    name: 'library/alert.dmx.json',
-    width: 9,
-    frameCount: 2,
-    firstFrame: F9.solid,
-    frames: [F9.solid, F9.checker],
-    delays: [80, 80],
-  },
-  {
-    name: 'library/wide-loop.dmx.json',
-    width: 18,
-    frameCount: 2,
-    firstFrame: F18.cols,
-    frames: [F18.cols, F18.checker],
-    delays: [100, 100],
-  },
-];
-
-const ALL_ASSETS = [...ASSETS, ...LIBRARY_ASSETS];
 
 // ── fetch mock ────────────────────────────────────────────────────────────────
 
@@ -135,7 +115,7 @@ function makeFetchMock(assetList: AssetMeta[]) {
     // Copy
     if (url.endsWith('/api/assets/copy') && method === 'POST') {
       const body = JSON.parse(init?.body as string ?? '{}') as { name?: string };
-      const stem = (body.name ?? 'asset').replace(/\.dmx\.json$/i, '').replace(/^library\//, '');
+      const stem = (body.name ?? 'asset').replace(/\.dmx\.json$/i, '');
       const copyName = `${stem} 2.dmx.json`;
       const src = currentAssets.find(a => a.name === body.name);
       if (src) currentAssets = [...currentAssets, { ...src, name: copyName }];
@@ -194,26 +174,10 @@ type Story = StoryObj<typeof meta>;
 
 // ── stories ───────────────────────────────────────────────────────────────────
 
-/** Default: assets dir and library dir, mix of 9-wide and 18-wide, animated and static. */
+/** Default: mix of 9-wide and 18-wide, animated and static. */
 export const Playground: Story = {
   beforeEach() {
-    const orig = makeFetchMock(ALL_ASSETS);
-    return () => { globalThis.fetch = orig; };
-  },
-};
-
-/** Only assets dir — no library section. */
-export const AssetsOnly: Story = {
-  beforeEach() {
     const orig = makeFetchMock(ASSETS);
-    return () => { globalThis.fetch = orig; };
-  },
-};
-
-/** Both sections — useful for checking dir group headers and spacing. */
-export const WithLibrary: Story = {
-  beforeEach() {
-    const orig = makeFetchMock(ALL_ASSETS);
     return () => { globalThis.fetch = orig; };
   },
 };

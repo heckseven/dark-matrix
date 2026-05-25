@@ -546,9 +546,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         };
       }
       case 'image': {
-        const assetsDir = path.join(os.homedir(), '.config', 'dark-matrix', 'assets');
-        const resolved = path.resolve(assetsDir, widget.file);
-        if (!resolved.startsWith(assetsDir + path.sep)) {
+        const libraryDir = path.join(os.homedir(), '.config', 'dark-matrix', 'library');
+        const resolved = path.resolve(libraryDir, widget.file);
+        if (!resolved.startsWith(libraryDir + path.sep)) {
           throw new Error(`invalid asset path: ${widget.file}`);
         }
         let project: DmxProject;

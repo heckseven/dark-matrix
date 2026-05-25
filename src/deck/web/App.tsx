@@ -348,10 +348,9 @@ export function App() {
         onOpenChange={setAssetManagerOpen}
         onOpenAsset={(name, project) => {
           deckStore.getState().loadProject(project);
-          const baseName = name.replace(/^library\//, '').replace(/\.dmx\.json$/i, '');
+          const baseName = name.replace(/\.dmx\.json$/i, '');
           deckStore.getState().setProjectTitle(baseName);
-          const libPath = name.startsWith('library/') ? baseName : null;
-          deckStore.getState().setLibraryPath(libPath);
+          deckStore.getState().setLibraryPath(baseName);
           setAssetManagerOpen(false);
         }}
       />
@@ -403,7 +402,8 @@ export function App() {
                   </MenuTrigger>
                   <MenuContent align="start">
                     <MenuItem onSelect={newProject}>new</MenuItem>
-                    <MenuItem onSelect={() => fileInputRef.current?.click()}>open</MenuItem>
+                    <MenuItem onSelect={() => setAssetManagerOpen(true)}>open</MenuItem>
+                    <MenuItem onSelect={() => fileInputRef.current?.click()}>import</MenuItem>
                     {recentFiles.length > 0 && (
                       <MenuSub>
                         <MenuSubTrigger>open recent</MenuSubTrigger>

@@ -70,10 +70,6 @@ function libraryDir(configDir?: string): string {
   return path.join(dir, 'library');
 }
 
-function assetsDir(configDir?: string): string {
-  const dir = configDir ?? path.join(os.homedir(), '.config', 'dark-matrix');
-  return path.join(dir, 'assets');
-}
 
 function safeLibraryPath(name: string, configDir?: string): string | null {
   const stem = path.basename(name).replace(/\.dmx\.json$/i, '');
@@ -1250,35 +1246,27 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
 
     // Assets list
     if (url === '/api/assets' && method === 'GET') {
-      const aDir = assetsDir(configDir);
       const lDir = libraryDir(configDir);
-      await fs.mkdir(aDir, { recursive: true });
+      await fs.mkdir(lDir, { recursive: true });
       const assets: AssetMeta[] = [];
-
-      async function scanDir(dir: string, prefix: string) {
-        try {
-          const entries = await fs.readdir(dir);
-          for (const name of entries.filter(e => /\.dmx\.json$/i.test(e))) {
-            try {
-              const raw = await fs.readFile(path.join(dir, name), 'utf8');
-              const project = parseProject(raw);
-              if (!project.frames.length) continue;
-              assets.push({
-                name: prefix + name,
-                width: project.width,
-                frameCount: project.frames.length,
-                firstFrame: project.frames[0]!.pixels,
-                frames: project.frames.map(f => f.pixels),
-                delays: project.frames.map(f => f.delayMs),
-              });
-            } catch { /* skip invalid files silently */ }
-          }
-        } catch { /* readdir failed — skip */ }
-      }
-
-      await scanDir(aDir, '');
-      await scanDir(lDir, 'library/');
-
+      try {
+        const entries = await fs.readdir(lDir);
+        for (const name of entries.filter(e => /\.dmx\.json$/i.test(e))) {
+          try {
+            const raw = await fs.readFile(path.join(lDir, name), 'utf8');
+            const project = parseProject(raw);
+            if (!project.frames.length) continue;
+            assets.push({
+              name,
+              width: project.width,
+              frameCount: project.frames.length,
+              firstFrame: project.frames[0]!.pixels,
+              frames: project.frames.map(f => f.pixels),
+              delays: project.frames.map(f => f.delayMs),
+            });
+          } catch { /* skip invalid files silently */ }
+        }
+      } catch { /* readdir failed — skip */ }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true, assets }));
       return;
@@ -1286,7 +1274,7 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
 
     // Assets import
     if (url === '/api/assets' && method === 'POST') {
-      await handleAssetsImport(req, res, assetsDir(configDir));
+      await handleAssetsImport(req, res, libraryDir(configDir));
       return;
     }
 
@@ -1307,15 +1295,13 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
         res.end(JSON.stringify({ ok: false, error: 'missing name' }));
         return;
       }
-      const isLib = name.startsWith('library/');
-      const base = isLib ? name.slice('library/'.length) : name;
-      if (!/^[a-zA-Z0-9_\-]+\.dmx\.json$/i.test(base)) {
+      if (!/^[a-zA-Z0-9_\-]+\.dmx\.json$/i.test(name)) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: false, error: 'invalid filename' }));
         return;
       }
-      const dir = isLib ? libraryDir(configDir) : assetsDir(configDir);
-      const srcPath = path.resolve(dir, base);
+      const dir = libraryDir(configDir);
+      const srcPath = path.resolve(dir, name);
       if (!srcPath.startsWith(dir + path.sep)) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: false, error: 'invalid filename' }));
@@ -1323,7 +1309,7 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
       }
       try {
         const data = await fs.readFile(srcPath, 'utf8');
-        const stem = base.replace(/\.dmx\.json$/i, '');
+        const stem = name.replace(/\.dmx\.json$/i, '');
         let copyBase = '';
         for (let i = 2; i < 1000; i++) {
           const candidate = `${stem}_${i}.dmx.json`;
@@ -1339,7 +1325,7 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
         }
         if (!copyBase) throw new Error('no unique name');
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true, name: isLib ? `library/${copyBase}` : copyBase }));
+        res.end(JSON.stringify({ ok: true, name: copyBase }));
       } catch {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: false, error: 'copy failed' }));
@@ -1347,20 +1333,19 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
       return;
     }
 
-    // Single asset fetch / delete — supports library/ prefix (encoded as %2F) and ?full=1 on GET
+    // Single asset fetch / delete — supports ?full=1 on GET
     const assetUrlPath = url.includes('?') ? url.slice(0, url.indexOf('?')) : url;
     const assetQueryStr = url.includes('?') ? url.slice(url.indexOf('?') + 1) : '';
     const assetMatch = assetUrlPath.match(/^\/api\/assets\/([^/]+)$/);
     if (assetMatch && method === 'GET') {
       const rawName = decodeURIComponent(assetMatch[1]!);
-      const isLib = rawName.startsWith('library/');
-      const base = isLib ? rawName.slice('library/'.length) : rawName;
+      const base = rawName;
       if (!/^[a-zA-Z0-9_\-]+\.dmx\.json$/i.test(base)) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: false, error: 'invalid filename' }));
         return;
       }
-      const dir = isLib ? libraryDir(configDir) : assetsDir(configDir);
+      const dir = libraryDir(configDir);
       const resolved = path.resolve(dir, base);
       if (!resolved.startsWith(dir + path.sep)) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -1377,7 +1362,7 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
         }
         const project = parseProject(raw);
         const asset: AssetMeta = {
-          name: rawName,
+          name: base,
           width: project.width,
           frameCount: project.frames.length,
           firstFrame: project.frames[0]!.pixels,
@@ -1394,14 +1379,13 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
     }
     if (assetMatch && method === 'DELETE') {
       const rawName = decodeURIComponent(assetMatch[1]!);
-      const isLib = rawName.startsWith('library/');
-      const base = isLib ? rawName.slice('library/'.length) : rawName;
+      const base = rawName;
       if (!/^[a-zA-Z0-9_\-]+\.dmx\.json$/i.test(base)) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: false, error: 'invalid filename' }));
         return;
       }
-      const dir = isLib ? libraryDir(configDir) : assetsDir(configDir);
+      const dir = libraryDir(configDir);
       const resolved = path.resolve(dir, base);
       if (!resolved.startsWith(dir + path.sep)) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
