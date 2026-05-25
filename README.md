@@ -17,52 +17,70 @@ serial by a persistent TypeScript/Node.js daemon, with a CLI and a browser-based
 
 ## Setup
 
-### Prerequisites
-
-- Node 24+ (nvm)
-- pnpm
-- `ffmpeg` (with PulseAudio/PipeWire support, i.e. compiled with `-f pulse`) — audio pipeline
-- `wpctl` (from `wireplumber`) — audio source selection
-- `pw-dump` (from `pipewire-utils`) — audio device enumeration
-- User in `dialout` group — required for serial port access to `/dev/ttyACM*`
-
-  ```sh
-  sudo usermod -aG dialout $USER
-  ```
-
-  Some distros use `uucp` instead of `dialout`.
-
-**Optional:**
-
-- User in `libvirt` group — only needed for VM state detection
-
-  ```sh
-  sudo usermod -aG libvirt $USER
-  ```
-
-- `ectool` — only needed for EC privacy switch (mic/camera lid) detection; installed via `sudo node dist/cli/index.js install --ec-access`
-- `dbus-monitor` (from `dbus` or `dbus-x11` depending on distro) — only needed for desktop notification watching; `DBUS_SESSION_BUS_ADDRESS` is set automatically when running as a systemd user service
-
 ### Install
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/heckseven/dark-matrix/main/scripts/install.sh | sh
 ```
 
-Installs to `~/.local/share/dark-matrix/`, enables the systemd user service, and writes a `dark-matrix` wrapper to `~/.local/bin/`.
+Installs to `~/.local/share/dark-matrix/`, enables the systemd user service, and writes a
+`dark-matrix` wrapper to `~/.local/bin/`.
 
 To install a specific version: `DM_VERSION=v0.2.0 curl -fsSL ... | sh`
 
+### Prerequisites
+
+The installer checks and prints warnings for anything missing. Required:
+
+- User in `dialout` group — serial port access to `/dev/ttyACM*`
+
+  ```sh
+  sudo usermod -aG dialout $USER
+  # Log out and back in for the change to take effect
+  ```
+
+  Some distros use `uucp` instead of `dialout`.
+
+Optional (the installer reports which are absent):
+
+- `ffmpeg` — audio pipeline
+- `wpctl` (wireplumber) — audio source selection
+- `pw-dump` (pipewire-utils) — audio device enumeration
+- `yt-dlp` — video download
+- `dbus-monitor` — desktop notification watching
+- `ectool` — EC privacy switch detection; run `dark-matrix install --ec-access` for setup
+- User in `libvirt` group — VM state detection
+
 ### First-run calibration
 
-After install, confirm which physical port is left vs right:
+After install, open the Deck:
 
 ```sh
-node dist/cli/index.js calibrate
+dark-matrix ui
 ```
 
-This sends a test pattern to each port and prompts you to confirm which side lit up.
-The mapping is stored in `~/.config/dark-matrix/config.json`.
+The welcome screen appears automatically on first launch. It shows a checklist: daemon
+reachability, hardware detection, and calibration status. Once hardware is connected,
+run calibration from a second terminal:
+
+```sh
+dark-matrix calibrate
+```
+
+This lights one module solid white, the other blank, and prompts you to confirm which side
+lit up. Left/right assignment is saved to `~/.config/dark-matrix/config.json` and
+`uncalibrated` is cleared. The welcome screen does not appear again after calibration.
+
+To re-run the welcome screen for testing: `http://localhost:7340/?welcome`
+
+### Updates
+
+```sh
+dark-matrix self-update
+```
+
+Fetches the latest release from GitHub, downloads the tarball for the current arch, and
+replaces the install in-place. The service is restarted automatically.
 
 ---
 
@@ -146,15 +164,18 @@ dark-matrix <command>
 
 | Command | Description |
 |---|---|
-| `install --user-systemd` | Install and enable systemd user unit |
-| `install --ec-access` | Install udev rule for `/dev/cros_ec` (requires sudo) |
-| `install --claude-hooks` | Add PostToolUse hook to `~/.claude/settings.json` |
-| `ping` | Check if daemon is running |
-| `status` | Show daemon version, uptime, current animation, and hardware state |
+| `install --user-systemd` | Install and enable systemd user unit (dev builds) |
+| `install --ec-access` | Print udev rule + instructions for `/dev/cros_ec` access |
+| `install --claude-hooks` | Add PostToolUse/Stop/Notification hooks to `~/.claude/settings.json` |
+| `ping` | Check if daemon is running; prints version |
+| `status` | Show daemon version, uptime, current animation, brightness, and module state |
 | `release` | Release serial port handles (for compatibility with `matrix.sh`) |
 | `calibrate` | Confirm left/right module assignment |
 | `ui [--port <n>]` | Launch the Deck UI (default port 7340) |
 | `hud preset <name>` | Switch to a named HUD preset |
+| `self-update` | Fetch latest GitHub release and update in-place |
+| `uninstall` | Stop service and remove install directory and wrapper |
+| `uninstall --purge` | Same, plus removes `~/.config/dark-matrix/` |
 
 ### Images
 
@@ -209,7 +230,7 @@ Generated on first run. Send `SIGHUP` to daemon to hot-reload without restart.
   },
   "daemon": {
     "poll_interval_ms": 500,
-    "idle_animation": "gol-random",  // "gol-random" | "audio-eq" | "heatmap" | "scroll" | "gif" | "none"
+    "idle_animation": "gol-random",  // "gol-random" | "audio-eq" | "heatmap" | "scroll" | "gif" | "hud" | "none"
     "idle_after_ms": 300000,
     "idle_eq_source": "monitor",     // "monitor" | "mic" — audio source for audio-eq idle animation
     // required when idle_animation = "gif":
@@ -254,11 +275,15 @@ The daemon runs as a systemd user service. It:
 
 ### Idle animations
 
-| Animation | Description |
+| Value | Description |
 |---|---|
 | `gol-random` | Conway's Game of Life with random seeds |
-| `audio-eq` | 9-band EQ bars from system audio (monitor source) |
+| `audio-eq` | 9-band EQ bars from system audio |
 | `heatmap` | Simulated thermal heatmap spanning both modules |
+| `scroll` | Scrolling text (uses `startup.scroll_text`) |
+| `gif` | GIF loop — requires `idle_gif_path`, `idle_gif_mode`, `idle_gif_dual` |
+| `hud` | Active HUD preset |
+| `none` | Blank display |
 
 ---
 
@@ -267,17 +292,18 @@ The daemon runs as a systemd user service. It:
 ```
 src/
 ├── daemon/
-│   └── index.ts          # Event loop, source watchers, Unix socket IPC
+│   └── index.ts           # Event loop, source watchers, Unix socket IPC
 ├── cli/
-│   └── index.ts          # CLI commands
+│   └── index.ts           # CLI commands
 ├── deck/
-│   ├── format.ts         # .dmx.json project format + serialization
-│   ├── server.ts         # HTTP server (static + API) + WebSocket live preview
+│   ├── format.ts          # .dmx.json project format + serialization
+│   ├── server.ts          # HTTP server (static + API) + WebSocket live preview
 │   └── web/
-│       ├── App.tsx        # Main application shell
-│       ├── store.ts       # Zustand state + localStorage session persistence
-│       ├── files.ts       # Import/export helpers
+│       ├── App.tsx         # Main application shell + hardware status chip + welcome gate
+│       ├── store.ts        # Zustand state + localStorage session persistence
+│       ├── files.ts        # Import/export helpers
 │       └── components/
+│           ├── WelcomeScreen.tsx  # First-run setup checklist modal
 │           ├── PixelCanvas.tsx    # Drawing surface
 │           ├── FrameStrip.tsx     # Animation frame list + drag-reorder
 │           ├── ColorPalette.tsx   # BW/grayscale color picker
@@ -294,31 +320,31 @@ src/
 │           ├── TriggerView.tsx    # Event trigger configuration
 │           └── Playback.tsx       # Frame playback controls
 ├── lib/
-│   ├── transport.ts       # BinaryTransport (one-shot) + SerialTransport (held port)
-│   ├── frame.ts           # Frame type: 9×34 Uint8Array + packBW helper
-│   ├── animation.ts       # Async iterator animation runtime + tick loop
-│   ├── config.ts          # Zod-validated config loader
-│   ├── brightness.ts      # Sensor polling + hysteresis + time-of-day fallback
-│   ├── dispatcher.ts      # Priority queue → display intents
-│   ├── ec-switches.ts     # ectool GPIO poller (FW16 privacy switches)
-│   ├── vm-source.ts       # virsh list poller
-│   ├── claude-source.ts   # Claude hook payload parser
-│   └── image-convert.ts  # Image → Frame conversion (sharp)
+│   ├── transport.ts        # BinaryTransport (one-shot) + SerialTransport (held port)
+│   ├── frame.ts            # Frame type: 9×34 Uint8Array + packBW helper
+│   ├── animation.ts        # Async iterator animation runtime + tick loop
+│   ├── config.ts           # Zod-validated config loader + bootstrapConfig
+│   ├── brightness.ts       # Sensor polling + hysteresis + time-of-day fallback
+│   ├── dispatcher.ts       # Priority queue → display intents
+│   ├── ec-switches.ts      # ectool GPIO poller (FW16 privacy switches)
+│   ├── vm-source.ts        # virsh list poller
+│   ├── claude-source.ts    # Claude hook payload parser
+│   └── image-convert.ts   # Image → Frame conversion (sharp)
 └── animations/
-    ├── gol.ts             # Game of Life
-    ├── scroll.ts          # Dual-module text scroll
-    ├── gif.ts             # GIF decoder + frame iterator
-    ├── audio-eq.ts        # pw-record → FFT → EQ bars
-    ├── heatmap.ts         # Simulated heatmap
-    ├── image.ts           # Static image animation
-    └── startup.ts         # Wipe/rain/pulse startup sequences
+    ├── gol.ts              # Game of Life
+    ├── scroll.ts           # Dual-module text scroll
+    ├── gif.ts              # GIF decoder + frame iterator
+    ├── audio-eq.ts         # pw-record → FFT → EQ bars
+    ├── heatmap.ts          # Simulated heatmap
+    ├── image.ts            # Static image animation
+    └── startup.ts          # Wipe/rain/pulse startup sequences
 ```
 
 **Transport modes:**
 - `BinaryTransport` — shells out to a control binary per command. Safe for one-shot use.
 - `SerialTransport` — holds the serial port open for animation. Acquired on animation start,
-  released on stop. Brightness is sent as a native serial packet. Use `dark-matrix release`
-  to reclaim the port for `matrix.sh`.
+  released on stop. Brightness is sent as a native serial packet (`[0x32, 0xAC, 0x00, pct]`).
+  Use `dark-matrix release` to reclaim the port for `matrix.sh`.
 
 **Frame storage:** column-major `Uint8Array` (`frame[col * 34 + row]`).
 Wire format for BW frames is row-major — `packBW` handles the transposition.
@@ -327,10 +353,13 @@ Wire format for BW frames is row-major — `packBW` handles the transposition.
 
 | Endpoint | Method | Description |
 |---|---|---|
+| `/api/modules` | GET | Module availability + `daemonOnline`, `uncalibrated` flags |
+| `/api/config` | GET | Read current daemon config |
+| `/api/config` | PUT | Write daemon config (daemon hot-reloads via SIGHUP) |
+| `/api/feature-check` | GET | Check optional binary dependencies (ffmpeg, wpctl, etc.) |
 | `/api/import` | POST | Multipart upload — converts PNG/GIF/JSON to project format |
 | `/api/export/gif` | POST | Render project frames to animated GIF |
 | `/api/export/png` | POST | Render a single frame to PNG |
-| `/api/modules` | GET | Returns `{ left, right }` availability from daemon |
 | `/api/prefs` | GET/PUT | Persist deck UI preferences |
 | `/api/library` | GET | List saved projects in `~/.config/dark-matrix/library/` |
 | `/api/library` | POST | Save project `{ name, project, copy? }` — `copy:true` writes a `_copy` variant |
@@ -352,82 +381,24 @@ systemctl --user status dark-matrix
 
 # Reload config without restart
 systemctl --user kill --signal=HUP dark-matrix
+
+# Re-run the setup welcome screen
+dark-matrix ui   # then navigate to http://localhost:7340/?welcome
+
+# Re-run calibration
+dark-matrix calibrate
 ```
 
 ---
 
 ## Development
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full dev setup and deploy loop.
+
 ```sh
 git clone <repo> ~/projects/dark-matrix
 cd ~/projects/dark-matrix
 pnpm install
 pnpm build
-
-# Install systemd user service
-node dist/cli/index.js install --user-systemd
-
-# Enable /dev/cros_ec access (privacy switches)
-sudo node dist/cli/index.js install --ec-access
-
-# Install Claude Code PostToolUse hook (optional)
-node dist/cli/index.js install --claude-hooks
+pnpm test
 ```
-
-```sh
-pnpm build          # compile TS → dist/
-pnpm test           # vitest (~486 tests)
-pnpm test --watch   # watch mode
-```
-
-Deploy daemon changes after build:
-
-```sh
-cp -r dist/* ~/.local/share/dark-matrix/dist/
-systemctl --user restart dark-matrix
-```
-
-Or reinstall fully (also updates node binary and systemd unit):
-
-```sh
-node dist/cli/index.js install --user-systemd
-systemctl --user daemon-reload && systemctl --user restart dark-matrix
-```
-
----
-
-## Remaining tasks
-
-### High priority
-
-- [x] `--speed` option for `scroll` (slow=10fps/1px, normal=20fps/1px, fast=20fps/2px)
-- [ ] Verify left/right calibration is correct on hardware (run `dark-matrix calibrate`)
-- [x] Audio EQ: `idle_eq_source: "monitor" | "mic"` config key
-- [x] GIF idle animation: `idle_animation: "gif"` + `idle_gif_path`, `idle_gif_mode`, `idle_gif_dual` config keys
-- [x] Pixel animation editor (`dark-matrix ui`)
-
-### Medium priority
-
-- [ ] Notification display content: show camera icon / mic icon on module when switch fires
-  (currently shows scroll text — display intent carries no visual content yet)
-- [ ] Scroll speed config in `daemon` config block (not just CLI flag)
-- [ ] Multiple idle animations in rotation (round-robin or random)
-- [ ] `dark-matrix status` — show current intent, brightness, module paths
-- [x] HUD presets mode — three-column preset editor, named presets, CLI switching
-- [x] Audio visualizer mode — multiple styles, monitor/mic source
-- [ ] Data, runes, games modes (stubs present, not implemented)
-- [ ] AI/generative art mode
-
-### Low priority / nice to have
-
-- [ ] `udev monitor` hot-plug (replace 500ms polling with event-driven detection)
-- [ ] Configurable notification → animation mappings (which animation plays per source)
-- [ ] GIF as notification content (e.g., VM-start plays skulltalk.gif)
-- [ ] Network/CPU monitors (not in original scope — add if wanted)
-- [ ] Re-point `matrix.sh` aliases to `dark-matrix` after Phase 4 stable
-- [ ] Scroll wraps with pixel-perfect seam at module boundary (verify no off-by-one)
-
-### Open risks
-
-- **R2** ~~Left/right USB path assignment unconfirmed~~ **Confirmed**: `4.2:1.0` = left, `3.3:1.0` = right
-- **R4** Audio EQ fps ceiling unverified empirically at 30fps target
