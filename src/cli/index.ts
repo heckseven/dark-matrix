@@ -30,6 +30,7 @@ const UNIT_NAME = 'dark-matrix.service';
 const INSTALL_DIR = path.join(os.homedir(), '.local', 'share', 'dark-matrix');
 const UNIT_DIR = path.join(os.homedir(), '.config', 'systemd', 'user');
 const WRAPPER_DIR = path.join(os.homedir(), '.local', 'bin');
+const REPO = 'heckseven/dark-matrix';
 
 function run(cmd: string, args: string[], opts?: { cwd?: string }): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -109,6 +110,66 @@ async function cmdInstallUserSystemd() {
   } catch (err) {
     process.stderr.write(`systemctl failed: ${(err as Error).message}\n`);
     process.stdout.write(`Run manually: systemctl --user daemon-reload && systemctl --user enable --now dark-matrix\n`);
+  }
+}
+
+async function cmdSelfUpdate() {
+  const archMap: Record<string, string> = { x64: 'x64', arm64: 'arm64' };
+  const arch = archMap[process.arch];
+  if (!arch) {
+    process.stderr.write(`Unsupported architecture: ${process.arch}\n`);
+    process.exit(1);
+  }
+
+  let currentVersion = 'dev';
+  try {
+    currentVersion = (await fs.readFile(path.join(INSTALL_DIR, 'version.txt'), 'utf8')).trim();
+  } catch { /* dev install — no version.txt, always proceed */ }
+
+  process.stdout.write('Checking for updates...\n');
+  let latestVersion: string;
+  try {
+    const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'dark-matrix-cli' },
+    });
+    if (!res.ok) throw new Error(`GitHub API returned ${res.status}`);
+    const data = await res.json() as { tag_name?: string };
+    latestVersion = data.tag_name ?? '';
+    if (!latestVersion) throw new Error('No tag_name in response');
+  } catch (err) {
+    process.stderr.write(`Failed to fetch latest release: ${(err as Error).message}\n`);
+    process.exit(1);
+  }
+
+  if (currentVersion !== 'dev' && currentVersion === latestVersion) {
+    process.stdout.write(`Already up to date (${currentVersion})\n`);
+    return;
+  }
+
+  process.stdout.write(`Updating ${currentVersion} → ${latestVersion}\n`);
+
+  const tarball = `dark-matrix-${latestVersion}-linux-${arch}.tar.gz`;
+  const url = `https://github.com/${REPO}/releases/download/${latestVersion}/${tarball}`;
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dark-matrix-update-'));
+
+  try {
+    process.stdout.write(`Downloading ${tarball}...\n`);
+    await run('curl', ['-fL', '--progress-bar', url, '-o', path.join(tmpDir, tarball)]);
+
+    await run('systemctl', ['--user', 'stop', 'dark-matrix']).catch(() => {});
+    await fs.mkdir(INSTALL_DIR, { recursive: true });
+    await run('tar', ['-xzf', path.join(tmpDir, tarball), '-C', INSTALL_DIR, '--strip-components=1']);
+    await fs.chmod(path.join(INSTALL_DIR, 'node'), 0o755);
+
+    const unitDest = path.join(UNIT_DIR, UNIT_NAME);
+    await fs.mkdir(UNIT_DIR, { recursive: true });
+    await fs.copyFile(path.join(INSTALL_DIR, 'systemd', UNIT_NAME), unitDest);
+
+    await run('systemctl', ['--user', 'daemon-reload']);
+    await run('systemctl', ['--user', 'restart', 'dark-matrix']);
+    process.stdout.write(`Updated to ${latestVersion}\n`);
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
   }
 }
 
@@ -513,6 +574,7 @@ switch (cmd) {
         process.exit(1);
     }
     break;
+  case 'self-update': await cmdSelfUpdate(); break;
   case 'play':       await cmdPlay(args); break;
   case 'ui':         await cmdDeck(args); break;
   case 'show':       await cmdShow(args); break;
@@ -657,6 +719,7 @@ switch (cmd) {
     process.stderr.write([
       'Usage: dark-matrix <command>',
       '  install [--user-systemd|--ec-access|--claude-hooks]',
+      '  self-update',
       '  show <image> [--device <path>] [--mode bw|gray]',
       '  show-split <left> <right> [--mode bw|gray]',
       '  display [yeah|runes|0x07|panic]',
