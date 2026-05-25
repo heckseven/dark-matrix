@@ -185,6 +185,7 @@ export function AssetImportPanel({ onSaved, onHasFileChange, saveRef }: AssetImp
   }, [fetchPreview]);
 
   useEffect(() => () => { abortRef.current?.abort(); }, []);
+  // onHasFileChange is always a stable setState setter — intentionally omitted from deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => () => { onHasFileChange?.(false); }, []);
 
