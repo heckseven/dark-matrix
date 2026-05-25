@@ -332,6 +332,14 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
               sendHudConfig();
               debouncedSave();
             }}
+            onDeleteBiome={(name) => {
+              deckStore.getState().deleteBiome(name);
+              sendWs({ type: 'biome-preset-save', presets: deckStore.getState().biomePresets });
+            }}
+            onEditBiome={(name) => {
+              deckStore.getState().selectBiome(name);
+              deckStore.getState().setActiveMode('life');
+            }}
           />
         </div>
       }

@@ -110,8 +110,8 @@ export function MatrixItem({
       aria-label={ariaLabel}
       role={isKeyboardButton ? 'button' : undefined}
       aria-pressed={isKeyboardButton ? (isSelected || isActive) : undefined}
-      tabIndex={(isKeyboardButton || onRename) ? 0 : undefined}
-      className="group relative flex flex-col gap-2 p-2 rounded-sm w-fit focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      tabIndex={(onSelect != null || onRename) ? 0 : undefined}
+      className={`group relative flex flex-col gap-2 p-2 rounded-sm w-fit focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring${!hasControls ? ' items-center' : ''}`}
       onClick={onSelect}
       onKeyDown={(onSelect || onRename) ? e => {
         if (onSelect && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSelect(); }
@@ -159,8 +159,9 @@ export function MatrixItem({
         )}
       </div>
 
-      {name != null && (
-        onRename ? (
+      {name != null && (() => {
+        const nameClass = `font-mono text-xs text-foreground block truncate${hasControls ? ' pl-1' : ' text-center'}`;
+        return onRename ? (
           editing ? (
             <input
               ref={inputRef}
@@ -179,16 +180,16 @@ export function MatrixItem({
             />
           ) : (
             <span
-              className="font-mono text-xs text-foreground pl-1 block truncate"
+              className={nameClass}
               onDoubleClick={e => { e.stopPropagation(); setDraft(name); setEditing(true); }}
             >
               {name}
             </span>
           )
         ) : (
-          <span className="font-mono text-xs text-foreground pl-1 block truncate">{name}</span>
-        )
-      )}
+          <span className={nameClass}>{name}</span>
+        );
+      })()}
     </div>
   );
 }

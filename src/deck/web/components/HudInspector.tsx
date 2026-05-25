@@ -378,10 +378,12 @@ function AiGrid({ currentWidget, onPick }: {
 
 // ── Layer 2: Life grid ────────────────────────────────────────────────────
 
-function LifeGrid({ currentWidget, onPick, onSettings }: {
+function LifeGrid({ currentWidget, onPick, onSettings, onDeleteBiome, onEditBiome }: {
   currentWidget: HudWidget | null;
   onPick: (w: HudWidget) => void;
   onSettings: (w: HudWidget) => void;
+  onDeleteBiome?: (name: string) => void;
+  onEditBiome?: (name: string) => void;
 }) {
   const biomePresets = useDeckStore(s => s.biomePresets);
   const randomSelected = currentWidget?.widget === 'life' && currentWidget.biomeName === 'random';
@@ -407,6 +409,29 @@ function LifeGrid({ currentWidget, onPick, onSettings }: {
             pixels={b.gridSnapshot ?? EMPTY_PIXELS}
             isSelected={isSelected}
             onSelect={() => onPick({ widget: 'life', biomeName: b.name })}
+            controlsTop={
+              <>
+                {onEditBiome && (
+                  <Button
+                    variant="ghost"
+                    aria-label={`Modify ${b.name} simulation`}
+                    tooltip={`Modify ${b.name} simulation`}
+                    tooltipSide="right"
+                    className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                    onClick={e => { e.stopPropagation(); onEditBiome(b.name); }}
+                  >✎</Button>
+                )}
+                {onDeleteBiome && (
+                  <Button
+                    variant="ghost"
+                    aria-label={`Delete ${b.name}`}
+                    tooltip={`Delete ${b.name}`}
+                    className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-foreground/40 hover:text-red-400"
+                    onClick={e => { e.stopPropagation(); onDeleteBiome(b.name); }}
+                  >×</Button>
+                )}
+              </>
+            }
           />
         );
       })}
@@ -516,12 +541,13 @@ function AudioGrid({ currentWidget, audioCtx, side, onPick, onMount, onUnmount }
 
 // ── Layer 2: Image grid ───────────────────────────────────────────────────
 
-function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, getPresetCount }: {
+function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, onEdit, getPresetCount }: {
   currentWidget: HudWidget | null;
   assets: AssetMeta[] | null;
   onPick: (w: HudWidget) => void;
   onShowImport: () => void;
   onDelete: (name: string) => void;
+  onEdit: (name: string) => void;
   getPresetCount: (name: string) => number;
 }) {
   const animRef = useRef<Record<string, { frameIdx: number; elapsed: number; lastTick: number | null }>>({});
@@ -568,62 +594,69 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, getP
           const active = currentWidget?.widget === 'image' && currentWidget.file === asset.name;
           const label = asset.name.replace('.dmx.json', '');
           const presetCount = getPresetCount(asset.name);
-          return (
-            <div
-              key={asset.name}
-              className="group relative"
-            >
-              <button
-                type="button"
-                aria-label={active ? `${label}, selected` : label}
-                aria-pressed={active}
-                className="relative flex flex-col gap-2 items-center rounded-sm p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
-                onClick={() => onPick({ widget: 'image', file: asset.name })}
-              >
-                <CornerBrackets active={active} />
-                <MatrixPreview width={asset.width} pixels={pixels} />
-                <span className="font-mono text-xs text-muted-foreground truncate max-w-full">{label}</span>
-              </button>
-              {presetCount === 0 ? (
+          const deleteControl = presetCount === 0 ? (
+            <Button
+              variant="ghost"
+              aria-label={`Delete ${label}`}
+              tooltip={`Delete ${label}`}
+              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-foreground/40 hover:text-red-400"
+              onClick={e => { e.stopPropagation(); onDelete(asset.name); }}
+            >×</Button>
+          ) : (
+            <Dialog>
+              <DialogTrigger asChild>
                 <Button
                   variant="ghost"
                   aria-label={`Delete ${label}`}
                   tooltip={`Delete ${label}`}
-                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 z-10 text-foreground/40 hover:text-red-400"
-                  onClick={() => onDelete(asset.name)}
+                  className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 data-[state=open]:text-foreground text-foreground/40 hover:text-red-400"
+                  onClick={e => e.stopPropagation()}
                 >×</Button>
-              ) : (
-                <Dialog>
-                  <DialogTrigger asChild>
+              </DialogTrigger>
+              <DialogContent variant="destructive" className="flex flex-col gap-3 w-64">
+                <DialogTitle className="sr-only">Delete {label}</DialogTitle>
+                <DialogDescription>
+                  This image is used in {presetCount} preset{presetCount !== 1 ? 's' : ''}.
+                </DialogDescription>
+                <div className="flex gap-2 justify-end">
+                  <DialogClose asChild>
+                    <Button variant="ghost" className="font-mono text-xs" aria-label={`Cancel delete ${label}`} autoFocus>cancel</Button>
+                  </DialogClose>
+                  <DialogClose asChild>
                     <Button
-                      variant="ghost"
-                      aria-label={`Delete ${label}`}
-                      tooltip={`Delete ${label}`}
-                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 data-[state=open]:text-foreground z-10 text-foreground/40 hover:text-red-400"
-                    >×</Button>
-                  </DialogTrigger>
-                  <DialogContent variant="destructive" className="flex flex-col gap-3 w-64">
-                    <DialogTitle className="sr-only">Delete {label}</DialogTitle>
-                    <DialogDescription>
-                      This image is used in {presetCount} preset{presetCount !== 1 ? 's' : ''}.
-                    </DialogDescription>
-                    <div className="flex gap-2 justify-end">
-                      <DialogClose asChild>
-                        <Button variant="ghost" className="font-mono text-xs" aria-label={`Cancel delete ${label}`} autoFocus>cancel</Button>
-                      </DialogClose>
-                      <DialogClose asChild>
-                        <Button
-                          variant="destructive"
-                          className="font-mono text-xs"
-                          aria-label={`Confirm delete ${label}`}
-                          onClick={() => onDelete(asset.name)}
-                        >delete</Button>
-                      </DialogClose>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              )}
-            </div>
+                      variant="destructive"
+                      className="font-mono text-xs"
+                      aria-label={`Confirm delete ${label}`}
+                      onClick={() => onDelete(asset.name)}
+                    >delete</Button>
+                  </DialogClose>
+                </div>
+              </DialogContent>
+            </Dialog>
+          );
+          return (
+            <MatrixItem
+              key={asset.name}
+              name={label}
+              aria-label={active ? `${label}, selected` : label}
+              width={asset.width as 9 | 18}
+              pixels={pixels}
+              isSelected={active}
+              onSelect={() => onPick({ widget: 'image', file: asset.name })}
+              controlsTop={
+                <>
+                  <Button
+                    variant="ghost"
+                    aria-label={`Open ${label} in editor`}
+                    tooltip="Open in editor"
+                    tooltipSide="right"
+                    className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                    onClick={e => { e.stopPropagation(); onEdit(asset.name); }}
+                  >✎</Button>
+                  {deleteControl}
+                </>
+              }
+            />
           );
         })}
       </div>
@@ -717,11 +750,13 @@ export type HudInspectorProps = {
   onClocksVisible?: (visible: boolean) => void;
   onChange: (widget: HudWidget) => void;
   oppositeWidget?: HudWidget;
+  onDeleteBiome?: (name: string) => void;
+  onEditBiome?: (name: string) => void;
 };
 
 type View = 'categories' | 'grid' | 'settings';
 
-export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX, onNeedsAudio, onClocksVisible, onChange, oppositeWidget }: HudInspectorProps) {
+export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX, onNeedsAudio, onClocksVisible, onChange, oppositeWidget, onDeleteBiome, onEditBiome }: HudInspectorProps) {
   const uid = useId();
 
   const [view, setView] = useState<View>(() => {
@@ -813,6 +848,21 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
     setView('settings');
   }
 
+  function handleEditImage(name: string) {
+    // Fetch directly — openFromLibrary runs sanitizeFilename which replaces '.' → '_', breaking known-safe library filenames like "foo.dmx.json"
+    fetch(`/api/library/${encodeURIComponent(name)}`)
+      .then(r => { if (!r.ok) throw new Error(`Open failed: ${r.status}`); return r.json(); })
+      .then(project => {
+        const title = name.replace(/\.dmx\.json$/i, '');
+        deckStore.getState().loadProject(project);
+        deckStore.getState().setProjectTitle(title);
+        deckStore.getState().setLibraryPath(name);
+        deckStore.getState().addRecentFile(name);
+        deckStore.getState().setActiveMode('design');
+      })
+      .catch(console.error);
+  }
+
   // ── Layer 1
   if (view === 'categories') {
     return (
@@ -881,7 +931,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
               {activeCategory === 'data'   && <DataGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} />}
               {activeCategory === 'ai'     && <AiGrid    currentWidget={widget} onPick={handlePick} />}
               {activeCategory === 'audio'  && <AudioGrid currentWidget={widget} audioCtx={audioCtx} side={side} onPick={handlePick} onMount={handleAudioMount} onUnmount={handleAudioUnmount} />}
-              {activeCategory === 'life'   && <LifeGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} />}
+              {activeCategory === 'life'   && <LifeGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} {...(onDeleteBiome ? { onDeleteBiome } : {})} {...(onEditBiome ? { onEditBiome } : {})} />}
               {activeCategory === 'image'  && (
                 <ImageGrid
                   currentWidget={widget}
@@ -889,6 +939,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
                   onPick={handlePick}
                   onShowImport={() => { setImportHasFile(false); setShowImport(true); }}
                   onDelete={handleDeleteAsset}
+                  onEdit={handleEditImage}
                   getPresetCount={getPresetCount}
                 />
               )}
