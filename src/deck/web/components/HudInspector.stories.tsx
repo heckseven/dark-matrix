@@ -13,11 +13,11 @@ const meta = {
         component: [
           'Three-layer panel inspector for a single HUD module slot.',
           '',
-          '- **Layer 1 — categories**: text menu (audio, time, data, image, ai).',
+          '- **Layer 1 — category select**: `[ category ▾]` dropdown in the header replaces the old full-panel category list.',
           '- **Layer 2 — grid**: all options in the category, all animated continuously. Audio category has a monitor/mic toggle and connects to real FFT data (falls back to mock in Storybook).',
           '- **Layer 3 — settings**: data (line/fill) quadrant selectors. Back returns to Layer 2.',
           '',
-          'Entry state: Layer 3 if a data (line/fill) widget is assigned, Layer 2 of the widget\'s category otherwise, Layer 1 if no widget. Remount via `key` when selected side or preset changes.',
+          'Entry state: Layer 3 if a data (line/fill/unstyled) or life/random widget is assigned, Layer 2 of the widget\'s category otherwise (defaults to time if no widget). Remount via `key` when selected side or preset changes.',
         ].join('\n'),
       },
     },
@@ -31,18 +31,17 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** No widget assigned — shows category list. */
+/** No widget assigned — opens on time grid (default category). */
 export const NullState: Story = {};
 
-/** Category list with a clock assigned — 'time' row has active indicator. */
+/** Clock widget assigned — opens directly on the time grid with elegant face selected. */
 export const CategoriesWithClock: Story = {
   args: {
     widget: { widget: 'clock', face: 'elegant' } satisfies HudWidget,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole('button', { name: 'Back to categories' }));
-    expect(canvas.getByRole('button', { name: 'time' })).toBeVisible();
+    await expect(canvas.findByRole('button', { name: 'elegant', pressed: true })).resolves.toBeVisible();
   },
 };
 

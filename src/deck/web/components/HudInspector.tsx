@@ -885,7 +885,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
     return 'grid';
   });
   const [activeCategory, setActiveCategory] = useState<string>(() =>
-    widget ? categoryOfWidget(widget) : CATEGORIES[0]!.id
+    widget ? categoryOfWidget(widget) : 'time'
   );
 
   // Image assets
