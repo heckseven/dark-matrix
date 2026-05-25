@@ -5,6 +5,7 @@ import type { DataStats } from '../../../animations/data-renderers.js';
 import { AUDIO_STYLES } from '../../../animations/audio-renderers.js';
 import type { RenderCtx } from '../../../animations/audio-renderers.js';
 import type { HudPresetClient } from '../types/hud-preset.js';
+import type { BiomePreset } from '../types/life-types.js';
 import { MatrixItemColumn } from './MatrixItemColumn.js';
 import { usePresetPixels } from './usePresetPixels.js';
 import { useAlignedTopPad } from './useAlignedTopPad.js';
@@ -144,6 +145,7 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
         sentInitialHudConfigRef.current = true;
       }
       ws.send(JSON.stringify({ type: 'hud-presets-get' }));
+      ws.send(JSON.stringify({ type: 'biome-presets-get' }));
       ws.send(JSON.stringify({ type: 'data-stats-start' }));
       // Subscribe to audio bands now if needed — the needsAudio effect may have fired
       // before the WS was open and returned early, so re-apply here.
@@ -155,7 +157,9 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
     ws.addEventListener('message', (e: MessageEvent<string>) => {
       try {
         const msg = JSON.parse(e.data) as { type: string; bands?: number[]; fftSize?: number; gain?: number } & Partial<DataStats> & Partial<{ presets: HudPresetClient[]; activeName: string | null; name: string | null }>;
-        if (msg.type === 'hud-presets') {
+        if (msg.type === 'biome-presets') {
+          deckStore.getState().loadBiomes((msg as unknown as { presets?: BiomePreset[] }).presets ?? []);
+        } else if (msg.type === 'hud-presets') {
           deckStore.getState().loadPresets(msg.presets ?? [], msg.activeName ?? null);
           // If open handler couldn't send hud-config (hudPresets was empty at connect time),
           // send it now from the disk data. Safe because empty hudPresets means no unsaved changes.

@@ -81,7 +81,7 @@ function widgetHasSettings(w: HudWidget): boolean {
 
 // ── corner brackets ───────────────────────────────────────────────────────
 
-// ── Layer 1: Category list ────────────────────────────────────────────────
+// ── Layer 1: Category select ──────────────────────────────────────────────
 
 const CATEGORIES = [
   { id: 'audio', label: 'audio' },
@@ -91,34 +91,6 @@ const CATEGORIES = [
   { id: 'ai',    label: 'ai'    },
   { id: 'life',  label: 'life'  },
 ] as const;
-
-function CategoryList({ currentWidget, onSelect }: {
-  currentWidget: HudWidget | null;
-  onSelect: (category: string) => void;
-}) {
-  const activeCategory = currentWidget ? categoryOfWidget(currentWidget) : null;
-  return (
-    <div className="flex flex-col py-4 px-2 gap-0.5">
-      {CATEGORIES.map(cat => (
-        <button
-          key={cat.id}
-          type="button"
-          aria-label={cat.label}
-          className="flex items-center justify-between px-2 py-2 rounded-sm text-left hover:bg-foreground/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
-          onClick={() => onSelect(cat.id)}
-        >
-          <span className={`font-mono text-sm ${activeCategory === cat.id ? 'text-foreground' : 'text-foreground/60'}`}>
-            {activeCategory === cat.id && (
-              <span aria-hidden="true" className="inline-block w-1.5 h-1.5 rounded-full bg-white align-middle mr-2" />
-            )}
-            {cat.label}
-          </span>
-          <span aria-hidden="true" className="font-mono text-xs text-foreground/30">›</span>
-        </button>
-      ))}
-    </div>
-  );
-}
 
 // ── Layer 2: Clock grid ───────────────────────────────────────────────────
 
@@ -525,6 +497,20 @@ function LifeGrid({ currentWidget, onPick, onSettings, dualModule = false, onDel
   const biomePresets = useDeckStore(s => s.biomePresets);
   const randomSelected = currentWidget?.widget === 'life' && currentWidget.biomeName === 'random';
 
+  if (biomePresets.length === 0) {
+    return (
+      <div role="status" className="flex flex-col items-start gap-3">
+        <p className="font-mono text-xs text-muted-foreground">no life presets</p>
+        <Button
+          variant="primary"
+          className="font-mono text-xs"
+          aria-label="Create life"
+          onClick={() => deckStore.getState().setActiveMode('life')}
+        >Create life</Button>
+      </div>
+    );
+  }
+
   return (
     <div role="group" aria-label="Life panels" className="flex flex-wrap gap-6">
       <LifeRandomItem
@@ -889,18 +875,17 @@ export type HudInspectorProps = {
   dualModule?: boolean;
 };
 
-type View = 'categories' | 'grid' | 'settings';
+type View = 'grid' | 'settings';
 
 export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX, onNeedsAudio, onClocksVisible, onChange, oppositeWidget, onDeleteBiome, onEditBiome, dualModule = false }: HudInspectorProps) {
   const uid = useId();
 
   const [view, setView] = useState<View>(() => {
-    if (!widget) return 'categories';
-    if (widgetHasSettings(widget)) return 'settings';
+    if (widget && widgetHasSettings(widget)) return 'settings';
     return 'grid';
   });
-  const [activeCategory, setActiveCategory] = useState<string | null>(() =>
-    widget ? categoryOfWidget(widget) : null
+  const [activeCategory, setActiveCategory] = useState<string>(() =>
+    widget ? categoryOfWidget(widget) : CATEGORIES[0]!.id
   );
 
   // Image assets
@@ -922,37 +907,12 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
     return () => { cancelled = true; };
   }, [activeCategory]);
 
-  function handleCategorySelect(cat: string) {
-    setActiveCategory(cat);
-    setView('grid');
-  }
-
-  function handleBack() {
-    if (view === 'settings') {
-      setView('grid');
-    } else {
-      setView('categories');
-    }
-  }
-
   const handleAudioMount   = useCallback(() => onNeedsAudio?.(true),  [onNeedsAudio]);
   const handleAudioUnmount = useCallback(() => onNeedsAudio?.(false), [onNeedsAudio]);
 
   useEffect(() => {
     onClocksVisible?.(view === 'grid' && activeCategory === 'time');
   }, [view, activeCategory, onClocksVisible]);
-
-  const viewRef = useRef(view);
-  viewRef.current = view;
-  const activeCategoryRef = useRef(activeCategory);
-  activeCategoryRef.current = activeCategory;
-
-  useEffect(() => {
-    if (widget && viewRef.current === 'categories' && activeCategoryRef.current === null) {
-      setActiveCategory(categoryOfWidget(widget));
-      setView(widgetHasSettings(widget) ? 'settings' : 'grid');
-    }
-  }, [widget]);
 
   function refreshAssets() {
     fetch('/api/assets')
@@ -998,17 +958,8 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
       .catch(console.error);
   }
 
-  // ── Layer 1
-  if (view === 'categories') {
-    return (
-      <div className="flex flex-col h-full overflow-y-auto">
-        <CategoryList currentWidget={widget} onSelect={handleCategorySelect} />
-      </div>
-    );
-  }
-
-  const backLabel = view === 'settings' ? `‹ ${activeCategory ?? 'back'}` : '‹ categories';
-  const backAriaLabel = view === 'settings' ? `Back to ${activeCategory ?? 'grid'}` : 'Back to categories';
+  const backLabel = `‹ ${activeCategory}`;
+  const backAriaLabel = `Back to ${activeCategory}`;
   const showImportHeader = showImport && activeCategory === 'image';
 
   // ── Layer 2 + Layer 3 header
@@ -1018,13 +969,20 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
         <Button variant="ghost" className="text-foreground/60 text-xs" aria-label="Cancel import" tooltip="Cancel import" onClick={() => { setImportHasFile(false); setShowImport(false); }}>
           <span aria-hidden="true">‹</span>
         </Button>
-      ) : (
-        <Button variant="ghost" className="text-foreground/60 text-xs" aria-label={backAriaLabel} onClick={handleBack}>
+      ) : view === 'settings' ? (
+        <Button variant="ghost" className="text-foreground/60 text-xs" aria-label={backAriaLabel} onClick={() => setView('grid')}>
           <span aria-hidden="true">{backLabel}</span>
         </Button>
+      ) : (
+        <Select
+          value={activeCategory}
+          options={CATEGORIES.map(c => ({ value: c.id, label: c.label }))}
+          onValueChange={setActiveCategory}
+          aria-label="Widget category"
+        />
       )}
-      <span className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
-        {showImportHeader ? 'import image' : (activeCategory ?? '')}
+      <span aria-hidden="true" className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
+        {showImportHeader ? 'import image' : (view === 'settings' ? activeCategory : '')}
       </span>
       <div aria-live="polite" aria-atomic="true" className="ml-auto">
         {showImportHeader && importHasFile && (
@@ -1038,6 +996,9 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
           </Button>
         )}
       </div>
+      <span aria-live="polite" aria-atomic="true" className="sr-only">
+        {showImportHeader ? 'Import image' : view === 'settings' ? `${activeCategory} settings` : ''}
+      </span>
     </div>
   );
 
