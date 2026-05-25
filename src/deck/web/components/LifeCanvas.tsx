@@ -137,7 +137,7 @@ function applySpawn(
   return g;
 }
 
-function stepGrid(grid: Uint8Array, cols: number, birth: readonly number[], survival: readonly number[]): Uint8Array<ArrayBuffer> {
+export function stepGrid(grid: Uint8Array, cols: number, birth: readonly number[], survival: readonly number[]): Uint8Array<ArrayBuffer> {
   const next = new Uint8Array(cols * ROWS) as Uint8Array<ArrayBuffer>;
   for (let col = 0; col < cols; col++) {
     for (let row = 0; row < ROWS; row++) {

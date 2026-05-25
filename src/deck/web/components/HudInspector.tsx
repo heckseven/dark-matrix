@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useId, useCallback, useReducer } from 'react';
+import type { ReactNode } from 'react';
 import { MatrixPreview } from './MatrixPreview.js';
 import { MatrixItem, CornerBrackets } from './MatrixItem.js';
 import { Tabs } from './ui/tabs.js';
@@ -17,6 +18,9 @@ import { CLAUDE_STYLES, createClaudeMatrixRenderer, createClaudeContextRenderer 
 import type { ClaudeStyle } from '../../../animations/claude-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
+import type { BiomePreset } from '../types/life-types.js';
+import { LIFE_ALGORITHMS } from '../../../animations/gol.js';
+import { stepGrid, decodeGrid, encodeGrid } from './LifeCanvas.js';
 import { Slider } from './ui/slider.js';
 import { Text } from './ui/text.js';
 import { deckStore, useDeckStore } from '../store.js';
@@ -376,12 +380,145 @@ function AiGrid({ currentWidget, onPick }: {
   );
 }
 
+// ── shared helper ─────────────────────────────────────────────────────────
+
+function snapWidth(snap: string): 9 | 18 {
+  try { return atob(snap).length === 18 * ROWS ? 18 : 9; } catch { return 9; }
+}
+
+// ── Life sim item (runs simulation on hover) ──────────────────────────────
+
+function LifeSimItem({ biome, biomeWidth, isSelected, onSelect, controlsTop }: {
+  biome: BiomePreset;
+  biomeWidth: 9 | 18;
+  isSelected: boolean;
+  onSelect: () => void;
+  controlsTop?: ReactNode;
+}) {
+  const [pixels, setPixels] = useState(biome.gridSnapshot ?? EMPTY_PIXELS);
+  const gridRef = useRef<Uint8Array | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const biomeRef = useRef(biome);
+  biomeRef.current = biome;
+  const biomeWidthRef = useRef(biomeWidth);
+  biomeWidthRef.current = biomeWidth;
+
+  useEffect(() => {
+    if (!timerRef.current) setPixels(biome.gridSnapshot ?? EMPTY_PIXELS);
+  }, [biome.gridSnapshot]);
+
+  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
+
+  function startSim() {
+    if (timerRef.current) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const b = biomeRef.current;
+    const snap = b.gridSnapshot ?? EMPTY_PIXELS;
+    const w = snapWidth(snap);
+    const { birth, survival } = LIFE_ALGORITHMS[b.algorithm];
+    gridRef.current = decodeGrid(snap);
+    timerRef.current = setInterval(() => {
+      if (!gridRef.current) return;
+      const next = stepGrid(gridRef.current, w, birth, survival);
+      gridRef.current = next;
+      setPixels(encodeGrid(next));
+    }, b.tickMs);
+  }
+
+  function stopSim() {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    gridRef.current = null;
+    setPixels(biomeRef.current.gridSnapshot ?? EMPTY_PIXELS);
+  }
+
+  return (
+    <div onMouseEnter={startSim} onMouseLeave={stopSim} onFocus={startSim} onBlur={stopSim}>
+      <MatrixItem
+        name={biome.name}
+        aria-label={isSelected ? `${biome.name} biome, selected` : `${biome.name} biome`}
+        width={biomeWidth}
+        pixels={pixels}
+        isSelected={isSelected}
+        onSelect={onSelect}
+        controlsTop={controlsTop}
+      />
+    </div>
+  );
+}
+
+// ── Random life item (static random preview, cycles on hover) ─────────────
+
+function LifeRandomItem({ biomePresets, isSelected, dualModule = false, onSelect }: {
+  biomePresets: BiomePreset[];
+  isSelected: boolean;
+  dualModule?: boolean;
+  onSelect: () => void;
+}) {
+  const biomesRef = useRef(biomePresets);
+  biomesRef.current = biomePresets;
+  const dualModuleRef = useRef(dualModule);
+  dualModuleRef.current = dualModule;
+
+  function getCandidates(presets: BiomePreset[], dual: boolean): { snap: string; width: 9 | 18 }[] {
+    const wideSnaps = presets
+      .filter(b => b.gridSnapshot && snapWidth(b.gridSnapshot) === 18)
+      .map(b => ({ snap: b.gridSnapshot!, width: 18 as const }));
+    if (dual && wideSnaps.length > 0) return wideSnaps;
+    return presets
+      .filter(b => b.gridSnapshot && snapWidth(b.gridSnapshot) === 9)
+      .map(b => ({ snap: b.gridSnapshot!, width: 9 as const }));
+  }
+
+  const [display, setDisplay] = useState<{ pixels: string; width: 9 | 18 }>(() => {
+    const c = getCandidates(biomePresets, dualModule);
+    if (c.length === 0) return { pixels: EMPTY_PIXELS, width: dualModule ? 18 : 9 };
+    const pick = c[Math.floor(Math.random() * c.length)]!;
+    return { pixels: pick.snap, width: pick.width };
+  });
+
+  const cycleIdxRef = useRef(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
+
+  function startCycle() {
+    if (timerRef.current) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const c = getCandidates(biomesRef.current, dualModuleRef.current);
+    if (c.length === 0) return;
+    cycleIdxRef.current = Math.floor(Math.random() * c.length);
+    timerRef.current = setInterval(() => {
+      cycleIdxRef.current = (cycleIdxRef.current + 1) % c.length;
+      const pick = c[cycleIdxRef.current]!;
+      setDisplay({ pixels: pick.snap, width: pick.width });
+    }, 200);
+  }
+
+  function stopCycle() {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+  }
+
+  return (
+    <div onMouseEnter={startCycle} onMouseLeave={stopCycle} onFocus={startCycle} onBlur={stopCycle}>
+      <MatrixItem
+        name="random"
+        aria-label={isSelected ? 'random cycling, selected' : 'random cycling'}
+        width={display.width}
+        pixels={display.pixels}
+        isSelected={isSelected}
+        onSelect={onSelect}
+      />
+    </div>
+  );
+}
+
 // ── Layer 2: Life grid ────────────────────────────────────────────────────
 
-function LifeGrid({ currentWidget, onPick, onSettings, onDeleteBiome, onEditBiome }: {
+function LifeGrid({ currentWidget, onPick, onSettings, dualModule = false, onDeleteBiome, onEditBiome }: {
   currentWidget: HudWidget | null;
   onPick: (w: HudWidget) => void;
   onSettings: (w: HudWidget) => void;
+  dualModule?: boolean;
   onDeleteBiome?: (name: string) => void;
   onEditBiome?: (name: string) => void;
 }) {
@@ -390,28 +527,20 @@ function LifeGrid({ currentWidget, onPick, onSettings, onDeleteBiome, onEditBiom
 
   return (
     <div role="group" aria-label="Life panels" className="flex flex-wrap gap-6">
-      <MatrixItem
-        name="random"
-        aria-label={randomSelected ? 'random cycling, selected' : 'random cycling'}
-        width={9}
-        pixels={EMPTY_PIXELS}
+      <LifeRandomItem
+        biomePresets={biomePresets}
         isSelected={randomSelected}
+        dualModule={dualModule}
         onSelect={() => onSettings({ widget: 'life', biomeName: 'random', randomIntervalMs: 30000 })}
       />
       {biomePresets.map(b => {
         const isSelected = currentWidget?.widget === 'life' && currentWidget.biomeName === b.name;
-        const biomeWidth: 9 | 18 = (() => {
-          const snap = b.gridSnapshot;
-          if (!snap) return 9;
-          try { return atob(snap).length === 18 * ROWS ? 18 : 9; } catch { return 9; }
-        })();
+        const biomeWidth: 9 | 18 = b.gridSnapshot ? snapWidth(b.gridSnapshot) : 9;
         return (
-          <MatrixItem
+          <LifeSimItem
             key={b.name}
-            name={b.name}
-            aria-label={isSelected ? `${b.name} biome, selected` : `${b.name} biome`}
-            width={biomeWidth}
-            pixels={b.gridSnapshot ?? EMPTY_PIXELS}
+            biome={b}
+            biomeWidth={biomeWidth}
             isSelected={isSelected}
             onSelect={() => onPick({ widget: 'life', biomeName: b.name })}
             controlsTop={
@@ -757,11 +886,12 @@ export type HudInspectorProps = {
   oppositeWidget?: HudWidget;
   onDeleteBiome?: (name: string) => void;
   onEditBiome?: (name: string) => void;
+  dualModule?: boolean;
 };
 
 type View = 'categories' | 'grid' | 'settings';
 
-export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX, onNeedsAudio, onClocksVisible, onChange, oppositeWidget, onDeleteBiome, onEditBiome }: HudInspectorProps) {
+export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX, onNeedsAudio, onClocksVisible, onChange, oppositeWidget, onDeleteBiome, onEditBiome, dualModule = false }: HudInspectorProps) {
   const uid = useId();
 
   const [view, setView] = useState<View>(() => {
@@ -936,7 +1066,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
               {activeCategory === 'data'   && <DataGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} />}
               {activeCategory === 'ai'     && <AiGrid    currentWidget={widget} onPick={handlePick} />}
               {activeCategory === 'audio'  && <AudioGrid currentWidget={widget} audioCtx={audioCtx} side={side} onPick={handlePick} onMount={handleAudioMount} onUnmount={handleAudioUnmount} />}
-              {activeCategory === 'life'   && <LifeGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} {...(onDeleteBiome ? { onDeleteBiome } : {})} {...(onEditBiome ? { onEditBiome } : {})} />}
+              {activeCategory === 'life'   && <LifeGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} dualModule={dualModule} {...(onDeleteBiome ? { onDeleteBiome } : {})} {...(onEditBiome ? { onEditBiome } : {})} />}
               {activeCategory === 'image'  && (
                 <ImageGrid
                   currentWidget={widget}

@@ -340,6 +340,7 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
               deckStore.getState().selectBiome(name);
               deckStore.getState().setActiveMode('life');
             }}
+            dualModule={dualModule}
           />
         </div>
       }
