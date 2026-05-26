@@ -72,7 +72,7 @@ export function watchSwitches(
     } catch (err: unknown) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
         notFound = true;
-        process.stderr.write(`ec-switches: ectool not found on PATH, skipping EC switch feature\n`);
+        process.stderr.write(`ec-switches: ectool not found — set ectool_path in config to its absolute path\n`);
         if (handle !== null) { clearInterval(handle); handle = null; }
       } else {
         process.stderr.write(`ec-switches: ectool error: ${String(err)}\n`);

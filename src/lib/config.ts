@@ -239,9 +239,28 @@ export async function bootstrapConfig(p?: string): Promise<void> {
     brightness = { ...rest, mode: 'manual' };
   }
 
+  const ectoolPath = await findOnPath('ectool');
+  if (ectoolPath) process.stdout.write(`Detected ectool at ${ectoolPath}\n`);
+
   const filePath = resolveConfigPath(p);
   await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, JSON.stringify({ ...DEFAULT_CONFIG, modules, brightness, uncalibrated: true }, null, 2), { mode: 0o600 });
+  const extra = ectoolPath ? { ectool_path: ectoolPath } : {};
+  await fs.writeFile(filePath, JSON.stringify({ ...DEFAULT_CONFIG, modules, brightness, ...extra, uncalibrated: true }, null, 2), { mode: 0o600 });
+}
+
+async function findOnPath(bin: string): Promise<string | undefined> {
+  const dirs = (process.env['PATH'] ?? '').split(':');
+  for (const dir of dirs) {
+    if (!dir) continue;
+    const candidate = path.join(dir, bin);
+    try {
+      await fs.access(candidate);
+      return candidate;
+    } catch {
+      // not in this directory
+    }
+  }
+  return undefined;
 }
 
 export function watchConfig(onReload: (c: Config) => void): () => void {

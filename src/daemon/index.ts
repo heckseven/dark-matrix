@@ -1387,9 +1387,13 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     dispatcher.push(intent);
   }
 
-  disposeWatches.push(watchSwitches((e) => {
-    routeAndPush(ecSwitchIntent(e));
-  }, { intervalMs: 500, ...(currentConfig.ectool_path !== undefined ? { ectoolPath: currentConfig.ectool_path } : {}) }));
+  function startEcSwitches(): () => void {
+    return watchSwitches((e) => {
+      routeAndPush(ecSwitchIntent(e));
+    }, { intervalMs: 500, ...(currentConfig.ectool_path !== undefined ? { ectoolPath: currentConfig.ectool_path } : {}) });
+  }
+  let disposeEcSwitches = startEcSwitches();
+  disposeWatches.push(() => disposeEcSwitches());
 
   disposeWatches.push(watchVms((e) => {
     routeAndPush(vmIntent(e));
@@ -1905,6 +1909,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       currentBrightness = pct;
       await setBrightness(pct);
     });
+    disposeEcSwitches();
+    disposeEcSwitches = startEcSwitches();
     // Restart the idle animation if it is currently running so it picks up
     // any changed idle_animation / idle_gif_path / hud settings.
     if (!hudHardwareActive && !frameHeldLeft && !frameHeldRight && !dispatcher.current()) {
