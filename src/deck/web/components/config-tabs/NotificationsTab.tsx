@@ -351,13 +351,24 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
   useEffect(() => {
     const path = rule.asset_path;
     if (!path) { setAssetWidth(null); return; }
+    let cancelled = false;
     fetch(`/api/assets/${encodeURIComponent(path)}`)
       .then(r => r.ok ? r.json() as Promise<{ ok: boolean; asset: AssetMeta }> : Promise.reject())
-      .then(d => setAssetWidth(d.asset.width))
-      .catch(() => setAssetWidth(null));
+      .then(d => { if (!cancelled) setAssetWidth(d.asset.width); })
+      .catch(() => { if (!cancelled) setAssetWidth(null); });
+    return () => { cancelled = true; };
   }, [rule.asset_path]);
 
   const [testState, setTestState] = useState<'idle' | 'firing' | 'ok' | 'err'>('idle');
+  const testTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const testMountedRef = useRef(true);
+  useEffect(() => {
+    testMountedRef.current = true;
+    return () => {
+      testMountedRef.current = false;
+      if (testTimerRef.current !== null) clearTimeout(testTimerRef.current);
+    };
+  }, []);
   async function fireTest() {
     if (rule.animation === 'none') return;
     setTestState('firing');
@@ -380,11 +391,14 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
         if (rule.duration_ms_override !== undefined) body['durationMsOverride'] = rule.duration_ms_override;
       }
       const r = await fetch('/api/test-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!testMountedRef.current) return;
       setTestState(r.ok ? 'ok' : 'err');
     } catch {
+      if (!testMountedRef.current) return;
       setTestState('err');
     }
-    setTimeout(() => setTestState('idle'), 1500);
+    if (testTimerRef.current !== null) clearTimeout(testTimerRef.current);
+    testTimerRef.current = setTimeout(() => { testTimerRef.current = null; if (testMountedRef.current) setTestState('idle'); }, 1500);
   }
   const assetDisplay = rule.asset_path ?? rule.dmx_path ?? '';
   const durationDisplay = rule.duration_ms_override !== undefined ? String(rule.duration_ms_override) : '';
@@ -437,6 +451,9 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
       </div>
 
       {/* test button */}
+      <span aria-live="polite" aria-atomic="true" className="sr-only">
+        {testState === 'firing' ? 'Firing test' : testState === 'ok' ? 'Test succeeded' : testState === 'err' ? 'Test failed' : ''}
+      </span>
       {rule.animation !== 'none' && (
         <Button
           variant="ghost"
@@ -683,7 +700,6 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
                     checked={rule.mirror === true}
                     onChange={e => onUpdate(buildRule(rule, { mirror: e.target.checked || undefined, ...(e.target.checked ? { side: undefined } : {}) }))}
                     className="w-3.5 h-3.5 accent-foreground"
-                    aria-label="Mirror animation on second panel"
                   />
                   <span className="font-mono text-xs text-muted-foreground">mirror on second panel</span>
                 </label>

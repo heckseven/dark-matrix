@@ -1003,6 +1003,7 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
         const VALID_TEXT_POSITIONS = ['top', 'middle', 'bottom'];
         const VALID_OVERLAY_MODES = ['or', 'replace', 'xor', 'halo'];
         const VALID_TRANSITIONS = ['wipe', 'scan', 'slide', 'dissolve', 'flash'];
+        const MAX_LOOP_COUNT = 100; // cap to prevent runaway animation loops
         if (parsed.style !== undefined && !VALID_STYLES.includes(parsed.style)) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: false, error: 'invalid style' }));
@@ -1045,9 +1046,14 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
           return;
         }
         if (parsed.loopCount !== undefined &&
-            (typeof parsed.loopCount !== 'number' || !Number.isInteger(parsed.loopCount) || parsed.loopCount < 1)) {
+            (typeof parsed.loopCount !== 'number' || !Number.isInteger(parsed.loopCount) || parsed.loopCount < 1 || parsed.loopCount > MAX_LOOP_COUNT)) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: false, error: 'invalid loopCount' }));
+          res.end(JSON.stringify({ ok: false, error: `loopCount must be 1–${MAX_LOOP_COUNT}` }));
+          return;
+        }
+        if (parsed.mirror !== undefined && typeof parsed.mirror !== 'boolean') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid mirror' }));
           return;
         }
         if (parsed.side !== undefined && parsed.side !== 'left' && parsed.side !== 'right') {

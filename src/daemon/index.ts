@@ -1309,7 +1309,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       } else {
         const framePx = pixels as unknown as Frame;
         const leftPx: Frame | null = intent.side === 'right' ? (composite === 'overlay' ? null : createFrame()) : framePx;
-        const rightPx: Frame | null = intent.mirror ? flipFrameH(framePx) : (intent.side === 'left' ? (composite === 'overlay' ? null : createFrame()) : framePx);
+        const rightPx: Frame | null = intent.side === 'left' ? (composite === 'overlay' ? null : createFrame()) : (intent.mirror ? flipFrameH(framePx) : framePx);
         if (composite === 'replace') {
           const [cl2, cr2] = composeFrames([leftPx ?? createFrame(), rightPx ?? createFrame()], activeOverlay);
           if (dmxMode === 'bw') {
