@@ -33,7 +33,7 @@ import { createClockRenderer, isClockFace } from '../animations/clock-renderers.
 import { createDataRenderer } from '../animations/data-renderers.js';
 import { DATA_STYLES } from '../animations/data-renderers.js';
 import type { DataStyle, DataWidgetConfig, DataRenderer } from '../animations/data-renderers.js';
-import { createClaudeMatrixRenderer, createClaudeContextRenderer, CLAUDE_STYLES } from '../animations/claude-renderers.js';
+import { createClaudeMatrixRenderer, createClaudeContextRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer, CLAUDE_STYLES } from '../animations/claude-renderers.js';
 import type { ClaudeStyle, ClaudeRendererApi } from '../animations/claude-renderers.js';
 import { watchProcStats } from '../lib/proc-source.js';
 import { createPresetTriggerEngine } from '../lib/preset-triggers.js';
@@ -761,7 +761,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
           ? createClaudeUsageRenderer()
           : claudeStyle === 'context'
             ? createClaudeContextRenderer()
-            : createClaudeMatrixRenderer();
+            : claudeStyle === 'sand'
+              ? createClaudeSandRenderer()
+              : claudeStyle === 'tetris'
+                ? createClaudeTetrisRenderer()
+                : createClaudeMatrixRenderer();
         claudeRenderers.add(claudeRenderer);
         return {
           render(_now, _audioCtx) { return claudeRenderer.render(); },

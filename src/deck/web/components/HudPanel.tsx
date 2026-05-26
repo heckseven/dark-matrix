@@ -353,7 +353,7 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
       right={
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingTop: inspectorTopPad }}>
           <HudInspector
-            key={`${hudSelectedSide}-${selectedPresetName ?? 'none'}`}
+            key={`${hudSelectedSide}-${selectedPreset?.name ?? 'none'}`}
             widget={selectedPreset
               ? (hudSelectedSide === 'left' ? selectedPreset.left : selectedPreset.right)
               : null

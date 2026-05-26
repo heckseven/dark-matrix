@@ -14,7 +14,7 @@ import type { DataStyle, DataMetric, DataRenderer } from '../../../animations/da
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { createHeatmapState, bumpTool, tickHeatmap, renderHeatmap } from '../../../animations/heatmap.js';
-import { CLAUDE_STYLES, createClaudeMatrixRenderer, createClaudeContextRenderer } from '../../../animations/claude-renderers.js';
+import { CLAUDE_STYLES, createClaudeMatrixRenderer, createClaudeContextRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import type { ClaudeStyle } from '../../../animations/claude-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
@@ -252,6 +252,19 @@ const _heatmapGridState = (() => {
 })();
 
 const _claudeMatrixRenderer = createClaudeMatrixRenderer();
+const _claudeSandRenderer = (() => {
+  const r = createClaudeSandRenderer();
+  for (let i = 0; i < 60; i++) {
+    if (i % 4 === 0) r.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
+    r.render();
+  }
+  return r;
+})();
+const _claudeTetrisRenderer = (() => {
+  const r = createClaudeTetrisRenderer();
+  for (let i = 0; i < 180; i++) r.render();
+  return r;
+})();
 const _claudeContextRenderer = (() => {
   const r = createClaudeContextRenderer();
   // seed with fake events so the preview shows a partial fill
@@ -285,7 +298,12 @@ function makeUsagePreviewPixels(): string {
 const USAGE_PREVIEW_PIXELS = makeUsagePreviewPixels();
 
 if (import.meta.hot) {
-  import.meta.hot.dispose(() => { _claudeMatrixRenderer.stop(); _claudeContextRenderer.stop(); });
+  import.meta.hot.dispose(() => {
+    _claudeMatrixRenderer.stop();
+    _claudeSandRenderer.stop();
+    _claudeTetrisRenderer.stop();
+    _claudeContextRenderer.stop();
+  });
 }
 
 function AiGrid({ currentWidget, onPick }: {
@@ -298,6 +316,8 @@ function AiGrid({ currentWidget, onPick }: {
   });
   const [matrixPixels, setMatrixPixels] = useState(() => bayerToB64(_claudeMatrixRenderer.render()));
   const [contextPixels, setContextPixels] = useState(() => bayerToB64(_claudeContextRenderer.render()));
+  const [sandPixels, setSandPixels] = useState(() => bayerToB64(_claudeSandRenderer.render()));
+  const [tetrisPixels, setTetrisPixels] = useState(() => bayerToB64(_claudeTetrisRenderer.render()));
 
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -318,6 +338,13 @@ function AiGrid({ currentWidget, onPick }: {
       }
       setMatrixPixels(bayerToB64(_claudeMatrixRenderer.render()));
       setContextPixels(bayerToB64(_claudeContextRenderer.render()));
+
+      // Fire synthetic sand events to show grains falling
+      if (tick % 6 === 0) {
+        _claudeSandRenderer.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
+      }
+      setSandPixels(bayerToB64(_claudeSandRenderer.render()));
+      setTetrisPixels(bayerToB64(_claudeTetrisRenderer.render()));
     }, 100);
     return () => clearInterval(iid);
   }, []);
@@ -335,7 +362,11 @@ function AiGrid({ currentWidget, onPick }: {
         onSelect={() => onPick({ widget: 'heatmap' })}
       />
       {CLAUDE_STYLES.map(({ id, label }) => {
-        const preview = id === 'matrix' ? matrixPixels : id === 'context' ? contextPixels : USAGE_PREVIEW_PIXELS;
+        const preview = id === 'matrix' ? matrixPixels
+          : id === 'context' ? contextPixels
+          : id === 'sand' ? sandPixels
+          : id === 'tetris' ? tetrisPixels
+          : USAGE_PREVIEW_PIXELS;
         return (
           <MatrixItem
             key={id}
