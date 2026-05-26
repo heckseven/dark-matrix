@@ -3,7 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 
-const SANDBOX = path.join(os.homedir(), '.config', 'dark-matrix', 'assets');
+const SANDBOX = path.join(os.homedir(), '.config', 'dark-matrix', 'library');
 
 vi.mock('node:fs/promises', () => ({ stat: vi.fn() }));
 

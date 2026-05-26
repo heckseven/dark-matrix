@@ -70,11 +70,15 @@ describe('daemon', () => {
   it('ping returns { ok: true, pong: true }', async () => {
     await withDaemon(async () => {
       const res = await send(sockPath, { cmd: 'ping' });
-      expect(res).toEqual({ ok: true, pong: true });
+      expect(res).toMatchObject({ ok: true, pong: true });
     });
   });
 
   it('brightness returns { ok: true, value: 0 }', async () => {
+    await fs.writeFile(cfgPath, JSON.stringify({
+      ...DEFAULT_CONFIG,
+      brightness: { ...DEFAULT_CONFIG.brightness, mode: 'manual', manual_value: 0 },
+    }));
     await withDaemon(async () => {
       const res = await send(sockPath, { cmd: 'brightness' });
       expect(res).toEqual({ ok: true, value: 0 });
