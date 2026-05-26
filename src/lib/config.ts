@@ -51,6 +51,8 @@ const NotificationRuleSchema = z.object({
   transition: z.enum(['wipe', 'scan', 'slide', 'dissolve', 'flash']).optional(),
   duration_ms_override: z.number().int().positive().optional(),
   loop_count: z.number().int().min(1).optional(),
+  mirror: z.boolean().optional(),
+  side: z.enum(['left', 'right']).optional(),
 });
 
 export const ConfigSchema = z.object({

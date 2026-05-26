@@ -17,14 +17,31 @@ function decodeB64(s: string): Uint8Array {
   return Uint8Array.from(atob(s), c => c.charCodeAt(0));
 }
 
-function expand9to18(frame: string): string {
+function expand9to18(frame: string, mirror?: boolean, side?: 'left' | 'right'): string {
   const src = decodeB64(frame);
   const out = new Uint8Array(18 * ROWS);
-  for (let c = 0; c < COLS; c++) {
-    for (let r = 0; r < ROWS; r++) {
-      out[c * ROWS + r]          = src[c * ROWS + r] ?? 0;
-      out[(c + COLS) * ROWS + r] = src[c * ROWS + r] ?? 0;
+  if (side === 'left') {
+    for (let c = 0; c < COLS; c++)
+      for (let r = 0; r < ROWS; r++)
+        out[c * ROWS + r] = src[c * ROWS + r] ?? 0;
+  } else if (side === 'right') {
+    for (let c = 0; c < COLS; c++)
+      for (let r = 0; r < ROWS; r++)
+        out[(c + COLS) * ROWS + r] = src[c * ROWS + r] ?? 0;
+  } else if (mirror) {
+    for (let c = 0; c < COLS; c++) {
+      const mc = COLS - 1 - c;
+      for (let r = 0; r < ROWS; r++) {
+        out[c * ROWS + r]         = src[c * ROWS + r] ?? 0;
+        out[(mc + COLS) * ROWS + r] = src[c * ROWS + r] ?? 0;
+      }
     }
+  } else {
+    for (let c = 0; c < COLS; c++)
+      for (let r = 0; r < ROWS; r++) {
+        out[c * ROWS + r]          = src[c * ROWS + r] ?? 0;
+        out[(c + COLS) * ROWS + r] = src[c * ROWS + r] ?? 0;
+      }
   }
   return toB64(out);
 }
@@ -40,7 +57,7 @@ function trim18to9(frame: string): string {
   return toB64(out);
 }
 
-export function DmxPreview({ filename, dual = false }: { filename?: string | undefined; dual?: boolean }) {
+export function DmxPreview({ filename, dual = false, mirror, side }: { filename?: string | undefined; dual?: boolean; mirror?: boolean; side?: 'left' | 'right' }) {
   const [asset, setAsset] = useState<AssetMeta | null>(null);
   const [px, setPx] = useState(() => blankB64(dual ? 18 : 9));
 
@@ -65,7 +82,7 @@ export function DmxPreview({ filename, dual = false }: { filename?: string | und
       const rawFrame = asset.frames[frameIdx] ?? asset.firstFrame;
       let displayFrame: string;
       if (dual) {
-        displayFrame = asset.width === 9 ? expand9to18(rawFrame) : rawFrame;
+        displayFrame = asset.width === 9 ? expand9to18(rawFrame, mirror, side) : rawFrame;
       } else {
         displayFrame = asset.width === 18 ? trim18to9(rawFrame) : rawFrame;
       }
@@ -77,7 +94,7 @@ export function DmxPreview({ filename, dual = false }: { filename?: string | und
 
     tick();
     return () => { dead = true; clearTimeout(timerId); };
-  }, [asset, dual]);
+  }, [asset, dual, mirror, side]);
 
   return <MatrixPreview pixels={px} width={dual ? 18 : 9} />;
 }

@@ -20,6 +20,8 @@ export type DisplayIntent = {
   assetPath?: string;
   composite?: 'replace' | 'overlay';
   loopCount?: number;
+  mirror?: boolean;
+  side?: 'left' | 'right';
 };
 
 export type NotificationDisplayOptions = {

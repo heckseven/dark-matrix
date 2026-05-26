@@ -993,6 +993,9 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
           assetPath?: string;
           composite?: string;
           durationMsOverride?: number;
+          loopCount?: number;
+          mirror?: boolean;
+          side?: string;
         };
         const VALID_STYLES = ['text', 'dmx'];
         const VALID_COMPOSITES = ['replace', 'overlay'];
@@ -1041,6 +1044,17 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
           res.end(JSON.stringify({ ok: false, error: 'invalid duration' }));
           return;
         }
+        if (parsed.loopCount !== undefined &&
+            (typeof parsed.loopCount !== 'number' || !Number.isInteger(parsed.loopCount) || parsed.loopCount < 1)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid loopCount' }));
+          return;
+        }
+        if (parsed.side !== undefined && parsed.side !== 'left' && parsed.side !== 'right') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid side' }));
+          return;
+        }
         const cmd: Record<string, unknown> = {
           cmd: 'notify-test',
           appName: parsed.appName,
@@ -1055,6 +1069,9 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
         if (parsed.assetPath !== undefined) cmd['assetPath'] = parsed.assetPath;
         if (parsed.composite !== undefined) cmd['composite'] = parsed.composite;
         if (parsed.durationMsOverride !== undefined) cmd['durationMsOverride'] = parsed.durationMsOverride;
+        if (parsed.loopCount !== undefined) cmd['loopCount'] = parsed.loopCount;
+        if (parsed.mirror !== undefined) cmd['mirror'] = parsed.mirror;
+        if (parsed.side !== undefined) cmd['side'] = parsed.side;
         const reply = await sendToDaemon(cmd) as { ok: boolean; action?: string };
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, action: reply.action }));

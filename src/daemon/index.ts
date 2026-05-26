@@ -1123,6 +1123,14 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     })();
   }
 
+  function flipFrameH(frame: Frame): Frame {
+    const out = createFrame();
+    for (let col = 0; col < FRAME_COLS; col++)
+      for (let row = 0; row < FRAME_ROWS; row++)
+        (out as Uint8Array)[(FRAME_COLS - 1 - col) * FRAME_ROWS + row] = (frame as Uint8Array)[col * FRAME_ROWS + row] ?? 0;
+    return out;
+  }
+
   async function startDmxNotification(intent: DisplayIntent, composite: 'replace' | 'overlay'): Promise<void> {
     if (!intent.assetPath) { startTextNotification(intent, composite); return; }
     let handle: Awaited<ReturnType<typeof loadNotificationAsset>>;
@@ -1252,6 +1260,16 @@ export async function startDaemon(): Promise<() => Promise<void>> {
           exitSteps.push({ left: leftExit[i]!.frame, right: rightExit[i]!.frame, delayMs: leftExit[i]!.delayMs });
       }
     }
+    // Apply mirror/side to transition steps for single-panel assets
+    if (!dual && (intent.mirror || intent.side)) {
+      const blank = () => composite === 'overlay' ? null : createFrame();
+      for (const step of [...entrySteps, ...exitSteps]) {
+        if (intent.side === 'right') { step.left = blank(); }
+        else if (intent.side === 'left') { step.right = blank(); }
+        else if (intent.mirror && step.left !== null) { step.right = flipFrameH(step.left); }
+      }
+    }
+
     const adjDeadline = deadline - exitSteps.reduce((s, step) => s + step.delayMs, 0);
 
     for (const { left: lf, right: rf, delayMs } of entrySteps) {
@@ -1265,49 +1283,64 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       if (delayMs > 0 && !stopped) await new Promise<void>(r => setTimeout(r, delayMs));
     }
 
-    outer: do {
-      for (const dmxFrame of dmxFrames) {
-        if (stopped || Date.now() >= adjDeadline) break outer;
-        const pixels = base64ToFrame(dmxFrame.pixels, dmxWidth * dmxHeight);
-        if (dual) {
-          const leftBuf = new Uint8Array(FRAME_SIZE) as unknown as Frame;
-          const rightBuf = new Uint8Array(FRAME_SIZE) as unknown as Frame;
-          for (let col = 0; col < FRAME_COLS; col++) {
-            for (let row = 0; row < FRAME_ROWS; row++) {
-              leftBuf[col * FRAME_ROWS + row] = pixels[col * FRAME_ROWS + row] ?? 0;
-              rightBuf[col * FRAME_ROWS + row] = pixels[(col + FRAME_COLS) * FRAME_ROWS + row] ?? 0;
-            }
-          }
-          if (composite === 'replace') {
-            const [cl, cr] = composeFrames([leftBuf, rightBuf], activeOverlay);
-            if (dmxMode === 'bw') {
-              try { if (leftDev) await transport.frameBw(packBW(cl), leftDev); } catch { /* non-fatal */ }
-              try { if (rightDev) await transport.frameBw(packBW(cr), rightDev); } catch { /* non-fatal */ }
-            } else {
-              try { if (leftDev) await transport.frameGray(cl, leftDev); } catch { /* non-fatal */ }
-              try { if (rightDev) await transport.frameGray(cr, rightDev); } catch { /* non-fatal */ }
-            }
-          } else {
-            setActiveOverlay({ left: leftBuf, right: rightBuf, ...(intent.overlayMode !== undefined ? { mode: intent.overlayMode } : {}) });
-          }
-        } else {
-          const framePx = pixels as unknown as Frame;
-          if (composite === 'replace') {
-            const [cl2, cr2] = composeFrames([framePx, framePx], activeOverlay);
-            if (dmxMode === 'bw') {
-              try { if (leftDev) await transport.frameBw(packBW(cl2), leftDev); } catch { /* non-fatal */ }
-              try { if (rightDev) await transport.frameBw(packBW(cr2), rightDev); } catch { /* non-fatal */ }
-            } else {
-              try { if (leftDev) await transport.frameGray(cl2, leftDev); } catch { /* non-fatal */ }
-              try { if (rightDev) await transport.frameGray(cr2, rightDev); } catch { /* non-fatal */ }
-            }
-          } else {
-            setActiveOverlay({ left: framePx, right: framePx, ...(intent.overlayMode !== undefined ? { mode: intent.overlayMode } : {}) });
+    const renderFrame = async (dmxFrame: { pixels: string; delayMs: number }) => {
+      const pixels = base64ToFrame(dmxFrame.pixels, dmxWidth * dmxHeight);
+      if (dual) {
+        const leftBuf = new Uint8Array(FRAME_SIZE) as unknown as Frame;
+        const rightBuf = new Uint8Array(FRAME_SIZE) as unknown as Frame;
+        for (let col = 0; col < FRAME_COLS; col++) {
+          for (let row = 0; row < FRAME_ROWS; row++) {
+            leftBuf[col * FRAME_ROWS + row] = pixels[col * FRAME_ROWS + row] ?? 0;
+            rightBuf[col * FRAME_ROWS + row] = pixels[(col + FRAME_COLS) * FRAME_ROWS + row] ?? 0;
           }
         }
-        if (dmxFrame.delayMs > 0 && !stopped) await new Promise<void>(r => setTimeout(r, dmxFrame.delayMs));
+        if (composite === 'replace') {
+          const [cl, cr] = composeFrames([leftBuf, rightBuf], activeOverlay);
+          if (dmxMode === 'bw') {
+            try { if (leftDev) await transport.frameBw(packBW(cl), leftDev); } catch { /* non-fatal */ }
+            try { if (rightDev) await transport.frameBw(packBW(cr), rightDev); } catch { /* non-fatal */ }
+          } else {
+            try { if (leftDev) await transport.frameGray(cl, leftDev); } catch { /* non-fatal */ }
+            try { if (rightDev) await transport.frameGray(cr, rightDev); } catch { /* non-fatal */ }
+          }
+        } else {
+          setActiveOverlay({ left: leftBuf, right: rightBuf, ...(intent.overlayMode !== undefined ? { mode: intent.overlayMode } : {}) });
+        }
+      } else {
+        const framePx = pixels as unknown as Frame;
+        const leftPx: Frame | null = intent.side === 'right' ? (composite === 'overlay' ? null : createFrame()) : framePx;
+        const rightPx: Frame | null = intent.mirror ? flipFrameH(framePx) : (intent.side === 'left' ? (composite === 'overlay' ? null : createFrame()) : framePx);
+        if (composite === 'replace') {
+          const [cl2, cr2] = composeFrames([leftPx ?? createFrame(), rightPx ?? createFrame()], activeOverlay);
+          if (dmxMode === 'bw') {
+            try { if (leftDev) await transport.frameBw(packBW(cl2), leftDev); } catch { /* non-fatal */ }
+            try { if (rightDev) await transport.frameBw(packBW(cr2), rightDev); } catch { /* non-fatal */ }
+          } else {
+            try { if (leftDev) await transport.frameGray(cl2, leftDev); } catch { /* non-fatal */ }
+            try { if (rightDev) await transport.frameGray(cr2, rightDev); } catch { /* non-fatal */ }
+          }
+        } else {
+          setActiveOverlay({ left: leftPx, right: rightPx, ...(intent.overlayMode !== undefined ? { mode: intent.overlayMode } : {}) });
+        }
       }
-    } while (!stopped && Date.now() < adjDeadline);
+      if (dmxFrame.delayMs > 0 && !stopped) await new Promise<void>(r => setTimeout(r, dmxFrame.delayMs));
+    };
+
+    if (intent.loopCount !== undefined) {
+      for (let i = 0; i < intent.loopCount && !stopped; i++) {
+        for (const dmxFrame of dmxFrames) {
+          if (stopped) break;
+          await renderFrame(dmxFrame);
+        }
+      }
+    } else {
+      outer: do {
+        for (const dmxFrame of dmxFrames) {
+          if (stopped || Date.now() >= adjDeadline) break outer;
+          await renderFrame(dmxFrame);
+        }
+      } while (!stopped && Date.now() < adjDeadline);
+    }
 
     for (const { left: lf, right: rf, delayMs } of exitSteps) {
       if (stopped) break;
@@ -1384,6 +1417,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       intent.durationMs = route.durationMs;
       intent.expiresAt = Date.now() + route.durationMs;
     }
+    if (route.mirror !== undefined) intent.mirror = route.mirror;
+    if (route.side !== undefined) intent.side = route.side;
     dispatcher.push(intent);
   }
 
@@ -1867,6 +1902,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 assetPath?: string;
                 composite?: 'replace' | 'overlay';
                 durationMsOverride?: number;
+                loopCount?: number;
+                mirror?: boolean;
+                side?: 'left' | 'right';
               };
               const n = { appName: m.appName ?? 'test', summary: m.summary ?? 'test notification', body: m.body ?? '' };
               const base = notificationIntent(n);
@@ -1890,6 +1928,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                   intent.durationMs = durMs;
                   intent.expiresAt = Date.now() + durMs;
                 }
+                if (m.loopCount !== undefined) intent.loopCount = m.loopCount;
+                if (m.mirror !== undefined) intent.mirror = m.mirror;
+                if (m.side !== undefined) intent.side = m.side;
                 dispatcher.push(intent);
               }
               socket.write(JSON.stringify({ ok: true, action: effectiveAction }) + '\n');

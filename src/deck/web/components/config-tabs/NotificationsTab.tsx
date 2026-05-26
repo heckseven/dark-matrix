@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { AssetMeta } from '../../../../lib/asset-meta.js';
 import { createScrollAnimation } from '../../../../animations/scroll.js';
 import type { ScrollFrame, ScrollSize } from '../../../../animations/scroll.js';
 import { MatrixPreview } from '../MatrixPreview.js';
@@ -23,6 +24,8 @@ export type NotificationRule = {
   transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash';
   duration_ms_override?: number;
   loop_count?: number;
+  mirror?: boolean;
+  side?: 'left' | 'right';
   dmx_path?: string;
 };
 
@@ -72,6 +75,8 @@ function buildRule(base: NotificationRule, changes: RulePatch): NotificationRule
     const assetVal = merged.asset_path ?? merged.dmx_path;
     if (assetVal !== undefined && assetVal !== '') result.asset_path = assetVal;
     if (merged.loop_count !== undefined && merged.loop_count >= 1) result.loop_count = merged.loop_count;
+    if (merged.mirror === true) result.mirror = true;
+    if (!merged.mirror && merged.side !== undefined) result.side = merged.side;
   }
 
   if (anim === 'scroll') {
@@ -213,7 +218,7 @@ function ScrollPrev({ text = 'test notification', size = 'small', dual = false }
 function RulePrev({ rule, dual }: { rule: NotificationRule; dual: boolean }) {
   const w = dual ? 91 : 43;
   if (rule.animation === 'scroll') return <ScrollPrev {...(rule.scroll_text ? { text: rule.scroll_text } : {})} {...(rule.scroll_size ? { size: rule.scroll_size } : {})} dual={dual} />;
-  if (rule.animation === 'dmx') return <DmxPreview filename={rule.asset_path} dual={dual} />;
+  if (rule.animation === 'dmx') return <DmxPreview filename={rule.asset_path} dual={dual} {...(rule.mirror ? { mirror: true } : {})} {...(rule.side ? { side: rule.side } : {})} />;
   return (
     <div aria-hidden="true" className="flex items-center justify-center bg-black shrink-0" style={{ width: w, height: 168 }}>
       <span className="font-mono text-foreground/15" style={{ fontSize: 8 }}>none</span>
@@ -342,6 +347,45 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerOpenRef = useRef(false);
   useEffect(() => { pickerOpenRef.current = pickerOpen; }, [pickerOpen]);
+  const [assetWidth, setAssetWidth] = useState<9 | 18 | null>(null);
+  useEffect(() => {
+    const path = rule.asset_path;
+    if (!path) { setAssetWidth(null); return; }
+    fetch(`/api/assets/${encodeURIComponent(path)}`)
+      .then(r => r.ok ? r.json() as Promise<{ ok: boolean; asset: AssetMeta }> : Promise.reject())
+      .then(d => setAssetWidth(d.asset.width))
+      .catch(() => setAssetWidth(null));
+  }, [rule.asset_path]);
+
+  const [testState, setTestState] = useState<'idle' | 'firing' | 'ok' | 'err'>('idle');
+  async function fireTest() {
+    if (rule.animation === 'none') return;
+    setTestState('firing');
+    try {
+      const body: Record<string, unknown> = {};
+      if (rule.animation === 'dmx') {
+        body['style'] = 'dmx';
+        if (rule.asset_path) body['assetPath'] = rule.asset_path;
+        if (rule.composite) body['composite'] = rule.composite;
+        if (rule.overlay_mode) body['overlayMode'] = rule.overlay_mode;
+        if (rule.transition) body['transition'] = rule.transition;
+        if (rule.loop_count !== undefined) body['loopCount'] = rule.loop_count;
+        if (rule.mirror !== undefined) body['mirror'] = rule.mirror;
+        if (rule.side !== undefined) body['side'] = rule.side;
+        if (rule.duration_ms_override !== undefined) body['durationMsOverride'] = rule.duration_ms_override;
+      } else {
+        body['style'] = 'text';
+        body['summary'] = rule.scroll_text || 'test notification';
+        if (rule.composite) body['composite'] = rule.composite;
+        if (rule.duration_ms_override !== undefined) body['durationMsOverride'] = rule.duration_ms_override;
+      }
+      const r = await fetch('/api/test-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      setTestState(r.ok ? 'ok' : 'err');
+    } catch {
+      setTestState('err');
+    }
+    setTimeout(() => setTestState('idle'), 1500);
+  }
   const assetDisplay = rule.asset_path ?? rule.dmx_path ?? '';
   const durationDisplay = rule.duration_ms_override !== undefined ? String(rule.duration_ms_override) : '';
   const vSrc = virtualSource(rule);
@@ -391,6 +435,20 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
         <Button variant="ghost" size="sm" aria-label={`Move rule ${idx + 1} up`} disabled={idx === 0} onClick={onMoveUp}>↑</Button>
         <Button variant="ghost" size="sm" aria-label={`Move rule ${idx + 1} down`} disabled={idx === total - 1} onClick={onMoveDown}>↓</Button>
       </div>
+
+      {/* test button */}
+      {rule.animation !== 'none' && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className={`transition-opacity font-mono tabular-nums shrink-0 ${testState === 'idle' ? 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100' : 'opacity-100'}`}
+          aria-label={`Test rule ${idx + 1}`}
+          disabled={testState === 'firing'}
+          onClick={() => void fireTest()}
+        >
+          {testState === 'firing' ? '…' : testState === 'ok' ? 'ok' : testState === 'err' ? 'err' : 'test'}
+        </Button>
+      )}
 
       {/* edit popover */}
       <Popover open={editOpen} onOpenChange={onEditOpenChange}>
@@ -613,6 +671,39 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
                     pick
                   </Button>
                 </div>
+              </FormRow>
+            )}
+
+            {/* mirror — dmx only */}
+            {rule.animation === 'dmx' && (
+              <FormRow label="mirror">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={rule.mirror === true}
+                    onChange={e => onUpdate(buildRule(rule, { mirror: e.target.checked || undefined, ...(e.target.checked ? { side: undefined } : {}) }))}
+                    className="w-3.5 h-3.5 accent-foreground"
+                    aria-label="Mirror animation on second panel"
+                  />
+                  <span className="font-mono text-xs text-muted-foreground">mirror on second panel</span>
+                </label>
+              </FormRow>
+            )}
+
+            {/* side — dmx, single-panel, no mirror */}
+            {rule.animation === 'dmx' && assetWidth === 9 && !rule.mirror && (
+              <FormRow label="side">
+                <Select
+                  fluid
+                  aria-label="Panel side"
+                  value={rule.side ?? 'both'}
+                  options={[
+                    { value: 'both', label: 'both' },
+                    { value: 'left', label: 'left' },
+                    { value: 'right', label: 'right' },
+                  ]}
+                  onValueChange={v => onUpdate(buildRule(rule, { side: (v === 'left' || v === 'right') ? v : undefined }))}
+                />
               </FormRow>
             )}
 

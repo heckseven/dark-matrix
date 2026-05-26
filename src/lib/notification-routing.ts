@@ -37,7 +37,7 @@ export function routeNotification(
   intent: DisplayIntent,
   rules: NotificationRule[],
   noMatchAction: 'scroll' | 'none' = 'none',
-): { action: 'scroll' | 'dmx' | 'none'; assetPath?: string; composite: 'replace' | 'overlay'; overlayMode?: 'or' | 'replace' | 'xor' | 'halo'; transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash'; durationMs?: number; loopCount?: number } {
+): { action: 'scroll' | 'dmx' | 'none'; assetPath?: string; composite: 'replace' | 'overlay'; overlayMode?: 'or' | 'replace' | 'xor' | 'halo'; transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash'; durationMs?: number; loopCount?: number; mirror?: boolean; side?: 'left' | 'right' } {
   // TODO: populate urgency from dbus hints in dbus-notifications.ts (parseDbusMonitorLine
   // skips the hints array). Until then urgency-filtered rules never fire.
   const urgency = undefined as 'low' | 'normal' | 'critical' | undefined;
@@ -63,7 +63,7 @@ export function routeNotification(
     if (rule.content_glob !== undefined && !matchesGlob(rule.content_glob, intent.content)) continue;
 
     // All applicable checks passed — first match wins
-    const result: { action: 'scroll' | 'dmx' | 'none'; assetPath?: string; composite: 'replace' | 'overlay'; overlayMode?: 'or' | 'replace' | 'xor' | 'halo'; transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash'; durationMs?: number; loopCount?: number } = {
+    const result: { action: 'scroll' | 'dmx' | 'none'; assetPath?: string; composite: 'replace' | 'overlay'; overlayMode?: 'or' | 'replace' | 'xor' | 'halo'; transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash'; durationMs?: number; loopCount?: number; mirror?: boolean; side?: 'left' | 'right' } = {
       action: rule.animation,
       composite: rule.composite ?? 'replace',
     };
@@ -72,6 +72,8 @@ export function routeNotification(
     if (rule.transition !== undefined) result.transition = rule.transition;
     if (rule.loop_count !== undefined) result.loopCount = rule.loop_count;
     else if (rule.duration_ms_override !== undefined) result.durationMs = rule.duration_ms_override;
+    if (rule.mirror !== undefined) result.mirror = rule.mirror;
+    if (rule.side !== undefined) result.side = rule.side;
     return result;
   }
 
