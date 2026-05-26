@@ -2,6 +2,7 @@ node_modules/
 dist/
 coverage/
 dark-matrix-privacy
+TODO.md
 *.js.map
 .pnpm-debug.log
 .claude/worktrees/
