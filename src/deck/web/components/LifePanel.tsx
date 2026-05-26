@@ -105,7 +105,11 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
       try {
         const msg = JSON.parse(e.data) as { type: string; presets?: BiomePreset[] };
         if (msg.type === 'biome-presets') {
-          deckStore.getState().loadBiomes(msg.presets ?? []);
+          const presets = msg.presets ?? [];
+          deckStore.getState().loadBiomes(presets);
+          if (!deckStore.getState().selectedBiomeName && presets.length > 0) {
+            deckStore.getState().selectBiome(presets[0]!.name);
+          }
         }
       } catch { /* ignore */ }
     });
@@ -330,6 +334,7 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
         accept=".json,.dmx.json"
         className="sr-only"
         tabIndex={-1}
+        aria-label="Import .dmx.json file"
         onChange={handleFileChange}
       />
       <LibraryPickerModal

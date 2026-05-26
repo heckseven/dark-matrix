@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 import type { Meta, StoryObj } from '@storybook/tanstack-react';
 import { fn } from 'storybook/test';
-import { LifeCanvas } from './LifeCanvas.js';
-import { deckStore } from '../store.js';
-import type { BiomePreset } from '../types/life-types.js';
+import { LifeCanvas } from '../LifeCanvas.js';
+import { deckStore } from '../../store.js';
+import type { BiomePreset } from '../../types/life-types.js';
 
 // ── fixtures ─────────────────────────────────────────────────────────────────
 
@@ -80,7 +80,7 @@ LifeCanvasStory.displayName = 'LifeCanvas';
 // ── meta ─────────────────────────────────────────────────────────────────────
 
 const meta = {
-  title: 'Life/LifeCanvas',
+  title: 'App/Life/LifeCanvas',
   component: LifeCanvasStory,
   tags: ['autodocs'],
   parameters: {

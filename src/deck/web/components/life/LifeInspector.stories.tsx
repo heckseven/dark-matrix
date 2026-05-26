@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/tanstack-react';
 import { fn } from 'storybook/test';
-import { LifeInspector } from './LifeInspector.js';
-import type { BiomePreset } from '../types/life-types.js';
+import { LifeInspector } from '../LifeInspector.js';
+import type { BiomePreset } from '../../types/life-types.js';
 
 // ── fixtures ─────────────────────────────────────────────────────────────────
 
@@ -26,7 +26,7 @@ const BIOME_DAYNIGHT: BiomePreset = {
 // ── meta ─────────────────────────────────────────────────────────────────────
 
 const meta = {
-  title: 'Life/Inspector',
+  title: 'App/Life/Inspector',
   component: LifeInspector,
   tags: ['autodocs'],
   parameters: {

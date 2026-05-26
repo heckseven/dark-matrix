@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/tanstack-react';
 import { useEffect } from 'react';
-import { ConfigPanel } from './ConfigPanel.js';
-import { deckStore } from '../store.js';
-import type { Config } from '../types/config-types.js';
+import { ConfigPanel } from '../ConfigPanel.js';
+import { deckStore } from '../../store.js';
+import type { Config } from '../../types/config-types.js';
 
 // ── fixture ──────────────────────────────────────────────────────────────────
 
@@ -41,7 +41,7 @@ const MOCK_CONFIG: Config = {
 // ── meta ─────────────────────────────────────────────────────────────────────
 
 const meta = {
-  title: 'Screens/ConfigPanel',
+  title: 'App/Config/ConfigPanel',
   component: ConfigPanel,
   parameters: {
     layout: 'fullscreen',
