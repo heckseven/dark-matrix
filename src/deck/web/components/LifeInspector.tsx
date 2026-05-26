@@ -61,7 +61,7 @@ export function LifeInspector({ biome, onChange, onRandomize, onOpenLibrary, onI
   const restoreAt      = biome.restoreAt      ?? 0.30;
 
   return (
-    <div className="flex flex-col gap-6 p-4 font-mono text-xs overflow-y-auto h-full">
+    <div className="flex flex-col gap-6 p-4 font-mono text-xs">
 
       {/* Algorithm */}
       <section>

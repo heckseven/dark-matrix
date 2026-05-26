@@ -57,7 +57,9 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
 
   // +8: LifeCanvas has p-2 (8px), so canvas/brackets are 8px inside the wrapper.
   // Re-measure when selectedBiomeName changes (canvas mounts/unmounts) or dualModule changes (width changes).
-  const biomeTopPad = useAlignedTopPad(mainRef, previewRef, topPad, 8, [selectedBiomeName, dualModule]);
+  const biomeTopPad    = useAlignedTopPad(mainRef, previewRef, topPad,  8, [selectedBiomeName, dualModule]);
+  // -2: aligns the inspector's first section header with the canvas bracket top.
+  const inspectorTopPad = useAlignedTopPad(mainRef, previewRef, topPad, -2, [selectedBiomeName, dualModule]);
 
   // ── WS helpers ────────────────────────────────────────────────────────
 
@@ -250,7 +252,7 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
   return (
     <>
       <ThreePanelLayout
-        columns="minmax(0,220px) 1fr minmax(0,220px)"
+        gap="1rem"
         leftLabel="Biome list"
         leftStyle={{ paddingTop: topPad }}
         rightLabel="Life inspector"
@@ -305,19 +307,21 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
           )
         }
         right={
-          selectedBiome ? (
-            <LifeInspector
-              biome={selectedBiome}
-              onChange={handleBiomeChange}
-              onRandomize={handleRandomize}
-              onOpenLibrary={() => { setImportEntries(undefined); setDesignPickerOpen(true); }}
-              onImportFile={handleImportFileClick}
-            />
-          ) : (
-            <div className="p-4">
-              <p className="font-mono text-xs text-muted-foreground">no biome selected</p>
-            </div>
-          )
+          <div className="flex-1 overflow-y-auto flex flex-col" style={{ paddingTop: inspectorTopPad }}>
+            {selectedBiome ? (
+              <LifeInspector
+                biome={selectedBiome}
+                onChange={handleBiomeChange}
+                onRandomize={handleRandomize}
+                onOpenLibrary={() => { setImportEntries(undefined); setDesignPickerOpen(true); }}
+                onImportFile={handleImportFileClick}
+              />
+            ) : (
+              <div className="p-4">
+                <p className="font-mono text-xs text-muted-foreground">no biome selected</p>
+              </div>
+            )}
+          </div>
         }
       />
       <input
