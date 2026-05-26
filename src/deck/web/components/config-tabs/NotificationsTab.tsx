@@ -864,9 +864,11 @@ export function NotificationsTab({ value, onChange, dualModule = false }: Notifi
           ))}
         </div>
 
-        <Button variant="ghost" className="mt-2 self-start" aria-label="Add rule" onClick={addRule}>
-          + add rule
-        </Button>
+        <div className="h-10 flex items-center gap-1 px-1">
+          <div aria-hidden="true" className="flex-1 h-px bg-border" />
+          <Button variant="ghost" aria-label="Add rule" tooltip="Add rule" onClick={addRule}>+</Button>
+          <div aria-hidden="true" className="flex-1 h-px bg-border" />
+        </div>
       </div>
 
       <div className="font-mono text-xs text-muted-foreground flex flex-col gap-1 border-t border-foreground/10 mt-4 pt-4">

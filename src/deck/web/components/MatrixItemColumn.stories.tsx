@@ -51,7 +51,7 @@ const meta = {
     topPadding:    { control: 'number', description: 'Pixel offset to align first item bracket with center preview bracket.' },
     bottomPadding: { control: 'number', description: 'Pixel padding at the bottom to clear a toolbar.' },
     animated:      { control: 'boolean', description: 'When true, ticks every 100 ms and calls onTick before re-rendering.' },
-    gap:           { control: 'radio', options: ['sm', '2xl'], description: 'Gap between items.' },
+    gap:           { control: 'radio', options: ['sm'], description: 'Gap between items.' },
     semantic:      { control: 'boolean', description: 'Render list as <ul>/<li> (true) or <div>s (false).' },
     items:         { control: 'object' },
     activateLabel: { control: 'text' },

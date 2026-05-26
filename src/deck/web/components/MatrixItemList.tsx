@@ -16,7 +16,7 @@ function DropLine() {
   return <div aria-hidden="true" className="-my-[19px] h-0.5 bg-green-500 rounded-full pointer-events-none" />;
 }
 
-function GapZone({ afterIdx, showDrop, onDragOver, count, onInsert, onMove, insertLabel, overlap }: {
+function GapZone({ afterIdx, showDrop, onDragOver, count, onInsert, onMove, insertLabel }: {
   afterIdx: number;
   showDrop: boolean;
   onDragOver: (insertAt: number | null) => void;
@@ -24,12 +24,11 @@ function GapZone({ afterIdx, showDrop, onDragOver, count, onInsert, onMove, inse
   onInsert: () => void;
   onMove: (from: number, to: number) => void;
   insertLabel?: (afterIdx: number) => string;
-  overlap: boolean;
 }) {
   const label = insertLabel?.(afterIdx) ?? `Insert after ${afterIdx + 1}`;
   return (
     <div
-      className={`${overlap ? '-my-10' : ''} h-10 flex items-center gap-1 px-1 transition-opacity ${showDrop ? '' : 'opacity-0 hover:opacity-100 focus-within:opacity-100'}`}
+      className={`h-10 flex items-center gap-1 px-1 transition-opacity ${showDrop ? '' : 'opacity-0 hover:opacity-100 focus-within:opacity-100'}`}
       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver(afterIdx + 1); }}
       onDrop={e => {
         e.preventDefault();
@@ -76,7 +75,7 @@ export type MatrixItemListProps<T> = {
   emptyText?: string;
   'aria-label'?: string;
   semantic?: boolean;
-  gap?: 'sm' | '2xl';
+  gap?: 'sm';
   topPadding?: number;
   bottomPadding?: number;
   /** Push items toward the panel edge nearest the center preview. Use 'end' for left pane, 'start' for right pane. */
@@ -145,8 +144,7 @@ export function MatrixItemList<T>({
     };
   }, []);
 
-  const gapClass = gap === '2xl' ? 'gap-10' : 'gap-2';
-  const overlap = gap === '2xl';
+  const gapClass = 'gap-2';
   const sideAlignClass = sideAlign === 'end' ? 'items-end' : sideAlign === 'start' ? 'items-start' : undefined;
   const As = semantic ? 'ul' : 'div';
   const Item = semantic ? 'li' : 'div';
@@ -194,7 +192,6 @@ export function MatrixItemList<T>({
                   onInsert={() => onInsert(idx)}
                   onMove={onMove}
                   {...(insertLabel !== undefined ? { insertLabel } : {})}
-                  overlap={overlap}
                 />
               </Item>
             )}
@@ -203,7 +200,9 @@ export function MatrixItemList<T>({
         {dropTarget === items.length && <DropLine />}
       </As>
       {onAdd && (
-        <Button variant="ghost" aria-label={addLabel} tooltip={addLabel} onClick={onAdd}>+</Button>
+        <div className="h-10 flex items-center justify-center self-stretch px-1">
+          <Button variant="ghost" aria-label={addLabel} tooltip={addLabel} onClick={onAdd}>+</Button>
+        </div>
       )}
     </div>
   );

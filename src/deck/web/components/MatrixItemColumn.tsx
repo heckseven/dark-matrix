@@ -57,7 +57,7 @@ export type MatrixItemColumnProps<T> = {
   // ── MatrixItemList passthrough ────────────────────────────────────────────
   'aria-label'?: string;
   semantic?:     boolean;
-  gap?:          'sm' | '2xl';
+  gap?:          'sm';
 };
 
 export function MatrixItemColumn<T>({

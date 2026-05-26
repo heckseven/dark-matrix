@@ -69,7 +69,7 @@ const meta: Meta<any> = {
     emptyText:     { control: 'text',    description: 'Placeholder shown when items is empty.' },
     'aria-label':  { control: 'text',    description: 'Accessible label for the list container.' },
     semantic:      { control: 'boolean', description: 'true = ul/li (default); false = div/div with role="list"/"listitem".' },
-    gap:           { control: 'radio',   options: ['sm', '2xl'], description: 'sm = gap-2 for sidebars; 2xl = gap-10 for frame-strip style.' },
+    gap:           { control: 'radio',   options: ['sm'], description: 'Gap between items.' },
     topPadding:    { control: 'number',  description: 'Pixel padding above the scroll container.' },
     bottomPadding: { control: 'number',  description: 'Pixel padding below the scroll container.' },
     sideAlign:     { control: 'radio',   options: ['start', 'end'], description: 'Push items toward the panel edge nearest the center preview. Use "end" for left pane, "start" for right pane.' },
@@ -82,7 +82,7 @@ const meta: Meta<any> = {
           'Generic scrollable list of matrix items with drag-to-reorder, gap-zone insert, and an add button.',
           '',
           '**renderItem:** render prop receives `(item, idx, { dragIdx, onDragOver, onDrop })` — pass drag props to `MatrixItem` to enable reordering.',
-          '**gap:** `sm` (gap-2) for sidebar lists; `2xl` (gap-10) for frame-strip style.',
+          '**gap:** `sm` (gap-2, default).',
           '**semantic:** `true` renders `ul/li` (default); `false` renders `div/div`.',
         ].join('\n'),
       },
@@ -319,56 +319,3 @@ export const SideAlignStart: Story = {
   },
 };
 
-/**
- * gap=2xl — large spacing between items (used by FrameStrip).
- * GapZone insert buttons overlap the gap; hover between items to reveal them.
- */
-export const LargeGap: Story = {
-  render: () => {
-    const [items, setItems] = useState<Item[]>(INITIAL.slice(0, 3));
-    const [selected, setSelected] = useState<string | null>(INITIAL[0]!.id);
-    return (
-      <Shell height={700}>
-        <MatrixItemList
-          items={items}
-          getKey={item => item.id}
-          renderItem={(item, idx, dragProps) => (
-            <MatrixItem
-              name={item.label}
-              aria-label={item.label}
-              width={9}
-              pixels={item.pixels}
-              isSelected={item.id === selected}
-              onSelect={() => setSelected(item.id)}
-              dragIdx={dragProps.dragIdx}
-              onDragOver={dragProps.onDragOver}
-              onDrop={dragProps.onDrop}
-              controlsTop={
-                <>
-                  <Button variant="ghost" className="w-8" aria-label="Move up" tooltip="Move up" tooltipSide="right"
-                    disabled={idx === 0}
-                    onClick={e => { e.stopPropagation(); setItems(m => moveArr(m, idx, idx - 1)); }}
-                  >↑</Button>
-                  <Button variant="ghost" className="w-8" aria-label="Move down" tooltip="Move down" tooltipSide="right"
-                    disabled={idx === items.length - 1}
-                    onClick={e => { e.stopPropagation(); setItems(m => moveArr(m, idx, idx + 1)); }}
-                  >↓</Button>
-                </>
-              }
-            />
-          )}
-          onMove={(from, to) => setItems(m => moveArr(m, from, to))}
-          onInsert={afterIdx => setItems(m => {
-            const next = [...m];
-            next.splice(afterIdx + 1, 0, freshItem(m.length));
-            return next;
-          })}
-          onAdd={() => setItems(m => [...m, freshItem(m.length)])}
-          addLabel="Add item"
-          gap="2xl"
-          aria-label="Large gap list"
-        />
-      </Shell>
-    );
-  },
-};
