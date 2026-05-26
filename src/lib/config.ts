@@ -137,12 +137,11 @@ export type NotificationRule = z.infer<typeof NotificationRuleSchema>;
 export const DEFAULT_CONFIG: Config = {
   version: 1,
   modules: {
-    left: '/dev/serial/by-path/pci-0000:c5:00.3-usb-0:4.2:1.0',
-    right: '/dev/serial/by-path/pci-0000:c5:00.3-usb-0:3.3:1.0',
+    left: '/dev/serial/by-path/unconfigured-left',
+    right: '/dev/serial/by-path/unconfigured-right',
   },
   brightness: {
-    mode: 'sensor',
-    sensor_path: '/sys/bus/iio/devices/iio:device0/in_illuminance_raw',
+    mode: 'manual',
     multiplier: 0.071,
     offset: 7,
     min: 7,
@@ -175,6 +174,13 @@ export function resolveConfigPath(p?: string): string {
     p ??
     process.env['DARK_MATRIX_CONFIG_PATH'] ??
     path.join(os.homedir(), '.config', 'dark-matrix', 'config.json')
+  );
+}
+
+export function resolveSocketPath(): string {
+  return (
+    process.env['DARK_MATRIX_SOCKET'] ??
+    `${process.env['XDG_RUNTIME_DIR'] ?? `/run/user/${process.getuid!()}`}/dark-matrix.sock`
   );
 }
 

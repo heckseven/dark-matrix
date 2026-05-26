@@ -1,14 +1,11 @@
 import net from 'node:net';
-import process from 'node:process';
+import { resolveSocketPath } from './config.js';
 
-export function daemonSocketPath(): string {
-  return process.env['DARK_MATRIX_SOCKET']
-    ?? `/run/user/${process.getuid!()}/dark-matrix.sock`;
-}
+export { resolveSocketPath as daemonSocketPath };
 
 export function sendToDaemon(cmd: Record<string, unknown>): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
-    const sock = net.createConnection(daemonSocketPath());
+    const sock = net.createConnection(resolveSocketPath());
     let buf = '';
     sock.on('connect', () => sock.write(JSON.stringify(cmd) + '\n'));
     sock.on('data', (chunk) => {
@@ -30,7 +27,7 @@ export class PersistentDaemonClient {
   private queue: string[] = [];
   private connecting = false;
 
-  constructor(private readonly socketPath = daemonSocketPath()) {}
+  constructor(private readonly socketPath = resolveSocketPath()) {}
 
   send(cmd: Record<string, unknown>): void {
     // Latest-wins: discard any pending unsent frame so backlog never builds

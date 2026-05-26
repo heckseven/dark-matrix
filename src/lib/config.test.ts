@@ -34,7 +34,7 @@ describe('loadConfig', () => {
     await write(DEFAULT_CONFIG);
     const cfg = await loadConfig();
     expect(cfg.modules.left).toBe(DEFAULT_CONFIG.modules.left);
-    expect(cfg.brightness.mode).toBe('sensor');
+    expect(cfg.brightness.mode).toBe('manual');
     expect(cfg.startup.animation).toBe('gol-random');
   });
 

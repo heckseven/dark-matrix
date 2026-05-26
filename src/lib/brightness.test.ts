@@ -56,7 +56,7 @@ describe('startBrightnessLoop', () => {
   it('sensor mode: calls onBrightness on each poll tick', async () => {
     mockReadFile.mockResolvedValue('1000\n' as never);
     const onBrightness = vi.fn();
-    const c = cfg({ mode: 'sensor', multiplier: 0.1, offset: 0, min: 0, max: 255 });
+    const c = cfg({ mode: 'sensor', sensor_path: '/sys/bus/iio/devices/iio:device0/in_illuminance_raw', multiplier: 0.1, offset: 0, min: 0, max: 255 });
     const dispose = startBrightnessLoop(c, onBrightness);
 
     await vi.advanceTimersByTimeAsync(c.daemon.poll_interval_ms);
@@ -71,7 +71,7 @@ describe('startBrightnessLoop', () => {
   it('disposer stops polling', async () => {
     mockReadFile.mockResolvedValue('100\n' as never);
     const onBrightness = vi.fn();
-    const c = cfg({ mode: 'sensor' });
+    const c = cfg({ mode: 'sensor', sensor_path: '/sys/bus/iio/devices/iio:device0/in_illuminance_raw' });
     const dispose = startBrightnessLoop(c, onBrightness);
     dispose();
 

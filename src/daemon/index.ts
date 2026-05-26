@@ -7,7 +7,7 @@ import path from 'node:path';
 import os from 'node:os';
 import process from 'node:process';
 import { spawn } from 'node:child_process';
-import { loadConfig, bootstrapConfig, watchConfig } from '../lib/config.js';
+import { loadConfig, bootstrapConfig, watchConfig, resolveSocketPath } from '../lib/config.js';
 import type { Config } from '../lib/config.js';
 import { startBrightnessLoop } from '../lib/brightness.js';
 import { watchSwitches, readSwitches } from '../lib/ec-switches.js';
@@ -61,10 +61,7 @@ const DAEMON_VERSION: string = (() => {
 let activeOverlay: NotifyOverlay | null = null;
 export function setActiveOverlay(o: NotifyOverlay | null): void { activeOverlay = o; }
 
-export function socketPath(): string {
-  return process.env['DARK_MATRIX_SOCKET']
-    ?? `/run/user/${process.getuid!()}/dark-matrix.sock`;
-}
+export const socketPath = resolveSocketPath;
 
 // Parse a raw HTTP POST /hook request body from a buffer.
 // Returns the body string if found, null if not HTTP or incomplete.

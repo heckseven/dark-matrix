@@ -91,10 +91,10 @@ describe('BinaryTransport', () => {
 
   it('command calls spawn with correct args and no shell', async () => {
     mockedSpawn.mockReturnValue(makeMockProcess(0) as unknown as ReturnType<typeof spawn>);
-    const t = new BinaryTransport('/home/heckseven/scripts/inputmodule-control.sh');
+    const t = new BinaryTransport('/usr/local/bin/inputmodule-control');
     await t.command(VALID_PATH, 'led-matrix', ['--pattern', 'panic']);
     expect(mockedSpawn).toHaveBeenCalledWith(
-      '/home/heckseven/scripts/inputmodule-control.sh',
+      '/usr/local/bin/inputmodule-control',
       ['--serial-dev', VALID_PATH, 'led-matrix', '--pattern', 'panic'],
       expect.objectContaining({ shell: false }),
     );

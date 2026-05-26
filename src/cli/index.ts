@@ -283,7 +283,8 @@ function parseShowFlags(args: string[]): { imagePath: string; device: string | u
 
 async function cmdShow(args: string[]) {
   const { imagePath, device, mode, fit } = parseShowFlags(args);
-  const devicePath = device ?? LEFT_DEV;
+  const config = await loadConfig();
+  const devicePath = device ?? config.modules.left;
 
   const frame = await convertImage(imagePath, { mode, fit });
   const anim = staticAnim(frame);
@@ -307,8 +308,9 @@ async function cmdShowSplit(args: string[]) {
   const { mode, fit } = parseShowFlags([...flags, positional[0]!]);
   const [leftPath, rightPath] = positional as [string, string];
 
-  const leftDev = LEFT_DEV;
-  const rightDev = RIGHT_DEV;
+  const config = await loadConfig();
+  const leftDev = config.modules.left;
+  const rightDev = config.modules.right;
 
   const [leftFrame, rightFrame] = await Promise.all([
     convertImage(leftPath, { mode, fit }),
@@ -327,8 +329,6 @@ async function cmdShowSplit(args: string[]) {
 }
 
 const ASSET_DIR = path.resolve(__dirname, '../../images');
-const LEFT_DEV = '/dev/serial/by-path/pci-0000:c5:00.3-usb-0:4.2:1.0';
-const RIGHT_DEV = '/dev/serial/by-path/pci-0000:c5:00.3-usb-0:3.3:1.0';
 
 async function showOnDevice(imagePath: string, devicePath: string, mode: 'bw' | 'gray') {
   const frame = await convertImage(imagePath, { mode, fit: 'contain' });
@@ -340,25 +340,32 @@ async function showOnDevice(imagePath: string, devicePath: string, mode: 'bw' | 
 async function cmdDisplay(args: string[]) {
   const name = args[0];
   const mode = 'bw';
+  if (!name || !['yeah', 'runes', '0x07', 'panic'].includes(name)) {
+    process.stderr.write(`Unknown preset "${name ?? ''}". Options: yeah, runes, 0x07, panic\n`);
+    process.exit(1);
+  }
+  const config = await loadConfig();
+  const leftDev = config.modules.left;
+  const rightDev = config.modules.right;
 
   switch (name) {
     case 'yeah': {
       const [stopL, stopR] = await Promise.all([
-        showOnDevice(path.join(ASSET_DIR, 'heck.png'), LEFT_DEV, mode),
-        showOnDevice(path.join(ASSET_DIR, 'yeah.png'), RIGHT_DEV, mode),
+        showOnDevice(path.join(ASSET_DIR, 'heck.png'), leftDev, mode),
+        showOnDevice(path.join(ASSET_DIR, 'yeah.png'), rightDev, mode),
       ]);
       process.stdout.write('Displaying: heck | yeah (Ctrl+C to stop)\n');
       process.once('SIGINT', () => { stopL(); stopR(); process.exit(0); });
       break;
     }
     case 'runes': {
-      const stop = await showOnDevice(path.join(ASSET_DIR, 'runes.png'), LEFT_DEV, mode);
+      const stop = await showOnDevice(path.join(ASSET_DIR, 'runes.png'), leftDev, mode);
       process.stdout.write('Displaying: runes (Ctrl+C to stop)\n');
       process.once('SIGINT', () => { stop(); process.exit(0); });
       break;
     }
     case '0x07': {
-      const stop = await showOnDevice(path.join(ASSET_DIR, '0X07.png'), LEFT_DEV, mode);
+      const stop = await showOnDevice(path.join(ASSET_DIR, '0X07.png'), leftDev, mode);
       process.stdout.write('Displaying: 0x07 (Ctrl+C to stop)\n');
       process.once('SIGINT', () => { stop(); process.exit(0); });
       break;
@@ -368,15 +375,12 @@ async function cmdDisplay(args: string[]) {
       frame.fill(255);
       const anim = staticAnim(frame);
       const transport = new SerialTransport();
-      const stopL = runAnimation(anim, { transport, devicePath: LEFT_DEV, mode });
-      const stopR = runAnimation(staticAnim(frame), { transport, devicePath: RIGHT_DEV, mode });
+      const stopL = runAnimation(anim, { transport, devicePath: leftDev, mode });
+      const stopR = runAnimation(staticAnim(frame), { transport, devicePath: rightDev, mode });
       process.stdout.write('PANIC MODE (Ctrl+C to stop)\n');
       process.once('SIGINT', () => { stopL(); stopR(); process.exit(0); });
       break;
     }
-    default:
-      process.stderr.write(`Unknown preset "${name ?? ''}". Options: yeah, runes, 0x07, panic\n`);
-      process.exit(1);
   }
 }
 
@@ -395,7 +399,8 @@ async function cmdImage(args: string[]) {
   if (preview) {
     process.stdout.write(renderPreview(frame) + '\n');
   } else {
-    const devicePath = args[args.indexOf('--device') + 1] ?? LEFT_DEV;
+    const config = await loadConfig();
+    const devicePath = args[args.indexOf('--device') + 1] ?? config.modules.left;
     const anim = staticAnim(frame);
     const transport = new SerialTransport();
     const stop = runAnimation(anim, { transport, devicePath, mode });
