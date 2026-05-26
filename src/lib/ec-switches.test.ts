@@ -2,9 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'node:events';
 
 vi.mock('node:child_process');
+vi.mock('node:fs/promises');
 
 import { spawn } from 'node:child_process';
+import * as fsMock from 'node:fs/promises';
 const mockSpawn = vi.mocked(spawn);
+const mockAccess = vi.mocked(fsMock.access);
 
 import { readSwitches, watchSwitches } from './ec-switches.js';
 import type { SwitchEvent } from './ec-switches.js';
@@ -54,6 +57,8 @@ describe('watchSwitches', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     mockSpawn.mockReset();
+    // Sysfs and native helper paths do not exist in tests — source detection falls through to ectool.
+    mockAccess.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
   });
 
   afterEach(() => {
@@ -125,31 +130,40 @@ describe('watchSwitches', () => {
     expect(events).toHaveLength(0);
   });
 
-  it('continues polling after ectool failure and writes to stderr', async () => {
-    // First poll: spawn error. Second poll: success for state baseline.
+  it('stops polling on ectool failure and writes to stderr', async () => {
     mockSpawn
-      .mockImplementationOnce(() => makeProc('', 0, new Error('spawn ENOENT')) as ReturnType<typeof spawn>)
-      .mockImplementationOnce(() => makeProc('', 0, new Error('spawn ENOENT')) as ReturnType<typeof spawn>)
-      // Second poll succeeds.
-      .mockImplementationOnce(() => makeProc('GPIO CAM_SW = 0\n', 0) as ReturnType<typeof spawn>)
-      .mockImplementationOnce(() => makeProc('GPIO MIC_SW = 0\n', 0) as ReturnType<typeof spawn>);
+      .mockImplementationOnce(() => makeProc('', 0, new Error('spawn error')) as ReturnType<typeof spawn>)
+      .mockImplementationOnce(() => makeProc('', 0, new Error('spawn error')) as ReturnType<typeof spawn>);
 
     const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 
     const events: SwitchEvent[] = [];
     const dispose = watchSwitches((e) => events.push(e), { intervalMs: 100, ectoolPath: '/fake/ectool' });
 
-    // First tick — fails.
+    // First tick — fails, stops polling.
     await vi.advanceTimersByTimeAsync(100);
     await Promise.resolve();
 
     expect(stderrSpy).toHaveBeenCalled();
 
-    // Second tick — succeeds, no crash.
+    // Second tick — no additional spawn calls (stopped).
+    const callsBefore = mockSpawn.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(100);
+    await Promise.resolve();
+    expect(mockSpawn.mock.calls.length).toBe(callsBefore);
+
+    dispose();
+    stderrSpy.mockRestore();
+  });
+
+  it('calls onSource with none when no source is available', async () => {
+    const sources: string[] = [];
+    const dispose = watchSwitches(() => {}, { intervalMs: 100, onSource: (s) => sources.push(s) });
+
     await vi.advanceTimersByTimeAsync(100);
     await Promise.resolve();
 
     dispose();
-    stderrSpy.mockRestore();
+    expect(sources).toContain('none');
   });
 });

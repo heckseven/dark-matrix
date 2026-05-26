@@ -78,6 +78,9 @@ jobs:
             | tar -xz --strip-components=2 -C _runtime -- "node-${NODE_VER}-${{ matrix.node_platform }}/bin/node"
           chmod 0755 _runtime/node
 
+      - name: Build native privacy helper
+        run: gcc -O2 -Wall -o dark-matrix-privacy src/native/cros-ec-privacy.c
+
       - name: Assemble tarball
         run: |
           VERSION="${GITHUB_REF_NAME}"
@@ -86,6 +89,7 @@ jobs:
 
           echo "$VERSION" > "$STAGE/version.txt"
           cp _runtime/node "$STAGE/node"
+          cp dark-matrix-privacy "$STAGE/dark-matrix-privacy"
           cp dist/bundles/daemon.js dist/bundles/cli.js "$STAGE/dist/bundles/"
           cp -r dist/deck/web "$STAGE/dist/deck/"
           cp -r _runtime/node_modules "$STAGE/"

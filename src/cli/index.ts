@@ -88,6 +88,17 @@ async function cmdInstallUserSystemd() {
     `--outfile=${path.join(bundleDir, 'cli.js')}`,
   ]);
 
+  // Build native cros-ec privacy helper (no-op if gcc is absent — falls back to ectool)
+  const nativeSrc = path.resolve(__dirname, '../../src/native/cros-ec-privacy.c');
+  const nativeDest = path.join(INSTALL_DIR, 'dark-matrix-privacy');
+  try {
+    await run('gcc', ['-O2', '-Wall', '-o', nativeDest, nativeSrc]);
+    await fs.chmod(nativeDest, 0o755);
+    process.stdout.write(`Built native privacy helper at ${nativeDest}\n`);
+  } catch {
+    process.stdout.write(`Note: gcc not found — privacy switch monitoring will fall back to ectool if configured\n`);
+  }
+
   // Write shell wrapper so `dark-matrix` is available on PATH
   const wrapper = [
     '#!/bin/sh',
@@ -202,9 +213,9 @@ async function cmdInstallEcAccess() {
   process.stdout.write(`sudo tee ${dest} <<'EOF'\n${rule}EOF\n`);
   process.stdout.write(`sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=ec\n`);
   process.stdout.write(`sudo usermod -aG plugdev $USER\n`);
-  process.stdout.write(`# Log out and back in for the group change to take effect\n`);
-  process.stdout.write(`\n# Then install ectool (build from chromium-ec or use Framework's package):\n`);
-  process.stdout.write(`# https://github.com/FrameworkComputer/EmbeddedController\n`);
+  process.stdout.write(`# Log out and back in for the group change to take effect.\n`);
+  process.stdout.write(`# The dark-matrix privacy helper (bundled in the release) will then read\n`);
+  process.stdout.write(`# camera and microphone switch state directly from /dev/cros_ec.\n`);
 }
 
 async function cmdInstallClaudeHooks() {

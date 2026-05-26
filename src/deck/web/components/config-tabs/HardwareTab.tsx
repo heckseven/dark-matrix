@@ -6,6 +6,8 @@ import { TabFrame } from './tab-frame.js';
 
 const BY_PATH_RE = /^\/dev\/(serial\/by-path\/[a-zA-Z0-9:._-]+|ttyACM\d+|ttyUSB\d+)$/;
 
+type EcSource = 'sysfs' | 'native' | 'ectool' | 'none' | 'loading' | 'daemon-offline';
+
 interface HardwareValue {
   left: string;
   right: string;
@@ -47,6 +49,79 @@ function PortRow({
           <span className="font-mono text-xs text-red-400">✗ invalid path</span>
         )}
       </div>
+    </div>
+  );
+}
+
+function EcSwitchSection() {
+  const [source, setSource] = useState<EcSource>('loading');
+  const [showInstructions, setShowInstructions] = useState(false);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetch('/api/ec-status', { signal: ctrl.signal })
+      .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() as Promise<{ source: string }>; })
+      .then(d => { setSource((typeof d.source === 'string' ? d.source : 'none') as EcSource); })
+      .catch((e: unknown) => { if ((e as { name?: string }).name !== 'AbortError') setSource('daemon-offline'); });
+    return () => ctrl.abort();
+  }, []);
+
+  const sourceBadge: Record<EcSource, { label: string; color: string }> = {
+    sysfs:            { label: '● sysfs (framework-laptop-kmod)', color: 'text-green-400' },
+    native:           { label: '● cros-ec-privacy (built-in)', color: 'text-green-400' },
+    ectool:           { label: '● ectool', color: 'text-green-400' },
+    none:             { label: '◐ not available', color: 'text-amber-400' },
+    loading:          { label: '… detecting', color: 'text-muted-foreground' },
+    'daemon-offline': { label: '– daemon offline', color: 'text-muted-foreground' },
+  };
+
+  const badge = sourceBadge[source] ?? sourceBadge['none'];
+
+  return (
+    <div role="group" aria-label="Privacy switches" className="flex flex-col gap-3 border-t border-foreground/10 pt-4">
+      <div className="flex items-center gap-3">
+        <span className="w-28 shrink-0 text-muted-foreground">privacy switches</span>
+        <span role="status" aria-live="polite" className={`font-mono text-xs ${badge.color}`}>{badge.label}</span>
+      </div>
+
+      {source === 'none' && (
+        <div className="flex flex-col gap-2 pl-32">
+          <Button
+            variant="ghost" size="sm" className="self-start"
+            aria-expanded={showInstructions}
+            aria-controls="ec-switch-instructions"
+            onClick={() => setShowInstructions(v => !v)}
+          >
+            {showInstructions ? 'hide setup' : 'how to enable'}
+          </Button>
+
+          {showInstructions && (
+            <div id="ec-switch-instructions" role="region" aria-label="Privacy switch setup instructions" className="font-mono text-xs text-muted-foreground flex flex-col gap-4">
+
+              <div className="flex flex-col gap-1">
+                <p className="text-foreground/60 font-sans">Option A — kernel module (no binary needed)</p>
+                <p>Install <span className="text-foreground/70">framework-laptop-kmod</span>. On Ubuntu:</p>
+                <pre className="bg-foreground/5 px-2 py-1 rounded-sm mt-1 whitespace-pre-wrap">sudo apt install framework-laptop-kmod
+sudo modprobe framework_laptop</pre>
+                <p className="mt-1">On Arch: <span className="text-foreground/70">yay -S framework-laptop-kmod-dkms</span></p>
+                <p className="mt-1">Restart dark-matrix after loading the module.</p>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <p className="text-foreground/60 font-sans">Option B — ectool</p>
+                <p>Build ectool from the Framework EC repo, then set its path in config:</p>
+                <pre className="bg-foreground/5 px-2 py-1 rounded-sm mt-1 whitespace-pre-wrap">git clone https://github.com/FrameworkComputer/EmbeddedController
+cd EmbeddedController
+make build/host/util/ectool</pre>
+                <p className="mt-2">Then set <span className="text-foreground/70">ectool_path</span> in your config file to the built binary path, e.g.:</p>
+                <pre className="bg-foreground/5 px-2 py-1 rounded-sm mt-1 whitespace-pre-wrap">"ectool_path": "/home/you/EmbeddedController/build/host/util/ectool"</pre>
+                <p className="mt-1">Then run <span className="text-foreground/70">dark-matrix reload</span> or restart the daemon.</p>
+              </div>
+
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -150,6 +225,8 @@ export function HardwareTab({ value, onChange }: HardwareTabProps) {
           <p className="mt-2">to identify which physical port is which, unplug one module and re-run — the entry that disappears is that module.</p>
         </div>
       )}
+
+      <EcSwitchSection />
     </TabFrame>
   );
 }

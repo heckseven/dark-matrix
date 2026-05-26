@@ -1196,6 +1196,18 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
       return;
     }
 
+    if (url === '/api/ec-status' && method === 'GET') {
+      try {
+        const s = await sendToDaemon({ cmd: 'ec-status' }) as { ok: boolean; source?: string };
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, source: s.source ?? 'none' }));
+      } catch {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, source: 'daemon-offline' }));
+      }
+      return;
+    }
+
     // Module availability — proxies daemon status command
     if (url === '/api/serial-ports' && method === 'GET') {
       const ports: string[] = [];
