@@ -82,7 +82,13 @@ function readSwitchesNative(helperPath: string): Promise<SwitchState> {
     proc.on('close', (code) => {
       const m = NATIVE_RE.exec(stdout);
       if (code === 0 && m && m[1] !== undefined && m[2] !== undefined) {
-        resolve({ mic: parseInt(m[1], 10), cam: parseInt(m[2], 10) });
+        const mic = parseInt(m[1], 10);
+        const cam = parseInt(m[2], 10);
+        if (!Number.isInteger(mic) || !Number.isInteger(cam) || mic < 0 || mic > 1 || cam < 0 || cam > 1) {
+          reject(new Error(`cros-ec-privacy: unexpected switch values mic=${mic} cam=${cam}`));
+          return;
+        }
+        resolve({ mic, cam });
       } else {
         reject(new Error(`cros-ec-privacy exited ${code}: ${stderr.trim() || stdout.trim()}`));
       }
@@ -101,7 +107,7 @@ async function nativeHelperAvailable(helperPath: string): Promise<boolean> {
 
 export function watchSwitches(
   onEvent: (e: SwitchEvent) => void,
-  opts?: { intervalMs?: number; nativeHelperPath?: string; ectoolPath?: string; onSource?: (s: SwitchSource) => void }
+  opts?: { intervalMs?: number; nativeHelperPath?: string; ectoolPath?: string; onSource?: (s: SwitchSource) => void; onState?: (s: SwitchState) => void }
 ): () => void {
   const intervalMs = opts?.intervalMs ?? 500;
   const nativeHelperPath = opts?.nativeHelperPath;
@@ -140,12 +146,13 @@ export function watchSwitches(
         : source === 'native'
           ? await readSwitchesNative(nativeHelperPath!)
           : await readSwitches(ectoolPath);
+      opts?.onState?.(next);
       if (prev === null) { prev = next; return; }
       if (next.cam !== prev.cam) onEvent({ type: 'cam', value: next.cam, prev: prev.cam });
       if (next.mic !== prev.mic) onEvent({ type: 'mic', value: next.mic, prev: prev.mic });
       prev = next;
     } catch (err: unknown) {
-      const isNotFound = (err as NodeJS.ErrnoException).code === 'ENOENT';
+      const isNotFound = source === 'ectool' && (err as NodeJS.ErrnoException).code === 'ENOENT';
       const msg = isNotFound
         ? `ec-switches: ectool not found — set ectool_path in config to its absolute path`
         : `ec-switches: ${source ?? 'source'} unavailable (${String(err)}) — EC switch monitoring disabled`;

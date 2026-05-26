@@ -10,7 +10,7 @@ import { spawn } from 'node:child_process';
 import { loadConfig, bootstrapConfig, watchConfig, resolveSocketPath } from '../lib/config.js';
 import type { Config } from '../lib/config.js';
 import { startBrightnessLoop } from '../lib/brightness.js';
-import { watchSwitches, readSwitches, type SwitchSource } from '../lib/ec-switches.js';
+import { watchSwitches, type SwitchSource, type SwitchState } from '../lib/ec-switches.js';
 import { watchVms } from '../lib/vm-source.js';
 import { parseClaudeHook } from '../lib/claude-source.js';
 import { parseProject, base64ToFrame } from '../deck/format.js';
@@ -1388,9 +1388,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   }
 
   let currentEcSource: SwitchSource = 'none';
+  let currentSwitchState: SwitchState | null = null;
 
   function startEcSwitches(): () => void {
     currentEcSource = 'none';
+    currentSwitchState = null;
     const nativeHelperPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'dark-matrix-privacy');
     return watchSwitches((e) => {
       routeAndPush(ecSwitchIntent(e));
@@ -1399,6 +1401,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       nativeHelperPath,
       ...(currentConfig.ectool_path !== undefined ? { ectoolPath: currentConfig.ectool_path } : {}),
       onSource: (s) => { currentEcSource = s; },
+      onState: (s) => { currentSwitchState = s; },
     });
   }
   let disposeEcSwitches = startEcSwitches();
@@ -1518,12 +1521,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 brightnessValue: currentBrightness,
                 brightnessMode: currentConfig.brightness.mode,
                 version: DAEMON_VERSION,
+                ...(currentSwitchState !== null ? { switches: currentSwitchState } : {}),
               };
-              readSwitches(currentConfig.ectool_path).then(switches => {
-                socket.write(JSON.stringify({ ...modulesPayload, switches }) + '\n');
-              }).catch(() => {
-                socket.write(JSON.stringify(modulesPayload) + '\n');
-              });
+              socket.write(JSON.stringify(modulesPayload) + '\n');
               break;
             }
             case 'ec-status':
