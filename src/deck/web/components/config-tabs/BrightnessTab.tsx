@@ -1,4 +1,5 @@
-import { useId } from 'react';
+import { useId, useState } from 'react';
+import { Button } from '../ui/button.js';
 import { Input } from '../ui/input.js';
 import { Radio } from '../ui/radio.js';
 import { Slider } from '../ui/slider.js';
@@ -18,6 +19,17 @@ export type BrightnessValue = {
   manual_value: number;
 };
 
+const DEFAULTS: BrightnessValue = {
+  mode: 'sensor',
+  sensor_path: '',
+  multiplier: 0.14,
+  offset: 7,
+  min: 7,
+  max: 255,
+  hysteresis: 10,
+  manual_value: 100,
+};
+
 type Props = {
   value: BrightnessValue;
   onChange: (v: BrightnessValue) => void;
@@ -25,9 +37,36 @@ type Props = {
 
 export function BrightnessTab({ value, onChange }: Props) {
   const uid = useId();
+  const [detecting, setDetecting] = useState(false);
+  const [detectStatus, setDetectStatus] = useState<'idle' | 'done' | 'failed'>('idle');
   const sensorValid = value.mode === 'sensor' && SENSOR_PATH_RE.test(value.sensor_path);
   const minMaxError = value.min > value.max;
   const minMaxErrorId = `${uid}-minmax-error`;
+
+  async function handleAutodetect() {
+    setDetecting(true);
+    setDetectStatus('idle');
+    try {
+      const res = await fetch('/api/sensor-detect');
+      if (!res.ok) throw new Error(`sensor-detect: ${res.status}`);
+      const body: unknown = await res.json();
+      if (
+        typeof body === 'object' && body !== null &&
+        'ok' in body && (body as Record<string, unknown>)['ok'] === true &&
+        'path' in body && typeof (body as Record<string, unknown>)['path'] === 'string' &&
+        SENSOR_PATH_RE.test((body as Record<string, unknown>)['path'] as string)
+      ) {
+        onChange({ ...value, sensor_path: (body as { path: string }).path });
+        setDetectStatus('done');
+      } else {
+        setDetectStatus('failed');
+      }
+    } catch {
+      setDetectStatus('failed');
+    } finally {
+      setDetecting(false);
+    }
+  }
 
   return (
     <TabFrame>
@@ -51,14 +90,28 @@ export function BrightnessTab({ value, onChange }: Props) {
       {value.mode === 'sensor' && (
         <TabRow label="sensor path">
           <div className="flex flex-col gap-1 w-full">
-            <Input
-              fluid
-              value={value.sensor_path}
-              onChange={e => onChange({ ...value, sensor_path: e.target.value })}
-              placeholder="/sys/bus/iio/devices/iio:device0/in_illuminance_raw"
-              aria-label="sensor path"
-              spellCheck={false}
-            />
+            <div className="flex gap-2 w-full">
+              <Input
+                fluid
+                value={value.sensor_path}
+                onChange={e => onChange({ ...value, sensor_path: e.target.value })}
+                placeholder="/sys/bus/iio/devices/iio:device0/in_illuminance_raw"
+                aria-label="sensor path"
+                spellCheck={false}
+              />
+              <Button
+                variant="ghost"
+                onClick={handleAutodetect}
+                disabled={detecting}
+                aria-label={detecting ? 'detecting sensor path…' : 'autodetect sensor path'}
+                aria-busy={detecting}
+              >
+                {detecting ? '...' : 'detect'}
+              </Button>
+            </div>
+            <span role="status" aria-live="polite" className="sr-only">
+              {detectStatus === 'done' ? 'Sensor path detected.' : detectStatus === 'failed' ? 'Sensor path detection failed.' : ''}
+            </span>
             {value.sensor_path.length > 0 && (
               <span
                 role="status"
@@ -149,6 +202,10 @@ export function BrightnessTab({ value, onChange }: Props) {
           />
         </TabRow>
       )}
+
+      <TabRow label="reset">
+        <Button variant="ghost" onClick={() => onChange(DEFAULTS)}>reset to defaults</Button>
+      </TabRow>
 
     </TabFrame>
   );

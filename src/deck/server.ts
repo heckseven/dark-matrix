@@ -1196,6 +1196,26 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
       return;
     }
 
+    if (url === '/api/sensor-detect' && method === 'GET') {
+      const IIO_DIR = '/sys/bus/iio/devices';
+      let detected: string | null = null;
+      try {
+        const entries = await fs.readdir(IIO_DIR);
+        for (const entry of entries) {
+          if (!entry.startsWith('iio:device')) continue;
+          const candidate = `${IIO_DIR}/${entry}/in_illuminance_raw`;
+          try {
+            await fs.access(candidate);
+            detected = candidate;
+            break;
+          } catch { /* not accessible */ }
+        }
+      } catch { /* IIO_DIR absent */ }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(detected ? { ok: true, path: detected } : { ok: false }));
+      return;
+    }
+
     if (url === '/api/ec-status' && method === 'GET') {
       try {
         const s = await sendToDaemon({ cmd: 'ec-status' }) as { ok: boolean; source?: string };

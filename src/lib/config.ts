@@ -142,7 +142,7 @@ export const DEFAULT_CONFIG: Config = {
   },
   brightness: {
     mode: 'manual',
-    multiplier: 0.071,
+    multiplier: 0.14,
     offset: 7,
     min: 7,
     max: 255,
