@@ -20,7 +20,7 @@ import type { AppMode } from './app-modes.js';
 import { AudioPanel } from './components/AudioPanel.js';
 import { ConfigPanel } from './components/ConfigPanel.js';
 import { HudPanel, hudSendWsGlobal } from './components/HudPanel.js';
-import { VideoPanel, VideoHeader, VideoTransportControls, VideoSettingsToggle } from './components/VideoPanel.js';
+import { VideoPanel, VideoHeader, VideoTransportControls, VideoSettingsToggle, useVStore } from './components/VideoPanel.js';
 import { LifePanel, lifeTriggerSave } from './components/LifePanel.js';
 import { AssetManagerModal } from './components/AssetManagerModal.js';
 import { ThreePanelLayout } from './components/ThreePanelLayout.js';
@@ -172,10 +172,18 @@ export function App() {
   const lifeStepCount      = useDeckStore(s => s.lifeStepCount);
   const configDirty        = useDeckStore(s => s.configDirty);
   const saveConfig         = useDeckStore(s => s.saveConfig);
+  const videoIdle          = useVStore(s => s.idle);
 
   useEffect(() => {
     document.title = activeMode ? `dark-matrix - ${MODE_LABEL[activeMode]}` : 'dark-matrix';
   }, [activeMode]);
+
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    if (activeMode === 'video' && videoIdle) el.setAttribute('inert', '');
+    else el.removeAttribute('inert');
+  }, [activeMode, videoIdle]);
 
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [modePickerOpen, setModePickerOpen] = useState(false);
@@ -399,7 +407,7 @@ export function App() {
           ref={headerRef}
           blur={false}
           className="absolute top-0 inset-x-0 z-10 gap-4 pl-7 pr-5 py-4"
-          style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}
+          style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)', ...(activeMode === 'video' ? { opacity: videoIdle ? 0 : 1, transition: videoIdle ? 'opacity 300ms' : 'opacity 0ms', pointerEvents: videoIdle ? 'none' : undefined } : {}) }}
           left={
             activeMode !== 'hud' && activeMode !== 'config' && activeMode !== 'audio' && activeMode !== 'video' && activeMode !== 'life' ? (
               <div className="flex items-center gap-1">

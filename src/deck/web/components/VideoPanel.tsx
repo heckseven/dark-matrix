@@ -30,6 +30,7 @@ type VState = {
   ytError: string | null;
   seekRequest: number | null;
   buffering: boolean;
+  idle: boolean;
   setSrc(s: string | null): void;
   setInputUrl(s: string): void;
   setPlaying(b: boolean): void;
@@ -42,6 +43,7 @@ type VState = {
   seek(t: number): void;
   clearSeek(): void;
   setBuffering(b: boolean): void;
+  setIdle(b: boolean): void;
 };
 
 const DEFAULT_CONTROLS: Controls = { brightness: 0, contrast: 1, invert: false, dither: false };
@@ -58,6 +60,7 @@ const INITIAL_DATA = {
   ytError: null as string | null,
   seekRequest: null as number | null,
   buffering: false,
+  idle: false,
 };
 
 export const useVStore = create<VState>((set) => ({
@@ -74,6 +77,7 @@ export const useVStore = create<VState>((set) => ({
   seek: (seekRequest) => set({ seekRequest }),
   clearSeek: () => set({ seekRequest: null }),
   setBuffering: (buffering) => set({ buffering }),
+  setIdle: (idle) => set({ idle }),
 }));
 
 export function resetVStore() {
@@ -229,6 +233,7 @@ export function VideoPanel({ topPad = 0, settingsToggleRef }: { topPad?: number;
   const seekRequest = useVStore(s => s.seekRequest);
   const buffering = useVStore(s => s.buffering);
   const loop = useVStore(s => s.loop);
+  const idle = useVStore(s => s.idle);
   const { setPlaying, setCurrentTime, setDuration, setYtError, updateControls, clearSeek, setBuffering } = useVStore.getState();
 
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -247,6 +252,7 @@ export function VideoPanel({ topPad = 0, settingsToggleRef }: { topPad?: number;
   const controlsRef = React.useRef<Controls>(useVStore.getState().controls);
   const srcRef = React.useRef(src);
   srcRef.current = src;
+  const idleTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => {
     return useVStore.subscribe(s => { controlsRef.current = s.controls; });
@@ -306,6 +312,37 @@ export function VideoPanel({ topPad = 0, settingsToggleRef }: { topPad?: number;
     if (v) v.currentTime = seekRequest;
     clearSeek();
   }, [seekRequest, clearSeek]);
+
+  React.useEffect(() => {
+    const styleEl = document.createElement('style');
+    styleEl.textContent = 'html.video-idle * { cursor: none !important; } html.video-idle *:focus, html.video-idle *:focus-visible { cursor: default !important; }';
+    document.head.appendChild(styleEl);
+
+    function resetIdle() {
+      useVStore.getState().setIdle(false);
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(() => { if (useVStore.getState().src) useVStore.getState().setIdle(true); }, 3000);
+    }
+
+    resetIdle();
+    document.addEventListener('mousemove', resetIdle);
+    document.addEventListener('mousedown', resetIdle);
+    document.addEventListener('keydown', resetIdle);
+
+    return () => {
+      styleEl.remove();
+      document.removeEventListener('mousemove', resetIdle);
+      document.removeEventListener('mousedown', resetIdle);
+      document.removeEventListener('keydown', resetIdle);
+      if (idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null; }
+      useVStore.getState().setIdle(false);
+      document.documentElement.classList.remove('video-idle');
+    };
+  }, []);
+
+  React.useEffect(() => {
+    document.documentElement.classList.toggle('video-idle', idle);
+  }, [idle]);
 
   React.useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -467,6 +504,7 @@ export function VideoPanel({ topPad = 0, settingsToggleRef }: { topPad?: number;
               <span className="sr-only">Buffering</span>
             </>
           )}
+          {idle && <span className="sr-only">Video controls hidden</span>}
         </div>
 
         {ytError && (
@@ -479,7 +517,11 @@ export function VideoPanel({ topPad = 0, settingsToggleRef }: { topPad?: number;
         )}
 
         {duration > 0 && (
-          <div className="absolute bottom-0 inset-x-0 flex items-center gap-2 px-3 py-1 bg-black/70">
+          <div
+            className="absolute bottom-0 inset-x-0 flex items-center gap-2 px-3 py-1 bg-black/70"
+            style={{ opacity: idle ? 0 : 1, transition: idle ? 'opacity 300ms' : 'opacity 0ms', pointerEvents: idle ? 'none' : undefined }}
+            {...(idle ? { inert: true } : {})}
+          >
             <span className="font-mono text-foreground tabular-nums shrink-0">{formatTime(currentTime)}</span>
             <Slider
               variant="cycling"
@@ -501,9 +543,14 @@ export function VideoPanel({ topPad = 0, settingsToggleRef }: { topPad?: number;
           src={src ?? undefined}
           onLoadedMetadata={() => {
             const v = videoRef.current;
-            if (v) setDuration(v.duration);
+            if (!v) return;
+            if (Number.isFinite(v.duration) && v.duration > 0) setDuration(v.duration);
             recomputeGrid();
             setPlaying(true);
+          }}
+          onDurationChange={() => {
+            const v = videoRef.current;
+            if (v && Number.isFinite(v.duration) && v.duration > 0) setDuration(v.duration);
           }}
           onTimeUpdate={() => { const v = videoRef.current; if (v) setCurrentTime(v.currentTime); }}
           onWaiting={() => setBuffering(true)}
@@ -524,7 +571,8 @@ export function VideoPanel({ topPad = 0, settingsToggleRef }: { topPad?: number;
           aria-label="Video settings"
           tabIndex={-1}
           className="absolute right-0 top-0 h-full w-60 flex flex-col gap-4 overflow-y-auto p-4"
-          style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)', paddingTop: (topPad || 0) + 16 }}
+          style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)', paddingTop: (topPad || 0) + 16, opacity: idle ? 0 : 1, transition: idle ? 'opacity 300ms' : 'opacity 0ms', pointerEvents: idle ? 'none' : undefined }}
+          {...(idle ? { inert: true } : {})}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground font-mono uppercase tracking-wide">video settings</span>
