@@ -168,42 +168,44 @@ export function MatrixItemList<T>({
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropTarget(null);
       }}
     >
-      <As
-        role={listRole}
-        className={`flex flex-col ${gapClass} pb-2 pt-2`}
-        style={{ listStyle: 'none', padding: 0, margin: 0 }}
-      >
-        {items.length === 0 && emptyText && (
-          <Item className="font-mono text-xs text-muted-foreground px-2 py-4">{emptyText}</Item>
-        )}
-        {dropTarget === 0 && <DropLine />}
-        {items.map((item, idx) => (
-          <Fragment key={getKey(item, idx)}>
-            <Item role={itemRole}>
-              {renderItem(item, idx, dragProps(idx))}
-            </Item>
-            {idx < items.length - 1 && onInsert && (
+      <div className="flex flex-col">
+        <As
+          role={listRole}
+          className={`flex flex-col ${gapClass} pb-2 pt-2`}
+          style={{ listStyle: 'none', padding: 0, margin: 0 }}
+        >
+          {items.length === 0 && emptyText && (
+            <Item className="font-mono text-xs text-muted-foreground px-2 py-4">{emptyText}</Item>
+          )}
+          {dropTarget === 0 && <DropLine />}
+          {items.map((item, idx) => (
+            <Fragment key={getKey(item, idx)}>
               <Item role={itemRole}>
-                <GapZone
-                  afterIdx={idx}
-                  showDrop={dropTarget === idx + 1}
-                  onDragOver={setDropTarget}
-                  count={items.length}
-                  onInsert={() => onInsert(idx)}
-                  onMove={onMove}
-                  {...(insertLabel !== undefined ? { insertLabel } : {})}
-                />
+                {renderItem(item, idx, dragProps(idx))}
               </Item>
-            )}
-          </Fragment>
-        ))}
-        {dropTarget === items.length && <DropLine />}
-      </As>
-      {onAdd && (
-        <div className="h-10 flex items-center justify-center self-stretch px-1">
-          <Button variant="ghost" aria-label={addLabel} tooltip={addLabel} onClick={onAdd}>+</Button>
-        </div>
-      )}
+              {idx < items.length - 1 && onInsert && (
+                <Item role={itemRole}>
+                  <GapZone
+                    afterIdx={idx}
+                    showDrop={dropTarget === idx + 1}
+                    onDragOver={setDropTarget}
+                    count={items.length}
+                    onInsert={() => onInsert(idx)}
+                    onMove={onMove}
+                    {...(insertLabel !== undefined ? { insertLabel } : {})}
+                  />
+                </Item>
+              )}
+            </Fragment>
+          ))}
+          {dropTarget === items.length && <DropLine />}
+        </As>
+        {onAdd && (
+          <div className="h-10 flex items-center justify-center px-1">
+            <Button variant="ghost" aria-label={addLabel} tooltip={addLabel} onClick={onAdd}>+</Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
