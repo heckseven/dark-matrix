@@ -275,11 +275,16 @@ function fullHeat(): FullRenderer {
     // Kill + seed: non-reversed (low freq → left column), matching hardware
     const ceFwd = colEnergies(bands, gain, ref, cols, false);
     const heights = new Int32Array(cols);
+    const sparkHeights = new Int32Array(cols);
     for (let c = 0; c < cols; c++) {
       const t = ceRev[c] ?? 0;
       envelope![c] = t > (envelope![c] ?? 0) ? t : (envelope![c] ?? 0) * 0.85 + t * 0.15;
+      // Life bar height: scaled by 0.25 (matches makeFlameLife heightScale=0.25)
       const flicker = (envelope![c] ?? 0) * (0.7 + Math.random() * 0.5);
       heights[c] = Math.round(Math.min(1, flicker) * rows * 0.25);
+      // Spark spawn height: independent flicker, unscaled (matches makeFlameSparks — separate renderer in hardware)
+      const sparkFlicker = (envelope![c] ?? 0) * (0.7 + Math.random() * 0.5);
+      sparkHeights[c] = Math.round(Math.min(1, sparkFlicker) * rows);
     }
     // Transient seeding — fires a burst of life cells on beat hits
     const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
@@ -321,13 +326,13 @@ function fullHeat(): FullRenderer {
       }
     }
     for (let i = 0; i < cells!.length; i++) cells![i] = next[i] ?? 0;
-    // Spawn sparks: 4 attempts per col per frame, rise 0.6+rand*0.6 matching hardware
+    // Spawn sparks: 4 attempts per col per frame — no global cap (matches hardware makeFlameSparks)
     for (let c = 0; c < cols; c++) {
-      const h = heights[c] ?? 0;
-      if (h > 0) {
+      const sh = sparkHeights[c] ?? 0;
+      if (sh > 0) {
         for (let s = 0; s < 4; s++) {
-          if (sparks.length < cols * 8 && Math.random() < (envelope![c] ?? 0) * 0.5)
-            sparks.push({ col: c, pos: rows - h - 0.5, v: 200 + Math.random() * 55 });
+          if (Math.random() < (envelope![c] ?? 0) * 0.5)
+            sparks.push({ col: c, pos: rows - sh - 0.5, v: 200 + Math.random() * 55 });
         }
       }
     }
