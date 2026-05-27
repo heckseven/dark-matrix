@@ -588,14 +588,14 @@ export function App() {
               <Button variant="ghost" disabled={!configDirty} onClick={() => void saveConfig()}>save</Button>
             ) : activeMode === 'audio' ? (
               <div className="flex items-center gap-2">
-                {audioFullscreenStyle !== null && (
-                  <Button variant="ghost" size="sm" aria-label="Back to visualizer list" onClick={() => setAudioFullscreenStyle(null)}>switch</Button>
-                )}
                 {audioSource !== 'mic' && (
                   <Slider aria-label="Visualizer gain" value={audioGain} min={1} max={8} step={0.5} className="w-28" valueLabel={audioGain.toFixed(1) + '×'} onChange={e => { const v = Number(e.target.value); setAudioGain(v); audioGainRef.current = v; }} />
                 )}
                 {hasMic && audioSource === 'mic' && (
                   <Slider aria-label="Mic sensitivity" value={micSensitivity} min={0} max={100} step={1} className="w-36" valueLabel={`${micSensitivity}%`} onChange={e => deckStore.getState().setMicSensitivity(Number(e.target.value))} />
+                )}
+                {audioFullscreenStyle !== null && (
+                  <Button variant="ghost" size="sm" aria-label="Back to visualizer list" onClick={() => setAudioFullscreenStyle(null)}>visualizers</Button>
                 )}
                 {hasMic && (
                   <Toggle

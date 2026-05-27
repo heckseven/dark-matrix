@@ -29,7 +29,9 @@ const HW_N = 9;
 const HW_LOG_MIN = Math.log10(20);
 const HW_LOG_RANGE = Math.log10(20000) - HW_LOG_MIN;
 
-function colEnergies(bands: number[], gain: number, ref: number, cols: number, reverse = false): Float32Array {
+// smooth=true: linear interpolation between HW buckets (good for particle renderers)
+// smooth=false: nearest-neighbor snap (gives discrete steps matching hardware look)
+function colEnergies(bands: number[], gain: number, ref: number, cols: number, reverse = false, smooth = true): Float32Array {
   const n = bands.length;
   const buckets = new Float32Array(HW_N);
   const counts = new Int32Array(HW_N);
@@ -47,10 +49,14 @@ function colEnergies(bands: number[], gain: number, ref: number, cols: number, r
   for (let c = 0; c < cols; c++) {
     const cc = reverse ? cols - 1 - c : c;
     const frac = (cc / Math.max(1, cols - 1)) * (HW_N - 1);
-    const b0 = Math.floor(frac);
-    const b1 = Math.min(HW_N - 1, b0 + 1);
-    const t = frac - b0;
-    result[c] = (buckets[b0] ?? 0) * (1 - t) + (buckets[b1] ?? 0) * t;
+    if (smooth) {
+      const b0 = Math.floor(frac);
+      const b1 = Math.min(HW_N - 1, b0 + 1);
+      const t = frac - b0;
+      result[c] = (buckets[b0] ?? 0) * (1 - t) + (buckets[b1] ?? 0) * t;
+    } else {
+      result[c] = buckets[Math.round(frac)] ?? 0;
+    }
   }
   return result;
 }
@@ -63,7 +69,7 @@ function fullSpectrumFall(): FullRenderer {
     const ref = fftSize / 2;
     if (!history || history.length !== rows || history[0]?.length !== cols)
       history = Array.from({ length: rows }, () => new Uint8Array(cols));
-    const ce = colEnergies(bands, gain, ref, cols);
+    const ce = colEnergies(bands, gain, ref, cols, false, false);
     const center = Math.floor(rows / 2);
     const newRow = new Uint8Array(cols);
     for (let c = 0; c < cols; c++) newRow[c] = Math.round((ce[c] ?? 0) * 255);
@@ -186,7 +192,7 @@ function fullDarkMatter(): FullRenderer {
       peaks = new Float32Array(cols);
       grid = new Uint8Array(cols * rows);
     }
-    const ce = colEnergies(bands, gain, ref, cols);
+    const ce = colEnergies(bands, gain, ref, cols, false, false);
     // Rising sparks: shift upward one row, spawn bottom row
     for (let r = 0; r < rows - 1; r++)
       for (let c = 0; c < cols; c++)
@@ -429,10 +435,13 @@ function fullNeo(): FullRenderer {
 function fullHex(): FullRenderer {
   interface Drop { pos: number; col: number; speed: number }
   let drops: Drop[] = [];
+  let lastCols = 0, lastRows = 0;
   const TRAIL = 10;
   const HEADS_PER_COL = 3;
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
+    // Reset on grid resize to avoid stale positions causing blank frames
+    if (cols !== lastCols || rows !== lastRows) { drops = []; lastCols = cols; lastRows = rows; }
     const ce = colEnergies(bands, gain, ref, cols);
     const data = new Uint8Array(cols * rows);
     for (let c = 0; c < cols; c++) {
@@ -455,7 +464,8 @@ function fullHex(): FullRenderer {
       }
       return d.pos > -TRAIL;
     });
-    if (drops.length > cols * HEADS_PER_COL * 2) drops.splice(0, drops.length - cols * HEADS_PER_COL);
+    // Cap by truncating newest drops (end of array) — preserves oldest/highest drops
+    if (drops.length > cols * HEADS_PER_COL * 2) drops.length = cols * HEADS_PER_COL;
     return data;
   };
 }
@@ -639,9 +649,14 @@ function fullLifeErode(): FullRenderer {
             if ((cells[nc * rows + nr] ?? 0) > 0) alive++;
           }
         const isAlive = (cells[c * rows + r] ?? 0) > 0;
-        // Conway's Game of Life rules + continuous decay
+        // Conway's Game of Life rules + continuous decay + energy-proportional cull
         if (isAlive) {
-          next[c * rows + r] = (alive === 2 || alive === 3) ? Math.max(60, Math.round((cells[c * rows + r] ?? 0) * (0.7 + t * 0.25))) : 0;
+          const killChance = Math.max(0, 0.68 - energy * 1.5);
+          if (Math.random() < killChance) {
+            next[c * rows + r] = 0;
+          } else {
+            next[c * rows + r] = (alive === 2 || alive === 3) ? Math.max(60, Math.round((cells[c * rows + r] ?? 0) * (0.7 + t * 0.25))) : 0;
+          }
         } else {
           next[c * rows + r] = alive === 3 ? 255 : 0;
         }

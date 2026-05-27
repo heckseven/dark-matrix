@@ -76,6 +76,11 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, gain
     };
   }, []);
 
+  // Focus container on mount so AT announces the dialog immediately
+  React.useEffect(() => {
+    containerRef.current?.focus();
+  }, []);
+
   // Escape key → exit
   React.useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -206,10 +211,10 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, gain
   return (
     <div
       ref={containerRef}
-      className="flex-1 flex items-center justify-center overflow-hidden bg-black"
+      className="flex-1 flex items-center justify-center overflow-hidden"
       role="img"
       aria-label={`${styleName} audio visualizer`}
-      aria-roledescription="audio visualizer"
+      tabIndex={0}
     >
       <div
         ref={displayRef}
