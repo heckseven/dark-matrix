@@ -71,7 +71,7 @@ function mirrorFrame(b64: string): string {
   return btoa(String.fromCharCode(...dst));
 }
 
-export function AudioPanel({ dualModule = false, hardwareControl = true }: { dualModule?: boolean; hardwareControl?: boolean }) {
+export function AudioPanel({ dualModule = false }: { dualModule?: boolean }) {
   const audioStyle = useDeckStore(s => s.audioStyle);
   const audioSource = useDeckStore(s => s.audioSource);
   const [livePixels, setLivePixels] = useState<Partial<Record<AudioStyle, string>>>({});
@@ -85,18 +85,16 @@ export function AudioPanel({ dualModule = false, hardwareControl = true }: { dua
   }
 
   const sendViz = useCallback((source: AudioSource, style: AudioStyle) => {
-    if (!hardwareControl) return;
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     ws.send(JSON.stringify({ type: 'audio-viz', style, source }));
-  }, [hardwareControl]);
+  }, []);
 
   useEffect(() => {
     const ws = new WebSocket(`ws://${location.host}/ws`);
     wsRef.current = ws;
 
     ws.onopen = () => {
-      if (!hardwareControl) return;
       const { audioStyle: style, audioSource: source } = deckStore.getState();
       ws.send(JSON.stringify({ type: 'audio-viz', style, source }));
     };
@@ -121,12 +119,12 @@ export function AudioPanel({ dualModule = false, hardwareControl = true }: { dua
     return () => {
       const w = wsRef.current;
       wsRef.current = null;
-      if (hardwareControl && w && w.readyState === WebSocket.OPEN) {
+      if (w && w.readyState === WebSocket.OPEN) {
         w.send(JSON.stringify({ type: 'audio-viz-stop' }));
       }
       w?.close();
     };
-  }, [hardwareControl]);
+  }, []);
 
   useEffect(() => {
     sendViz(audioSource, audioStyle);

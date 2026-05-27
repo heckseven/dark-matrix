@@ -366,7 +366,7 @@ export function App() {
       <Dialog open={castAudioOpen} onOpenChange={setCastAudioOpen}>
         <DialogContent className="w-[calc(100vw-80px)] h-[calc(100vh-80px)] flex flex-col gap-0 p-0 overflow-hidden">
           <DialogTitle className="sr-only">Audio visualizer</DialogTitle>
-          <AudioPanel dualModule={dualModule} hardwareControl={false} />
+          <AudioPanel dualModule={dualModule} />
         </DialogContent>
       </Dialog>
       <AssetManagerModal
