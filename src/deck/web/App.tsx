@@ -638,7 +638,7 @@ export function App() {
           </div>
         ) : activeMode === 'cast' ? (
           <div className="h-full flex">
-            <CastPanel />
+            <CastPanel topPad={headerHeight} />
           </div>
         ) : (
           <ThreePanelLayout

@@ -58,7 +58,7 @@ function AddChannelDialog({ open, onOpenChange, onAdd }: {
   );
 }
 
-export function CastPanel() {
+export function CastPanel({ topPad = 0 }: { topPad?: number }) {
   const configData = useDeckStore(s => s.configData);
   const patchConfig = useDeckStore(s => s.patchConfig);
   const saveConfig = useDeckStore(s => s.saveConfig);
@@ -113,7 +113,7 @@ export function CastPanel() {
       {/* Columns area */}
       <div className="flex-1 flex items-stretch overflow-x-auto overflow-y-hidden min-h-0">
         <ColumnInsertButton
-          hidden={atMax}
+          hidden={atMax || columns.length === 0}
           label="Add column at start"
           onClick={() => openAdd(0)}
         />
@@ -125,6 +125,7 @@ export function CastPanel() {
               onCollapse={() => handleCollapse(idx)}
               onRemove={() => handleRemove(idx)}
               globalWsRef={globalWsRef}
+              topPad={topPad}
             />
             <ColumnInsertButton
               hidden={atMax}
@@ -135,8 +136,8 @@ export function CastPanel() {
         ))}
 
         {columns.length === 0 && (
-          <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">
-            add a channel to get started
+          <div className="flex-1 flex items-center justify-center">
+            <Button onClick={() => openAdd(0)}>add channel</Button>
           </div>
         )}
       </div>
