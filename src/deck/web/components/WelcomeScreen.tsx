@@ -18,7 +18,7 @@ interface Props {
 
 function StatusRow({ ok, label, detail }: { ok: boolean; label: string; detail?: string }) {
   return (
-    <div className="flex items-start gap-3" aria-label={`${label}: ${ok ? 'ready' : 'not ready'}${detail ? `. ${detail}` : ''}`}>
+    <div role="group" className="flex items-start gap-3" aria-label={`${label}: ${ok ? 'ready' : 'not ready'}${detail ? `. ${detail}` : ''}`}>
       <span className={`font-mono text-sm mt-0.5 ${ok ? 'text-green-400' : 'text-amber-400'}`} aria-hidden="true">
         {ok ? '✓' : '○'}
       </span>
@@ -113,10 +113,7 @@ export function WelcomeScreen({ daemonOnline, hardwareOnline, onDismiss }: Props
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-3 pt-1">
-          <p className="text-xs text-muted-foreground">
-            After calibrating, this screen will not appear again.
-          </p>
+        <div className="flex items-center justify-end pt-1">
           <Button variant="ghost" onClick={() => void handleSkip()} disabled={skipping} aria-label="Skip setup">
             skip
           </Button>
