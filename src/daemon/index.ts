@@ -62,7 +62,7 @@ const DAEMON_VERSION: string = (() => {
 let activeOverlay: NotifyOverlay | null = null;
 export function setActiveOverlay(o: NotifyOverlay | null): void { activeOverlay = o; }
 
-type PersistedTimerEpoch = { durationMs: number; repeat: boolean; style: 'elegant' | 'hourglass'; epochMs: number } | null;
+type PersistedTimerEpoch = { durationMs: number; repeat: boolean; style: 'elegant' | 'hourglass' | 'twinz'; epochMs: number } | null;
 
 export const socketPath = resolveSocketPath;
 
