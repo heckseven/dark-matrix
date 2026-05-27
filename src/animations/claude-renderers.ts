@@ -177,11 +177,14 @@ export function createClaudeContextRenderer(): ClaudeRendererApi {
 
 // ── Sand renderer ─────────────────────────────────────────────────────────
 
+const _SAND_GRAIN_COOLDOWN = 2;
+
 export function createClaudeSandRenderer(): ClaudeRendererApi {
   const settled = new Uint8Array(COLS * ROWS);
   let active: Array<[number, number]> = [];
   let draining = false;
   let pendingGrains = 0;
+  let grainCooldown = 0;
 
   return {
     onEvent(e) {
@@ -206,9 +209,12 @@ export function createClaudeSandRenderer(): ClaudeRendererApi {
         return frame;
       }
 
-      if (pendingGrains > 0) {
+      if (grainCooldown > 0) {
+        grainCooldown--;
+      } else if (pendingGrains > 0) {
         active.push([Math.floor(COLS / 2), -1]);
         pendingGrains--;
+        grainCooldown = _SAND_GRAIN_COOLDOWN;
       }
 
       const blocked = (c: number, r: number): boolean => {
