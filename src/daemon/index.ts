@@ -1862,7 +1862,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               break;
             }
             case 'hud-config': {
-              const m = msg as { cmd: string; leftFace?: string; leftWidget?: string; leftDataStyle?: string; leftAudioStyle?: string; leftClaudeStyle?: string; leftFile?: string; leftBiomeName?: string; leftRandomIntervalMs?: number; rightFace?: string; rightWidget?: string; rightDataStyle?: string; rightAudioStyle?: string; rightClaudeStyle?: string; rightFile?: string; rightBiomeName?: string; rightRandomIntervalMs?: number };
+              const m = msg as { cmd: string; leftFace?: string; leftWidget?: string; leftDataStyle?: string; leftAudioStyle?: string; leftClaudeStyle?: string; leftFile?: string; leftBiomeName?: string; leftRandomIntervalMs?: number; leftTimerStyle?: string; leftTimerDurationMs?: number; leftTimerRepeat?: boolean; rightFace?: string; rightWidget?: string; rightDataStyle?: string; rightAudioStyle?: string; rightClaudeStyle?: string; rightFile?: string; rightBiomeName?: string; rightRandomIntervalMs?: number; rightTimerStyle?: string; rightTimerDurationMs?: number; rightTimerRepeat?: boolean };
               const biomeNames = new Set((currentConfig.biome_presets ?? []).map(b => b.name));
               const validBiome = (name: string) => name === 'random' || biomeNames.has(name);
               if (m.leftWidget === 'life' && typeof m.leftBiomeName === 'string' && !validBiome(m.leftBiomeName)) {
@@ -1889,6 +1889,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               } else if (m.leftWidget === 'claude') {
                 const style = CLAUDE_STYLES.find(s => s.id === m.leftClaudeStyle)?.id;
                 newHud.left = { widget: 'claude', ...(style ? { style } : {}) };
+              } else if (m.leftWidget === 'timer') {
+                const style = m.leftTimerStyle === 'hourglass' ? 'hourglass' : m.leftTimerStyle === 'twinz' ? 'twinz' : 'elegant';
+                const durationMs = typeof m.leftTimerDurationMs === 'number' && Number.isFinite(m.leftTimerDurationMs) && m.leftTimerDurationMs > 0 ? m.leftTimerDurationMs : undefined;
+                const repeat = typeof m.leftTimerRepeat === 'boolean' ? m.leftTimerRepeat : undefined;
+                newHud.left = { widget: 'timer', style, ...(durationMs !== undefined ? { durationMs } : {}), ...(repeat !== undefined ? { repeat } : {}) };
               } else if (typeof m.leftFace === 'string') {
                 const face = isClockFace(m.leftFace) ? m.leftFace : 'elegant';
                 newHud.left = { widget: 'clock', face };
@@ -1908,6 +1913,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               } else if (m.rightWidget === 'claude') {
                 const style = CLAUDE_STYLES.find(s => s.id === m.rightClaudeStyle)?.id;
                 newHud.right = { widget: 'claude', ...(style ? { style } : {}) };
+              } else if (m.rightWidget === 'timer') {
+                const style = m.rightTimerStyle === 'hourglass' ? 'hourglass' : m.rightTimerStyle === 'twinz' ? 'twinz' : 'elegant';
+                const durationMs = typeof m.rightTimerDurationMs === 'number' && Number.isFinite(m.rightTimerDurationMs) && m.rightTimerDurationMs > 0 ? m.rightTimerDurationMs : undefined;
+                const repeat = typeof m.rightTimerRepeat === 'boolean' ? m.rightTimerRepeat : undefined;
+                newHud.right = { widget: 'timer', style, ...(durationMs !== undefined ? { durationMs } : {}), ...(repeat !== undefined ? { repeat } : {}) };
               } else if (typeof m.rightFace === 'string') {
                 const face = isClockFace(m.rightFace) ? m.rightFace : 'elegant';
                 newHud.right = { widget: 'clock', face };
