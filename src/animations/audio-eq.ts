@@ -19,10 +19,16 @@ export type AudioEqOptions = {
   gain?: number;
   target?: string;  // pw-record --target override (resolved node ID)
   style?: AudioStyle;
+  fullBandCount?: number;
 };
 
 export interface AudioEqAnimation extends Animation {
   readonly source: AudioSource;
+}
+
+// Internal type — not exported; fullBands is only for browser preview, not hardware
+export interface BandCtx extends RenderCtx {
+  fullBands?: number[];
 }
 
 const BAND_EDGES = [20, 60, 120, 250, 500, 1000, 2000, 6000, 14000, 20000];
@@ -60,9 +66,44 @@ function computeBandMagnitudes(
   return bands;
 }
 
+// Log-spaced N-band computation for fullscreen browser preview.
+// Hardware always uses computeBandMagnitudes (9 fixed bands) — this is additive.
+function computeBandsN(out: number[], fftSize: number, n: number): number[] {
+  n = Math.max(1, Math.min(512, Math.floor(n)));
+  const half = fftSize / 2;
+  const bands = new Array<number>(n).fill(0);
+  const counts = new Array<number>(n).fill(0);
+  const logMin = Math.log10(20);
+  const logMax = Math.log10(20000);
+  const edges = Array.from({ length: n + 1 }, (_, i) =>
+    Math.pow(10, logMin + (i / n) * (logMax - logMin)));
+
+  for (let k = 1; k <= half; k++) {
+    const freq = (k * SAMPLE_RATE) / fftSize;
+    const mag = Math.sqrt((out[2 * k] ?? 0) ** 2 + (out[2 * k + 1] ?? 0) ** 2);
+    for (let b = 0; b < n; b++) {
+      const lo = edges[b] ?? 0;
+      const hi = edges[b + 1] ?? Infinity;
+      if (freq >= lo && freq < hi) {
+        bands[b] = (bands[b] ?? 0) + mag;
+        counts[b] = (counts[b] ?? 0) + 1;
+        break;
+      }
+    }
+  }
+
+  for (let b = 0; b < n; b++) {
+    const c = counts[b] ?? 0;
+    bands[b] = c > 0 ? (bands[b] ?? 0) / c : 0;
+  }
+
+  return bands;
+}
+
 interface BandStream {
-  [Symbol.asyncIterator](): AsyncIterator<RenderCtx>;
+  [Symbol.asyncIterator](): AsyncIterator<BandCtx>;
   stop(): void;
+  setFullBandCount(n: number): void;
 }
 
 export function createAudioBandStream(opts?: Omit<AudioEqOptions, 'style'>): BandStream {
@@ -74,10 +115,11 @@ export function createAudioBandStream(opts?: Omit<AudioEqOptions, 'style'>): Ban
   const pulseTarget = opts?.target ?? 'default';
 
   let stopped = false;
-  let resolveChunk: ((ctx: RenderCtx | null) => void) | null = null;
-  const pending: RenderCtx[] = [];
+  let resolveChunk: ((ctx: BandCtx | null) => void) | null = null;
+  const pending: BandCtx[] = [];
   let buffer = Buffer.alloc(0);
   let procClosed = false;
+  let currentFullBandCount = opts?.fullBandCount ?? 0;
 
   const proc = spawn(
     'ffmpeg',
@@ -107,7 +149,13 @@ export function createAudioBandStream(opts?: Omit<AudioEqOptions, 'style'>): Ban
       fft.realTransform(out, samples);
       fft.completeSpectrum(out);
 
-      const ctx: RenderCtx = { bands: computeBandMagnitudes(out, fftSize), fftSize, gain };
+      const n = currentFullBandCount;
+      const ctx: BandCtx = {
+        bands: computeBandMagnitudes(out, fftSize),
+        fftSize,
+        gain,
+        ...(n > 0 ? { fullBands: computeBandsN(out, fftSize, n) } : {}),
+      };
 
       if (resolveChunk) {
         const resolve = resolveChunk;
@@ -135,13 +183,13 @@ export function createAudioBandStream(opts?: Omit<AudioEqOptions, 'style'>): Ban
   });
 
   return {
-    [Symbol.asyncIterator](): AsyncIterator<RenderCtx> {
+    [Symbol.asyncIterator](): AsyncIterator<BandCtx> {
       return {
-        async next(): Promise<IteratorResult<RenderCtx>> {
-          if (stopped || procClosed) return { value: undefined as unknown as RenderCtx, done: true };
+        async next(): Promise<IteratorResult<BandCtx>> {
+          if (stopped || procClosed) return { value: undefined as unknown as BandCtx, done: true };
           if (pending.length > 0) return { value: pending.shift()!, done: false };
-          const ctx = await new Promise<RenderCtx | null>(resolve => { resolveChunk = resolve; });
-          if (ctx === null || stopped) return { value: undefined as unknown as RenderCtx, done: true };
+          const ctx = await new Promise<BandCtx | null>(resolve => { resolveChunk = resolve; });
+          if (ctx === null || stopped) return { value: undefined as unknown as BandCtx, done: true };
           return { value: ctx, done: false };
         },
       };
@@ -154,6 +202,9 @@ export function createAudioBandStream(opts?: Omit<AudioEqOptions, 'style'>): Ban
         resolveChunk = null;
         resolve(null);
       }
+    },
+    setFullBandCount(n: number) {
+      currentFullBandCount = n;
     },
   };
 }

@@ -1,4 +1,5 @@
 import { useState, useLayoutEffect, useRef, useEffect, useCallback } from 'react';
+import type { CSSProperties } from 'react';
 import { PixelCanvas, canvasComponentH } from './components/PixelCanvas.js';
 import { FrameStrip } from './components/FrameStrip.js';
 import { ColorPalette } from './components/ColorPalette.js';
@@ -7,7 +8,7 @@ import { Toggle } from './components/ui/toggle.js';
 import { Button } from './components/ui/button.js';
 import { Slider } from './components/ui/slider.js';
 import { Input } from './components/ui/input.js';
-import { ScrubInput } from './components/ui/scrub-input.js';
+import { TimeInput } from './components/ui/time-input.js';
 import { Text } from './components/ui/text.js';
 import { Tooltip, TooltipProvider } from './components/ui/tooltip.js';
 import { Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger } from './components/ui/menu.js';
@@ -18,6 +19,8 @@ import { ModePicker } from './components/ModePicker.js';
 import { MODES } from './app-modes.js';
 import type { AppMode } from './app-modes.js';
 import { AudioPanel } from './components/AudioPanel.js';
+import type { AudioStyle } from './store.js';
+import { AUDIO_STYLES } from '../../animations/audio-renderers.js';
 import { ConfigPanel } from './components/ConfigPanel.js';
 import { HudPanel, hudSendWsGlobal } from './components/HudPanel.js';
 import { VideoPanel, VideoHeader, VideoTransportControls, VideoSettingsToggle, useVStore } from './components/VideoPanel.js';
@@ -29,8 +32,24 @@ import { WelcomeScreen } from './components/WelcomeScreen.js';
 
 const MODE_LABEL = Object.fromEntries(MODES.map(m => [m.id, m.label])) as Record<AppMode, string>;
 
+function idleFadeStyle(idle: boolean): CSSProperties {
+  return {
+    opacity: idle ? 0 : 1,
+    transition: idle ? 'opacity 300ms' : 'opacity 0ms',
+    ...(idle ? { pointerEvents: 'none' as const } : {}),
+  };
+}
+
 function storeCompat() {
   return { state: deckStore.getState(), loadProject: (p: unknown) => deckStore.getState().loadProject(p) };
+}
+
+function applyOpenAsset(name: string, project: unknown) {
+  const baseName = name.replace(/\.dmx\.json$/i, '');
+  const s = deckStore.getState();
+  s.loadProject(project);
+  s.setProjectTitle(baseName);
+  s.setLibraryPath(baseName);
 }
 
 function newProject() {
@@ -193,17 +212,25 @@ export function App() {
 
   useEffect(() => {
     document.title = activeMode ? `dark-matrix - ${MODE_LABEL[activeMode]}` : 'dark-matrix';
+    if (activeMode !== 'audio') setAudioFullscreenStyle(null);
   }, [activeMode]);
+
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [modePickerOpen, setModePickerOpen] = useState(false);
+  const [audioFullscreenStyle, setAudioFullscreenStyle] = useState<AudioStyle | null>(null);
+  const [audioIdle, setAudioIdle] = useState(false);
 
   useEffect(() => {
     const el = headerRef.current;
     if (!el) return;
-    if (activeMode === 'video' && videoIdle) el.setAttribute('inert', '');
-    else el.removeAttribute('inert');
-  }, [activeMode, videoIdle]);
-
-  const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const [modePickerOpen, setModePickerOpen] = useState(false);
+    const shouldHide = (activeMode === 'video' && videoIdle) || (activeMode === 'audio' && audioFullscreenStyle !== null && audioIdle);
+    if (shouldHide) {
+      if (el.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
+      el.setAttribute('inert', '');
+    } else {
+      el.removeAttribute('inert');
+    }
+  }, [activeMode, videoIdle, audioIdle, audioFullscreenStyle]);
   const [assetManagerOpen, setAssetManagerOpen] = useState(false);
   const [assetImportOpen, setAssetImportOpen] = useState(false);
   const [hasMic, setHasMic] = useState(false);
@@ -404,10 +431,7 @@ export function App() {
         open={assetManagerOpen}
         onOpenChange={setAssetManagerOpen}
         onOpenAsset={(name, project) => {
-          deckStore.getState().loadProject(project);
-          const baseName = name.replace(/\.dmx\.json$/i, '');
-          deckStore.getState().setProjectTitle(baseName);
-          deckStore.getState().setLibraryPath(baseName);
+          applyOpenAsset(name, project);
           setAssetManagerOpen(false);
         }}
       />
@@ -415,6 +439,11 @@ export function App() {
         open={assetImportOpen}
         onOpenChange={setAssetImportOpen}
         initialView="import"
+        onOpenAsset={(name, project) => {
+          applyOpenAsset(name, project);
+          deckStore.getState().setActiveMode('design');
+          setAssetImportOpen(false);
+        }}
       />
       {modePickerOpen && (
         <ModePicker
@@ -430,7 +459,7 @@ export function App() {
           ref={headerRef}
           blur={false}
           className="absolute top-0 inset-x-0 z-10 gap-4 pl-7 pr-5 py-4"
-          style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)', ...(activeMode === 'video' ? { opacity: videoIdle ? 0 : 1, transition: videoIdle ? 'opacity 300ms' : 'opacity 0ms', pointerEvents: videoIdle ? 'none' : undefined } : {}) }}
+          style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)', ...(activeMode === 'video' ? idleFadeStyle(videoIdle) : activeMode === 'audio' && audioFullscreenStyle !== null ? idleFadeStyle(audioIdle) : {}) }}
           left={
             activeMode !== 'hud' && activeMode !== 'config' && activeMode !== 'audio' && activeMode !== 'video' && activeMode !== 'life' ? (
               <div className="flex items-center gap-1">
@@ -452,9 +481,7 @@ export function App() {
                             <MenuItem key={name} onSelect={() => {
                               openFromLibrary(name)
                                 .then(project => {
-                                  deckStore.getState().loadProject(project);
-                                  deckStore.getState().setProjectTitle(name);
-                                  deckStore.getState().setLibraryPath(name);
+                                  applyOpenAsset(name, project);
                                   deckStore.getState().addRecentFile(name);
                                 })
                                 .catch(console.error);
@@ -530,7 +557,9 @@ export function App() {
                 </span>
               </>
             ) : activeMode === 'audio' ? (
-              <span className="font-mono text-xs text-foreground">audio</span>
+              <span className="font-mono text-xs text-foreground">
+                {AUDIO_STYLES.find(s => s.id === audioFullscreenStyle)?.label ?? 'audio'}
+              </span>
             ) : activeMode === 'video' ? (
               <VideoHeader />
             ) : activeMode === 'life' ? (
@@ -564,8 +593,17 @@ export function App() {
                 <div className="flex items-center gap-2">
                   {isClockSelected && (
                     <>
-                      <ScrubInput aria-label="Clock hours" value={clockOverrideH} min={0} max={23} onChange={setClockOverrideH} />
-                      <ScrubInput aria-label="Clock minutes" value={clockOverrideM} min={0} max={59} onChange={setClockOverrideM} />
+                      <TimeInput
+                        aria-label="Preview time"
+                        value={`${String(clockOverrideH).padStart(2, '0')}:${String(clockOverrideM).padStart(2, '0')}`}
+                        onChange={v => {
+                          const [hStr, mStr] = v.split(':');
+                          const h = parseInt(hStr ?? '0', 10);
+                          const m = parseInt(mStr ?? '0', 10);
+                          setClockOverrideH(isNaN(h) ? 0 : h);
+                          setClockOverrideM(isNaN(m) ? 0 : m);
+                        }}
+                      />
                       <Button variant="ghost" size="sm" aria-label="Reset to current time" onClick={() => { const n = new Date(); setClockOverrideH(n.getHours()); setClockOverrideM(n.getMinutes()); }}>
                         now
                       </Button>
@@ -592,19 +630,24 @@ export function App() {
             ) : activeMode === 'config' ? (
               <Button variant="ghost" disabled={!configDirty} onClick={() => void saveConfig()}>save</Button>
             ) : activeMode === 'audio' ? (
-              hasMic ? (
+              (audioFullscreenStyle !== null || hasMic) ? (
                 <div className="flex items-center gap-2">
-                  {audioSource === 'mic' && (
+                  {audioFullscreenStyle !== null && (
+                    <Button variant="ghost" size="sm" aria-label="Switch visualizer" onClick={() => setAudioFullscreenStyle(null)}>switch</Button>
+                  )}
+                  {hasMic && audioSource === 'mic' && (
                     <Slider aria-label="Mic sensitivity" value={micSensitivity} min={0} max={100} className="w-36" onChange={e => deckStore.getState().setMicSensitivity(Number(e.target.value))} />
                   )}
-                  <Toggle
-                    pressed={audioSource === 'mic'}
-                    onPressedChange={(on) => deckStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
-                    title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
-                    aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
-                  >
-                    <span aria-hidden="true">mic</span>
-                  </Toggle>
+                  {hasMic && (
+                    <Toggle
+                      pressed={audioSource === 'mic'}
+                      onPressedChange={(on) => deckStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
+                      title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                      aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                    >
+                      <span aria-hidden="true">mic</span>
+                    </Toggle>
+                  )}
                 </div>
               ) : undefined
             ) : activeMode === 'video' ? (
@@ -639,7 +682,7 @@ export function App() {
           </div>
         ) : activeMode === 'audio' ? (
           <div className="h-full flex">
-            <AudioPanel dualModule={dualModule} />
+            <AudioPanel dualModule={dualModule} fullscreenStyle={audioFullscreenStyle} onFullscreenChange={setAudioFullscreenStyle} onFullscreenIdleChange={setAudioIdle} />
           </div>
         ) : activeMode === 'config' ? (
           <div className="h-full flex">
@@ -693,6 +736,9 @@ export function App() {
             onDismiss={() => setWelcomeDismissed(true)}
           />
         )}
+        <span className="sr-only" aria-live="polite" aria-atomic="true">
+          {activeMode === 'audio' && audioIdle ? 'Controls hidden. Move mouse or press a key to show.' : ''}
+        </span>
       </div>
     </TooltipProvider>
   );
