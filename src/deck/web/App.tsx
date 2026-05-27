@@ -7,7 +7,7 @@ import { Toggle } from './components/ui/toggle.js';
 import { Button } from './components/ui/button.js';
 import { Slider } from './components/ui/slider.js';
 import { Input } from './components/ui/input.js';
-import { ScrubInput } from './components/ui/scrub-input.js';
+import { TimeInput } from './components/ui/time-input.js';
 import { Text } from './components/ui/text.js';
 import { Tooltip, TooltipProvider } from './components/ui/tooltip.js';
 import { Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger } from './components/ui/menu.js';
@@ -519,8 +519,17 @@ export function App() {
                 <div className="flex items-center gap-2">
                   {isClockSelected && (
                     <>
-                      <ScrubInput aria-label="Clock hours" value={clockOverrideH} min={0} max={23} onChange={setClockOverrideH} />
-                      <ScrubInput aria-label="Clock minutes" value={clockOverrideM} min={0} max={59} onChange={setClockOverrideM} />
+                      <TimeInput
+                        aria-label="Preview time"
+                        value={`${String(clockOverrideH).padStart(2, '0')}:${String(clockOverrideM).padStart(2, '0')}`}
+                        onChange={v => {
+                          const [hStr, mStr] = v.split(':');
+                          const h = parseInt(hStr ?? '0', 10);
+                          const m = parseInt(mStr ?? '0', 10);
+                          setClockOverrideH(isNaN(h) ? 0 : h);
+                          setClockOverrideM(isNaN(m) ? 0 : m);
+                        }}
+                      />
                       <Button variant="ghost" size="sm" aria-label="Reset to current time" onClick={() => { const n = new Date(); setClockOverrideH(n.getHours()); setClockOverrideM(n.getMinutes()); }}>
                         now
                       </Button>

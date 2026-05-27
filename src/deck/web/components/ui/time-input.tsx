@@ -95,6 +95,7 @@ function Seg({ value, onChange, disabled, ariaLabel }: SegProps) {
         inputMode="numeric"
         value={displayVal}
         aria-label={ariaLabel}
+        aria-readonly={!editing}
         disabled={disabled}
         readOnly={!editing}
         onChange={e => setDraft(e.target.value.replace(/\D/g, '').slice(0, 2))}
@@ -157,7 +158,7 @@ export function TimeInput({
 }: TimeInputProps) {
   const [h, m, s] = parse(value);
   const labelId = useId();
-  const prefix = label ?? '';
+  const prefix = label ?? ariaLabel ?? '';
 
   function update(newH: number, newM: number, newS: number) {
     const carried = applyCarry(newH, newM, newS, maxHours);
