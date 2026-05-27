@@ -1986,21 +1986,22 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               let content = '';
               let priority = 30;
               let durationMs = 5000;
+              const field = (key: string) => String(event[key] ?? '').slice(0, 64);
               switch (eventType) {
                 case 'channel.follow':
-                  content = `FOLLOW ${String(event['user_name'] ?? '')}`;
+                  content = `FOLLOW ${field('user_name')}`;
                   priority = 30; durationMs = 5000;
                   break;
                 case 'channel.subscribe':
-                  content = `SUB ${String(event['user_name'] ?? '')}`;
+                  content = `SUB ${field('user_name')}`;
                   priority = 60; durationMs = 8000;
                   break;
                 case 'channel.cheer':
-                  content = `BITS ${String(event['bits'] ?? '')}`;
+                  content = `BITS ${field('bits')}`;
                   priority = 60; durationMs = 8000;
                   break;
                 case 'channel.raid':
-                  content = `RAID ${String(event['from_broadcaster_user_name'] ?? '')}`;
+                  content = `RAID ${field('from_broadcaster_user_name')}`;
                   priority = 90; durationMs = 10000;
                   break;
                 default:

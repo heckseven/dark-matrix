@@ -51,11 +51,13 @@ export function startTwitchEventSub(opts: EventSubOptions): () => void {
         if (session?.id) void subscribeAll(session.id, opts.credentials);
       } else if (msgType === 'session_reconnect') {
         const session = (m.payload as { session?: { reconnect_url?: string } })?.session;
-        const reconnectUrl = session?.reconnect_url;
+        const rawUrl = session?.reconnect_url;
+        const reconnectUrl = typeof rawUrl === 'string' && /^wss:\/\/eventsub\.wss\.twitch\.tv\//.test(rawUrl)
+          ? rawUrl : EVENTSUB_WS_URL;
         // Replace ws before closing so the close handler sees it is no longer current
         ws = null;
         socket.close();
-        connect(reconnectUrl ?? EVENTSUB_WS_URL);
+        connect(reconnectUrl);
       } else if (msgType === 'notification') {
         const subType = m.metadata?.subscription_type ?? '';
         const event = (m.payload as { event?: Record<string, unknown> })?.event ?? {};

@@ -735,9 +735,16 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
       try {
         const body = await readBody(req);
         const { client_id } = JSON.parse(body) as { client_id?: unknown };
-        if (typeof client_id !== 'string' || !client_id) {
+        if (typeof client_id !== 'string' || !/^[a-z0-9]{20,40}$/i.test(client_id)) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: false, error: 'client_id required' }));
+          res.end(JSON.stringify({ ok: false, error: 'invalid client_id format' }));
+          return;
+        }
+        // Evict expired entries and enforce size cap before adding a new state
+        for (const [k, v] of pendingOAuthStates) { if (Date.now() > v.expiresAt) pendingOAuthStates.delete(k); }
+        if (pendingOAuthStates.size >= 20) {
+          res.writeHead(429, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'too many pending auth flows' }));
           return;
         }
         const state = randomBytes(32).toString('hex');
@@ -761,14 +768,14 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
     }
 
     // Twitch OAuth — callback page (token arrives in URL fragment, handled client-side)
-    if (url.startsWith('/auth/twitch/callback') && method === 'GET') {
+    if (url === '/auth/twitch/callback' && method === 'GET') {
       const html = `<!DOCTYPE html><html><head><title>Twitch Auth</title></head><body><script>
 var p=new URLSearchParams(location.hash.slice(1));
 var token=p.get('access_token'),state=p.get('state');
 if(token&&state){fetch('/api/twitch/save-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:token,state:state})}).then(function(r){r.ok?location.href='/':document.body.textContent='Save failed'});}
 else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error');}
 </script></body></html>`;
-      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'" });
       res.end(html);
       return;
     }
@@ -778,7 +785,7 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
       try {
         const body = await readBody(req);
         const { access_token, state } = JSON.parse(body) as { access_token?: unknown; state?: unknown };
-        if (typeof access_token !== 'string' || typeof state !== 'string') {
+        if (typeof access_token !== 'string' || !/^[a-z0-9]+$/i.test(access_token) || typeof state !== 'string') {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: false, error: 'invalid payload' }));
           return;
