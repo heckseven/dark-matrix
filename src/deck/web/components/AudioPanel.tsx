@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useDeckStore, deckStore } from '../store.js';
 import { MatrixItem } from './MatrixItem.js';
 import type { AudioStyle, AudioSource } from '../store.js';
@@ -6,7 +6,7 @@ import { AUDIO_STYLES, createRenderer } from '../../../animations/audio-renderer
 import type { RenderCtx } from '../../../animations/audio-renderers.js';
 import { BAYER4 } from '../../../animations/bayer.js';
 import { AudioFullscreen } from './AudioFullscreen.js';
-import { useState } from 'react';
+import { Slider } from './ui/slider.js';
 
 const COLS = 9;
 const ROWS = 34;
@@ -86,6 +86,8 @@ export function AudioPanel({
   const audioStyle = useDeckStore(s => s.audioStyle);
   const audioSource = useDeckStore(s => s.audioSource);
   const [livePixels, setLivePixels] = useState<Partial<Record<AudioStyle, string>>>({});
+  const [gainMultiplier, setGainMultiplier] = useState(1.0);
+  const gainMultiplierRef = useRef(1.0);
   const wsRef = useRef<WebSocket | null>(null);
   const fullBandsRef = useRef<number[] | null>(null);
   const fftSizeRef = useRef<number>(2048);
@@ -148,7 +150,7 @@ export function AudioPanel({
           fftSizeRef.current = msg.fftSize ?? 2048;
           gainRef.current = msg.gain ?? 1.0;
           if (msg.fullBands) fullBandsRef.current = msg.fullBands;
-          const ctx: RenderCtx = { bands: msg.bands, fftSize: msg.fftSize ?? 2048, gain: msg.gain ?? 1.0 };
+          const ctx: RenderCtx = { bands: msg.bands, fftSize: msg.fftSize ?? 2048, gain: (msg.gain ?? 1.0) * gainMultiplierRef.current };
           const renderers = renderersRef.current!;
           const next: Partial<Record<AudioStyle, string>> = {};
           for (const { id } of AUDIO_STYLES) {
@@ -183,6 +185,7 @@ export function AudioPanel({
         fullBandsRef={fullBandsRef}
         fftSizeRef={fftSizeRef}
         gainRef={gainRef}
+        gainMultiplierRef={gainMultiplierRef}
         onBandCountChange={handleBandCountChange}
         onIdleChange={onFullscreenIdleChange}
         onExit={() => onFullscreenChange(null)}
@@ -213,6 +216,20 @@ export function AudioPanel({
             />
           );
         })}
+      </div>
+      <div className="flex flex-col items-center gap-1 w-48">
+        <span id="gain-slider-label" className="text-xs text-muted-foreground">gain</span>
+        <Slider
+          aria-labelledby="gain-slider-label"
+          min={1} max={8} step={0.5}
+          value={gainMultiplier}
+          valueLabel={gainMultiplier.toFixed(1) + '×'}
+          onChange={e => {
+            const v = Number(e.target.value);
+            setGainMultiplier(v);
+            gainMultiplierRef.current = v;
+          }}
+        />
       </div>
     </div>
   );

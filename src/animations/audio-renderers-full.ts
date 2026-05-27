@@ -437,22 +437,23 @@ function fullHex(): FullRenderer {
     const data = new Uint8Array(cols * rows);
     for (let c = 0; c < cols; c++) {
       const energy = ce[c] ?? 0;
+      // Spawn at bottom, rise upward
       if (Math.random() < energy * 0.3) {
-        drops.push({ pos: Math.random() * rows * 0.5, col: c, speed: 0.3 + energy * 1.5 });
+        drops.push({ pos: rows - 1 - Math.random() * rows * 0.3, col: c, speed: 0.3 + energy * 1.5 });
       }
     }
     drops = drops.filter(d => {
-      d.pos += d.speed;
+      d.pos -= d.speed;  // move upward (decreasing row index)
       const head = Math.round(d.pos);
       for (let t = 0; t < TRAIL; t++) {
-        const r = head - t;
+        const r = head + t;  // trail hangs below head
         if (r >= 0 && r < rows) {
           const v = Math.round(255 * Math.pow(0.68, t));
           const idx = d.col * rows + r;
           data[idx] = Math.max(data[idx] ?? 0, v);
         }
       }
-      return d.pos < rows + TRAIL;
+      return d.pos > -TRAIL;
     });
     if (drops.length > cols * HEADS_PER_COL * 2) drops.splice(0, drops.length - cols * HEADS_PER_COL);
     return data;

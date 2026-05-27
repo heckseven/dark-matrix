@@ -1607,6 +1607,9 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
   wss.on('connection', (ws: import('ws').WebSocket) => {
     const previewClient = new PersistentDaemonClient();
     let audioStream: net.Socket | null = null;
+    let currentAudioSource: string | null = null;
+    let currentHardwareStyle: string | null = null;
+    let currentHardwareSource: string | null = null;
     let dataStatsActive = false;
     ws.send(JSON.stringify({ type: 'connected' }));
     ws.on('close', () => {
@@ -1675,14 +1678,23 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
         const rawFbc = msg['fullBandCount'];
         const fullBandCount = typeof rawFbc === 'number' && Number.isInteger(rawFbc) && rawFbc > 0 && rawFbc <= 512
           ? rawFbc : undefined;
-        audioStream?.destroy();
-        audioStream = openAudioStream(source, (ctx) => {
-          if (ws.readyState === 1) {
-            ws.send(JSON.stringify({ type: 'audio-bands', ...ctx }));
-          }
-        }, fullBandCount);
+        // Only restart the band stream when source changes — avoids data gap on style switch
+        if (source !== currentAudioSource || !audioStream || audioStream.destroyed) {
+          audioStream?.destroy();
+          audioStream = openAudioStream(source, (ctx) => {
+            if (ws.readyState === 1) {
+              ws.send(JSON.stringify({ type: 'audio-bands', ...ctx }));
+            }
+          }, fullBandCount);
+          currentAudioSource = source;
+        }
         audioOwnerWs = ws;
-        void sendToDaemonWithRetry({ cmd: 'audio-hardware-start', style, source }, ++retryGen);
+        // Only restart hardware when style or source changes — avoids module blank on redundant sends
+        if (style !== currentHardwareStyle || source !== currentHardwareSource) {
+          currentHardwareStyle = style;
+          currentHardwareSource = source;
+          void sendToDaemonWithRetry({ cmd: 'audio-hardware-start', style, source }, ++retryGen);
+        }
       } else if (type === 'audio-viz-setbands') {
         const rawBc = msg['bandCount'];
         const bandCount = typeof rawBc === 'number' && Number.isInteger(rawBc) && rawBc > 0 && rawBc <= 512 ? rawBc : 0;
@@ -1692,6 +1704,9 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
       } else if (type === 'audio-viz-stop') {
         audioStream?.destroy();
         audioStream = null;
+        currentAudioSource = null;
+        currentHardwareStyle = null;
+        currentHardwareSource = null;
         if (audioOwnerWs === ws) {
           audioOwnerWs = null;
           sendToDaemon({ cmd: 'audio-hardware-stop' }).catch(() => {});
