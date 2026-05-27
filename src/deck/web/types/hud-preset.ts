@@ -5,6 +5,7 @@ import type { ClaudeStyle } from '../../../animations/claude-renderers.js';
 
 export type HudWidget =
   | { widget: 'clock'; face?: ClockFace }
+  | { widget: 'timer'; style?: 'elegant' | 'hourglass'; durationMs?: number; repeat?: boolean }
   | { widget: 'data'; style?: DataStyle; top_left?: DataMetric; top_right?: DataMetric; bottom_left?: DataMetric; bottom_right?: DataMetric }
   | { widget: 'heatmap' }
   | { widget: 'audio'; style?: AudioStyle }

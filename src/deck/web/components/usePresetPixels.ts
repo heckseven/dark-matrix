@@ -6,6 +6,7 @@ import type { DataStyle, DataRenderer } from '../../../animations/data-renderers
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { createHeatmapState, bumpTool, renderHeatmap } from '../../../animations/heatmap.js';
+import { renderElegantTimer, renderHourglassFrame } from '../../../animations/timer-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { HudPresetClient } from '../types/hud-preset.js';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
@@ -138,6 +139,15 @@ function renderWidgetToB64(
       const b = deckStore.getState().biomePresets.find(b => b.name === widget.biomeName);
       if (!b?.gridSnapshot) return empty;
       return extractLifeHalf(b.gridSnapshot, side);
+    }
+    if (widget.widget === 'timer') {
+      const style = widget.style ?? 'elegant';
+      const frame = style === 'hourglass'
+        ? renderHourglassFrame(0.5)
+        : renderElegantTimer(90_000);
+      const out = new Uint8Array(COLS * ROWS);
+      for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
+      return btoa(String.fromCharCode(...out));
     }
     if (widget.widget === 'claude') return empty;
     const style: DataStyle = widget.style ?? 'line';

@@ -9,6 +9,7 @@ import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription, D
 import { AssetImportPanel } from './AssetImportPanel.js';
 import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
+import { renderElegantTimer, renderHourglassFrame } from '../../../animations/timer-renderers.js';
 import { DATA_STYLES, createDataRenderer } from '../../../animations/data-renderers.js';
 import type { DataStyle, DataMetric, DataRenderer } from '../../../animations/data-renderers.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
@@ -23,6 +24,8 @@ import { LIFE_ALGORITHMS } from '../../../animations/gol.js';
 import { stepGrid, decodeGrid, encodeGrid } from './LifeCanvas.js';
 import { Slider } from './ui/slider.js';
 import { Text } from './ui/text.js';
+import { TimeInput } from './ui/time-input.js';
+import { Checkbox } from './ui/checkbox.js';
 import { deckStore, useDeckStore } from '../store.js';
 
 const COLS = 9;
@@ -65,6 +68,7 @@ function bayerToB64(frame: Uint8Array): string {
 
 function categoryOfWidget(w: HudWidget): string {
   if (w.widget === 'clock')   return 'time';
+  if (w.widget === 'timer')   return 'timer';
   if (w.widget === 'heatmap') return 'ai';
   if (w.widget === 'claude')  return 'ai';
   if (w.widget === 'audio')   return 'audio';
@@ -76,6 +80,7 @@ function categoryOfWidget(w: HudWidget): string {
 function widgetHasSettings(w: HudWidget): boolean {
   if (w.widget === 'data') return w.style === 'line' || w.style === 'fill' || w.style === undefined;
   if (w.widget === 'life') return w.biomeName === 'random';
+  if (w.widget === 'timer') return true;
   return false;
 }
 
@@ -86,6 +91,7 @@ function widgetHasSettings(w: HudWidget): boolean {
 const CATEGORIES = [
   { id: 'audio', label: 'audio' },
   { id: 'time',  label: 'time'  },
+  { id: 'timer', label: 'timer' },
   { id: 'data',  label: 'data'  },
   { id: 'image', label: 'image' },
   { id: 'ai',    label: 'ai'    },
@@ -134,6 +140,68 @@ function ClockGrid({ currentWidget, onPick }: {
           onSelect={() => onPick({ widget: 'clock', face: id })}
         />
       ))}
+    </div>
+  );
+}
+
+// ── Layer 2: Timer grid ───────────────────────────────────────────────────
+
+const TIMER_DEMO_MS      = 90_000; // 1m30s — stays in mm:ss mode for elegant preview
+const HOURGLASS_DEMO_MS  = 5 * 60_000;
+
+function TimerGrid({ currentWidget, onSettings }: {
+  currentWidget: HudWidget | null;
+  onSettings: (w: HudWidget) => void;
+}) {
+  const elegantRemRef    = useRef(TIMER_DEMO_MS);
+  const hourglassRemRef  = useRef(HOURGLASS_DEMO_MS);
+
+  const [pixels, setPixels] = useState<{ elegant: string; hourglass: string }>(() => ({
+    elegant:   bwToB64(renderElegantTimer(elegantRemRef.current)),
+    hourglass: bwToB64(renderHourglassFrame(1 - hourglassRemRef.current / HOURGLASS_DEMO_MS)),
+  }));
+
+  useEffect(() => {
+    const iid = setInterval(() => {
+      elegantRemRef.current   = Math.max(0, elegantRemRef.current - 100);
+      if (elegantRemRef.current === 0) elegantRemRef.current = TIMER_DEMO_MS;
+
+      hourglassRemRef.current = Math.max(0, hourglassRemRef.current - 100);
+      if (hourglassRemRef.current === 0) hourglassRemRef.current = HOURGLASS_DEMO_MS;
+
+      setPixels({
+        elegant:   bwToB64(renderElegantTimer(elegantRemRef.current)),
+        hourglass: bwToB64(renderHourglassFrame(1 - hourglassRemRef.current / HOURGLASS_DEMO_MS)),
+      });
+    }, 100);
+    return () => clearInterval(iid);
+  }, []);
+
+  const timerStyle = currentWidget?.widget === 'timer' ? (currentWidget.style ?? 'elegant') : null;
+  const baseWidget = (style: 'elegant' | 'hourglass'): HudWidget => ({
+    widget: 'timer',
+    style,
+    ...(currentWidget?.widget === 'timer' ? { durationMs: currentWidget.durationMs, repeat: currentWidget.repeat } : {}),
+  });
+
+  return (
+    <div role="group" aria-label="Timer panels" className="flex flex-wrap gap-6">
+      <MatrixItem
+        name="elegant"
+        aria-label="elegant timer"
+        width={9}
+        pixels={pixels.elegant}
+        isSelected={timerStyle === 'elegant'}
+        onSelect={() => onSettings(baseWidget('elegant'))}
+      />
+      <MatrixItem
+        name="hourglass"
+        aria-label="hourglass timer"
+        width={9}
+        pixels={pixels.hourglass}
+        isSelected={timerStyle === 'hourglass'}
+        onSelect={() => onSettings(baseWidget('hourglass'))}
+      />
     </div>
   );
 }
@@ -826,6 +894,53 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, onEd
   );
 }
 
+// ── Layer 3: Timer settings ───────────────────────────────────────────────
+
+function TimerSettings({ widget, uid, onChange }: {
+  widget: HudWidget & { widget: 'timer' };
+  uid: string;
+  onChange: (w: HudWidget) => void;
+}) {
+  const durationMs = widget.durationMs ?? 25 * 60_000;
+  const totalSec   = Math.floor(durationMs / 1000);
+  const h          = Math.floor(totalSec / 3600);
+  const m          = Math.floor((totalSec % 3600) / 60);
+  const s          = totalSec % 60;
+  const pad        = (n: number) => String(n).padStart(2, '0');
+  const timeValue  = `${pad(h)}:${pad(m)}:${pad(s)}`;
+  const repeatId   = `${uid}-timer-repeat`;
+
+  function handleTimeChange(val: string) {
+    const safe  = (n: number | undefined) => (n !== undefined && Number.isFinite(n) ? n : 0);
+    const parts = val.split(':').map(p => parseInt(p, 10));
+    const newH  = safe(parts[0]);
+    const newM  = safe(parts[1]);
+    const newS  = safe(parts[2]);
+    const newMs = (newH * 3600 + newM * 60 + newS) * 1000;
+    onChange({ ...widget, durationMs: Math.max(1000, newMs) });
+  }
+
+  return (
+    <div role="group" aria-label="Timer widget settings" className="flex flex-col gap-4">
+      <TimeInput
+        label="duration"
+        value={timeValue}
+        showSeconds={true}
+        maxHours={undefined}
+        onChange={handleTimeChange}
+      />
+      <label htmlFor={repeatId} className="flex items-center gap-2 cursor-pointer select-none">
+        <Checkbox
+          id={repeatId}
+          checked={widget.repeat ?? false}
+          onChange={e => onChange({ ...widget, repeat: (e.target as HTMLInputElement).checked })}
+        />
+        <span className="font-mono text-xs">repeat</span>
+      </label>
+    </div>
+  );
+}
+
 // ── Layer 3: Data settings ────────────────────────────────────────────────
 
 const DATA_METRICS: { id: DataMetric | 'none'; label: string }[] = [
@@ -1058,6 +1173,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
           <div className="flex-1 overflow-y-auto">
             <div className="py-4 px-2">
               {activeCategory === 'time'   && <ClockGrid currentWidget={widget} onPick={handlePick} />}
+              {activeCategory === 'timer'  && <TimerGrid currentWidget={widget} onSettings={handleSettings} />}
               {activeCategory === 'data'   && <DataGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} />}
               {activeCategory === 'ai'     && <AiGrid    currentWidget={widget} onPick={handlePick} />}
               {activeCategory === 'audio'  && <AudioGrid currentWidget={widget} audioCtx={audioCtx} side={side} onPick={handlePick} onMount={handleAudioMount} onUnmount={handleAudioUnmount} />}
@@ -1080,7 +1196,20 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
     );
   }
 
-  // ── Layer 3 (data settings or life random settings)
+  // ── Layer 3 (timer / data settings / life random settings)
+  if (widget?.widget === 'timer') {
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        {header}
+        <div className="flex-1 overflow-y-auto">
+          <div className="py-4 px-2">
+            <TimerSettings widget={widget} uid={uid} onChange={onChange} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (widget?.widget === 'life' && widget.biomeName === 'random') {
     return (
       <div className="flex flex-col h-full overflow-hidden">

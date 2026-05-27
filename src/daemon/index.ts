@@ -34,6 +34,7 @@ import { createDataRenderer } from '../animations/data-renderers.js';
 import { DATA_STYLES } from '../animations/data-renderers.js';
 import type { DataStyle, DataWidgetConfig, DataRenderer } from '../animations/data-renderers.js';
 import { createClaudeMatrixRenderer, createClaudeContextRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer, CLAUDE_STYLES } from '../animations/claude-renderers.js';
+import { createElegantTimerRenderer, createHourglassTimerRenderer } from '../animations/timer-renderers.js';
 import type { ClaudeStyle, ClaudeRendererApi } from '../animations/claude-renderers.js';
 import { watchProcStats } from '../lib/proc-source.js';
 import { createPresetTriggerEngine } from '../lib/preset-triggers.js';
@@ -753,6 +754,25 @@ export async function startDaemon(): Promise<() => Promise<void>> {
             return gridToFrame(grid);
           },
           stop() { /* stateless */ },
+        };
+      }
+      case 'timer': {
+        const timerStyle  = widget.style ?? 'elegant';
+        const durationMs  = widget.durationMs ?? 25 * 60_000;
+        const repeat      = widget.repeat ?? false;
+        let   epochMs     = Date.now();
+        const hgRenderer  = timerStyle === 'hourglass' ? createHourglassTimerRenderer() : null;
+        const elRenderer  = hgRenderer ? null : createElegantTimerRenderer();
+        return {
+          render(now, _audioCtx) {
+            const elapsed     = now.getTime() - epochMs;
+            const remainingMs = repeat
+              ? Math.max(0, durationMs - (elapsed % durationMs))
+              : Math.max(0, durationMs - elapsed);
+            if (hgRenderer) return hgRenderer.render(remainingMs, durationMs);
+            return elRenderer!.render(remainingMs);
+          },
+          stop() { hgRenderer?.stop(); elRenderer?.stop(); },
         };
       }
       case 'claude': {

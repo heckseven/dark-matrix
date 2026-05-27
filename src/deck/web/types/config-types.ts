@@ -3,6 +3,7 @@
 
 export type HudWidget =
   | { widget: 'clock'; face: 'binary-audio' | 'elegant' | 'stretch' | 'analogue' | 'binary-blocks' | 'binary-tall' | 'binary-diamond' }
+  | { widget: 'timer'; style?: 'elegant' | 'hourglass'; durationMs?: number; repeat?: boolean }
   | { widget: 'data'; style?: 'line' | 'bars'; top_left?: 'cpu' | 'ram' | 'net_rx' | 'net_tx'; top_right?: 'cpu' | 'ram' | 'net_rx' | 'net_tx'; bottom_left?: 'cpu' | 'ram' | 'net_rx' | 'net_tx'; bottom_right?: 'cpu' | 'ram' | 'net_rx' | 'net_tx' };
 
 export type HudTrigger =

@@ -86,6 +86,52 @@ export function renderElegantTimer(remainingMs: number): Frame {
   return frame;
 }
 
+// ── Elegant timer renderer (stateful) ─────────────────────────────────────
+// Plays ELEGANT_FLASH_COUNT half-periods on expiry at ELEGANT_FLASH_INTERVAL_MS
+// each, then holds at the zero display. Uses wall-clock time so the interval is
+// accurate regardless of the animation frame rate.
+// Call render() with remainingMs > 0 after expiry to signal a repeat restart.
+
+export const ELEGANT_FLASH_COUNT       = 14; // total half-periods (7 on/off cycles)
+export const ELEGANT_FLASH_INTERVAL_MS = 70; // ms per half-period → 980ms total
+
+export interface ElegantTimerRenderer {
+  render(remainingMs: number): Frame;
+  stop(): void;
+}
+
+export function createElegantTimerRenderer(): ElegantTimerRenderer {
+  let expiredAtMs = -1;
+  let wasExpired  = false;
+
+  return {
+    render(remainingMs: number): Frame {
+      const expired = remainingMs <= 0;
+
+      if (!expired) {
+        if (wasExpired) { expiredAtMs = -1; wasExpired = false; }
+        return renderElegantTimer(remainingMs);
+      }
+
+      wasExpired = true;
+      const nowMs = Date.now();
+      if (expiredAtMs < 0) expiredAtMs = nowMs;
+
+      const halfPeriod = Math.floor((nowMs - expiredAtMs) / ELEGANT_FLASH_INTERVAL_MS);
+
+      if (halfPeriod < ELEGANT_FLASH_COUNT && halfPeriod % 2 === 0) {
+        const base = renderElegantTimer(0);
+        const out  = createFrame();
+        for (let i = 0; i < base.length; i++) out[i] = base[i]! > 0 ? 0 : 255;
+        return out;
+      }
+
+      return renderElegantTimer(0);
+    },
+    stop() { /* no resources */ },
+  };
+}
+
 // ── Hourglass timer renderer ───────────────────────────────────────────────
 // The hourglass pixel maps are sourced from the existing design at:
 //   src/deck/web/components/ClaudeWidgets.stories.tsx

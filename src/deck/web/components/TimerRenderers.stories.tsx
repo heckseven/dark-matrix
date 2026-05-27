@@ -4,12 +4,13 @@ import { MatrixPreview } from './MatrixPreview.js';
 import {
   renderElegantTimer,
   getElegantTimerMode,
+  createElegantTimerRenderer,
   renderHourglassFrame,
   renderHourglassSpinning,
   HOURGLASS_ROTATION_STEPS,
   createHourglassTimerRenderer,
 } from '../../../animations/timer-renderers.js';
-import type { HourglassTimerRenderer } from '../../../animations/timer-renderers.js';
+import type { ElegantTimerRenderer, HourglassTimerRenderer } from '../../../animations/timer-renderers.js';
 
 function toPixels(frame: Uint8Array): string {
   return btoa(String.fromCharCode(...frame));
@@ -92,6 +93,48 @@ function ElegantLiveDemo() {
       <MatrixPreview pixels={pixels} width={9} />
       <span style={{ color: '#888', fontSize: 11, fontFamily: 'monospace' }}>{mode}</span>
       <SpeedButtons speed={speed} onChange={setSpeed} />
+    </div>
+  );
+}
+
+// ── Elegant timer — completion flash ─────────────────────────────────────────
+// Pre-expired so the 14-inversion flash plays immediately on load.
+
+function ElegantFlashDemo() {
+  const [speed, setSpeed] = useState<Speed>(1);
+  const rendererRef = useRef<ElegantTimerRenderer>(createElegantTimerRenderer());
+  const [pixels, setPixels] = useState(() =>
+    toPixels(rendererRef.current.render(0)),
+  );
+
+  function rerun() {
+    rendererRef.current = createElegantTimerRenderer();
+    setPixels(toPixels(rendererRef.current.render(0)));
+  }
+
+  useEffect(() => {
+    const intervalMs = Math.round(70 / speed);
+    const id = setInterval(() => {
+      setPixels(toPixels(rendererRef.current.render(0)));
+    }, intervalMs);
+    return () => clearInterval(id);
+  }, [speed]);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+      <MatrixPreview pixels={pixels} width={9} />
+      <span style={{ color: '#888', fontSize: 11, fontFamily: 'monospace' }}>completion flash</span>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          aria-label="Rerun flash animation"
+          onClick={rerun}
+          style={{
+            fontFamily: 'monospace', fontSize: 11, cursor: 'pointer',
+            color: '#888', background: 'none', border: '1px solid #333', padding: '2px 8px',
+          }}
+        >⟳</button>
+        <SpeedButtons speed={speed} onChange={setSpeed} />
+      </div>
     </div>
   );
 }
@@ -244,6 +287,14 @@ export const ElegantStages: Story = {
  */
 export const ElegantLive: Story = {
   render: () => <ElegantLiveDemo />,
+};
+
+/**
+ * Elegant timer completion flash — 14 inversions (7 on/off cycles) at 70ms per half-period.
+ * Pre-expired so it plays immediately. Use 1x to watch individual frames; 7x to loop fast.
+ */
+export const ElegantFlash: Story = {
+  render: () => <ElegantFlashDemo />,
 };
 
 /** Hourglass at 0%, 25%, 50%, 75%, and 100% elapsed. */
