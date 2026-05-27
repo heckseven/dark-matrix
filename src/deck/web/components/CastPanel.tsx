@@ -111,7 +111,7 @@ export function CastPanel({ topPad = 0 }: { topPad?: number }) {
   return (
     <div className="flex-1 flex flex-col bg-background font-mono min-h-0">
       {/* Columns area */}
-      <div className="flex-1 flex items-stretch overflow-x-auto overflow-y-hidden min-h-0">
+      <div className="flex-1 flex items-stretch overflow-x-auto overflow-y-hidden min-h-0" style={{ paddingTop: topPad || undefined }}>
         <ColumnInsertButton
           hidden={atMax || columns.length === 0}
           label="Add column at start"
@@ -125,7 +125,6 @@ export function CastPanel({ topPad = 0 }: { topPad?: number }) {
               onCollapse={() => handleCollapse(idx)}
               onRemove={() => handleRemove(idx)}
               globalWsRef={globalWsRef}
-              topPad={topPad}
             />
             <ColumnInsertButton
               hidden={atMax}

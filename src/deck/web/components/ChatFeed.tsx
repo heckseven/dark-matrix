@@ -120,7 +120,7 @@ function Tokens({ tokens }: { tokens: Token[] }) {
   );
 }
 
-function TwitchFeed({ channel, globalWsRef, topPad }: { channel: string; globalWsRef: React.MutableRefObject<WebSocket | null>; topPad: number }) {
+function TwitchFeed({ channel, globalWsRef }: { channel: string; globalWsRef: React.MutableRefObject<WebSocket | null> }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const ircWsRef = useRef<WebSocket | null>(null);
@@ -210,8 +210,7 @@ function TwitchFeed({ channel, globalWsRef, topPad }: { channel: string; globalW
       role="log"
       aria-live="polite"
       aria-label={`${channel} chat`}
-      className="flex-1 overflow-y-auto font-mono text-xs flex flex-col gap-0.5 min-h-0"
-      style={{ padding: '0.5rem', paddingTop: topPad || undefined }}
+      className="flex-1 overflow-y-auto font-mono text-xs p-2 flex flex-col gap-0.5 min-h-0"
     >
       {messages.map(msg => (
         <div key={msg.id} className={msg.type === 'event' ? 'text-accent' : ''}>
@@ -230,13 +229,12 @@ function TwitchFeed({ channel, globalWsRef, topPad }: { channel: string; globalW
   );
 }
 
-export function ChatFeed({ column, globalWsRef, topPad = 0 }: {
+export function ChatFeed({ column, globalWsRef }: {
   column: CastColumn;
   globalWsRef: React.MutableRefObject<WebSocket | null>;
-  topPad?: number;
 }) {
   if (column.provider === 'twitch') {
-    return <TwitchFeed channel={column.channel} globalWsRef={globalWsRef} topPad={topPad} />;
+    return <TwitchFeed channel={column.channel} globalWsRef={globalWsRef} />;
   }
   return (
     <div className="flex-1 flex items-center justify-center font-mono text-xs text-muted-foreground">

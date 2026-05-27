@@ -2,12 +2,11 @@ import type { CastColumn as CastColumnType } from '../types/config-types.js';
 import { Button } from './ui/button.js';
 import { ChatFeed } from './ChatFeed.js';
 
-export function CastColumn({ column, onCollapse, onRemove, globalWsRef, topPad = 0 }: {
+export function CastColumn({ column, onCollapse, onRemove, globalWsRef }: {
   column: CastColumnType;
   onCollapse(): void;
   onRemove(): void;
   globalWsRef: React.MutableRefObject<WebSocket | null>;
-  topPad?: number;
 }) {
   if (column.collapsed) {
     return (
@@ -65,7 +64,7 @@ export function CastColumn({ column, onCollapse, onRemove, globalWsRef, topPad =
       </div>
 
       {/* Chat feed */}
-      <ChatFeed column={column} globalWsRef={globalWsRef} topPad={topPad} />
+      <ChatFeed column={column} globalWsRef={globalWsRef} />
     </div>
   );
 }
