@@ -18,6 +18,7 @@ import { ModePicker } from './components/ModePicker.js';
 import { MODES } from './app-modes.js';
 import type { AppMode } from './app-modes.js';
 import { AudioPanel } from './components/AudioPanel.js';
+import type { AudioStyle } from './store.js';
 import { ConfigPanel } from './components/ConfigPanel.js';
 import { HudPanel, hudSendWsGlobal } from './components/HudPanel.js';
 import { VideoPanel, VideoHeader, VideoTransportControls, VideoSettingsToggle, useVStore } from './components/VideoPanel.js';
@@ -176,6 +177,7 @@ export function App() {
 
   useEffect(() => {
     document.title = activeMode ? `dark-matrix - ${MODE_LABEL[activeMode]}` : 'dark-matrix';
+    if (activeMode !== 'audio') setAudioFullscreenStyle(null);
   }, [activeMode]);
 
   useEffect(() => {
@@ -187,6 +189,7 @@ export function App() {
 
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [modePickerOpen, setModePickerOpen] = useState(false);
+  const [audioFullscreenStyle, setAudioFullscreenStyle] = useState<AudioStyle | null>(null);
   const [assetManagerOpen, setAssetManagerOpen] = useState(false);
   const [assetImportOpen, setAssetImportOpen] = useState(false);
   const [hasMic, setHasMic] = useState(false);
@@ -485,7 +488,9 @@ export function App() {
                 </span>
               </>
             ) : activeMode === 'audio' ? (
-              <span className="font-mono text-xs text-foreground">audio</span>
+              <span className="font-mono text-xs text-foreground">
+                {audioFullscreenStyle ?? 'audio'}
+              </span>
             ) : activeMode === 'video' ? (
               <VideoHeader />
             ) : activeMode === 'life' ? (
@@ -547,19 +552,24 @@ export function App() {
             ) : activeMode === 'config' ? (
               <Button variant="ghost" disabled={!configDirty} onClick={() => void saveConfig()}>save</Button>
             ) : activeMode === 'audio' ? (
-              hasMic ? (
+              (audioFullscreenStyle !== null || hasMic) ? (
                 <div className="flex items-center gap-2">
-                  {audioSource === 'mic' && (
+                  {audioFullscreenStyle !== null && (
+                    <Button variant="ghost" size="sm" aria-label="Switch visualizer" onClick={() => setAudioFullscreenStyle(null)}>switch</Button>
+                  )}
+                  {hasMic && audioSource === 'mic' && (
                     <Slider aria-label="Mic sensitivity" value={micSensitivity} min={0} max={100} className="w-36" onChange={e => deckStore.getState().setMicSensitivity(Number(e.target.value))} />
                   )}
-                  <Toggle
-                    pressed={audioSource === 'mic'}
-                    onPressedChange={(on) => deckStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
-                    title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
-                    aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
-                  >
-                    <span aria-hidden="true">mic</span>
-                  </Toggle>
+                  {hasMic && (
+                    <Toggle
+                      pressed={audioSource === 'mic'}
+                      onPressedChange={(on) => deckStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
+                      title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                      aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                    >
+                      <span aria-hidden="true">mic</span>
+                    </Toggle>
+                  )}
                 </div>
               ) : undefined
             ) : activeMode === 'video' ? (
@@ -594,7 +604,7 @@ export function App() {
           </div>
         ) : activeMode === 'audio' ? (
           <div className="h-full flex">
-            <AudioPanel dualModule={dualModule} />
+            <AudioPanel dualModule={dualModule} fullscreenStyle={audioFullscreenStyle} onFullscreenChange={setAudioFullscreenStyle} />
           </div>
         ) : activeMode === 'config' ? (
           <div className="h-full flex">

@@ -3,7 +3,6 @@ import { AUDIO_STYLES } from '../../../animations/audio-renderers.js';
 import type { AudioStyle } from '../../../animations/audio-renderers.js';
 import { createFullRenderer } from '../../../animations/audio-renderers-full.js';
 import type { FullCtx } from '../../../animations/audio-renderers-full.js';
-import { Button } from './ui/button.js';
 
 const CELL = 20;
 const IDLE_MS = 3000;
@@ -23,11 +22,11 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
   const displayRef   = React.useRef<HTMLDivElement>(null);
   const cellsRef     = React.useRef<HTMLSpanElement[]>([]);
   const cellStates   = React.useRef<boolean[]>([]);
-  const gridRef      = React.useRef({ cols: 0, rows: 0 });
+  // cols/rows are the full display dimensions; halfCols is what we request from the server
+  const gridRef      = React.useRef({ cols: 0, rows: 0, halfCols: 0 });
   const rafRef       = React.useRef<number>(0);
   const rendererRef  = React.useRef(createFullRenderer(style));
   const idleTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [idle, setIdle] = React.useState(false);
 
   const styleName = AUDIO_STYLES.find(s => s.id === style)?.label ?? style;
 
@@ -36,16 +35,16 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
     rendererRef.current = createFullRenderer(style);
   }, [style]);
 
-  // Auto-hide toolbar + cursor
+  // Auto-hide cursor on idle (toolbar lives in the app header)
   React.useEffect(() => {
     const styleEl = document.createElement('style');
-    styleEl.textContent = 'html.audio-idle * { cursor: none !important; } html.audio-idle *:focus, html.audio-idle *:focus-visible { cursor: default !important; }';
+    styleEl.textContent = 'html.audio-idle * { cursor: none !important; }';
     document.head.appendChild(styleEl);
 
     function resetIdle() {
-      setIdle(false);
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-      idleTimerRef.current = setTimeout(() => setIdle(true), IDLE_MS);
+      document.documentElement.classList.remove('audio-idle');
+      idleTimerRef.current = setTimeout(() => document.documentElement.classList.add('audio-idle'), IDLE_MS);
     }
 
     resetIdle();
@@ -62,10 +61,6 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
       document.documentElement.classList.remove('audio-idle');
     };
   }, []);
-
-  React.useEffect(() => {
-    document.documentElement.classList.toggle('audio-idle', idle);
-  }, [idle]);
 
   // Escape key → exit
   React.useEffect(() => {
@@ -84,15 +79,16 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
     return () => document.removeEventListener('keydown', onKey);
   }, [onExit]);
 
-  // Grid allocation
+  // Grid allocation — request only halfCols bands; the right half mirrors the left
   const recomputeGrid = React.useCallback(() => {
     const container = containerRef.current;
     const display   = displayRef.current;
     if (!container || !display) return;
     const { width: w, height: h } = container.getBoundingClientRect();
-    const cols = Math.max(1, Math.floor(w / CELL));
+    const cols = Math.max(2, Math.floor(w / CELL));
     const rows = Math.max(1, Math.floor(h / CELL));
-    gridRef.current = { cols, rows };
+    const halfCols = Math.ceil(cols / 2);
+    gridRef.current = { cols, rows, halfCols };
 
     display.style.gridTemplateColumns = `repeat(${cols}, ${CELL}px)`;
     display.style.width  = `${cols * CELL}px`;
@@ -120,7 +116,7 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
       span.style.background = 'transparent';
     }
 
-    onBandCountChange(cols);
+    onBandCountChange(halfCols);
   }, [onBandCountChange]);
 
   // ResizeObserver
@@ -133,39 +129,49 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
     return () => ro.disconnect();
   }, [recomputeGrid]);
 
-  // RAF render loop
+  // RAF render loop — renders left half from bands, mirrors to right half
   React.useEffect(() => {
     let running = true;
 
     function tick() {
       if (!running) return;
-      const { cols, rows } = gridRef.current;
+      const { cols, rows, halfCols } = gridRef.current;
       const bands = fullBandsRef.current;
       const cells = cellsRef.current;
       const states = cellStates.current;
 
-      if (cols > 0 && rows > 0 && bands && bands.length === cols) {
+      if (cols > 0 && rows > 0 && halfCols > 0 && bands && bands.length === halfCols) {
         const ctx: FullCtx = {
           bands,
-          cols,
+          cols: halfCols,
           rows,
           fftSize: fftSizeRef.current,
           gain: gainRef.current,
         };
+        // frame is column-major with halfCols columns: frame[lCol * rows + row]
         const frame = rendererRef.current(ctx);
-        // frame is column-major: frame[col * rows + row]
-        // cells are row-major in the CSS grid: cells[row * cols + col]
+
         for (let row = 0; row < rows; row++) {
-          for (let col = 0; col < cols; col++) {
-            const ci = row * cols + col;
-            const v = frame[col * rows + row] ?? 0;
+          for (let lCol = 0; lCol < halfCols; lCol++) {
+            const v = frame[lCol * rows + row] ?? 0;
             const lit = v > 127;
-            if (states[ci] !== lit) {
-              states[ci] = lit;
-              const span = cells[ci];
-              if (span) {
-                span.style.color = lit ? '#fff' : 'transparent';
-                span.style.background = lit ? '#000' : 'transparent';
+
+            // left cell
+            const lci = row * cols + lCol;
+            if (states[lci] !== lit) {
+              states[lci] = lit;
+              const span = cells[lci];
+              if (span) { span.style.color = lit ? '#fff' : 'transparent'; span.style.background = lit ? '#000' : 'transparent'; }
+            }
+
+            // mirrored right cell
+            const rCol = cols - 1 - lCol;
+            if (rCol !== lCol) {
+              const rci = row * cols + rCol;
+              if (states[rci] !== lit) {
+                states[rci] = lit;
+                const span = cells[rci];
+                if (span) { span.style.color = lit ? '#fff' : 'transparent'; span.style.background = lit ? '#000' : 'transparent'; }
               }
             }
           }
@@ -184,52 +190,24 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
   }, []);
 
   return (
-    // Fixed overlay covers the entire viewport, including the app header
     <div
-      className="bg-black"
-      style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', flexDirection: 'column' }}
+      ref={containerRef}
+      className="flex-1 flex items-center justify-center overflow-hidden bg-black"
+      role="img"
+      aria-label={`${styleName} audio visualizer`}
     >
-      {/* ── LED grid ────────────────────────────────────────────── */}
       <div
-        ref={containerRef}
-        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
-      >
-        <div
-          ref={displayRef}
-          role="img"
-          aria-label={`${styleName} audio visualizer`}
-          style={{
-            display: 'grid',
-            backgroundImage: SVG_DOT,
-            backgroundSize: `${CELL}px ${CELL}px`,
-            backgroundRepeat: 'repeat',
-            fontSize: '14px',
-            fontFamily: 'monospace',
-            userSelect: 'none',
-          }}
-        />
-      </div>
-
-      {/* ── Toolbar ─────────────────────────────────────────────── */}
-      <div
-        className="absolute top-0 inset-x-0 flex items-center gap-3 px-4 py-2 bg-black/70"
+        ref={displayRef}
         style={{
-          opacity: idle ? 0 : 1,
-          transition: idle ? 'opacity 300ms' : 'opacity 0ms',
-          pointerEvents: idle ? 'none' : undefined,
+          display: 'grid',
+          backgroundImage: SVG_DOT,
+          backgroundSize: `${CELL}px ${CELL}px`,
+          backgroundRepeat: 'repeat',
+          fontSize: '14px',
+          fontFamily: 'monospace',
+          userSelect: 'none',
         }}
-        {...(idle ? { inert: true } : {})}
-      >
-        <span className="font-mono text-foreground text-sm tracking-wide flex-1">{styleName}</span>
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label="Switch visualizer"
-          onClick={onExit}
-        >
-          switch
-        </Button>
-      </div>
+      />
     </div>
   );
 }
