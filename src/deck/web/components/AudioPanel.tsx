@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
+import type { RefObject } from 'react';
 import { useDeckStore, deckStore } from '../store.js';
 import { MatrixItem } from './MatrixItem.js';
 import type { AudioStyle, AudioSource } from '../store.js';
@@ -6,7 +7,6 @@ import { AUDIO_STYLES, createRenderer } from '../../../animations/audio-renderer
 import type { RenderCtx } from '../../../animations/audio-renderers.js';
 import { BAYER4 } from '../../../animations/bayer.js';
 import { AudioFullscreen } from './AudioFullscreen.js';
-import { Slider } from './ui/slider.js';
 
 const COLS = 9;
 const ROWS = 34;
@@ -77,17 +77,19 @@ export function AudioPanel({
   fullscreenStyle = null,
   onFullscreenChange = () => {},
   onFullscreenIdleChange = () => {},
+  gainMultiplierRef,
 }: {
   dualModule?: boolean;
   fullscreenStyle?: AudioStyle | null;
   onFullscreenChange?: (style: AudioStyle | null) => void;
   onFullscreenIdleChange?: (idle: boolean) => void;
+  gainMultiplierRef?: RefObject<number>;
 }) {
   const audioStyle = useDeckStore(s => s.audioStyle);
   const audioSource = useDeckStore(s => s.audioSource);
   const [livePixels, setLivePixels] = useState<Partial<Record<AudioStyle, string>>>({});
-  const [gainMultiplier, setGainMultiplier] = useState(1.0);
-  const gainMultiplierRef = useRef(1.0);
+  const defaultGainRef = useRef(1.0);
+  const activeGainRef = gainMultiplierRef ?? defaultGainRef;
   const wsRef = useRef<WebSocket | null>(null);
   const fullBandsRef = useRef<number[] | null>(null);
   const fftSizeRef = useRef<number>(2048);
@@ -150,7 +152,7 @@ export function AudioPanel({
           fftSizeRef.current = msg.fftSize ?? 2048;
           gainRef.current = msg.gain ?? 1.0;
           if (msg.fullBands) fullBandsRef.current = msg.fullBands;
-          const ctx: RenderCtx = { bands: msg.bands, fftSize: msg.fftSize ?? 2048, gain: (msg.gain ?? 1.0) * gainMultiplierRef.current };
+          const ctx: RenderCtx = { bands: msg.bands, fftSize: msg.fftSize ?? 2048, gain: (msg.gain ?? 1.0) * activeGainRef.current };
           const renderers = renderersRef.current!;
           const next: Partial<Record<AudioStyle, string>> = {};
           for (const { id } of AUDIO_STYLES) {
@@ -185,7 +187,7 @@ export function AudioPanel({
         fullBandsRef={fullBandsRef}
         fftSizeRef={fftSizeRef}
         gainRef={gainRef}
-        gainMultiplierRef={gainMultiplierRef}
+        gainMultiplierRef={activeGainRef}
         onBandCountChange={handleBandCountChange}
         onIdleChange={onFullscreenIdleChange}
         onExit={() => onFullscreenChange(null)}
@@ -194,7 +196,7 @@ export function AudioPanel({
   }
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-10 px-8 py-8 overflow-y-auto">
+    <div className="flex-1 flex flex-col items-center justify-center gap-10 px-8 py-8 overflow-y-auto overflow-x-hidden">
       <div role="group" aria-label="Audio visualizer style" className="grid grid-cols-7 gap-6 justify-items-center">
         {AUDIO_STYLES.map(({ id, label }) => {
           const active = audioStyle === id;
@@ -216,20 +218,6 @@ export function AudioPanel({
             />
           );
         })}
-      </div>
-      <div className="flex flex-col items-center gap-1 w-48">
-        <span id="gain-slider-label" className="text-xs text-muted-foreground">gain</span>
-        <Slider
-          aria-labelledby="gain-slider-label"
-          min={1} max={8} step={0.5}
-          value={gainMultiplier}
-          valueLabel={gainMultiplier.toFixed(1) + '×'}
-          onChange={e => {
-            const v = Number(e.target.value);
-            setGainMultiplier(v);
-            gainMultiplierRef.current = v;
-          }}
-        />
       </div>
     </div>
   );

@@ -202,6 +202,8 @@ export function App() {
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [audioFullscreenStyle, setAudioFullscreenStyle] = useState<AudioStyle | null>(null);
   const [audioIdle, setAudioIdle] = useState(false);
+  const [audioGain, setAudioGain] = useState(1.0);
+  const audioGainRef = useRef(1.0);
 
   useEffect(() => {
     const el = headerRef.current;
@@ -417,7 +419,7 @@ export function App() {
           as="header"
           ref={headerRef}
           blur={false}
-          className="absolute top-0 inset-x-0 z-10 gap-4 pl-7 pr-5 py-4"
+          className="absolute top-0 inset-x-0 z-10 gap-4 pl-7 pr-5 py-3"
           style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)', ...(activeMode === 'video' ? idleFadeStyle(videoIdle) : activeMode === 'audio' && audioFullscreenStyle !== null ? idleFadeStyle(audioIdle) : {}) }}
           left={
             activeMode !== 'hud' && activeMode !== 'config' && activeMode !== 'audio' && activeMode !== 'video' && activeMode !== 'life' ? (
@@ -585,26 +587,27 @@ export function App() {
             ) : activeMode === 'config' ? (
               <Button variant="ghost" disabled={!configDirty} onClick={() => void saveConfig()}>save</Button>
             ) : activeMode === 'audio' ? (
-              (audioFullscreenStyle !== null || hasMic) ? (
-                <div className="flex items-center gap-2">
-                  {audioFullscreenStyle !== null && (
-                    <Button variant="ghost" size="sm" aria-label="Switch visualizer" onClick={() => setAudioFullscreenStyle(null)}>switch</Button>
-                  )}
-                  {hasMic && audioSource === 'mic' && (
-                    <Slider aria-label="Mic sensitivity" value={micSensitivity} min={0} max={100} className="w-36" onChange={e => deckStore.getState().setMicSensitivity(Number(e.target.value))} />
-                  )}
-                  {hasMic && (
-                    <Toggle
-                      pressed={audioSource === 'mic'}
-                      onPressedChange={(on) => deckStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
-                      title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
-                      aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
-                    >
-                      <span aria-hidden="true">mic</span>
-                    </Toggle>
-                  )}
-                </div>
-              ) : undefined
+              <div className="flex items-center gap-2">
+                {audioFullscreenStyle !== null && (
+                  <Button variant="ghost" size="sm" aria-label="Back to visualizer list" onClick={() => setAudioFullscreenStyle(null)}>switch</Button>
+                )}
+                {audioSource !== 'mic' && (
+                  <Slider aria-label="Visualizer gain" value={audioGain} min={1} max={8} step={0.5} className="w-28" valueLabel={audioGain.toFixed(1) + '×'} onChange={e => { const v = Number(e.target.value); setAudioGain(v); audioGainRef.current = v; }} />
+                )}
+                {hasMic && audioSource === 'mic' && (
+                  <Slider aria-label="Mic sensitivity" value={micSensitivity} min={0} max={100} step={1} className="w-36" valueLabel={`${micSensitivity}%`} onChange={e => deckStore.getState().setMicSensitivity(Number(e.target.value))} />
+                )}
+                {hasMic && (
+                  <Toggle
+                    pressed={audioSource === 'mic'}
+                    onPressedChange={(on) => deckStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
+                    title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                    aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                  >
+                    <span aria-hidden="true">mic</span>
+                  </Toggle>
+                )}
+              </div>
             ) : activeMode === 'video' ? (
               <div className="flex items-center gap-1">
                 <VideoTransportControls />
@@ -637,7 +640,7 @@ export function App() {
           </div>
         ) : activeMode === 'audio' ? (
           <div className="h-full flex">
-            <AudioPanel dualModule={dualModule} fullscreenStyle={audioFullscreenStyle} onFullscreenChange={setAudioFullscreenStyle} onFullscreenIdleChange={setAudioIdle} />
+            <AudioPanel dualModule={dualModule} fullscreenStyle={audioFullscreenStyle} onFullscreenChange={setAudioFullscreenStyle} onFullscreenIdleChange={setAudioIdle} gainMultiplierRef={audioGainRef} />
           </div>
         ) : activeMode === 'config' ? (
           <div className="h-full flex">
