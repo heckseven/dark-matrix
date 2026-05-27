@@ -7,6 +7,7 @@ interface FeatureCheck {
   pwDump: boolean;
   ytDlp: boolean;
   dbusMonitor: boolean;
+  claudeLoggedIn: boolean;
 }
 
 interface Props {
@@ -17,11 +18,11 @@ interface Props {
 
 function StatusRow({ ok, label, detail }: { ok: boolean; label: string; detail?: string }) {
   return (
-    <div className="flex items-start gap-3">
+    <div className="flex items-start gap-3" aria-label={`${label}: ${ok ? 'ready' : 'not ready'}${detail ? `. ${detail}` : ''}`}>
       <span className={`font-mono text-sm mt-0.5 ${ok ? 'text-green-400' : 'text-amber-400'}`} aria-hidden="true">
         {ok ? '✓' : '○'}
       </span>
-      <div>
+      <div aria-hidden="true">
         <span className="font-mono text-sm">{label}</span>
         {detail && <p className="text-xs text-muted-foreground mt-0.5">{detail}</p>}
       </div>
@@ -35,7 +36,15 @@ export function WelcomeScreen({ daemonOnline, hardwareOnline, onDismiss }: Props
 
   useEffect(() => {
     fetch('/api/feature-check')
-      .then(r => r.json() as Promise<FeatureCheck>)
+      .then(r => r.json() as Promise<Partial<FeatureCheck>>)
+      .then(d => ({
+        ffmpeg: d.ffmpeg ?? false,
+        wpctl: d.wpctl ?? false,
+        pwDump: d.pwDump ?? false,
+        ytDlp: d.ytDlp ?? false,
+        dbusMonitor: d.dbusMonitor ?? false,
+        claudeLoggedIn: d.claudeLoggedIn ?? false,
+      } satisfies FeatureCheck))
       .then(setFeatures)
       .catch(() => {});
   }, []);
@@ -94,6 +103,7 @@ export function WelcomeScreen({ daemonOnline, hardwareOnline, onDismiss }: Props
           <div>
             <p className="font-mono text-xs text-muted-foreground mb-2">Optional packages</p>
             <div className="flex flex-col gap-2">
+              <StatusRow ok={features.claudeLoggedIn} label="claude login" detail={features.claudeLoggedIn ? undefined : 'Run: claude login (enables usage/reset-time widget)'} />
               <StatusRow ok={features.ffmpeg}     label="ffmpeg"       detail="audio pipeline" />
               <StatusRow ok={features.wpctl}      label="wpctl"        detail="audio source selection (wireplumber)" />
               <StatusRow ok={features.pwDump}     label="pw-dump"      detail="audio device enumeration (pipewire-utils)" />
