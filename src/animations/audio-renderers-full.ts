@@ -241,6 +241,7 @@ function fullHeat(): FullRenderer {
   let envelope: Float32Array | null = null;
   let sparks: { col: number; pos: number; v: number }[] = [];
   let lastCols = 0, lastRows = 0;
+  let fast = 0, slow = 0, cooldown = 0;
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
     if (!cells || !envelope || cols !== lastCols || rows !== lastRows) {
@@ -248,20 +249,38 @@ function fullHeat(): FullRenderer {
       envelope = new Float32Array(cols);
       for (let i = 0; i < cells.length; i++) if (Math.random() < 0.35) cells[i] = 1.0;
       sparks = [];
+      fast = 0; slow = 0; cooldown = 0;
       lastCols = cols; lastRows = rows;
     }
-    // Hardware reads bands in reverse (high freq → left column); reverse=true handles that
-    const ce = colEnergies(bands, gain, ref, cols, true);
+    // Heights: reversed (high freq → left column), matching hardware
+    const ceRev = colEnergies(bands, gain, ref, cols, true);
+    // Kill + seed: non-reversed (low freq → left column), matching hardware
+    const ceFwd = colEnergies(bands, gain, ref, cols, false);
     const heights = new Int32Array(cols);
     for (let c = 0; c < cols; c++) {
-      const t = ce[c] ?? 0;
+      const t = ceRev[c] ?? 0;
       envelope![c] = t > (envelope![c] ?? 0) ? t : (envelope![c] ?? 0) * 0.85 + t * 0.15;
       const flicker = (envelope![c] ?? 0) * (0.7 + Math.random() * 0.5);
       heights[c] = Math.round(Math.min(1, flicker) * rows * 0.25);
     }
-    // Continuous cull (from band energy)
+    // Transient seeding — fires a burst of life cells on beat hits
+    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
+    const tAvg = dbLevel(avg, gain, ref);
+    fast = fast * 0.5 + tAvg * 0.5;
+    slow = slow * 0.95 + tAvg * 0.05;
+    const delta = fast - slow;
+    if (cooldown > 0) cooldown--;
+    if (delta > 0.06 && cooldown === 0) {
+      for (let c = 0; c < cols; c++) {
+        const e = ceFwd[c] ?? 0;
+        for (let r = 0; r < rows; r++)
+          if (Math.random() < e * 0.15) cells![c * rows + r] = 1.0;
+      }
+      cooldown = 2;
+    }
+    // Kill: non-reversed band energy (matching hardware)
     for (let c = 0; c < cols; c++) {
-      const killProb = (ce[c] ?? 0) * 0.70;
+      const killProb = (ceFwd[c] ?? 0) * 0.70;
       for (let r = 0; r < rows; r++)
         if (Math.random() < killProb) cells![c * rows + r] = 0;
     }
@@ -284,11 +303,15 @@ function fullHeat(): FullRenderer {
       }
     }
     for (let i = 0; i < cells!.length; i++) cells![i] = next[i] ?? 0;
-    // Spawn rising sparks above bar tops (cap to avoid unbounded growth)
+    // Spawn sparks: 4 attempts per col per frame, rise 0.6+rand*0.6 matching hardware
     for (let c = 0; c < cols; c++) {
       const h = heights[c] ?? 0;
-      if (h > 0 && sparks.length < cols * 4 && Math.random() < (envelope![c] ?? 0) * 0.5)
-        sparks.push({ col: c, pos: rows - h - 0.5, v: 200 + Math.random() * 55 });
+      if (h > 0) {
+        for (let s = 0; s < 4; s++) {
+          if (sparks.length < cols * 8 && Math.random() < (envelope![c] ?? 0) * 0.5)
+            sparks.push({ col: c, pos: rows - h - 0.5, v: 200 + Math.random() * 55 });
+        }
+      }
     }
     const data = new Uint8Array(cols * rows);
     // Render inverted life within bar area
@@ -298,7 +321,7 @@ function fullHeat(): FullRenderer {
     // Render sparks
     for (let i = sparks.length - 1; i >= 0; i--) {
       const s = sparks[i]!;
-      s.pos -= 0.4 + Math.random() * 0.4;
+      s.pos -= 0.6 + Math.random() * 0.6;
       s.v *= 0.93;
       if (s.pos < 0 || s.v < 15) { sparks.splice(i, 1); continue; }
       const r = Math.round(s.pos);
@@ -686,38 +709,39 @@ function fullLifeErode(): FullRenderer {
 }
 
 function fullGlitchCorrupt(): FullRenderer {
-  let noise: Float32Array | null = null;
-  let prevT = 0;
+  let buf: Float32Array | null = null;
+  let smoothed = 0, cooldown = 0;
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
-    if (!noise || noise.length !== cols * rows) noise = new Float32Array(cols * rows);
+    if (!buf || buf.length !== cols * rows) { buf = new Float32Array(cols * rows); smoothed = 0; cooldown = 0; }
     const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
     const t = dbLevel(avg, gain, ref);
-    const spike = Math.max(0, t - prevT);
-    prevT = prevT * 0.88 + t * 0.12;
-    // Corrupt random rectangular blocks on transients
-    if (spike > 0.05) {
-      const blockW = Math.max(2, Math.round(cols * 0.2));
-      const blockH = Math.max(2, Math.round(rows * 0.25));
-      const numBlocks = 1 + Math.floor(spike * 5);
-      for (let b = 0; b < numBlocks; b++) {
+    const delta = t - smoothed;
+    // Asymmetric smoothing: fast attack (0.05), fast fall (0.18) — matches hardware
+    smoothed = t > smoothed ? smoothed * 0.95 + t * 0.05 : smoothed * 0.82 + t * 0.18;
+    if (cooldown > 0) cooldown--;
+    for (let i = 0; i < buf.length; i++) buf[i] = (buf[i] ?? 0) * 0.9;
+    if (t > 0.08 && delta > 0.04 && cooldown === 0) {
+      const blocks = 1 + Math.floor(t * 4);
+      for (let b = 0; b < blocks; b++) {
+        // Block size scaled proportionally from hardware (1-3 cols on 9-wide, 2-10 rows on 34-tall)
+        const bw = 1 + Math.floor(Math.random() * Math.max(1, Math.round(cols / 3)));
+        const bh = 2 + Math.floor(Math.random() * Math.max(1, Math.round(rows * 10 / 34)));
         const bc = Math.floor(Math.random() * cols);
         const br = Math.floor(Math.random() * rows);
-        for (let dc = 0; dc < blockW; dc++)
-          for (let dr = 0; dr < blockH; dr++) {
+        for (let dc = 0; dc < bw; dc++)
+          for (let dr = 0; dr < bh; dr++) {
             const c = (bc + dc) % cols;
-            const r = (br + dr) % rows;
-            noise[c * rows + r] = Math.random() < 0.6 ? 1.0 : 0;
+            const r = br + dr;
+            if (r < rows) buf[c * rows + r] = Math.max(buf[c * rows + r] ?? 0, 0.6 + Math.random() * 0.4);
           }
       }
+      cooldown = 2;
     }
-    // Decay
-    for (let i = 0; i < noise.length; i++) noise[i] = (noise[i] ?? 0) * 0.85;
+    // Stochastic binary render matching hardware (per-pixel random threshold each frame)
     const data = new Uint8Array(cols * rows);
-    for (let i = 0; i < noise.length; i++) {
-      const v = noise[i] ?? 0;
-      if (v > 0.08) data[i] = Math.round(v * 255);
-    }
+    for (let i = 0; i < buf.length; i++)
+      data[i] = Math.random() < (buf[i] ?? 0) ? 255 : 0;
     return data;
   };
 }
