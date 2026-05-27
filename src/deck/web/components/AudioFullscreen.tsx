@@ -7,7 +7,7 @@ import { BAYER_THRESHOLD } from '../../../animations/bayer.js';
 
 const CELL = 20;
 const IDLE_MS = 3000;
-const SVG_DOT = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${CELL}" height="${CELL}"><circle cx="${CELL / 2}" cy="${CELL / 2}" r="3" fill="#303030"/></svg>`)}")`;
+const SVG_DOT = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${CELL}" height="${CELL}"><circle cx="${CELL / 2}" cy="${CELL / 2}" r="2" fill="#303030"/></svg>`)}")`;
 
 interface Props {
   style: AudioStyle;
