@@ -33,6 +33,14 @@ function storeCompat() {
   return { state: deckStore.getState(), loadProject: (p: unknown) => deckStore.getState().loadProject(p) };
 }
 
+function applyOpenAsset(name: string, project: unknown) {
+  const baseName = name.replace(/\.dmx\.json$/i, '');
+  const s = deckStore.getState();
+  s.loadProject(project);
+  s.setProjectTitle(baseName);
+  s.setLibraryPath(baseName);
+}
+
 function newProject() {
   const blank = btoa(String.fromCharCode(...new Uint8Array(DEFAULT_WIDTH * ROWS)));
   deckStore.getState().loadProject({ frames: [{ delayMs: 100, pixels: blank }], width: DEFAULT_WIDTH, mode: 'bw', loop: true });
@@ -363,10 +371,7 @@ export function App() {
         open={assetManagerOpen}
         onOpenChange={setAssetManagerOpen}
         onOpenAsset={(name, project) => {
-          deckStore.getState().loadProject(project);
-          const baseName = name.replace(/\.dmx\.json$/i, '');
-          deckStore.getState().setProjectTitle(baseName);
-          deckStore.getState().setLibraryPath(baseName);
+          applyOpenAsset(name, project);
           setAssetManagerOpen(false);
         }}
       />
@@ -374,6 +379,11 @@ export function App() {
         open={assetImportOpen}
         onOpenChange={setAssetImportOpen}
         initialView="import"
+        onOpenAsset={(name, project) => {
+          applyOpenAsset(name, project);
+          deckStore.getState().setActiveMode('design');
+          setAssetImportOpen(false);
+        }}
       />
       {modePickerOpen && (
         <ModePicker
@@ -410,9 +420,7 @@ export function App() {
                             <MenuItem key={name} onSelect={() => {
                               openFromLibrary(name)
                                 .then(project => {
-                                  deckStore.getState().loadProject(project);
-                                  deckStore.getState().setProjectTitle(name);
-                                  deckStore.getState().setLibraryPath(name);
+                                  applyOpenAsset(name, project);
                                   deckStore.getState().addRecentFile(name);
                                 })
                                 .catch(console.error);
