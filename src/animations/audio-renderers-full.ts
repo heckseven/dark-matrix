@@ -61,6 +61,15 @@ function colEnergies(bands: number[], gain: number, ref: number, cols: number, r
   return result;
 }
 
+// Direct mapping: bands[c] → energy for column c, no 9-bucket rebucketing.
+// Use for fullscreen bar renderers where bands.length === cols and log-spacing
+// already matches the screen width (server sends exactly halfCols bands).
+function directEnergies(bands: number[], gain: number, ref: number): Float32Array {
+  const result = new Float32Array(bands.length);
+  for (let c = 0; c < bands.length; c++) result[c] = dbLevel(bands[c] ?? 0, gain, ref);
+  return result;
+}
+
 // ── Group A: bar/column-per-band (natural scale) ──────────────────────────
 
 function fullSpectrumFall(): FullRenderer {
@@ -69,7 +78,7 @@ function fullSpectrumFall(): FullRenderer {
     const ref = fftSize / 2;
     if (!history || history.length !== rows || history[0]?.length !== cols)
       history = Array.from({ length: rows }, () => new Uint8Array(cols));
-    const ce = colEnergies(bands, gain, ref, cols, false, false);
+    const ce = directEnergies(bands, gain, ref);
     const center = Math.floor(rows / 2);
     const newRow = new Uint8Array(cols);
     for (let c = 0; c < cols; c++) newRow[c] = Math.round((ce[c] ?? 0) * 255);
@@ -192,7 +201,7 @@ function fullDarkMatter(): FullRenderer {
       peaks = new Float32Array(cols);
       grid = new Uint8Array(cols * rows);
     }
-    const ce = colEnergies(bands, gain, ref, cols, false, false);
+    const ce = directEnergies(bands, gain, ref);
     // Rising sparks: shift upward one row, spawn bottom row
     for (let r = 0; r < rows - 1; r++)
       for (let c = 0; c < cols; c++)

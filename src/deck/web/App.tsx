@@ -208,14 +208,14 @@ export function App() {
   useEffect(() => {
     const el = headerRef.current;
     if (!el) return;
-    const shouldHide = (activeMode === 'video' && videoIdle) || (activeMode === 'audio' && audioFullscreenStyle !== null && audioIdle);
+    const shouldHide = activeMode === 'video' && videoIdle;
     if (shouldHide) {
       if (el.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
       el.setAttribute('inert', '');
     } else {
       el.removeAttribute('inert');
     }
-  }, [activeMode, videoIdle, audioIdle, audioFullscreenStyle]);
+  }, [activeMode, videoIdle]);
   const [assetManagerOpen, setAssetManagerOpen] = useState(false);
   const [assetImportOpen, setAssetImportOpen] = useState(false);
   const [hasMic, setHasMic] = useState(false);
@@ -419,8 +419,8 @@ export function App() {
           as="header"
           ref={headerRef}
           blur={false}
-          className="absolute top-0 inset-x-0 z-10 gap-4 pl-7 pr-5 py-3"
-          style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)', ...(activeMode === 'video' ? idleFadeStyle(videoIdle) : activeMode === 'audio' && audioFullscreenStyle !== null ? idleFadeStyle(audioIdle) : {}) }}
+          className="absolute top-0 inset-x-0 z-20 gap-4 pl-7 pr-5 py-3"
+          style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)', ...(activeMode === 'video' ? idleFadeStyle(videoIdle) : {}) }}
           left={
             activeMode !== 'hud' && activeMode !== 'config' && activeMode !== 'audio' && activeMode !== 'video' && activeMode !== 'life' ? (
               <div className="flex items-center gap-1">
@@ -732,7 +732,7 @@ export function App() {
           />
         )}
         <span className="sr-only" aria-live="polite" aria-atomic="true">
-          {activeMode === 'audio' && audioIdle ? 'Controls hidden. Move mouse or press a key to show.' : ''}
+          {activeMode === 'video' && videoIdle ? 'Controls hidden. Move mouse or press a key to show.' : ''}
         </span>
       </div>
     </TooltipProvider>
