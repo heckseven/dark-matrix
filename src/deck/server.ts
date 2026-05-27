@@ -1528,12 +1528,17 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
 
   function openAudioStream(
     source: string,
-    onBands: (ctx: { bands: number[]; fftSize: number; gain: number }) => void,
+    onBands: (ctx: { bands: number[]; fftSize: number; gain: number; fullBands?: number[] }) => void,
+    fullBandCount?: number,
   ): net.Socket {
     const sock = net.createConnection(daemonSocketPath());
     let buf = '';
     sock.on('connect', () => {
-      sock.write(JSON.stringify({ cmd: 'audio-viz', source }) + '\n');
+      sock.write(JSON.stringify({
+        cmd: 'audio-viz',
+        source,
+        ...(fullBandCount ? { fullBandCount } : {}),
+      }) + '\n');
     });
     sock.on('data', (chunk: Buffer) => {
       buf += chunk.toString();
@@ -1542,9 +1547,14 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
       for (const line of lines) {
         if (!line.trim()) continue;
         try {
-          const parsed = JSON.parse(line) as { type?: string; bands?: number[]; fftSize?: number; gain?: number };
+          const parsed = JSON.parse(line) as { type?: string; bands?: number[]; fftSize?: number; gain?: number; fullBands?: number[] };
           if (parsed.type === 'audio-bands' && parsed.bands) {
-            onBands({ bands: parsed.bands, fftSize: parsed.fftSize ?? 2048, gain: parsed.gain ?? 1.0 });
+            onBands({
+              bands: parsed.bands,
+              fftSize: parsed.fftSize ?? 2048,
+              gain: parsed.gain ?? 1.0,
+              ...(parsed.fullBands ? { fullBands: parsed.fullBands } : {}),
+            });
           }
         } catch { /* skip */ }
       }
@@ -1662,14 +1672,23 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
         const rawStyle = typeof msg['style'] === 'string' ? msg['style'] : '';
         const style = knownStyles.includes(rawStyle) ? rawStyle : 'dark-matter';
         const source = msg['source'] === 'mic' ? 'mic' : 'monitor';
+        const rawFbc = msg['fullBandCount'];
+        const fullBandCount = typeof rawFbc === 'number' && Number.isInteger(rawFbc) && rawFbc > 0 && rawFbc <= 512
+          ? rawFbc : undefined;
         audioStream?.destroy();
         audioStream = openAudioStream(source, (ctx) => {
           if (ws.readyState === 1) {
             ws.send(JSON.stringify({ type: 'audio-bands', ...ctx }));
           }
-        });
+        }, fullBandCount);
         audioOwnerWs = ws;
         void sendToDaemonWithRetry({ cmd: 'audio-hardware-start', style, source }, ++retryGen);
+      } else if (type === 'audio-viz-setbands') {
+        const rawBc = msg['bandCount'];
+        const bandCount = typeof rawBc === 'number' && Number.isInteger(rawBc) && rawBc > 0 && rawBc <= 512 ? rawBc : 0;
+        if (audioStream && !audioStream.destroyed) {
+          audioStream.write(JSON.stringify({ cmd: 'audio-viz-setbands', bandCount }) + '\n');
+        }
       } else if (type === 'audio-viz-stop') {
         audioStream?.destroy();
         audioStream = null;

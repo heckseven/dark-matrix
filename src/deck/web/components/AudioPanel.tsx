@@ -4,6 +4,7 @@ import { MatrixItem } from './MatrixItem.js';
 import type { AudioStyle, AudioSource } from '../store.js';
 import { AUDIO_STYLES, createRenderer } from '../../../animations/audio-renderers.js';
 import type { RenderCtx } from '../../../animations/audio-renderers.js';
+import { AudioFullscreen } from './AudioFullscreen.js';
 
 const COLS = 9;
 const ROWS = 34;
@@ -75,7 +76,13 @@ export function AudioPanel({ dualModule = false }: { dualModule?: boolean }) {
   const audioStyle = useDeckStore(s => s.audioStyle);
   const audioSource = useDeckStore(s => s.audioSource);
   const [livePixels, setLivePixels] = useState<Partial<Record<AudioStyle, string>>>({});
+  const [fullscreenStyle, setFullscreenStyle] = useState<AudioStyle | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const fullBandsRef = useRef<number[] | null>(null);
+  const fftSizeRef = useRef<number>(2048);
+  const gainRef = useRef<number>(1.0);
+  const bandCountDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
 
   const renderersRef = useRef<Record<AudioStyle, ReturnType<typeof createRenderer>> | null>(null);
   if (!renderersRef.current) {
@@ -90,6 +97,17 @@ export function AudioPanel({ dualModule = false }: { dualModule?: boolean }) {
     ws.send(JSON.stringify({ type: 'audio-viz', style, source }));
   }, []);
 
+  const sendSetBands = useCallback((n: number) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: 'audio-viz-setbands', bandCount: n }));
+  }, []);
+
+  const handleBandCountChange = useCallback((n: number) => {
+    if (bandCountDebounceRef.current) clearTimeout(bandCountDebounceRef.current);
+    bandCountDebounceRef.current = setTimeout(() => sendSetBands(n), 200);
+  }, [sendSetBands]);
+
   useEffect(() => {
     const ws = new WebSocket(`ws://${location.host}/ws`);
     wsRef.current = ws;
@@ -102,8 +120,11 @@ export function AudioPanel({ dualModule = false }: { dualModule?: boolean }) {
     ws.onmessage = (e) => {
       try {
         if (typeof e.data !== 'string') return;
-        const msg = JSON.parse(e.data) as { type: string; bands?: number[]; fftSize?: number; gain?: number };
+        const msg = JSON.parse(e.data) as { type: string; bands?: number[]; fftSize?: number; gain?: number; fullBands?: number[] };
         if (msg.type === 'audio-bands' && msg.bands) {
+          fftSizeRef.current = msg.fftSize ?? 2048;
+          gainRef.current = msg.gain ?? 1.0;
+          if (msg.fullBands) fullBandsRef.current = msg.fullBands;
           const ctx: RenderCtx = { bands: msg.bands, fftSize: msg.fftSize ?? 2048, gain: msg.gain ?? 1.0 };
           const renderers = renderersRef.current!;
           const next: Partial<Record<AudioStyle, string>> = {};
@@ -119,6 +140,7 @@ export function AudioPanel({ dualModule = false }: { dualModule?: boolean }) {
     return () => {
       const w = wsRef.current;
       wsRef.current = null;
+      if (bandCountDebounceRef.current) { clearTimeout(bandCountDebounceRef.current); bandCountDebounceRef.current = null; }
       if (w && w.readyState === WebSocket.OPEN) {
         w.send(JSON.stringify({ type: 'audio-viz-stop' }));
       }
@@ -129,6 +151,27 @@ export function AudioPanel({ dualModule = false }: { dualModule?: boolean }) {
   useEffect(() => {
     sendViz(audioSource, audioStyle);
   }, [audioStyle, audioSource, sendViz]);
+
+  // Fullscreen view
+  if (fullscreenStyle !== null) {
+    return (
+      <AudioFullscreen
+        style={fullscreenStyle}
+        fullBandsRef={fullBandsRef}
+        fftSizeRef={fftSizeRef}
+        gainRef={gainRef}
+        onBandCountChange={handleBandCountChange}
+        onExit={() => {
+          setFullscreenStyle(null);
+          fullBandsRef.current = null;
+          sendSetBands(0);
+          const trigger = triggerRef.current;
+          triggerRef.current = null;
+          setTimeout(() => trigger?.focus(), 0);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-10 px-8 py-8 overflow-y-auto">
@@ -145,7 +188,11 @@ export function AudioPanel({ dualModule = false }: { dualModule?: boolean }) {
               width={dualModule ? 18 : 9}
               pixels={pixels}
               isSelected={active}
-              onSelect={() => deckStore.getState().setAudioStyle(id as AudioStyle)}
+              onSelect={() => {
+                triggerRef.current = document.activeElement as HTMLElement;
+                deckStore.getState().setAudioStyle(id as AudioStyle);
+                setFullscreenStyle(id as AudioStyle);
+              }}
             />
           );
         })}
