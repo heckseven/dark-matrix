@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useDeckStore, deckStore } from '../store.js';
 import { MatrixItem } from './MatrixItem.js';
 import type { AudioStyle, AudioSource } from '../store.js';
 import { AUDIO_STYLES, createRenderer } from '../../../animations/audio-renderers.js';
 import type { RenderCtx } from '../../../animations/audio-renderers.js';
 import { AudioFullscreen } from './AudioFullscreen.js';
+import { useState } from 'react';
 
 const COLS = 9;
 const ROWS = 34;
@@ -72,17 +73,25 @@ function mirrorFrame(b64: string): string {
   return btoa(String.fromCharCode(...dst));
 }
 
-export function AudioPanel({ dualModule = false }: { dualModule?: boolean }) {
+export function AudioPanel({
+  dualModule = false,
+  fullscreenStyle,
+  onFullscreenChange,
+}: {
+  dualModule?: boolean;
+  fullscreenStyle: AudioStyle | null;
+  onFullscreenChange: (style: AudioStyle | null) => void;
+}) {
   const audioStyle = useDeckStore(s => s.audioStyle);
   const audioSource = useDeckStore(s => s.audioSource);
   const [livePixels, setLivePixels] = useState<Partial<Record<AudioStyle, string>>>({});
-  const [fullscreenStyle, setFullscreenStyle] = useState<AudioStyle | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const fullBandsRef = useRef<number[] | null>(null);
   const fftSizeRef = useRef<number>(2048);
   const gainRef = useRef<number>(1.0);
   const bandCountDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
+  const prevStyleRef = useRef<AudioStyle | null>(null);
 
   const renderersRef = useRef<Record<AudioStyle, ReturnType<typeof createRenderer>> | null>(null);
   if (!renderersRef.current) {
@@ -107,6 +116,19 @@ export function AudioPanel({ dualModule = false }: { dualModule?: boolean }) {
     if (bandCountDebounceRef.current) clearTimeout(bandCountDebounceRef.current);
     bandCountDebounceRef.current = setTimeout(() => sendSetBands(n), 200);
   }, [sendSetBands]);
+
+  // Cleanup when fullscreen exits — whether from Escape, internal button, or header switch
+  useEffect(() => {
+    const prev = prevStyleRef.current;
+    prevStyleRef.current = fullscreenStyle;
+    if (prev !== null && fullscreenStyle === null) {
+      fullBandsRef.current = null;
+      sendSetBands(0);
+      const trigger = triggerRef.current;
+      triggerRef.current = null;
+      if (trigger) setTimeout(() => trigger.focus(), 0);
+    }
+  }, [fullscreenStyle, sendSetBands]);
 
   useEffect(() => {
     const ws = new WebSocket(`ws://${location.host}/ws`);
@@ -161,14 +183,7 @@ export function AudioPanel({ dualModule = false }: { dualModule?: boolean }) {
         fftSizeRef={fftSizeRef}
         gainRef={gainRef}
         onBandCountChange={handleBandCountChange}
-        onExit={() => {
-          setFullscreenStyle(null);
-          fullBandsRef.current = null;
-          sendSetBands(0);
-          const trigger = triggerRef.current;
-          triggerRef.current = null;
-          setTimeout(() => trigger?.focus(), 0);
-        }}
+        onExit={() => onFullscreenChange(null)}
       />
     );
   }
@@ -191,7 +206,7 @@ export function AudioPanel({ dualModule = false }: { dualModule?: boolean }) {
               onSelect={() => {
                 triggerRef.current = document.activeElement as HTMLElement;
                 deckStore.getState().setAudioStyle(id as AudioStyle);
-                setFullscreenStyle(id as AudioStyle);
+                onFullscreenChange(id as AudioStyle);
               }}
             />
           );
