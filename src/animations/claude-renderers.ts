@@ -307,6 +307,7 @@ const _TETRIS_ROTATIONS: Array<Array<Array<[number, number]>>> = _TETRIS_BASE.ma
 const _TETRIS_DISSOLVE_LEN = 50;
 const _TETRIS_CLEAR_FLASH = 12;
 const _TETRIS_DROP_CAP = 10;
+const _TETRIS_KEY_INTERVAL = 3;
 type _TetrisGameState = 'playing' | 'lineclear' | 'dissolving';
 
 export function createClaudeTetrisRenderer(): ClaudeRendererApi {
@@ -314,6 +315,9 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
   const board = new Uint8Array(COLS * ROWS);
   let pType = 0, pRot = 0, pCol = 0, pRow = 0;
   let targetCol = 0;
+  let targetRot = 0;
+  let startMoveRow = 0;
+  let lastMoveTick = 0;
   let tick = 0;
   let pendingDrops = 0;
   let gs: _TetrisGameState = 'playing';
@@ -350,26 +354,31 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
 
   function spawnNext(): boolean {
     pType = Math.floor(Math.random() * 7);
-    pRot = Math.floor(Math.random() * 4);
-    const cc = getCells();
-    const w = pieceWidth(cc);
+    targetRot = Math.floor(Math.random() * 4);
+    pRot = 0;
+    const cc = getCells(); // rotation 0 — actual spawn shape
+    const finalCells = _TETRIS_ROTATIONS[pType % 7]![targetRot]!; // target rotation shape used for column planning
+    const wFinal = pieceWidth(finalCells);
+    const w0 = pieceWidth(cc);
 
     if (Math.random() < 0.3) {
       // Mistake: random column
-      targetCol = Math.floor(Math.random() * Math.max(1, COLS - w + 1));
+      targetCol = Math.floor(Math.random() * Math.max(1, COLS - wFinal + 1));
     } else {
-      // Try to fill the lowest area to level the board (creates complete lines over time)
+      // Fill lowest area using the final rotation's footprint so the column goal makes sense on landing
       let minH = Infinity, minC = 0;
-      for (let c = 0; c <= COLS - w; c++) {
+      for (let c = 0; c <= COLS - wFinal; c++) {
         let h = 0;
-        for (let dc = 0; dc < w; dc++) h = Math.max(h, colHeight(c + dc));
+        for (let dc = 0; dc < wFinal; dc++) h = Math.max(h, colHeight(c + dc));
         if (h < minH) { minH = h; minC = c; }
       }
       targetCol = minC;
     }
 
-    pCol = Math.floor((COLS - w) / 2);
+    pCol = Math.floor((COLS - w0) / 2);
     pRow = -(cc.reduce((m, [, r]) => Math.max(m, r), 0)) - 1;
+    startMoveRow = Math.floor(Math.pow(Math.random(), 2) * ROWS * 0.4);
+    lastMoveTick = tick;
     // Check first gravity step, not spawn position — spawn is always above-board so always passes
     return canPlace(cc, pCol, pRow + 1);
   }
@@ -437,7 +446,6 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
           dissolveFrame = 0;
           gs = 'playing';
           if (!spawnNext()) board.fill(0);
-          tick = 0;
         } else if (dissolveBoard && dissolveTimes) {
           const fade = 1 - dissolveFrame / _TETRIS_DISSOLVE_LEN;
           for (let i = 0; i < COLS * ROWS; i++) {
@@ -494,13 +502,27 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
         }
       }
 
-      // AI horizontal movement — runs every 2 ticks, decoupled from gravity
-      if (tick % 2 === 0) {
+      // Human-like keypress simulation: one rotation step and/or one column step per interval
+      if (pRow >= startMoveRow && tick - lastMoveTick >= _TETRIS_KEY_INTERVAL) {
+        if (pRot !== targetRot) {
+          const nextRot = (pRot + 1) % 4;
+          const rc = _TETRIS_ROTATIONS[pType % 7]![nextRot]!;
+          if (canPlace(rc, pCol, pRow)) {
+            pRot = nextRot;
+          } else if (canPlace(rc, pCol - 1, pRow)) {
+            pCol--;
+            pRot = nextRot;
+          } else if (canPlace(rc, pCol + 1, pRow)) {
+            pCol++;
+            pRot = nextRot;
+          }
+        }
         const cc = getCells();
         const w = pieceWidth(cc);
         const limit = Math.max(0, Math.min(COLS - w, targetCol));
         if (pCol < limit && canPlace(cc, pCol + 1, pRow)) pCol++;
         else if (pCol > limit && canPlace(cc, pCol - 1, pRow)) pCol--;
+        lastMoveTick = tick;
       }
 
       // Render board
