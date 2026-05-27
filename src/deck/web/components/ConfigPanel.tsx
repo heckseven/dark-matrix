@@ -79,7 +79,7 @@ export function ConfigPanel({ dualModule, topPad }: { dualModule: boolean; topPa
               <AppearanceTab value={configData} />
             )}
             {activeTab === 'integrations' && (
-              <IntegrationsTab config={configData} onChange={patchConfig} />
+              <IntegrationsTab config={configData} onChange={patchConfig} onSave={() => void deckStore.getState().saveConfig()} />
             )}
           </>
         ) : (

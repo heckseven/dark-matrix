@@ -45,7 +45,7 @@ export function CastColumn({ column, onCollapse, onRemove, globalWsRef }: {
         style={{ position: 'sticky', top: 0, zIndex: 1, backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}
       >
         <Link href={`https://twitch.tv/${column.channel}`} className="font-mono text-xs truncate">
-          {`https://twitch.tv/${column.channel}`}
+          {column.channel}
         </Link>
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
           <Button

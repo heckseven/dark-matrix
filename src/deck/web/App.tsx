@@ -30,6 +30,8 @@ import { CastPanel } from './components/CastPanel.js';
 import { Dialog, DialogContent, DialogTitle } from './components/ui/dialog.js';
 
 const MODE_LABEL = Object.fromEntries(MODES.map(m => [m.id, m.label])) as Record<AppMode, string>;
+const FULLSCREEN_MODES: ReadonlySet<AppMode> = new Set(['hud', 'audio', 'config', 'video', 'life', 'cast']);
+const isFullscreenMode = (m: AppMode | null) => m !== null && FULLSCREEN_MODES.has(m);
 
 function storeCompat() {
   return { state: deckStore.getState(), loadProject: (p: unknown) => deckStore.getState().loadProject(p) };
@@ -401,7 +403,7 @@ export function App() {
           className="absolute top-0 inset-x-0 z-10 gap-4 pl-7 pr-5 py-4"
           style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)', ...(activeMode === 'video' ? { opacity: videoIdle ? 0 : 1, transition: videoIdle ? 'opacity 300ms' : 'opacity 0ms', pointerEvents: videoIdle ? 'none' : undefined } : {}) }}
           left={
-            activeMode !== 'hud' && activeMode !== 'config' && activeMode !== 'audio' && activeMode !== 'video' && activeMode !== 'life' && activeMode !== 'cast' ? (
+            !isFullscreenMode(activeMode) ? (
               <div className="flex items-center gap-1">
                 <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
                 <Menu>
@@ -597,7 +599,7 @@ export function App() {
                     className={`inline-block w-2 h-2 rounded-full ${isTwitchConnected ? 'bg-green-500' : 'bg-muted-foreground'}`}
                     aria-label={isTwitchConnected ? 'Twitch connected' : 'Twitch not connected — configure in Settings → Integrations'}
                   />
-                  <span className="text-xs text-muted-foreground">twitch</span>
+                  <span className="text-xs text-muted-foreground" aria-hidden="true">twitch</span>
                 </div>
               </div>
             ) : activeMode === 'life' ? (
@@ -653,7 +655,7 @@ export function App() {
           />
         )}
 
-        {activeMode !== 'audio' && activeMode !== 'hud' && activeMode !== 'config' && activeMode !== 'video' && activeMode !== 'life' && activeMode !== 'cast' && <footer ref={footerRef} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+        {!isFullscreenMode(activeMode) && <footer ref={footerRef} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
           <div className="flex-1 flex items-center gap-4">
             <span>frame {activeFrameIdx + 1}</span>
             <span>row {cursor.row}</span>

@@ -52,8 +52,9 @@ export function startTwitchEventSub(opts: EventSubOptions): () => void {
       } else if (msgType === 'session_reconnect') {
         const session = (m.payload as { session?: { reconnect_url?: string } })?.session;
         const rawUrl = session?.reconnect_url;
-        const reconnectUrl = typeof rawUrl === 'string' && /^wss:\/\/eventsub\.wss\.twitch\.tv\//.test(rawUrl)
-          ? rawUrl : EVENTSUB_WS_URL;
+        const parsed = (() => { try { return new URL(rawUrl ?? ''); } catch { return null; } })();
+        const reconnectUrl = parsed?.protocol === 'wss:' && parsed.hostname === 'eventsub.wss.twitch.tv'
+          ? rawUrl! : EVENTSUB_WS_URL;
         // Replace ws before closing so the close handler sees it is no longer current
         ws = null;
         socket.close();
@@ -90,7 +91,7 @@ export function startTwitchEventSub(opts: EventSubOptions): () => void {
 async function subscribeAll(sessionId: string, creds: TwitchCredentials): Promise<void> {
   for (const sub of SUBSCRIPTIONS) {
     try {
-      await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+      const res = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${creds.access_token}`,
@@ -104,8 +105,10 @@ async function subscribeAll(sessionId: string, creds: TwitchCredentials): Promis
           transport: { method: 'websocket', session_id: sessionId },
         }),
       });
-    } catch {
+      if (!res.ok) console.warn('[eventsub] subscription failed:', sub.type, res.status);
+    } catch (e) {
       // Non-fatal — missing scope may prevent some subscriptions
+      console.warn('[eventsub] subscription error:', sub.type, e);
     }
   }
 }

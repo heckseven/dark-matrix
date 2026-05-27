@@ -10,6 +10,7 @@ export function Link({ href, children, className = '', ...props }: React.AnchorH
       {...props}
     >
       {children}
+      <span className="sr-only"> (opens in new tab)</span>
     </a>
   );
 }

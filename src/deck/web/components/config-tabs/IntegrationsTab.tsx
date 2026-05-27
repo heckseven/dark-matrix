@@ -6,9 +6,10 @@ import type { Config, TwitchConfig } from '../../types/config-types.js';
 
 type DeepPartial<T> = T extends object ? { [K in keyof T]?: DeepPartial<T[K]> } : T;
 
-export function IntegrationsTab({ config, onChange }: {
+export function IntegrationsTab({ config, onChange, onSave }: {
   config: Config;
   onChange: (patch: DeepPartial<Config>) => void;
+  onSave: () => void;
 }) {
   const twitch = config.twitch;
   const isConnected = !!(twitch?.access_token);
@@ -31,7 +32,7 @@ export function IntegrationsTab({ config, onChange }: {
       const data = await res.json() as { ok: boolean; auth_url?: string; error?: string };
       if (!data.ok || !data.auth_url) { setError(data.error ?? 'failed to start auth'); return; }
       // Save client_id to config before opening browser
-      onChange({ twitch: { ...(twitch ?? {}), client_id: id } });
+      onChange({ twitch: { ...(twitch?.access_token ? { access_token: twitch.access_token } : {}), ...(twitch?.broadcaster_id ? { broadcaster_id: twitch.broadcaster_id } : {}), client_id: id } });
       window.open(data.auth_url, '_blank', 'noopener,noreferrer');
     } catch {
       setError('network error');
@@ -43,6 +44,7 @@ export function IntegrationsTab({ config, onChange }: {
   function handleDisconnect() {
     const next: TwitchConfig = { ...(clientId ? { client_id: clientId } : {}) };
     onChange({ twitch: next });
+    onSave();
   }
 
   return (
@@ -67,7 +69,7 @@ export function IntegrationsTab({ config, onChange }: {
             onChange={e => setClientId(e.target.value)}
             onBlur={() => {
               const id = clientId.trim();
-              if (id) onChange({ twitch: { ...(twitch ?? {}), client_id: id } });
+              if (id) onChange({ twitch: { ...(twitch?.access_token ? { access_token: twitch.access_token } : {}), ...(twitch?.broadcaster_id ? { broadcaster_id: twitch.broadcaster_id } : {}), client_id: id } });
             }}
           />
         </TabRow>

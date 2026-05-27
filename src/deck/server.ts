@@ -785,7 +785,7 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
       try {
         const body = await readBody(req);
         const { access_token, state } = JSON.parse(body) as { access_token?: unknown; state?: unknown };
-        if (typeof access_token !== 'string' || !/^[a-z0-9]+$/i.test(access_token) || typeof state !== 'string') {
+        if (typeof access_token !== 'string' || !/^[a-z0-9]{10,}$/i.test(access_token) || typeof state !== 'string') {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: false, error: 'invalid payload' }));
           return;

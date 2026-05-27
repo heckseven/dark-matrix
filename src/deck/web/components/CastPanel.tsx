@@ -93,9 +93,11 @@ export function CastPanel() {
   }
 
   function handleCollapse(idx: number) {
-    const toggled = columns.map((col, i) =>
-      i !== idx ? col : col.collapsed ? { provider: col.provider, channel: col.channel } : { ...col, collapsed: true as const }
-    );
+    const toggled = columns.map((col, i) => {
+      if (i !== idx) return col;
+      if (col.collapsed) { const { collapsed: _, ...rest } = col; return rest; }
+      return { ...col, collapsed: true as const };
+    });
     patchConfig({ cast_columns: toggled });
     void saveConfig();
   }
@@ -119,7 +121,7 @@ export function CastPanel() {
         />
 
         {columns.map((col, idx) => (
-          <Fragment key={`${col.provider}:${col.channel}:${idx}`}>
+          <Fragment key={`${col.provider}:${col.channel}`}>
             <CastColumn
               column={col}
               onCollapse={() => handleCollapse(idx)}

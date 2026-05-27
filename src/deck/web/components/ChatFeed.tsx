@@ -43,21 +43,20 @@ function parseEmotes(emotesTag: string | undefined, text: string): Token[] {
   // Sort descending by start to avoid index shifting during splice
   ranges.sort((a, b) => b.start - a.start);
 
-  // Build token array from the text (treated as UTF-16 code units, matching Twitch's offsets)
-  const chars = Array.from(text);
-  const tokens: Token[] = [{ type: 'text', value: chars.join('') }];
+  // Twitch emote offsets are UTF-16 code unit positions — use string indexing directly
+  const tokens: Token[] = [{ type: 'text', value: text }];
 
   for (const range of ranges) {
-    const emoteName = chars.slice(range.start, range.end + 1).join('');
+    const emoteName = text.slice(range.start, range.end + 1);
     // Find and split the text token containing this range
     let charOffset = 0;
     for (let i = 0; i < tokens.length; i++) {
       const tok = tokens[i]!;
       if (tok.type !== 'text') { continue; }
-      const tokLen = Array.from(tok.value).length;
+      const tokLen = tok.value.length;
       if (charOffset <= range.start && range.end < charOffset + tokLen) {
-        const before = Array.from(tok.value).slice(0, range.start - charOffset).join('');
-        const after = Array.from(tok.value).slice(range.end - charOffset + 1).join('');
+        const before = tok.value.slice(0, range.start - charOffset);
+        const after = tok.value.slice(range.end - charOffset + 1);
         const replacement: Token[] = [];
         if (before) replacement.push({ type: 'text', value: before });
         replacement.push({ type: 'emote', id: range.id, name: emoteName });
@@ -95,8 +94,9 @@ function parsePrivmsg(line: string): ChatMessage | null {
   const username = tags['display-name'] || nick;
   const color = tags['color'] || undefined;
   const tokens = parseEmotes(tags['emotes'] || undefined, text);
+  const safeColor = color && /^#[0-9a-fA-F]{3,6}$/.test(color) ? color : undefined;
 
-  return { id: nextId(), type: 'chat', username, ...(color ? { color } : {}), tokens };
+  return { id: nextId(), type: 'chat', username, ...(safeColor ? { color: safeColor } : {}), tokens };
 }
 
 function Tokens({ tokens }: { tokens: Token[] }) {
@@ -105,15 +105,16 @@ function Tokens({ tokens }: { tokens: Token[] }) {
       {tokens.map((tok, i) =>
         tok.type === 'emote' ? (
           <img
-            key={i}
+            key={`e:${tok.id}:${i}`}
             src={`https://static-cdn.jtvnw.net/emoticons/v2/${tok.id}/default/dark/1.0`}
             alt={tok.name}
             title={tok.name}
             height={18}
+            width={18}
             className="inline-block align-middle"
           />
         ) : (
-          <span key={i}>{tok.value}</span>
+          <span key={`t:${i}:${tok.value.slice(0, 8)}`}>{tok.value}</span>
         )
       )}
     </>
@@ -165,6 +166,7 @@ function TwitchFeed({ channel, globalWsRef }: { channel: string; globalWsRef: Re
   const connect = useCallback(() => {
     const ws = new WebSocket('wss://irc-ws.chat.twitch.tv:443');
     ircWsRef.current = ws;
+    let reconnecting = false;
 
     ws.onopen = () => {
       ws.send(`PASS SCHMOOPIIE\r\n`);
@@ -178,7 +180,7 @@ function TwitchFeed({ channel, globalWsRef }: { channel: string; globalWsRef: Re
       for (const line of lines) {
         if (!line) continue;
         if (line.startsWith('PING')) { ws.send('PONG :tmi.twitch.tv\r\n'); continue; }
-        if (line.includes('RECONNECT')) { ws.close(); return; }
+        if (line.includes('RECONNECT')) { reconnecting = true; ws.close(); continue; }
         const msg = parsePrivmsg(line);
         if (msg) setMessages(prev => [...prev.slice(-199), msg]);
       }
@@ -186,7 +188,8 @@ function TwitchFeed({ channel, globalWsRef }: { channel: string; globalWsRef: Re
 
     ws.onclose = () => {
       ircWsRef.current = null;
-      if (!stoppedRef.current) setTimeout(connect, 3000);
+      if (!stoppedRef.current && !reconnecting) setTimeout(connect, 3000);
+      else if (!stoppedRef.current && reconnecting) setTimeout(connect, 1000);
     };
   }, []);
 
@@ -208,7 +211,6 @@ function TwitchFeed({ channel, globalWsRef }: { channel: string; globalWsRef: Re
   return (
     <div
       role="log"
-      aria-live="polite"
       aria-label={`${channel} chat`}
       className="flex-1 overflow-y-auto font-mono text-xs p-2 flex flex-col gap-0.5 min-h-0"
     >
