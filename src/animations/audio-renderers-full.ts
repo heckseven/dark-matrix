@@ -61,12 +61,21 @@ function colEnergies(bands: number[], gain: number, ref: number, cols: number, r
   return result;
 }
 
-// Direct mapping: bands[c] → energy for column c, no 9-bucket rebucketing.
-// Use for fullscreen bar renderers where bands.length === cols and log-spacing
-// already matches the screen width (server sends exactly halfCols bands).
-function directEnergies(bands: number[], gain: number, ref: number): Float32Array {
-  const result = new Float32Array(bands.length);
-  for (let c = 0; c < bands.length; c++) result[c] = dbLevel(bands[c] ?? 0, gain, ref);
+// Direct mapping: bands → cols columns, skipping sub-bass below 40 Hz where
+// FFT resolution is too coarse to contain useful content. The remaining bands
+// are resampled (nearest-neighbor) across all cols output columns so the display
+// covers 40 Hz – 20 kHz at full resolution. No 9-bucket rebucketing.
+const LOG_MIN_DISPLAY = Math.log10(40);
+function directEnergies(bands: number[], gain: number, ref: number, cols: number): Float32Array {
+  const n = bands.length;
+  const startFrac = (LOG_MIN_DISPLAY - HW_LOG_MIN) / HW_LOG_RANGE;
+  const startIdx = Math.max(0, Math.min(n - 1, Math.round(startFrac * n - 0.5)));
+  const srcCount = n - startIdx;
+  const result = new Float32Array(cols);
+  for (let c = 0; c < cols; c++) {
+    const k = startIdx + Math.min(srcCount - 1, Math.round((c / Math.max(1, cols - 1)) * (srcCount - 1)));
+    result[c] = dbLevel(bands[k] ?? 0, gain, ref);
+  }
   return result;
 }
 
@@ -78,7 +87,7 @@ function fullSpectrumFall(): FullRenderer {
     const ref = fftSize / 2;
     if (!history || history.length !== rows || history[0]?.length !== cols)
       history = Array.from({ length: rows }, () => new Uint8Array(cols));
-    const ce = directEnergies(bands, gain, ref);
+    const ce = directEnergies(bands, gain, ref, cols);
     const center = Math.floor(rows / 2);
     const newRow = new Uint8Array(cols);
     for (let c = 0; c < cols; c++) newRow[c] = Math.round((ce[c] ?? 0) * 255);
@@ -201,7 +210,7 @@ function fullDarkMatter(): FullRenderer {
       peaks = new Float32Array(cols);
       grid = new Uint8Array(cols * rows);
     }
-    const ce = directEnergies(bands, gain, ref);
+    const ce = directEnergies(bands, gain, ref, cols);
     // Rising sparks: shift upward one row, spawn bottom row
     for (let r = 0; r < rows - 1; r++)
       for (let c = 0; c < cols; c++)
