@@ -137,7 +137,7 @@ export function CastPanel({ topPad = 0 }: { topPad?: number }) {
 
         {columns.length === 0 && (
           <div className="flex-1 flex items-center justify-center">
-            <Button onClick={() => openAdd(0)}>add channel</Button>
+            <Button variant="primary" onClick={() => openAdd(0)}>add channel</Button>
           </div>
         )}
       </div>
