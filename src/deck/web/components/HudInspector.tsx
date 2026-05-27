@@ -9,7 +9,7 @@ import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription, D
 import { AssetImportPanel } from './AssetImportPanel.js';
 import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
-import { renderElegantTimer, renderHourglassFrame } from '../../../animations/timer-renderers.js';
+import { renderElegantTimer, renderHourglassFrame, renderTwinzTimer } from '../../../animations/timer-renderers.js';
 import { DATA_STYLES, createDataRenderer } from '../../../animations/data-renderers.js';
 import type { DataStyle, DataMetric, DataRenderer } from '../../../animations/data-renderers.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
@@ -148,6 +148,7 @@ function ClockGrid({ currentWidget, onPick }: {
 
 const TIMER_DEMO_MS      = 90_000; // 1m30s — stays in mm:ss mode for elegant preview
 const HOURGLASS_DEMO_MS  = 5 * 60_000;
+const TWINZ_DEMO_MS      = 90_061; // offset so centiseconds visibly tick
 
 function TimerGrid({ currentWidget, onSettings }: {
   currentWidget: HudWidget | null;
@@ -155,10 +156,12 @@ function TimerGrid({ currentWidget, onSettings }: {
 }) {
   const elegantRemRef    = useRef(TIMER_DEMO_MS);
   const hourglassRemRef  = useRef(HOURGLASS_DEMO_MS);
+  const twinzRemRef      = useRef(TWINZ_DEMO_MS);
 
-  const [pixels, setPixels] = useState<{ elegant: string; hourglass: string }>(() => ({
+  const [pixels, setPixels] = useState<{ elegant: string; hourglass: string; twinz: string }>(() => ({
     elegant:   bwToB64(renderElegantTimer(elegantRemRef.current)),
     hourglass: bwToB64(renderHourglassFrame(1 - hourglassRemRef.current / HOURGLASS_DEMO_MS)),
+    twinz:     bwToB64(renderTwinzTimer(twinzRemRef.current)),
   }));
 
   useEffect(() => {
@@ -169,16 +172,20 @@ function TimerGrid({ currentWidget, onSettings }: {
       hourglassRemRef.current = Math.max(0, hourglassRemRef.current - 100);
       if (hourglassRemRef.current === 0) hourglassRemRef.current = HOURGLASS_DEMO_MS;
 
+      twinzRemRef.current = Math.max(0, twinzRemRef.current - 100);
+      if (twinzRemRef.current === 0) twinzRemRef.current = TWINZ_DEMO_MS;
+
       setPixels({
         elegant:   bwToB64(renderElegantTimer(elegantRemRef.current)),
         hourglass: bwToB64(renderHourglassFrame(1 - hourglassRemRef.current / HOURGLASS_DEMO_MS)),
+        twinz:     bwToB64(renderTwinzTimer(twinzRemRef.current)),
       });
     }, 100);
     return () => clearInterval(iid);
   }, []);
 
   const timerStyle = currentWidget?.widget === 'timer' ? (currentWidget.style ?? 'elegant') : null;
-  const baseWidget = (style: 'elegant' | 'hourglass'): HudWidget => ({
+  const baseWidget = (style: 'elegant' | 'hourglass' | 'twinz'): HudWidget => ({
     widget: 'timer',
     style,
     ...(currentWidget?.widget === 'timer' ? { durationMs: currentWidget.durationMs, repeat: currentWidget.repeat } : {}),
@@ -201,6 +208,14 @@ function TimerGrid({ currentWidget, onSettings }: {
         pixels={pixels.hourglass}
         isSelected={timerStyle === 'hourglass'}
         onSelect={() => onSettings(baseWidget('hourglass'))}
+      />
+      <MatrixItem
+        name="twinz"
+        aria-label="twinz timer"
+        width={9}
+        pixels={pixels.twinz}
+        isSelected={timerStyle === 'twinz'}
+        onSelect={() => onSettings(baseWidget('twinz'))}
       />
     </div>
   );

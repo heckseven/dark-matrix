@@ -8,14 +8,14 @@ const BY_PATH_RE = /^\/dev\/(serial\/by-path\/[a-zA-Z0-9:._-]+|ttyACM\d+|ttyUSB\
 const SENSOR_PATH_RE = /^\/sys\/bus\/iio\/devices\/iio:device\d+\/in_illuminance_raw$/;
 
 const HudWidgetSchema = z.discriminatedUnion('widget', [
-  z.object({ widget: z.literal('clock'), face: z.enum(['binary-audio', 'elegant', 'stretch', 'analogue', 'binary-blocks', 'binary-tall', 'binary-diamond']) }),
+  z.object({ widget: z.literal('clock'), face: z.enum(['binary-audio', 'elegant', 'stretch', 'analogue', 'binary-blocks', 'binary-tall', 'binary-diamond', 'twinz']) }),
   z.object({ widget: z.literal('data'), style: z.enum(['line', 'fill', 'scroll', 'cores']).optional(), top_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), top_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional() }),
   z.object({ widget: z.literal('heatmap') }),
   z.object({ widget: z.literal('audio'), style: z.enum(['vu-glitch', 'circuit', 'spirits', 'scope-dual', 'kick-d', 'waterfall', 'sparks', 'hex', 'specter', 'heat', 'dark-matter', 'spectrum-fall', 'neo', 'cipher', 'wake', 'rhythm', 'drop', 'life-erode-4', 'glitch-sort-b', 'spiral-d', 'strobe', 'glitch-corrupt']).optional() }),
   z.object({ widget: z.literal('image'), file: z.string().regex(/^[a-zA-Z0-9_\-]+\.dmx\.json$/i).max(73), speed: z.number().min(0.25).max(8).optional(), loop: z.boolean().optional() }),
   z.object({ widget: z.literal('life'), biomeName: z.string().min(1).max(100), randomIntervalMs: z.number().int().min(5000).max(3_600_000).optional() }),
   z.object({ widget: z.literal('claude'), style: z.enum(['matrix', 'usage', 'context', 'sand', 'tetris']).optional() }),
-  z.object({ widget: z.literal('timer'), style: z.enum(['elegant', 'hourglass']).optional(), durationMs: z.number().int().min(1000).optional(), repeat: z.boolean().optional() }),
+  z.object({ widget: z.literal('timer'), style: z.enum(['elegant', 'hourglass', 'twinz']).optional(), durationMs: z.number().int().min(1000).optional(), repeat: z.boolean().optional() }),
 ]);
 
 const HudTriggerSchema = z.discriminatedUnion('type', [

@@ -1,7 +1,7 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type ClockFace = 'elegant' | 'stretch' | 'binary-audio' | 'analogue' | 'binary-blocks' | 'binary-tall' | 'binary-diamond';
+export type ClockFace = 'elegant' | 'stretch' | 'binary-audio' | 'analogue' | 'binary-blocks' | 'binary-tall' | 'binary-diamond' | 'twinz';
 
 export const CLOCK_FACES: { id: ClockFace; label: string }[] = [
   { id: 'binary-audio',   label: 'stack'    },
@@ -11,6 +11,7 @@ export const CLOCK_FACES: { id: ClockFace; label: string }[] = [
   { id: 'binary-blocks',  label: 'blocks'   },
   { id: 'binary-tall',    label: 'signal'   },
   { id: 'binary-diamond', label: 'struct'   },
+  { id: 'twinz',          label: 'twinz'    },
 ];
 
 export type ClockCtx = { now: Date; bands?: number[]; fftSize?: number; gain?: number; side?: 'left' | 'right' };
@@ -401,6 +402,62 @@ function binaryDiamond(): ClockRenderer {
   };
 }
 
+// ── Twinz clock ───────────────────────────────────────────────────────────
+// Shows HH / MM / SS / cs (centiseconds) as four stacked pairs of digits.
+// Font: 3 wide × 5 tall; left digit at cols 1-3, right digit at cols 5-7.
+// bit 0 → col offset 0 (leftmost of glyph), bit 1 → col offset 1, bit 2 → col offset 2.
+// Divider: pixels at (col 0, divRow) and (col 8, divRow) between each pair.
+export const TWINZ_DIGITS: readonly number[][] = [
+  [6, 5, 5, 5, 3], // 0
+  [3, 2, 2, 2, 7], // 1
+  [7, 4, 2, 1, 7], // 2
+  [7, 4, 2, 4, 3], // 3
+  [1, 5, 7, 4, 4], // 4
+  [7, 1, 7, 4, 7], // 5
+  [1, 1, 7, 5, 7], // 6
+  [7, 4, 2, 2, 2], // 7
+  [7, 5, 2, 5, 7], // 8
+  [7, 5, 7, 4, 4], // 9
+];
+
+// Pair row starts: rows 2, 10, 18, 26  (5 rows tall each)
+// Divider rows:   8, 16, 24  (cols 0 and 8)
+export function drawTwinzPair(frame: Frame, tens: number, units: number, rowStart: number): void {
+  const tGlyph = TWINZ_DIGITS[tens];
+  const uGlyph = TWINZ_DIGITS[units];
+  if (!tGlyph || !uGlyph) return;
+  for (let r = 0; r < 5; r++) {
+    const tBits = tGlyph[r] ?? 0;
+    const uBits = uGlyph[r] ?? 0;
+    for (let c = 0; c < 3; c++) {
+      if ((tBits >> c) & 1) frame[(1 + c) * ROWS + rowStart + r] = 255;
+      if ((uBits >> c) & 1) frame[(5 + c) * ROWS + rowStart + r] = 255;
+    }
+  }
+}
+
+export function drawTwinzDividers(frame: Frame): void {
+  frame[0 * ROWS +  8] = 255; frame[8 * ROWS +  8] = 255;
+  frame[0 * ROWS + 16] = 255; frame[8 * ROWS + 16] = 255;
+  frame[0 * ROWS + 24] = 255; frame[8 * ROWS + 24] = 255;
+}
+
+function twinz(): ClockRenderer {
+  return ({ now }) => {
+    const h  = now.getHours();
+    const m  = now.getMinutes();
+    const s  = now.getSeconds();
+    const cs = Math.floor(now.getMilliseconds() / 10);
+    const frame = createFrame();
+    drawTwinzPair(frame, Math.floor(h  / 10), h  % 10,  2);
+    drawTwinzPair(frame, Math.floor(m  / 10), m  % 10, 10);
+    drawTwinzPair(frame, Math.floor(s  / 10), s  % 10, 18);
+    drawTwinzPair(frame, Math.floor(cs / 10), cs % 10, 26);
+    drawTwinzDividers(frame);
+    return frame;
+  };
+}
+
 const FACTORIES: Record<ClockFace, () => ClockRenderer> = {
   'binary-audio':   binaryAudio,
   'elegant':        elegant,
@@ -409,6 +466,7 @@ const FACTORIES: Record<ClockFace, () => ClockRenderer> = {
   'binary-blocks':  binaryBlocks,
   'binary-tall':    binaryTall,
   'binary-diamond': binaryDiamond,
+  'twinz':          twinz,
 };
 
 export function createClockRenderer(face: ClockFace): ClockRenderer {

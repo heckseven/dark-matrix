@@ -6,7 +6,7 @@ import type { DataStyle, DataRenderer } from '../../../animations/data-renderers
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { createHeatmapState, bumpTool, renderHeatmap } from '../../../animations/heatmap.js';
-import { renderElegantTimer, renderHourglassFrame } from '../../../animations/timer-renderers.js';
+import { renderElegantTimer, renderHourglassFrame, renderTwinzTimer } from '../../../animations/timer-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { HudPresetClient } from '../types/hud-preset.js';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
@@ -144,7 +144,9 @@ function renderWidgetToB64(
       const style = widget.style ?? 'elegant';
       const frame = style === 'hourglass'
         ? renderHourglassFrame(0.5)
-        : renderElegantTimer(90_000);
+        : style === 'twinz'
+          ? renderTwinzTimer(90_061)
+          : renderElegantTimer(90_000);
       const out = new Uint8Array(COLS * ROWS);
       for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
       return btoa(String.fromCharCode(...out));

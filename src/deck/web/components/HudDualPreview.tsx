@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { createBiomeGrid, createBiomeStep } from '../../../animations/gol.js';
 import { createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
-import { renderElegantTimer, renderHourglassFrame } from '../../../animations/timer-renderers.js';
+import { renderElegantTimer, renderHourglassFrame, renderTwinzTimer } from '../../../animations/timer-renderers.js';
 import { getDataRenderer } from '../data-renderer-pool.js';
 import { createHeatmapState, bumpTool, renderHeatmap } from '../../../animations/heatmap.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
@@ -201,7 +201,9 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, 
     } else if (widget.widget === 'timer') {
       const frame = widget.style === 'hourglass'
         ? renderHourglassFrame(0.5)
-        : renderElegantTimer(90_000);
+        : widget.style === 'twinz'
+          ? renderTwinzTimer(90_061)
+          : renderElegantTimer(90_000);
       const out = new Uint8Array(COLS * ROWS);
       for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
       return out;

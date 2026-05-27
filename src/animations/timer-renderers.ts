@@ -1,8 +1,8 @@
 import { createFrame, FRAME_COLS, FRAME_ROWS } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
-import { ELEGANT_DIGITS, drawElegantDigit } from './clock-renderers.js';
+import { ELEGANT_DIGITS, drawElegantDigit, TWINZ_DIGITS, drawTwinzPair, drawTwinzDividers } from './clock-renderers.js';
 
-export { ELEGANT_DIGITS, drawElegantDigit };
+export { ELEGANT_DIGITS, drawElegantDigit, TWINZ_DIGITS, drawTwinzPair, drawTwinzDividers };
 
 const COLS = FRAME_COLS;
 const ROWS = FRAME_ROWS;
@@ -100,7 +100,7 @@ export interface ElegantTimerRenderer {
   stop(): void;
 }
 
-export function createElegantTimerRenderer(): ElegantTimerRenderer {
+function createFlashingTimerRenderer(renderFn: (remainingMs: number) => Frame): ElegantTimerRenderer {
   let expiredAtMs = -1;
   let wasExpired  = false;
 
@@ -110,7 +110,7 @@ export function createElegantTimerRenderer(): ElegantTimerRenderer {
 
       if (!expired) {
         if (wasExpired) { expiredAtMs = -1; wasExpired = false; }
-        return renderElegantTimer(remainingMs);
+        return renderFn(remainingMs);
       }
 
       wasExpired = true;
@@ -120,16 +120,20 @@ export function createElegantTimerRenderer(): ElegantTimerRenderer {
       const halfPeriod = Math.floor((nowMs - expiredAtMs) / ELEGANT_FLASH_INTERVAL_MS);
 
       if (halfPeriod < ELEGANT_FLASH_COUNT && halfPeriod % 2 === 0) {
-        const base = renderElegantTimer(0);
+        const base = renderFn(0);
         const out  = createFrame();
         for (let i = 0; i < base.length; i++) out[i] = base[i]! > 0 ? 0 : 255;
         return out;
       }
 
-      return renderElegantTimer(0);
+      return renderFn(0);
     },
     stop() { /* no resources */ },
   };
+}
+
+export function createElegantTimerRenderer(): ElegantTimerRenderer {
+  return createFlashingTimerRenderer(renderElegantTimer);
 }
 
 // ── Hourglass timer renderer ───────────────────────────────────────────────
@@ -367,4 +371,28 @@ function renderHourglassAllFilled(): Frame {
 
 function renderHourglassBlack(): Frame {
   return createFrame();
+}
+
+// ── Twinz timer renderer ──────────────────────────────────────────────────
+// Shows HH:MM:SS.cs across four stacked digit pairs. Always displays all four
+// pairs regardless of remaining time. Uses the same font as the twinz clock.
+
+export function renderTwinzTimer(remainingMs: number): Frame {
+  const rem       = Math.max(0, remainingMs);
+  const totalSec  = Math.floor(rem / 1000);
+  const cs        = Math.floor((rem % 1000) / 10);
+  const sec       = totalSec % 60;
+  const min       = Math.floor(totalSec / 60) % 60;
+  const hr        = Math.floor(totalSec / 3600);
+  const frame     = createFrame();
+  drawTwinzPair(frame, Math.floor(hr  / 10), hr  % 10,  2);
+  drawTwinzPair(frame, Math.floor(min / 10), min % 10, 10);
+  drawTwinzPair(frame, Math.floor(sec / 10), sec % 10, 18);
+  drawTwinzPair(frame, Math.floor(cs  / 10), cs  % 10, 26);
+  drawTwinzDividers(frame);
+  return frame;
+}
+
+export function createTwinzTimerRenderer(): ElegantTimerRenderer {
+  return createFlashingTimerRenderer(renderTwinzTimer);
 }

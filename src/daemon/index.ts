@@ -34,7 +34,7 @@ import { createDataRenderer } from '../animations/data-renderers.js';
 import { DATA_STYLES } from '../animations/data-renderers.js';
 import type { DataStyle, DataWidgetConfig, DataRenderer } from '../animations/data-renderers.js';
 import { createClaudeMatrixRenderer, createClaudeContextRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer, CLAUDE_STYLES } from '../animations/claude-renderers.js';
-import { createElegantTimerRenderer, createHourglassTimerRenderer } from '../animations/timer-renderers.js';
+import { createElegantTimerRenderer, createHourglassTimerRenderer, createTwinzTimerRenderer } from '../animations/timer-renderers.js';
 import type { ClaudeStyle, ClaudeRendererApi } from '../animations/claude-renderers.js';
 import { watchProcStats } from '../lib/proc-source.js';
 import { createPresetTriggerEngine } from '../lib/preset-triggers.js';
@@ -762,7 +762,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         const repeat      = widget.repeat ?? false;
         let   epochMs     = Date.now();
         const hgRenderer  = timerStyle === 'hourglass' ? createHourglassTimerRenderer() : null;
-        const elRenderer  = hgRenderer ? null : createElegantTimerRenderer();
+        const tzRenderer  = timerStyle === 'twinz'     ? createTwinzTimerRenderer()     : null;
+        const elRenderer  = hgRenderer || tzRenderer   ? null                           : createElegantTimerRenderer();
         return {
           render(now, _audioCtx) {
             const elapsed     = now.getTime() - epochMs;
@@ -770,9 +771,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               ? Math.max(0, durationMs - (elapsed % durationMs))
               : Math.max(0, durationMs - elapsed);
             if (hgRenderer) return hgRenderer.render(remainingMs, durationMs);
+            if (tzRenderer) return tzRenderer.render(remainingMs);
             return elRenderer!.render(remainingMs);
           },
-          stop() { hgRenderer?.stop(); elRenderer?.stop(); },
+          stop() { hgRenderer?.stop(); tzRenderer?.stop(); elRenderer?.stop(); },
         };
       }
       case 'claude': {
