@@ -4,6 +4,7 @@ import { MatrixItem } from './MatrixItem.js';
 import type { AudioStyle, AudioSource } from '../store.js';
 import { AUDIO_STYLES, createRenderer } from '../../../animations/audio-renderers.js';
 import type { RenderCtx } from '../../../animations/audio-renderers.js';
+import { BAYER4 } from '../../../animations/bayer.js';
 import { AudioFullscreen } from './AudioFullscreen.js';
 import { useState } from 'react';
 
@@ -47,8 +48,6 @@ const PLACEHOLDER: Record<AudioStyle, string> = {
   'glitch-corrupt':      makeFrame((c, r) => (c>=1&&c<=3&&r>=8&&r<=17)||(c>=5&&c<=7&&r>=20&&r<=28) ? (c*17+r*31)%5<3 ? 255 : 0 : 0),
 };
 
-const BAYER4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]] as const;
-
 function frameToB64(frame: Uint8Array): string {
   const out = new Uint8Array(frame.length);
   for (let col = 0; col < COLS; col++) {
@@ -75,12 +74,14 @@ function mirrorFrame(b64: string): string {
 
 export function AudioPanel({
   dualModule = false,
-  fullscreenStyle,
-  onFullscreenChange,
+  fullscreenStyle = null,
+  onFullscreenChange = () => {},
+  onFullscreenIdleChange = () => {},
 }: {
   dualModule?: boolean;
-  fullscreenStyle: AudioStyle | null;
-  onFullscreenChange: (style: AudioStyle | null) => void;
+  fullscreenStyle?: AudioStyle | null;
+  onFullscreenChange?: (style: AudioStyle | null) => void;
+  onFullscreenIdleChange?: (idle: boolean) => void;
 }) {
   const audioStyle = useDeckStore(s => s.audioStyle);
   const audioSource = useDeckStore(s => s.audioSource);
@@ -183,6 +184,7 @@ export function AudioPanel({
         fftSizeRef={fftSizeRef}
         gainRef={gainRef}
         onBandCountChange={handleBandCountChange}
+        onIdleChange={onFullscreenIdleChange}
         onExit={() => onFullscreenChange(null)}
       />
     );
