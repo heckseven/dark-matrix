@@ -105,24 +105,32 @@ function fullSpectrumFall(): FullRenderer {
 }
 
 function fullSpirits(): FullRenderer {
-  const ghosts: Float32Array[] = [];
+  interface Mark { col: number; row: number; v: number }
+  let prev: Float32Array | null = null;
+  let marks: Mark[] = [];
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
-    if (ghosts.length !== cols) {
-      ghosts.length = 0;
-      for (let c = 0; c < cols; c++) ghosts.push(new Float32Array(rows));
-    }
+    if (!prev || prev.length !== cols) { prev = new Float32Array(cols); marks = []; }
     const ce = colEnergies(bands, gain, ref, cols);
-    const data = new Uint8Array(cols * rows);
+    // Rising-edge detection: spawn a mark when energy increases > 0.05 (matches hardware blip)
     for (let c = 0; c < cols; c++) {
-      const energy = ce[c] ?? 0;
-      const g = ghosts[c]!;
-      for (let r = 0; r < rows; r++) g[r] = (g[r] ?? 0) * 0.82;
-      const targetRow = Math.max(0, rows - 1 - Math.round(energy * (rows - 1)));
-      g[targetRow] = Math.max(g[targetRow] ?? 0, 1.0);
-      if (targetRow > 0)        g[targetRow - 1] = Math.max(g[targetRow - 1] ?? 0, 0.6);
-      if (targetRow < rows - 1) g[targetRow + 1] = Math.max(g[targetRow + 1] ?? 0, 0.6);
-      for (let r = 0; r < rows; r++) data[c * rows + r] = Math.round((g[r] ?? 0) * 255);
+      const t = ce[c] ?? 0;
+      if (t - (prev[c] ?? 0) > 0.05)
+        marks.push({ col: c, row: Math.max(0, rows - 1 - Math.round(t * (rows - 1))), v: 1.0 });
+      prev[c] = t;
+    }
+    const data = new Uint8Array(cols * rows);
+    for (let i = marks.length - 1; i >= 0; i--) {
+      const m = marks[i]!;
+      m.v *= 0.78;
+      if (m.v < 0.03) { marks.splice(i, 1); continue; }
+      for (let dr = -1; dr <= 1; dr++) {
+        const r = m.row + dr;
+        if (r >= 0 && r < rows) {
+          const idx = m.col * rows + r;
+          data[idx] = Math.max(data[idx] ?? 0, Math.round(m.v * (dr === 0 ? 255 : 140)));
+        }
+      }
     }
     return data;
   };
@@ -139,8 +147,8 @@ function fullVuGlitch(): FullRenderer {
     const spike = Math.max(0, t - smoothed);
     smoothed = smoothed * 0.85 + t * 0.15;
     for (let r = 0; r < rows; r++) {
-      if (Math.random() < spike * 4) buf[r] = Math.min(1, (buf[r] ?? 0) + 0.4 + Math.random() * 0.5);
-      buf[r] = (buf[r] ?? 0) * 0.88;
+      if (Math.random() < spike * 5) buf[r] = Math.min(1, (buf[r] ?? 0) + 0.5 + Math.random() * 0.5);
+      buf[r] = (buf[r] ?? 0) * 0.87;
     }
     const ce = colEnergies(bands, gain, ref, cols);
     const data = new Uint8Array(cols * rows);
@@ -160,7 +168,7 @@ function fullKickD(): FullRenderer {
   let y: Float32Array | null = null;
   let vy: Float32Array | null = null;
   let smoothedB: Float32Array | null = null;
-  let cooldown = 0;
+  let cooldown = 0, energyRun = 0;
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
     if (!y || y.length !== cols) { y = new Float32Array(cols); vy = new Float32Array(cols); smoothedB = new Float32Array(cols); }
@@ -179,11 +187,21 @@ function fullKickD(): FullRenderer {
     }
     if (cooldown > 0) cooldown--;
     if (t > 0.12 && maxDelta > 0.08 && cooldown === 0) {
+      energyRun = t > 0.5 ? energyRun + 1 : 0;
+      let boostCol = -1;
+      if (energyRun >= 2 && Math.random() < 0.4) {
+        const candidates: number[] = [];
+        for (let c = 0; c < cols; c++)
+          if (c !== Math.round(center) && (y![c] ?? 0) <= 3) candidates.push(c);
+        if (candidates.length > 0)
+          boostCol = candidates[Math.floor(Math.random() * candidates.length)]!;
+      }
       for (let col = 0; col < cols; col++) {
-        if ((y![col] ?? 0) <= 2) {
+        if ((y![col] ?? 0) <= 3) {
           const normDist = Math.abs(col - center) / (center || 1);
           const factor = 0.4 + 0.6 * Math.pow(1 - normDist, 2);
-          vy![col] = t * rows * 0.6 * factor;
+          const boost = col === boostCol ? 1.3 + Math.random() * 0.4 : 1;
+          vy![col] = t * rows * 0.6 * factor * boost;
         }
       }
       cooldown = 1;
@@ -389,30 +407,46 @@ function fullScopeDual(): FullRenderer {
 }
 
 function fullRhythm(): FullRenderer {
-  const CC_FRAC = 0.5;
-  const CR_FRAC = 0.5;
+  // Matches makeDripLine(innerTrailWidth=5, trailDecay=0.88):
+  // event-triggered horizontal scan lines expanding from center row
+  const ripples: number[] = [];
+  let trail: Float32Array | null = null;
+  let smoothed = 0, cooldown = 0;
+  const RING_WIDTH = 1.5;
+  const INNER_TRAIL = 5;
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
+    if (!trail || trail.length !== cols * rows) { trail = new Float32Array(cols * rows); smoothed = 0; cooldown = 0; }
     const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
     const t = dbLevel(avg, gain, ref);
-    const cx = (cols - 1) * CC_FRAC;
-    const cy = (rows - 1) * CR_FRAC;
-    const maxR = Math.sqrt(cx * cx + cy * cy);
-    const numRings = Math.max(2, Math.round(t * 6) + 2);
+    const delta = t - smoothed;
+    smoothed = t > smoothed ? smoothed * 0.95 + t * 0.05 : smoothed * 0.82 + t * 0.18;
+    if (cooldown > 0) cooldown--;
+    else if (t > 0.08 && delta > 0.05) { ripples.push(0); cooldown = 2; }
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      ripples[i] = (ripples[i] ?? 0) + 0.6;
+      if ((ripples[i] ?? 0) > rows / 2 + RING_WIDTH) ripples.splice(i, 1);
+    }
+    const decayRate = 0.88 - t * 0.45;
+    for (let i = 0; i < trail!.length; i++) trail![i] = (trail![i] ?? 0) * decayRate;
+    const ce = colEnergies(bands, gain, ref, cols);
+    const CENTER = (rows - 1) / 2;
     const data = new Uint8Array(cols * rows);
     for (let c = 0; c < cols; c++) {
+      const energy = ce[c] ?? 0;
       for (let r = 0; r < rows; r++) {
-        const dist = Math.sqrt((c - cx) ** 2 + (r - cy) ** 2);
-        const norm = dist / maxR;
-        // Multiple rings spaced evenly
-        let maxV = 0;
-        for (let ring = 0; ring < numRings; ring++) {
-          const ringFrac = (ring + 0.5) / numRings;
-          const delta = Math.abs(norm - ringFrac);
-          const v = Math.max(0, 1 - delta * numRings * 1.5) * (1 - ring / numRings) * (0.4 + t * 0.6);
-          maxV = Math.max(maxV, v);
+        const idx = c * rows + r;
+        let v = 0;
+        for (const y of ripples) {
+          const rowDist = Math.abs(r - CENTER);
+          const dist = Math.min(Math.abs(r - (CENTER - y)), Math.abs(r - (CENTER + y)));
+          const rv = Math.max(0, 1 - dist / RING_WIDTH);
+          v = Math.max(v, rv);
+          if (rowDist < y && y - rowDist <= INNER_TRAIL)
+            trail![idx] = Math.max(trail![idx] ?? 0, (1 - (y - rowDist) / INNER_TRAIL) * 0.9);
         }
-        data[c * rows + r] = Math.round(maxV * 255);
+        if (v > 0 && Math.random() < energy * 0.7) v = 0;
+        data[idx] = Math.min(255, Math.round(Math.max(v, trail![idx] ?? 0) * 255));
       }
     }
     return data;
@@ -443,7 +477,8 @@ function fullSparks(): FullRenderer {
 function fullNeo(): FullRenderer {
   interface Drop { pos: number; col: number; speed: number }
   let drops: Drop[] = [];
-  const TRAIL = 12;
+  const TRAIL = 9;
+  const MAX_PER_COL = 3;
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
     const ce = colEnergies(bands, gain, ref, cols);
@@ -452,9 +487,8 @@ function fullNeo(): FullRenderer {
     for (const d of drops) colCount[d.col] = (colCount[d.col] ?? 0) + 1;
     for (let c = 0; c < cols; c++) {
       const energy = ce[c] ?? 0;
-      const maxDrops = Math.max(1, Math.round(cols / 8));
-      if ((colCount[c] ?? 0) < maxDrops && Math.random() < energy * 0.5)
-        drops.push({ pos: 0, col: c, speed: 0.5 + energy * 2.5 });
+      if ((colCount[c] ?? 0) < MAX_PER_COL && Math.random() < energy * 0.18)
+        drops.push({ pos: 0, col: c, speed: 0.4 + energy * 2.0 });
     }
     drops = drops.filter(d => {
       d.pos += d.speed;
@@ -477,36 +511,36 @@ function fullHex(): FullRenderer {
   interface Drop { pos: number; col: number; speed: number }
   let drops: Drop[] = [];
   let lastCols = 0, lastRows = 0;
-  const TRAIL = 10;
-  const HEADS_PER_COL = 3;
+  const TRAIL = 9;
+  const MAX_PER_COL = 5;
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
-    // Reset on grid resize to avoid stale positions causing blank frames
     if (cols !== lastCols || rows !== lastRows) { drops = []; lastCols = cols; lastRows = rows; }
     const ce = colEnergies(bands, gain, ref, cols);
-    const data = new Uint8Array(cols * rows);
+    // Count active particles per column
+    const colCount = new Uint8Array(cols);
+    for (const d of drops) { if (d.col >= 0 && d.col < cols) colCount[d.col] = (colCount[d.col] ?? 0) + 1; }
+    // Spawn at bottom, rise upward
     for (let c = 0; c < cols; c++) {
       const energy = ce[c] ?? 0;
-      // Spawn at bottom, rise upward
-      if (Math.random() < energy * 0.3) {
-        drops.push({ pos: rows - 1 - Math.random() * rows * 0.3, col: c, speed: 0.3 + energy * 1.5 });
+      if ((colCount[c] ?? 0) < MAX_PER_COL && Math.random() < energy * 0.45) {
+        drops.push({ pos: rows - 1, col: c, speed: 0.4 + energy * 2.0 });
       }
     }
+    const data = new Uint8Array(cols * rows);
     drops = drops.filter(d => {
-      d.pos -= d.speed;  // move upward (decreasing row index)
+      d.pos -= d.speed;
       const head = Math.round(d.pos);
       for (let t = 0; t < TRAIL; t++) {
-        const r = head + t;  // trail hangs below head
+        const r = head + t;  // trail hangs below head (higher row index)
         if (r >= 0 && r < rows) {
-          const v = Math.round(255 * Math.pow(0.68, t));
+          const v = Math.round(255 * Math.pow(0.65, t));
           const idx = d.col * rows + r;
           data[idx] = Math.max(data[idx] ?? 0, v);
         }
       }
       return d.pos > -TRAIL;
     });
-    // Cap by truncating newest drops (end of array) — preserves oldest/highest drops
-    if (drops.length > cols * HEADS_PER_COL * 2) drops.length = cols * HEADS_PER_COL;
     return data;
   };
 }
@@ -607,8 +641,6 @@ function fullWake(): FullRenderer {
       cooldown = 2;
     }
     const ce = colEnergies(bands, gain, ref, cols);
-    // Decay before writing so newly written wave rows appear at full brightness
-    for (let i = 0; i < glow!.length; i++) glow![i] = (glow![i] ?? 0) * 0.88;
     for (let w = waves.length - 1; w >= 0; w--) {
       waves[w] = (waves[w] ?? 0) - (0.5 + t * 2.0);
       if ((waves[w] ?? 0) < 0) {
@@ -619,6 +651,8 @@ function fullWake(): FullRenderer {
           glow![c * rows + sr] = ce[c] ?? 0;
       }
     }
+    // Decay after writing — matches hardware: wave rows appear at energy * 0.88 on first frame
+    for (let i = 0; i < glow!.length; i++) glow![i] = (glow![i] ?? 0) * 0.88;
     const data = new Uint8Array(cols * rows);
     for (let i = 0; i < glow!.length; i++) data[i] = Math.min(255, Math.round((glow![i] ?? 0) * 255));
     return data;
@@ -635,9 +669,9 @@ function fullSpiralD(): FullRenderer {
     if (!buf || buf.length !== cols * rows) buf = new Float32Array(cols * rows);
     const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
     const t = dbLevel(avg, gain, ref);
-    for (let i = 0; i < buf.length; i++) buf[i] = (buf[i] ?? 0) * 0.72;
-    phase += 0.025 + t * 0.08;
-    const arms = 1 + Math.floor(t * 2.99);
+    for (let i = 0; i < buf.length; i++) buf[i] = (buf[i] ?? 0) * 0.68;
+    phase += 0.03 + t * 0.09;
+    const arms = 1 + Math.floor(t * 1.99);
     const CC = (cols - 1) / 2;
     const CR = (rows - 1) / 2;
     const steps = Math.max(cols, rows) * 2;
@@ -659,52 +693,83 @@ function fullSpiralD(): FullRenderer {
 }
 
 function fullLifeErode(): FullRenderer {
-  let cells: Uint8Array | null = null;
+  let cells: Float32Array | null = null;
+  let smoothed = 0, cooldown = 0, thresholdMult = 1.0, blinkerActive = false;
   let lastCols = 0, lastRows = 0;
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
     if (!cells || lastCols !== cols || lastRows !== rows) {
-      cells = new Uint8Array(cols * rows);
-      // Random seed
-      for (let i = 0; i < cells.length; i++) cells[i] = Math.random() < 0.2 ? 255 : 0;
+      cells = new Float32Array(cols * rows);
+      for (let i = 0; i < cells.length; i++) cells[i] = Math.random() < 0.35 ? 1.0 : 0;
+      smoothed = 0; cooldown = 0; thresholdMult = 1.0; blinkerActive = false;
       lastCols = cols; lastRows = rows;
     }
     const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
     const t = dbLevel(avg, gain, ref);
+    const delta = t - smoothed;
+    smoothed = smoothed * 0.85 + t * 0.15;
+    if (cooldown > 0) cooldown--;
     const ce = colEnergies(bands, gain, ref, cols);
-    const next = new Uint8Array(cols * rows);
-    for (let c = 0; c < cols; c++) {
-      const energy = ce[c] ?? 0;
-      // Re-seed columns from band energy
-      if (Math.random() < energy * 0.12) {
-        const r = Math.floor(Math.random() * rows);
-        cells[c * rows + r] = 255;
-      }
-      for (let r = 0; r < rows; r++) {
-        let alive = 0;
-        for (let dc = -1; dc <= 1; dc++)
-          for (let dr = -1; dr <= 1; dr++) {
-            if (dc === 0 && dr === 0) continue;
-            const nc = (c + dc + cols) % cols;
-            const nr = (r + dr + rows) % rows;
-            if ((cells[nc * rows + nr] ?? 0) > 0) alive++;
-          }
-        const isAlive = (cells[c * rows + r] ?? 0) > 0;
-        // Conway's Game of Life rules + continuous decay + energy-proportional cull
-        if (isAlive) {
-          const killChance = Math.max(0, 0.68 - energy * 1.5);
-          if (Math.random() < killChance) {
-            next[c * rows + r] = 0;
-          } else {
-            next[c * rows + r] = (alive === 2 || alive === 3) ? Math.max(60, Math.round((cells[c * rows + r] ?? 0) * (0.7 + t * 0.25))) : 0;
-          }
-        } else {
-          next[c * rows + r] = alive === 3 ? 255 : 0;
+    // Transient seeding: seedRate=0.16
+    if (delta > 0.10 && cooldown === 0) {
+      for (let c = 0; c < cols; c++) {
+        const e = ce[c] ?? 0;
+        for (let r = 0; r < rows; r++) {
+          if (Math.random() < e * 0.16) cells![c * rows + r] = 1.0;
         }
       }
+      cooldown = 2;
     }
-    cells = next;
-    return new Uint8Array(cells);
+    // Continuous cull: continuousCull=0.66 (kills MORE on loud)
+    for (let c = 0; c < cols; c++) {
+      const killProb = (ce[c] ?? 0) * 0.66;
+      for (let r = 0; r < rows; r++) {
+        if (Math.random() < killProb) cells![c * rows + r] = 0;
+      }
+    }
+    // Threshold-based alive determination (threshold=0.4, dippable)
+    const effectiveThreshold = 0.4 * thresholdMult;
+    const alive = new Uint8Array(cols * rows);
+    for (let i = 0; i < alive.length; i++) alive[i] = (cells![i] ?? 0) > effectiveThreshold ? 1 : 0;
+    // Conway Life step with decay=0.74
+    const next = new Float32Array(cells!.length);
+    for (let c = 0; c < cols; c++) {
+      for (let r = 0; r < rows; r++) {
+        let n = 0;
+        for (let dc = -1; dc <= 1; dc++) {
+          for (let dr = -1; dr <= 1; dr++) {
+            if (dc === 0 && dr === 0) continue;
+            const nc = c + dc, nr = r + dr;
+            if (nc >= 0 && nc < cols && nr >= 0 && nr < rows) n += alive[nc * rows + nr] ?? 0;
+          }
+        }
+        const idx = c * rows + r;
+        const isAlive = (alive[idx] ?? 0) === 1;
+        const survives = isAlive ? (n === 2 || n === 3) : n === 3;
+        next[idx] = survives ? 1.0 : (cells![idx] ?? 0) * 0.74;
+      }
+    }
+    for (let i = 0; i < cells!.length; i++) cells![i] = next[i] ?? 0;
+    // Revival: threshold-dip-blinker(dipRate=0.7)
+    let aliveCount = 0;
+    for (let i = 0; i < alive.length; i++) aliveCount += alive[i] ?? 0;
+    if (aliveCount === 0) {
+      thresholdMult = Math.max(0.01, thresholdMult * 0.7);
+      if (thresholdMult <= 0.1 && !blinkerActive) {
+        const bc = 1 + Math.floor(Math.random() * Math.max(1, cols - 3));
+        const br = 1 + Math.floor(Math.random() * Math.max(1, rows - 2));
+        cells![bc * rows + br] = 1.0;
+        if (bc + 1 < cols) cells![(bc + 1) * rows + br] = 1.0;
+        if (bc + 2 < cols) cells![(bc + 2) * rows + br] = 1.0;
+        blinkerActive = true; thresholdMult = 1.0;
+      }
+    } else {
+      thresholdMult = Math.min(1.0, thresholdMult / 0.7);
+      blinkerActive = false;
+    }
+    const data = new Uint8Array(cells!.length);
+    for (let i = 0; i < cells!.length; i++) data[i] = Math.round((cells![i] ?? 0) * 255);
+    return data;
   };
 }
 
@@ -761,10 +826,10 @@ function fullGlitchSortB(): FullRenderer {
     const delta = Math.max(0, t - smoothed);
     smoothed = smoothed * 0.88 + t * 0.12;
     if (cooldown > 0) cooldown--;
-    if (t > 0.08 && delta > 0.07 && cooldown === 0) {
-      const maxShift = 2; // matches hardware: hardware offset is ±2 columns (Int8Array ±2)
+    if (t > 0.08 && delta > 0.08 && cooldown === 0) {
+      const maxShift = 2;
       for (let c = 0; c < cols; c++) offsets![c] = Math.round((Math.random() - 0.5) * maxShift * 2);
-      cooldown = 8;
+      cooldown = 10;
     } else {
       for (let c = 0; c < cols; c++) offsets![c] = Math.round((offsets![c] ?? 0) * 0.7);
     }
@@ -795,6 +860,7 @@ function fullGlitchSortB(): FullRenderer {
 function fullStrobe(): FullRenderer {
   interface Bar { c: number; w: number }
   let bars: Bar[] = [];
+  let splitBars: Bar[] = [];
   let smoothed = 0, cooldown = 0;
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
@@ -804,16 +870,23 @@ function fullStrobe(): FullRenderer {
     smoothed = t > smoothed ? smoothed * 0.95 + t * 0.05 : smoothed * 0.82 + t * 0.18;
     if (cooldown > 0) cooldown--;
     if (t > 0.08 && delta > 0.04 && cooldown === 0) {
-      bars = [];
+      bars = []; splitBars = [];
       const n = 1 + Math.floor(t * 3.5);
+      const barW = Math.max(1, Math.round(cols / 9));  // scale bar width with cols
       const occupied = new Uint8Array(cols);
       for (let i = 0; i < n; i++) {
         const avail: number[] = [];
         for (let c = 0; c < cols; c++) if (!occupied[c]) avail.push(c);
-        if (avail.length === 0) break;
+        if (avail.length === 0) {
+          const wide = bars.filter(b => b.w >= 2);
+          if (wide.length > 0) {
+            const wb = wide[Math.floor(Math.random() * wide.length)]!;
+            splitBars.push({ c: wb.c + Math.floor(Math.random() * wb.w), w: 1 });
+          }
+          break;
+        }
         const c = avail[Math.floor(Math.random() * avail.length)]!;
-        const maxW = Math.max(1, Math.round(cols * 0.1));
-        const w = c + maxW <= cols && !occupied[c + 1] && Math.random() > 0.5 ? Math.min(maxW, 2) : 1;
+        const w = c + barW * 2 <= cols && !occupied[c + 1] && Math.random() > 0.55 ? barW * 2 : barW;
         bars.push({ c, w });
         for (let dc = Math.max(0, c - 1); dc <= Math.min(cols - 1, c + w); dc++) occupied[dc] = 1;
       }
@@ -825,6 +898,13 @@ function fullStrobe(): FullRenderer {
         if (c + dc < cols)
           for (let r = 0; r < rows; r++)
             data[(c + dc) * rows + r] = 255;
+    for (const { c, w } of splitBars)
+      for (let dc = 0; dc < w; dc++)
+        if (c + dc < cols)
+          for (let r = 0; r < rows; r++) {
+            const idx = (c + dc) * rows + r;
+            data[idx] = (data[idx] ?? 0) ^ 255;
+          }
     return data;
   };
 }
@@ -900,26 +980,41 @@ function fullSpecter(): FullRenderer {
 }
 
 function fullCircuit(): FullRenderer {
-  let buf: Float32Array | null = null;
-  let tick = 0;
+  let blockCorrupt: Float32Array | null = null;
+  let blockAge: Uint8Array | null = null;
+  let lastCols = 0, lastRows = 0, lastNH = 0, lastNV = 0;
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
-    if (!buf || buf.length !== cols * rows) buf = new Float32Array(cols * rows);
-    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
-    const t = dbLevel(avg, gain, ref);
-    tick++;
-    const bw = Math.max(3, Math.round(cols / 6));
-    const bh = Math.max(3, Math.round(rows / 6));
+    const BW = Math.max(2, Math.round(cols / 6));
+    const BH = Math.max(2, Math.round(rows / 9));
+    const NH = Math.ceil(cols / BW);
+    const NV = Math.ceil(rows / BH);
+    if (cols !== lastCols || rows !== lastRows || NH !== lastNH || NV !== lastNV) {
+      blockCorrupt = new Float32Array(NH * NV);
+      blockAge = new Uint8Array(NH * NV);
+      lastCols = cols; lastRows = rows; lastNH = NH; lastNV = NV;
+    }
     const ce = colEnergies(bands, gain, ref, cols);
+    for (let bh = 0; bh < NH; bh++) {
+      let energy = 0, cnt = 0;
+      for (let c = bh * BW; c < Math.min((bh + 1) * BW, cols); c++) { energy += ce[c] ?? 0; cnt++; }
+      energy /= Math.max(1, cnt);
+      for (let bv = 0; bv < NV; bv++) {
+        const idx = bh * NV + bv;
+        blockAge![idx] = ((blockAge![idx] ?? 0) + 1) % (2 + bv % 5);
+        if (blockAge![idx] === 0)
+          blockCorrupt![idx] = energy > 0.20 && Math.random() < energy * 0.7
+            ? Math.random()
+            : (blockCorrupt![idx] ?? 0) * 0.45;
+      }
+    }
     const data = new Uint8Array(cols * rows);
-    for (let c = 0; c < cols; c++) {
-      const energy = ce[c] ?? 0;
-      for (let r = 0; r < rows; r++) {
-        const bv = Math.floor(r / bh), bx = Math.floor(c / bw);
-        const inBlock = (bv + bx + tick) % 3 !== 0 && (c * 7 + r * 11 + tick) % 5 < 3;
-        buf[c * rows + r] = (buf[c * rows + r] ?? 0) * 0.88;
-        if (inBlock && Math.random() < energy * 0.3 + t * 0.05) buf[c * rows + r] = Math.min(1.0, (buf[c * rows + r] ?? 0) + 0.4);
-        data[c * rows + r] = Math.round((buf[c * rows + r] ?? 0) * 255);
+    for (let bh = 0; bh < NH; bh++) {
+      for (let bv = 0; bv < NV; bv++) {
+        const corr = blockCorrupt![bh * NV + bv] ?? 0;
+        for (let c = bh * BW; c < Math.min((bh + 1) * BW, cols); c++)
+          for (let r = bv * BH; r < Math.min((bv + 1) * BH, rows); r++)
+            data[c * rows + r] = corr > 0.08 ? (Math.random() < corr ? 255 : 0) : 0;
       }
     }
     return data;
