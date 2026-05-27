@@ -67,6 +67,10 @@ const meta = {
       },
     },
   },
+  args: {
+    fullscreenStyle: null,
+    onFullscreenChange: fn(),
+  },
   decorators: [
     (Story) => {
       deckStore.setState({ audioStyle: 'dark-matter', audioSource: 'monitor' });

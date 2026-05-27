@@ -3,6 +3,7 @@ import { AUDIO_STYLES } from '../../../animations/audio-renderers.js';
 import type { AudioStyle } from '../../../animations/audio-renderers.js';
 import { createFullRenderer } from '../../../animations/audio-renderers-full.js';
 import type { FullCtx } from '../../../animations/audio-renderers-full.js';
+import { BAYER_THRESHOLD } from '../../../animations/bayer.js';
 
 const CELL = 20;
 const IDLE_MS = 3000;
@@ -14,10 +15,11 @@ interface Props {
   fftSizeRef: React.RefObject<number>;
   gainRef: React.RefObject<number>;
   onBandCountChange: (n: number) => void;
+  onIdleChange: (idle: boolean) => void;
   onExit: () => void;
 }
 
-export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBandCountChange, onExit }: Props) {
+export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBandCountChange, onIdleChange, onExit }: Props) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const displayRef   = React.useRef<HTMLDivElement>(null);
   const cellsRef     = React.useRef<HTMLSpanElement[]>([]);
@@ -27,6 +29,10 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
   const rafRef       = React.useRef<number>(0);
   const rendererRef  = React.useRef(createFullRenderer(style));
   const idleTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onIdleChangeRef = React.useRef(onIdleChange);
+  onIdleChangeRef.current = onIdleChange;
+  const onExitRef = React.useRef(onExit);
+  onExitRef.current = onExit;
 
   const styleName = AUDIO_STYLES.find(s => s.id === style)?.label ?? style;
 
@@ -35,7 +41,7 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
     rendererRef.current = createFullRenderer(style);
   }, [style]);
 
-  // Auto-hide cursor on idle (toolbar lives in the app header)
+  // Auto-hide cursor + notify parent for header fade
   React.useEffect(() => {
     const styleEl = document.createElement('style');
     styleEl.textContent = 'html.audio-idle * { cursor: none !important; }';
@@ -44,21 +50,28 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
     function resetIdle() {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       document.documentElement.classList.remove('audio-idle');
-      idleTimerRef.current = setTimeout(() => document.documentElement.classList.add('audio-idle'), IDLE_MS);
+      onIdleChangeRef.current(false);
+      idleTimerRef.current = setTimeout(() => {
+        document.documentElement.classList.add('audio-idle');
+        onIdleChangeRef.current(true);
+      }, IDLE_MS);
     }
 
     resetIdle();
     document.addEventListener('mousemove', resetIdle);
     document.addEventListener('mousedown', resetIdle);
     document.addEventListener('keydown', resetIdle);
+    document.addEventListener('touchstart', resetIdle);
 
     return () => {
       styleEl.remove();
       document.removeEventListener('mousemove', resetIdle);
       document.removeEventListener('mousedown', resetIdle);
       document.removeEventListener('keydown', resetIdle);
+      document.removeEventListener('touchstart', resetIdle);
       if (idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null; }
       document.documentElement.classList.remove('audio-idle');
+      onIdleChangeRef.current(false);
     };
   }, []);
 
@@ -67,17 +80,17 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
     function onKey(e: KeyboardEvent) {
       if (e.key !== 'Escape') return;
       const el = document.activeElement;
-      if (!el) { onExit(); return; }
+      if (!el) { onExitRef.current(); return; }
       const tag = (el as HTMLElement).tagName.toLowerCase();
       if (['input', 'textarea', 'select', 'a'].includes(tag)) return;
       if ((el as HTMLElement).isContentEditable) return;
       const role = el.getAttribute('role') ?? '';
       if (['link', 'menuitem', 'option', 'textbox', 'combobox'].includes(role)) return;
-      onExit();
+      onExitRef.current();
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onExit]);
+  }, []);
 
   // Grid allocation — request only halfCols bands; the right half mirrors the left
   const recomputeGrid = React.useCallback(() => {
@@ -129,7 +142,7 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
     return () => ro.disconnect();
   }, [recomputeGrid]);
 
-  // RAF render loop — renders left half from bands, mirrors to right half
+  // RAF render loop — renders left half from bands, mirrors to right half, Bayer dithering
   React.useEffect(() => {
     let running = true;
 
@@ -154,7 +167,7 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
         for (let row = 0; row < rows; row++) {
           for (let lCol = 0; lCol < halfCols; lCol++) {
             const v = frame[lCol * rows + row] ?? 0;
-            const lit = v > 127;
+            const lit = v > BAYER_THRESHOLD[row % 4]![lCol % 4]!;
 
             // left cell
             const lci = row * cols + lCol;
@@ -164,7 +177,7 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
               if (span) { span.style.color = lit ? '#fff' : 'transparent'; span.style.background = lit ? '#000' : 'transparent'; }
             }
 
-            // mirrored right cell
+            // mirrored right cell (same Bayer position as left for perfect symmetry)
             const rCol = cols - 1 - lCol;
             if (rCol !== lCol) {
               const rci = row * cols + rCol;
@@ -195,6 +208,7 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
       className="flex-1 flex items-center justify-center overflow-hidden bg-black"
       role="img"
       aria-label={`${styleName} audio visualizer`}
+      aria-roledescription="audio visualizer"
     >
       <div
         ref={displayRef}

@@ -1,4 +1,5 @@
 import { useState, useLayoutEffect, useRef, useEffect, useCallback } from 'react';
+import type { CSSProperties } from 'react';
 import { PixelCanvas, canvasComponentH } from './components/PixelCanvas.js';
 import { FrameStrip } from './components/FrameStrip.js';
 import { ColorPalette } from './components/ColorPalette.js';
@@ -19,6 +20,7 @@ import { MODES } from './app-modes.js';
 import type { AppMode } from './app-modes.js';
 import { AudioPanel } from './components/AudioPanel.js';
 import type { AudioStyle } from './store.js';
+import { AUDIO_STYLES } from '../../animations/audio-renderers.js';
 import { ConfigPanel } from './components/ConfigPanel.js';
 import { HudPanel, hudSendWsGlobal } from './components/HudPanel.js';
 import { VideoPanel, VideoHeader, VideoTransportControls, VideoSettingsToggle, useVStore } from './components/VideoPanel.js';
@@ -29,6 +31,14 @@ import { PanelBar } from './components/PanelBar.js';
 import { WelcomeScreen } from './components/WelcomeScreen.js';
 
 const MODE_LABEL = Object.fromEntries(MODES.map(m => [m.id, m.label])) as Record<AppMode, string>;
+
+function idleFadeStyle(idle: boolean): CSSProperties {
+  return {
+    opacity: idle ? 0 : 1,
+    transition: idle ? 'opacity 300ms' : 'opacity 0ms',
+    ...(idle ? { pointerEvents: 'none' as const } : {}),
+  };
+}
 
 function storeCompat() {
   return { state: deckStore.getState(), loadProject: (p: unknown) => deckStore.getState().loadProject(p) };
@@ -188,16 +198,22 @@ export function App() {
     if (activeMode !== 'audio') setAudioFullscreenStyle(null);
   }, [activeMode]);
 
-  useEffect(() => {
-    const el = headerRef.current;
-    if (!el) return;
-    if (activeMode === 'video' && videoIdle) el.setAttribute('inert', '');
-    else el.removeAttribute('inert');
-  }, [activeMode, videoIdle]);
-
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [audioFullscreenStyle, setAudioFullscreenStyle] = useState<AudioStyle | null>(null);
+  const [audioIdle, setAudioIdle] = useState(false);
+
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const shouldHide = (activeMode === 'video' && videoIdle) || (activeMode === 'audio' && audioFullscreenStyle !== null && audioIdle);
+    if (shouldHide) {
+      if (el.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
+      el.setAttribute('inert', '');
+    } else {
+      el.removeAttribute('inert');
+    }
+  }, [activeMode, videoIdle, audioIdle, audioFullscreenStyle]);
   const [assetManagerOpen, setAssetManagerOpen] = useState(false);
   const [assetImportOpen, setAssetImportOpen] = useState(false);
   const [hasMic, setHasMic] = useState(false);
@@ -402,7 +418,7 @@ export function App() {
           ref={headerRef}
           blur={false}
           className="absolute top-0 inset-x-0 z-10 gap-4 pl-7 pr-5 py-4"
-          style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)', ...(activeMode === 'video' ? { opacity: videoIdle ? 0 : 1, transition: videoIdle ? 'opacity 300ms' : 'opacity 0ms', pointerEvents: videoIdle ? 'none' : undefined } : {}) }}
+          style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)', ...(activeMode === 'video' ? idleFadeStyle(videoIdle) : activeMode === 'audio' && audioFullscreenStyle !== null ? idleFadeStyle(audioIdle) : {}) }}
           left={
             activeMode !== 'hud' && activeMode !== 'config' && activeMode !== 'audio' && activeMode !== 'video' && activeMode !== 'life' ? (
               <div className="flex items-center gap-1">
@@ -497,7 +513,7 @@ export function App() {
               </>
             ) : activeMode === 'audio' ? (
               <span className="font-mono text-xs text-foreground">
-                {audioFullscreenStyle ?? 'audio'}
+                {AUDIO_STYLES.find(s => s.id === audioFullscreenStyle)?.label ?? 'audio'}
               </span>
             ) : activeMode === 'video' ? (
               <VideoHeader />
@@ -621,7 +637,7 @@ export function App() {
           </div>
         ) : activeMode === 'audio' ? (
           <div className="h-full flex">
-            <AudioPanel dualModule={dualModule} fullscreenStyle={audioFullscreenStyle} onFullscreenChange={setAudioFullscreenStyle} />
+            <AudioPanel dualModule={dualModule} fullscreenStyle={audioFullscreenStyle} onFullscreenChange={setAudioFullscreenStyle} onFullscreenIdleChange={setAudioIdle} />
           </div>
         ) : activeMode === 'config' ? (
           <div className="h-full flex">
@@ -712,6 +728,9 @@ export function App() {
             onDismiss={() => setWelcomeDismissed(true)}
           />
         )}
+        <span className="sr-only" aria-live="polite" aria-atomic="true">
+          {activeMode === 'audio' && audioIdle ? 'Controls hidden. Move mouse or press a key to show.' : ''}
+        </span>
       </div>
     </TooltipProvider>
   );
