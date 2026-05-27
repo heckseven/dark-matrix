@@ -289,11 +289,13 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
           onAdd={() => {
             const preset = makeDefaultPreset();
             deckStore.getState().createPreset(preset);
+            deckStore.getState().selectPreset(preset.name);
             debouncedSave();
           }}
           onInsert={(afterIdx) => {
             const preset = makeDefaultPreset();
             deckStore.getState().insertPreset(preset, afterIdx);
+            deckStore.getState().selectPreset(preset.name);
             debouncedSave();
           }}
           insertLabel={idx => `Insert preset after position ${idx + 1}`}

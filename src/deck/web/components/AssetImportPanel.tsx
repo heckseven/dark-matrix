@@ -84,6 +84,7 @@ export interface AssetImportPanelProps {
   onSaved: (filename: string) => void;
   onHasFileChange?: (hasFile: boolean) => void;
   saveRef?: MutableRefObject<(() => void) | null>;
+  resetRef?: MutableRefObject<(() => void) | null>;
 }
 
 const ALLOWED_FILENAME_RE = /^[a-zA-Z0-9_\-]+$/;
@@ -110,7 +111,7 @@ async function fileToBase64(file: File): Promise<string> {
   });
 }
 
-export function AssetImportPanel({ onSaved, onHasFileChange, saveRef }: AssetImportPanelProps) {
+export function AssetImportPanel({ onSaved, onHasFileChange, saveRef, resetRef }: AssetImportPanelProps) {
   const [file, setFile] = useState<File | null>(null);
   const [width, setWidth] = useState<9 | 18>(18);
   const [fit, setFit] = useState<'contain' | 'cover' | 'fill'>('contain');
@@ -219,6 +220,15 @@ export function AssetImportPanel({ onSaved, onHasFileChange, saveRef }: AssetImp
     if (f) handleFileChange(f);
   }
 
+  function handleReset() {
+    abortRef.current?.abort();
+    fileBase64Ref.current = null;
+    setFile(null);
+    setPreview(null);
+    setError(null);
+    onHasFileChange?.(false);
+  }
+
   async function handleSave() {
     if (!file || !filename.trim()) return;
     if (!ALLOWED_FILENAME_RE.test(filename)) {
@@ -248,7 +258,10 @@ export function AssetImportPanel({ onSaved, onHasFileChange, saveRef }: AssetImp
     }
   }
 
-  useLayoutEffect(() => { if (saveRef) saveRef.current = file ? handleSave : null; });
+  useLayoutEffect(() => {
+    if (saveRef) saveRef.current = file ? handleSave : null;
+    if (resetRef) resetRef.current = file ? handleReset : null;
+  });
 
   // ── no file: show drop zone ────────────────────────────────────────────
   if (!file) {

@@ -11,7 +11,7 @@ import { ScrubInput } from './components/ui/scrub-input.js';
 import { Text } from './components/ui/text.js';
 import { Tooltip, TooltipProvider } from './components/ui/tooltip.js';
 import { Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger } from './components/ui/menu.js';
-import { saveToLibrary, saveLibraryCopy, renameLibraryFile, exportProject, importFile, openFromLibrary } from './files.js';
+import { saveToLibrary, saveLibraryCopy, renameLibraryFile, exportProject, openFromLibrary } from './files.js';
 import { useDeckStore, deckStore, stepZoom, ZOOM_STEPS, ROWS, DEFAULT_WIDTH } from './store.js';
 import { ShortcutDialog } from './components/ui/shortcut-dialog.js';
 import { ModePicker } from './components/ModePicker.js';
@@ -188,6 +188,7 @@ export function App() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [assetManagerOpen, setAssetManagerOpen] = useState(false);
+  const [assetImportOpen, setAssetImportOpen] = useState(false);
   const [hasMic, setHasMic] = useState(false);
   const [hudNeedsAudio, setHudNeedsAudio] = useState(false);
   const [clockOverrideH, setClockOverrideH] = useState(() => new Date().getHours());
@@ -201,7 +202,6 @@ export function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
   const footerRef = useRef<HTMLElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const settingsToggleRef = useRef<HTMLButtonElement>(null);
   const [topPad, setTopPad] = useState(0);
   const [bottomPad, setBottomPad] = useState(0);
@@ -370,6 +370,11 @@ export function App() {
           setAssetManagerOpen(false);
         }}
       />
+      <AssetManagerModal
+        open={assetImportOpen}
+        onOpenChange={setAssetImportOpen}
+        initialView="import"
+      />
       {modePickerOpen && (
         <ModePicker
           activeMode={activeMode}
@@ -379,29 +384,6 @@ export function App() {
         />
       )}
       <div ref={containerRef} className="relative h-screen bg-background text-foreground font-mono">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".json,.dmx.json"
-          className="sr-only"
-          aria-hidden="true"
-          tabIndex={-1}
-          onChange={e => {
-            const file = e.target.files?.[0];
-            if (file) {
-              importFile(file, storeCompat()).then(() => {
-                const title = file.name.replace(/\.dmx\.json$/i, '').replace(/\.json$/i, '');
-                if (title) {
-                  deckStore.getState().setProjectTitle(title);
-                  deckStore.getState().addRecentFile(title);
-                }
-                deckStore.getState().setLibraryPath(null);
-              }).catch(console.error);
-            }
-            e.target.value = '';
-          }}
-        />
-
         <PanelBar
           as="header"
           ref={headerRef}
@@ -419,7 +401,7 @@ export function App() {
                   <MenuContent align="start">
                     <MenuItem onSelect={newProject}>new</MenuItem>
                     <MenuItem onSelect={() => setAssetManagerOpen(true)}>open</MenuItem>
-                    <MenuItem onSelect={() => fileInputRef.current?.click()}>import</MenuItem>
+                    <MenuItem onSelect={() => setAssetImportOpen(true)}>import</MenuItem>
                     {recentFiles.length > 0 && (
                       <MenuSub>
                         <MenuSubTrigger>open recent</MenuSubTrigger>

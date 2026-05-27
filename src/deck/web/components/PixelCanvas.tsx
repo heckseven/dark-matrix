@@ -298,8 +298,15 @@ export function PixelCanvas({ className, onCursorMove }: { className?: string; o
           e.preventDefault();
           if (e.detail === 2) {
             state.current.doubleClickPending = true;
+            const hit = hitTest(e.clientX, e.clientY);
             const s = deckStore.getState();
             if (s.undoStack.length > state.current.preClickUndoLen) s.undo();
+            if (hit) {
+              const { activeFrameIdx, activeColor, floodFill } = deckStore.getState();
+              floodFill(activeFrameIdx, hit.col, hit.row, activeColor);
+              state.current.cursor = hit;
+              announce(`Flood fill at col ${hit.col + 1}, row ${hit.row + 1}`);
+            }
             return;
           }
           state.current.doubleClickPending = false;
@@ -331,16 +338,6 @@ export function PixelCanvas({ className, onCursorMove }: { className?: string; o
             doPaint(e.clientX, e.clientY);
           }
         }}
-        onDoubleClick={e => {
-          e.preventDefault();
-          state.current.doubleClickPending = false;
-          const hit = hitTest(e.clientX, e.clientY);
-          if (!hit) return;
-          const { activeFrameIdx, activeColor, floodFill } = deckStore.getState();
-          floodFill(activeFrameIdx, hit.col, hit.row, activeColor);
-          state.current.cursor = hit;
-          announce(`Flood fill at col ${hit.col + 1}, row ${hit.row + 1}`);
-        }}
         onMouseUp={() => {
           if (state.current.doubleClickPending) return;
           if (!state.current.hasMoved && state.current.mouseDownHit) {
@@ -362,7 +359,7 @@ export function PixelCanvas({ className, onCursorMove }: { className?: string; o
           const ctrl = e.ctrlKey || e.metaKey;
           const { col, row } = state.current.cursor;
           const w = state.current.width;
-          const { activeFrameIdx, activeColor } = deckStore.getState();
+          const { activeFrameIdx, activeColor, frames } = deckStore.getState();
           if (e.key === 'ArrowLeft') {
             e.preventDefault();
             if (col > 0) moveAndPaint(col - 1, row);
@@ -398,7 +395,7 @@ export function PixelCanvas({ className, onCursorMove }: { className?: string; o
             e.preventDefault();
             deckStore.getState().setZoom(stepZoom(deckStore.getState().zoom, -1));
           } else if (e.key === 'n' && !ctrl) {
-            deckStore.getState().addFrame(activeFrameIdx);
+            deckStore.getState().addFrame(frames.length - 1);
           } else if (e.key === 'z' && ctrl && !e.shiftKey) {
             e.preventDefault();
             state.current.spaceHeld = false;

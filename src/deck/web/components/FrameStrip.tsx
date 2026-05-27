@@ -22,7 +22,7 @@ export function FrameStrip({ topPadding = 0, bottomPadding = 0 }: { topPadding?:
       insertLabel={idx => `Insert frame after frame ${idx + 1}`}
       onDuplicate={(_, idx) => deckStore.getState().cloneFrame(idx)}
       onDelete={(_, idx) => deckStore.getState().removeFrame(idx)}
-      onAdd={() => { const s = deckStore.getState(); s.addFrame(s.activeFrameIdx); }}
+      onAdd={() => { const s = deckStore.getState(); s.addFrame(s.frames.length - 1); }}
       addLabel="Add frame"
       extraControls={(f, idx) => (
         <ScrubInput

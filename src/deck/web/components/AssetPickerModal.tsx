@@ -93,6 +93,7 @@ export function AssetPickerModal({ open, onOpenChange, current, onPick }: AssetP
   const [view, setView] = useState<'grid' | 'import'>('grid');
   const [importHasFile, setImportHasFile] = useState(false);
   const importSaveRef = useRef<(() => void) | null>(null);
+  const importResetRef = useRef<(() => void) | null>(null);
   const animRef = useRef<AnimState>({});
   const assetsRef = useRef(assets);
   assetsRef.current = assets;
@@ -154,9 +155,15 @@ export function AssetPickerModal({ open, onOpenChange, current, onPick }: AssetP
             sticky
             className="px-3 py-2"
             left={view === 'import' ? (
-              <Button variant="ghost" className="text-foreground/60 text-xs" aria-label="Back to library" onClick={() => setView('grid')}>
-                ‹ library
-              </Button>
+              importHasFile ? (
+                <Button variant="ghost" className="text-foreground/60 text-xs" aria-label="Back to import" onClick={() => importResetRef.current?.()}>
+                  ‹ back
+                </Button>
+              ) : (
+                <Button variant="ghost" className="text-foreground/60 text-xs" aria-label="Back to library" onClick={() => setView('grid')}>
+                  ‹ library
+                </Button>
+              )
             ) : undefined}
             center={
               <span className="font-mono text-xs text-foreground">
@@ -196,6 +203,7 @@ export function AssetPickerModal({ open, onOpenChange, current, onPick }: AssetP
                 }}
                 onHasFileChange={setImportHasFile}
                 saveRef={importSaveRef}
+                resetRef={importResetRef}
               />
             ) : (
               <div className="flex flex-col gap-6">

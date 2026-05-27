@@ -103,14 +103,16 @@ function AssetManagerGrid({ items, animState, activeKeyRef, onAnimReset, onAnimC
 export interface AssetManagerModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onOpenAsset: (name: string, project: unknown) => void;
+  onOpenAsset?: (name: string, project: unknown) => void;
+  initialView?: 'grid' | 'import';
 }
 
-export function AssetManagerModal({ open, onOpenChange, onOpenAsset }: AssetManagerModalProps) {
+export function AssetManagerModal({ open, onOpenChange, onOpenAsset, initialView = 'grid' }: AssetManagerModalProps) {
   const [assets, setAssets] = useState<AssetMeta[] | null>(null);
-  const [view, setView] = useState<'grid' | 'import'>('grid');
+  const [view, setView] = useState<'grid' | 'import'>(initialView);
   const [importHasFile, setImportHasFile] = useState(false);
   const importSaveRef = useRef<(() => void) | null>(null);
+  const importResetRef = useRef<(() => void) | null>(null);
   const animRef = useRef<AnimState>({});
   const assetsRef = useRef(assets);
   assetsRef.current = assets;
@@ -126,8 +128,9 @@ export function AssetManagerModal({ open, onOpenChange, onOpenAsset }: AssetMana
 
   useEffect(() => {
     if (!open) return;
-    setView('grid');
-    void fetchAssets();
+    setView(initialView);
+    setImportHasFile(false);
+    if (initialView === 'grid') void fetchAssets();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -167,7 +170,7 @@ export function AssetManagerModal({ open, onOpenChange, onOpenAsset }: AssetMana
   function handleOpen(asset: AssetMeta) {
     fetch(`/api/assets/${encodeURIComponent(asset.name)}?full=1`)
       .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() as Promise<unknown>; })
-      .then(project => { onOpenAsset(asset.name, project); })
+      .then(project => { onOpenAsset?.(asset.name, project); })
       .catch(console.error);
   }
 
@@ -201,9 +204,15 @@ export function AssetManagerModal({ open, onOpenChange, onOpenAsset }: AssetMana
             sticky
             className="px-3 py-2"
             left={view === 'import' ? (
-              <Button variant="ghost" className="text-foreground/60 text-xs" aria-label="Back to assets" onClick={() => setView('grid')}>
-                ‹ assets
-              </Button>
+              importHasFile ? (
+                <Button variant="ghost" className="text-foreground/60 text-xs" aria-label="Back to import" onClick={() => importResetRef.current?.()}>
+                  ‹ back
+                </Button>
+              ) : initialView === 'grid' ? (
+                <Button variant="ghost" className="text-foreground/60 text-xs" aria-label="Back to assets" onClick={() => setView('grid')}>
+                  ‹ assets
+                </Button>
+              ) : null
             ) : undefined}
             center={
               <span className="font-mono text-xs text-foreground">
@@ -235,10 +244,15 @@ export function AssetManagerModal({ open, onOpenChange, onOpenAsset }: AssetMana
             {view === 'import' ? (
               <AssetImportPanel
                 onSaved={() => {
-                  void fetchAssets().then(() => setView('grid'));
+                  if (initialView === 'import') {
+                    onOpenChange(false);
+                  } else {
+                    void fetchAssets().then(() => setView('grid'));
+                  }
                 }}
                 onHasFileChange={setImportHasFile}
                 saveRef={importSaveRef}
+                resetRef={importResetRef}
               />
             ) : (
               <div className="flex flex-col gap-6">
