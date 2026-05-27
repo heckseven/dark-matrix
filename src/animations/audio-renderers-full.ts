@@ -24,17 +24,21 @@ function dbLevel(mag: number, gain: number, ref: number): number {
 // ── Group A: bar/column-per-band (natural scale) ──────────────────────────
 
 function fullSpectrumFall(): FullRenderer {
+  let history: Uint8Array[] | null = null;
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
+    if (!history || history.length !== rows || history[0]?.length !== cols)
+      history = Array.from({ length: rows }, () => new Uint8Array(cols));
+    const center = Math.floor(rows / 2);
+    const newRow = new Uint8Array(cols);
+    for (let c = 0; c < cols; c++) newRow[c] = Math.round(dbLevel(bands[c] ?? 0, gain, ref) * 255);
+    history.shift();
+    history.push(newRow);
     const data = new Uint8Array(cols * rows);
-    const half = Math.floor(rows / 2);
     for (let c = 0; c < cols; c++) {
-      const h = Math.round(dbLevel(bands[c] ?? 0, gain, ref) * half);
-      for (let r = half - h; r <= half + h; r++) {
-        if (r >= 0 && r < rows) {
-          const fade = 1 - Math.abs(r - half) / (half + 1);
-          data[c * rows + r] = Math.round(255 * fade);
-        }
+      const halfH = Math.round(((newRow[c] ?? 0) / 255) * center);
+      for (let r = 0; r < rows; r++) {
+        if (Math.abs(r - center) <= halfH) data[c * rows + r] = 255 - (history[r]?.[c] ?? 0);
       }
     }
     return data;
@@ -124,11 +128,11 @@ function fullKickD(): FullRenderer {
     }
     const data = new Uint8Array(cols * rows);
     for (let col = 0; col < cols; col++) {
-      vy![col]! -= rows * 0.035;
-      y![col]! += vy![col]!;
-      if (y![col]! <= 0) { y![col]! = 0; const b = -(vy![col] ?? 0) * 0.5; vy![col]! = b < 0.4 ? 0 : b; }
-      if (y![col]! > rows - 1) { y![col]! = rows - 1; vy![col]! = -1; }
-      const r = rows - 1 - Math.round(y![col]!);
+      vy![col] = (vy![col] ?? 0) - rows * 0.035;
+      y![col] = (y![col] ?? 0) + (vy![col] ?? 0);
+      if ((y![col] ?? 0) <= 0) { y![col] = 0; const b = -(vy![col] ?? 0) * 0.5; vy![col] = b < 0.4 ? 0 : b; }
+      if ((y![col] ?? 0) > rows - 1) { y![col] = rows - 1; vy![col] = -1; }
+      const r = rows - 1 - Math.round(y![col] ?? 0);
       if (r >= 0 && r < rows) data[col * rows + r] = 255;
     }
     return data;
@@ -136,50 +140,125 @@ function fullKickD(): FullRenderer {
 }
 
 function fullDarkMatter(): FullRenderer {
-  let particles: Float32Array | null = null;
+  let peaks: Float32Array | null = null;
+  let grid: Uint8Array | null = null;
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
-    if (!particles || particles.length !== cols * rows) particles = new Float32Array(cols * rows);
+    if (!peaks || !grid || peaks.length !== cols || grid.length !== cols * rows) {
+      peaks = new Float32Array(cols);
+      grid = new Uint8Array(cols * rows);
+    }
+    // Aggregate many fine-grained log-spaced bands into 9 hardware-equivalent buckets,
+    // then smoothly interpolate back to cols display columns. This matches the hardware
+    // 9-band visual (wide frequency buckets) regardless of how many bands were requested.
+    const NUM_BUCKETS = Math.min(9, cols);
+    const buckets = new Float32Array(NUM_BUCKETS);
+    for (let b = 0; b < NUM_BUCKETS; b++) {
+      const start = Math.floor((b / NUM_BUCKETS) * cols);
+      const end = Math.max(start + 1, Math.floor(((b + 1) / NUM_BUCKETS) * cols));
+      let sum = 0;
+      for (let c = start; c < end; c++) sum += dbLevel(bands[c] ?? 0, gain, ref);
+      buckets[b] = sum / (end - start);
+    }
+    const energies = new Float32Array(cols);
+    for (let c = 0; c < cols; c++) {
+      const frac = (c / Math.max(1, cols - 1)) * (NUM_BUCKETS - 1);
+      const b0 = Math.floor(frac);
+      const b1 = Math.min(NUM_BUCKETS - 1, b0 + 1);
+      const lerp = frac - b0;
+      energies[c] = (buckets[b0] ?? 0) * (1 - lerp) + (buckets[b1] ?? 0) * lerp;
+    }
+    // Rising sparks: shift upward one row, spawn bottom row
+    for (let r = 0; r < rows - 1; r++)
+      for (let c = 0; c < cols; c++)
+        grid![c * rows + r] = grid![c * rows + r + 1] ?? 0;
+    for (let c = 0; c < cols; c++)
+      grid![c * rows + (rows - 1)] = Math.random() < (energies[c] ?? 0) ? 255 : 0;
     const data = new Uint8Array(cols * rows);
     for (let c = 0; c < cols; c++) {
-      const energy = dbLevel(bands[c] ?? 0, gain, ref);
-      const barTop = Math.max(0, rows - 1 - Math.round(energy * (rows - 1)));
+      const energy = energies[c] ?? 0;
+      const height = Math.round(energy * rows);
+      peaks![c] = Math.max(energy, (peaks![c] ?? 0) * 0.98);
+      const peakRow = rows - 1 - Math.round((peaks![c] ?? 0) * (rows - 1));
+      const barTop = rows - height;
       for (let r = 0; r < rows; r++) {
-        const idx = c * rows + r;
-        if (r === barTop) particles[idx] = Math.max(particles[idx] ?? 0, 1.0);
-        else if (r > barTop) particles[idx] = Math.max(particles[idx] ?? 0, (c * 7 + r * 11) % 13 < 10 ? energy : 0);
-        else particles[idx] = (particles[idx] ?? 0) * 0.6;
+        if (r === peakRow && (peaks![c] ?? 0) > energy) {
+          data[c * rows + r] = 255;
+        } else if (r >= barTop) {
+          data[c * rows + r] = (grid![c * rows + r] ?? 0) > 0 ? 0 : 255;
+        }
       }
-    }
-    for (let i = 0; i < particles.length; i++) {
-      particles[i] = (particles[i] ?? 0) * 0.88;
-      data[i] = Math.round(Math.min(255, (particles[i] ?? 0) * 255));
     }
     return data;
   };
 }
 
 function fullHeat(): FullRenderer {
-  let buf: Float32Array | null = null;
+  let cells: Float32Array | null = null;
+  let envelope: Float32Array | null = null;
+  let sparks: { col: number; pos: number; v: number }[] = [];
+  let lastCols = 0, lastRows = 0;
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
-    if (!buf || buf.length !== cols * rows) buf = new Float32Array(cols * rows);
-    const data = new Uint8Array(cols * rows);
-    // Shift upward (convection)
-    for (let c = 0; c < cols; c++) {
-      for (let r = 1; r < rows; r++) buf[c * rows + r - 1] = ((buf[c * rows + r] ?? 0) + (buf[c * rows + r - 1] ?? 0)) * 0.45;
+    if (!cells || !envelope || cols !== lastCols || rows !== lastRows) {
+      cells = new Float32Array(cols * rows);
+      envelope = new Float32Array(cols);
+      for (let i = 0; i < cells.length; i++) if (Math.random() < 0.35) cells[i] = 1.0;
+      sparks = [];
+      lastCols = cols; lastRows = rows;
     }
+    // Hardware reads bands in reverse (high freq → left column)
+    const heights = new Int32Array(cols);
     for (let c = 0; c < cols; c++) {
-      const energy = dbLevel(bands[c] ?? 0, gain, ref);
-      buf[c * rows + rows - 1] = energy;
-      if (energy > 0.1 && Math.random() < energy) {
-        const spread = Math.max(0, c + Math.round((Math.random() - 0.5) * 3));
-        if (spread < cols) buf[spread * rows + rows - 2] = Math.max(buf[spread * rows + rows - 2] ?? 0, energy * 0.8);
+      const t = dbLevel(bands[cols - 1 - c] ?? 0, gain, ref);
+      envelope![c] = t > (envelope![c] ?? 0) ? t : (envelope![c] ?? 0) * 0.85 + t * 0.15;
+      const flicker = (envelope![c] ?? 0) * (0.7 + Math.random() * 0.5);
+      heights[c] = Math.round(Math.min(1, flicker) * rows * 0.25);
+    }
+    // Continuous cull (from band energy)
+    for (let c = 0; c < cols; c++) {
+      const killProb = dbLevel(bands[cols - 1 - c] ?? 0, gain, ref) * 0.70;
+      for (let r = 0; r < rows; r++)
+        if (Math.random() < killProb) cells![c * rows + r] = 0;
+    }
+    // Conway's Game of Life step
+    const alive = new Uint8Array(cols * rows);
+    for (let i = 0; i < alive.length; i++) alive[i] = (cells![i] ?? 0) > 0.4 ? 1 : 0;
+    const next = new Float32Array(cells!.length);
+    for (let c = 0; c < cols; c++) {
+      for (let r = 0; r < rows; r++) {
+        let n = 0;
+        for (let dc = -1; dc <= 1; dc++) {
+          for (let dr = -1; dr <= 1; dr++) {
+            if (dc === 0 && dr === 0) continue;
+            const nc = c + dc, nr = r + dr;
+            if (nc >= 0 && nc < cols && nr >= 0 && nr < rows) n += alive[nc * rows + nr] ?? 0;
+          }
+        }
+        const idx = c * rows + r;
+        next[idx] = ((alive[idx] === 1) ? (n === 2 || n === 3) : n === 3) ? 1.0 : (cells![idx] ?? 0) * 0.75;
       }
     }
-    for (let i = 0; i < buf.length; i++) {
-      buf[i] = Math.min(1, buf[i] ?? 0);
-      data[i] = Math.round((buf[i] ?? 0) * 255);
+    for (let i = 0; i < cells!.length; i++) cells![i] = next[i] ?? 0;
+    // Spawn rising sparks above bar tops (cap to avoid unbounded growth)
+    for (let c = 0; c < cols; c++) {
+      const h = heights[c] ?? 0;
+      if (h > 0 && sparks.length < cols * 4 && Math.random() < (envelope![c] ?? 0) * 0.5)
+        sparks.push({ col: c, pos: rows - h - 0.5, v: 200 + Math.random() * 55 });
+    }
+    const data = new Uint8Array(cols * rows);
+    // Render inverted life within bar area
+    for (let c = 0; c < cols; c++)
+      for (let r = rows - (heights[c] ?? 0); r < rows; r++)
+        data[c * rows + r] = Math.round((1 - (cells![c * rows + r] ?? 0)) * 255);
+    // Render sparks
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const s = sparks[i]!;
+      s.pos -= 0.4 + Math.random() * 0.4;
+      s.v *= 0.93;
+      if (s.pos < 0 || s.v < 15) { sparks.splice(i, 1); continue; }
+      const r = Math.round(s.pos);
+      if (r >= 0 && r < rows) data[s.col * rows + r] = Math.max(data[s.col * rows + r] ?? 0, Math.round(s.v));
     }
     return data;
   };
@@ -189,7 +268,7 @@ function fullWaterfall(): FullRenderer {
   let history: Uint8Array[] | null = null;
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
-    if (!history || history[0]?.length !== cols) history = Array.from({ length: rows }, () => new Uint8Array(cols));
+    if (!history || history.length !== rows || history[0]?.length !== cols) history = Array.from({ length: rows }, () => new Uint8Array(cols));
     const newRow = new Uint8Array(cols);
     for (let c = 0; c < cols; c++) newRow[c] = Math.round(dbLevel(bands[c] ?? 0, gain, ref) * 255);
     history.shift();
@@ -356,60 +435,76 @@ function fullHex(): FullRenderer {
 }
 
 function fullCipher(): FullRenderer {
-  let noise: Float32Array | null = null;
+  let state: Float32Array | null = null;
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
-    if (!noise || noise.length !== cols * rows) noise = new Float32Array(cols * rows);
-    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
-    const t = dbLevel(avg, gain, ref);
-    // Decay + random refresh driven by energy
+    if (!state || state.length !== cols * rows) {
+      state = new Float32Array(cols * rows);
+      for (let i = 0; i < state.length; i++) state[i] = Math.random();
+    }
     for (let c = 0; c < cols; c++) {
       const energy = dbLevel(bands[c] ?? 0, gain, ref);
+      const flipRate = energy * 0.35;
+      const decay = 0.94 - energy * 0.1;
       for (let r = 0; r < rows; r++) {
         const idx = c * rows + r;
-        noise[idx] = (noise[idx] ?? 0) * 0.90;
-        if (Math.random() < energy * 0.3 + t * 0.05) noise[idx] = Math.random();
+        if (Math.random() < flipRate) {
+          state[idx] = Math.random() < energy ? 1 : 0;
+        } else {
+          state[idx] = (state[idx] ?? 0) * decay;
+        }
       }
     }
     const data = new Uint8Array(cols * rows);
-    for (let i = 0; i < noise.length; i++) {
-      const v = noise[i] ?? 0;
-      data[i] = v > 0.15 ? Math.round(v * 255) : 0;
-    }
+    for (let i = 0; i < state.length; i++) data[i] = Math.round((state[i] ?? 0) * 255);
     return data;
   };
 }
 
 function fullDrop(): FullRenderer {
-  interface Ring { radius: number; speed: number; strength: number }
-  let rings: Ring[] = [];
-  let prevAvg = 0;
+  interface Ripple { cx: number; cy: number; r: number }
+  let ripples: Ripple[] = [];
+  let trail: Float32Array | null = null;
+  let smoothed = 0, cooldown = 0;
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
-    const cx = (cols - 1) / 2;
-    const cy = (rows - 1) / 2;
-    const maxR = Math.sqrt(cx * cx + cy * cy);
+    if (!trail || trail.length !== cols * rows) trail = new Float32Array(cols * rows);
+    const maxR = Math.sqrt(((cols - 1) / 2) ** 2 + ((rows - 1) / 2) ** 2) + 2;
     const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
     const t = dbLevel(avg, gain, ref);
-    const delta = t - prevAvg;
-    prevAvg = prevAvg * 0.9 + t * 0.1;
-    if (delta > 0.05) rings.push({ radius: 0, speed: 0.5 + t * 2, strength: t });
-    rings = rings.filter(ring => {
-      ring.radius += ring.speed;
-      ring.strength *= 0.94;
-      return ring.radius < maxR + 5 && ring.strength > 0.02;
-    });
+    const delta = t - smoothed;
+    smoothed = t > smoothed ? smoothed * 0.95 + t * 0.05 : smoothed * 0.82 + t * 0.18;
+    if (cooldown > 0) cooldown--;
+    if (t > 0.08 && delta > 0.05 && cooldown === 0) {
+      // cx weighted by band energy (matching hardware), scaled to display columns
+      const totalE = bands.reduce((s, e) => s + e, 0);
+      const cx = totalE > 0 ? bands.reduce((s, e, i) => s + e * i, 0) / totalE : cols / 2;
+      ripples.push({ cx, cy: rows / 2 + (Math.random() - 0.5) * rows * 0.5, r: 0 });
+      cooldown = 3;
+    }
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      ripples[i]!.r += 0.6;
+      if (ripples[i]!.r > maxR) ripples.splice(i, 1);
+    }
+    const RING_WIDTH = 0.5;
+    const INNER_TRAIL = 3;
+    for (let i = 0; i < trail!.length; i++) trail![i] = (trail![i] ?? 0) * 0.65;
     const data = new Uint8Array(cols * rows);
     for (let c = 0; c < cols; c++) {
+      const energy = dbLevel(bands[c] ?? 0, gain, ref);
       for (let r = 0; r < rows; r++) {
-        const dist = Math.sqrt((c - cx) ** 2 + (r - cy) ** 2);
-        let maxV = 0;
-        for (const ring of rings) {
-          const ringDist = Math.abs(dist - ring.radius);
-          const v = Math.max(0, 1 - ringDist / 2) * ring.strength;
-          maxV = Math.max(maxV, v);
+        const idx = c * rows + r;
+        let v = 0, atLeadingEdge = false;
+        for (const rp of ripples) {
+          const dist = Math.sqrt((c - rp.cx) ** 2 + (r - rp.cy) ** 2);
+          const rv = Math.max(0, 1 - Math.abs(dist - rp.r) / RING_WIDTH);
+          v = Math.max(v, rv);
+          if (rv > 0 && dist >= rp.r - 0.5) atLeadingEdge = true;
+          if (dist <= rp.r && rp.r - dist <= INNER_TRAIL)
+            trail![idx] = Math.max(trail![idx] ?? 0, (1 - (rp.r - dist) / INNER_TRAIL) * 0.9);
         }
-        data[c * rows + r] = Math.round(maxV * 255);
+        if (v > 0 && !atLeadingEdge && Math.random() < energy * 0.7) v = 0;
+        data[idx] = Math.min(255, Math.round(Math.max(v, trail![idx] ?? 0) * 255));
       }
     }
     return data;
@@ -417,26 +512,35 @@ function fullDrop(): FullRenderer {
 }
 
 function fullWake(): FullRenderer {
-  let lineA: Float32Array | null = null;
-  let lineB: Float32Array | null = null;
+  let glow: Float32Array | null = null;
+  const waves: number[] = [];
+  let smoothed = 0, cooldown = 0;
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
-    if (!lineA || lineA.length !== cols) { lineA = new Float32Array(cols); lineB = new Float32Array(cols); }
-    const data = new Uint8Array(cols * rows);
-    const ra = Math.floor(rows * 0.25);
-    const rb = Math.floor(rows * 0.75);
-    for (let c = 0; c < cols; c++) {
-      const energy = dbLevel(bands[c] ?? 0, gain, ref);
-      lineA![c] = (lineA![c] ?? 0) * 0.85 + energy * 0.15;
-      lineB![c] = (lineB![c] ?? 0) * 0.85 + energy * 0.15;
-      const va = lineA![c] ?? 0;
-      const vb = lineB![c] ?? 0;
-      for (let dr = -2; dr <= 2; dr++) {
-        const fade = 1 - Math.abs(dr) / 3;
-        if (ra + dr >= 0 && ra + dr < rows) data[c * rows + ra + dr] = Math.round(va * fade * 255);
-        if (rb + dr >= 0 && rb + dr < rows) data[c * rows + rb + dr] = Math.max(data[c * rows + rb + dr] ?? 0, Math.round(vb * fade * 255));
+    if (!glow || glow.length !== cols * rows) glow = new Float32Array(cols * rows);
+    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
+    const t = dbLevel(avg, gain, ref);
+    const delta = t - smoothed;
+    smoothed = t > smoothed ? smoothed * 0.95 + t * 0.05 : smoothed * 0.82 + t * 0.18;
+    if (cooldown > 0) cooldown--;
+    if (t > 0.08 && delta > 0.06 && cooldown === 0) {
+      waves.push(rows - 1);
+      cooldown = 2;
+    }
+    // Decay before writing so newly written wave rows appear at full brightness
+    for (let i = 0; i < glow!.length; i++) glow![i] = (glow![i] ?? 0) * 0.88;
+    for (let w = waves.length - 1; w >= 0; w--) {
+      waves[w] = (waves[w] ?? 0) - (0.5 + t * 2.0);
+      if ((waves[w] ?? 0) < 0) {
+        waves.splice(w, 1);
+      } else {
+        const sr = Math.max(0, Math.min(rows - 1, Math.round(waves[w] ?? 0)));
+        for (let c = 0; c < cols; c++)
+          glow![c * rows + sr] = dbLevel(bands[c] ?? 0, gain, ref);
       }
     }
+    const data = new Uint8Array(cols * rows);
+    for (let i = 0; i < glow!.length; i++) data[i] = Math.min(255, Math.round((glow![i] ?? 0) * 255));
     return data;
   };
 }
@@ -571,7 +675,7 @@ function fullGlitchSortB(): FullRenderer {
     smoothed = smoothed * 0.88 + t * 0.12;
     if (cooldown > 0) cooldown--;
     if (t > 0.08 && delta > 0.07 && cooldown === 0) {
-      const maxShift = Math.max(1, Math.round(cols * 0.2));
+      const maxShift = 2; // matches hardware: hardware offset is ±2 columns (Int8Array ±2)
       for (let c = 0; c < cols; c++) offsets![c] = Math.round((Math.random() - 0.5) * maxShift * 2);
       cooldown = 8;
     } else {
@@ -586,7 +690,7 @@ function fullGlitchSortB(): FullRenderer {
       // Bubble sort one step
       for (let r = 1; r < rows; r++) {
         if ((colBufs![c]![r] ?? 0) > (colBufs![c]![r - 1] ?? 0)) {
-          const tmp = colBufs![c]![r]!; colBufs![c]![r] = colBufs![c]![r - 1]!; colBufs![c]![r - 1] = tmp;
+          const tmp = colBufs![c]![r]; colBufs![c]![r] = colBufs![c]![r - 1]; colBufs![c]![r - 1] = tmp;
         }
       }
     }
@@ -613,7 +717,7 @@ function fullStrobe(): FullRenderer {
     if (cooldown > 0) cooldown--;
     if (t > 0.08 && delta > 0.04 && cooldown === 0) {
       bars = [];
-      const n = 1 + Math.floor(t * Math.max(3, cols * 0.4));
+      const n = 1 + Math.floor(t * 3.5);
       const occupied = new Uint8Array(cols);
       for (let i = 0; i < n; i++) {
         const avail: number[] = [];
@@ -638,29 +742,70 @@ function fullStrobe(): FullRenderer {
 }
 
 function fullSpecter(): FullRenderer {
-  let noise: Float32Array | null = null;
+  // Inward particles with kaleidoscopic mirrors — matches hardware makeSparksKaleidoH
+  const MAX_P = 800;
+  const pcf = new Float32Array(MAX_P); // particle col (float)
+  const prr = new Float32Array(MAX_P); // particle row (float)
+  const pdc = new Float32Array(MAX_P); // col drift per row step
+  let count = 0;
+  let tick = 0;
+  let lastCols = 0, lastRows = 0;
+  const TRAIL = 4;
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
-    if (!noise || noise.length !== cols * rows) noise = new Float32Array(cols * rows);
-    const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
-    const t = dbLevel(avg, gain, ref);
-    // Drift noise field upward + refresh from energy
+    if (cols !== lastCols || rows !== lastRows) { count = 0; lastCols = cols; lastRows = rows; }
+    const CC = (cols - 1) / 2;
+    const CR = (rows - 1) / 2;
+    // TRAVEL = rows from outer edge to center row
+    const TRAVEL = Math.max(1, rows - 1 - Math.floor(rows / 2));
+    // Advance particles (move toward center / upward)
+    let write = 0;
+    for (let i = 0; i < count; i++) {
+      const ri = (prr[i] ?? 0) - 1;
+      const ci = (pcf[i] ?? 0) + (pdc[i] ?? 0);
+      if (ri >= 0) { prr[write] = ri; pcf[write] = ci; pdc[write] = pdc[i] ?? 0; write++; }
+    }
+    count = write;
+    // Spawn new particles from the outer row, drifting toward center column
     for (let c = 0; c < cols; c++) {
-      for (let r = 0; r < rows - 1; r++) {
-        noise[c * rows + r] = (noise[c * rows + r + 1] ?? 0) * 0.82;
-      }
       const energy = dbLevel(bands[c] ?? 0, gain, ref);
-      noise[c * rows + rows - 1] = 0;
-      if (Math.random() < energy * 0.4 + t * 0.05) {
-        const sr = Math.floor(Math.random() * rows);
-        noise[c * rows + sr] = Math.max(noise[c * rows + sr] ?? 0, 0.5 + Math.random() * 0.5);
+      if (Math.random() < energy * 0.12 && count < MAX_P) {
+        pcf[count] = c;
+        prr[count] = rows - 1;
+        pdc[count] = (CC - c) / TRAVEL;
+        count++;
       }
     }
-    const data = new Uint8Array(cols * rows);
-    for (let i = 0; i < noise.length; i++) {
-      const v = noise[i] ?? 0;
-      if (v > 0.1) data[i] = Math.round(v * 200);
+    const buf = new Float32Array(cols * rows);
+    const a1 = tick * 0.015;
+    const a2 = tick * 0.0091;
+    const paint = (c: number, r: number, v: number) => {
+      if (c < 0 || c >= cols || r < 0 || r >= rows || v <= 0) return;
+      const idx = c * rows + r;
+      if (v <= (buf[idx] ?? 0)) return;
+      buf[idx] = v;
+      // Two rotating mirror transforms
+      const nx = (c - CC) / (CC || 1);
+      const ny = (r - CR) / (CR || 1);
+      for (const a of [a1, a2]) {
+        const c2a = Math.cos(2 * a), s2a = Math.sin(2 * a);
+        const mc = Math.round((nx * c2a + ny * s2a) * CC + CC);
+        const mr = Math.round((nx * s2a - ny * c2a) * CR + CR);
+        if (mc >= 0 && mc < cols && mr >= 0 && mr < rows)
+          buf[mc * rows + mr] = Math.max(buf[mc * rows + mr] ?? 0, v);
+      }
+    };
+    for (let i = 0; i < count; i++) {
+      paint(Math.round(pcf[i] ?? 0), Math.round(prr[i] ?? 0), 255);
+      for (let ti = 1; ti < TRAIL; ti++) {
+        const tc = Math.round((pcf[i] ?? 0) - (pdc[i] ?? 0) * ti);
+        const tr = Math.round((prr[i] ?? 0) + ti);
+        paint(tc, tr, Math.round(255 * Math.pow(0.55, ti)));
+      }
     }
+    tick++;
+    const data = new Uint8Array(cols * rows);
+    for (let i = 0; i < buf.length; i++) data[i] = Math.round(buf[i] ?? 0);
     return data;
   };
 }
