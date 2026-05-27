@@ -150,6 +150,24 @@ function LivePreviewToggle({ on, onToggle }: { on: boolean; onToggle: () => void
   );
 }
 
+function StatusChip({ icon, label, srSuffix, colorClass, onClick }: {
+  icon: string;
+  label: string;
+  srSuffix: string;
+  colorClass: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-mono transition-colors ${colorClass}`}
+      onClick={onClick}
+    >
+      <span aria-hidden="true">{icon}</span>
+      {label}
+      <span className="sr-only">{srSuffix}</span>
+    </button>
+  );
+}
 
 export function App() {
   const activeColor = useDeckStore(s => s.activeColor);
@@ -356,6 +374,30 @@ export function App() {
     );
   }
 
+  const statusChip = (
+    <div aria-live="polite" aria-atomic="true">
+      {uncalibrated ? (
+        <StatusChip
+          icon="⚠" label="Setup required" srSuffix=" — open setup guide"
+          colorClass="bg-amber-400/10 text-amber-400 border border-amber-400/30 hover:bg-amber-400/20"
+          onClick={() => setWelcomeDismissed(false)}
+        />
+      ) : !daemonOnline ? (
+        <StatusChip
+          icon="✕" label="Daemon offline" srSuffix=" — open config"
+          colorClass="bg-red-500/10 text-red-400 border border-red-400/30 hover:bg-red-400/20"
+          onClick={() => deckStore.getState().setActiveMode('config')}
+        />
+      ) : !modules.left && !modules.right ? (
+        <StatusChip
+          icon="○" label="No hardware" srSuffix=" — open config"
+          colorClass="bg-orange-500/10 text-orange-400 border border-orange-400/30 hover:bg-orange-400/20"
+          onClick={() => deckStore.getState().setActiveMode('config')}
+        />
+      ) : null}
+    </div>
+  );
+
   return (
     <TooltipProvider>
       <ShortcutDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} dualModule={dualModule} />
@@ -394,6 +436,7 @@ export function App() {
             activeMode !== 'hud' && activeMode !== 'config' && activeMode !== 'audio' && activeMode !== 'video' && activeMode !== 'life' ? (
               <div className="flex items-center gap-1">
                 <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
+                {statusChip}
                 <Menu>
                   <MenuTrigger asChild>
                     <Button variant="ghost">file <span aria-hidden="true">▾</span></Button>
@@ -464,7 +507,10 @@ export function App() {
                 )}
               </div>
             ) : (
-              <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
+                {statusChip}
+              </div>
             )
           }
           center={
@@ -640,43 +686,6 @@ export function App() {
             <Button variant="ghost" tooltip="shortcuts" onClick={() => setShortcutsOpen(true)} aria-label="Keyboard shortcuts"><span aria-hidden="true">???</span></Button>
           </div>
         </footer>}
-
-        {(() => {
-          if (uncalibrated) {
-            return (
-              <button
-                className="absolute top-3 right-4 z-20 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-mono bg-amber-400/10 text-amber-400 border border-amber-400/30 hover:bg-amber-400/20 transition-colors"
-                onClick={() => setWelcomeDismissed(false)}
-                aria-label="Setup required — open setup guide"
-              >
-                <span aria-hidden="true">⚠</span> Setup required
-              </button>
-            );
-          }
-          if (!daemonOnline) {
-            return (
-              <button
-                className="absolute top-3 right-4 z-20 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-mono bg-red-500/10 text-red-400 border border-red-400/30 hover:bg-red-400/20 transition-colors"
-                onClick={() => deckStore.getState().setActiveMode('config')}
-                aria-label="Daemon offline — open config"
-              >
-                <span aria-hidden="true">✕</span> Daemon offline
-              </button>
-            );
-          }
-          if (!modules.left && !modules.right) {
-            return (
-              <button
-                className="absolute top-3 right-4 z-20 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-mono bg-orange-500/10 text-orange-400 border border-orange-400/30 hover:bg-orange-400/20 transition-colors"
-                onClick={() => deckStore.getState().setActiveMode('config')}
-                aria-label="No hardware detected — open config"
-              >
-                <span aria-hidden="true">○</span> No hardware
-              </button>
-            );
-          }
-          return null;
-        })()}
 
         {showWelcome && (
           <WelcomeScreen
