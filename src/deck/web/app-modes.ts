@@ -3,7 +3,7 @@ export const MODES = [
   { id: 'audio',  label: 'audio' },
   { id: 'video',  label: 'video' },
   { id: 'data',   label: 'data' },
-  { id: 'runes',  label: 'runes' },
+  { id: 'cast',   label: 'cast' },
   { id: 'life',   label: 'life' },
   { id: 'design', label: 'design' },
   { id: 'config', label: 'config' },

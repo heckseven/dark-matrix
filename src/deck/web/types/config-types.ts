@@ -22,8 +22,22 @@ export type HudPreset = {
   match?: 'all' | 'any';
 };
 
+export type CastProvider = 'twitch';
+
+export type CastColumn = {
+  provider: CastProvider;
+  channel: string;
+  collapsed?: boolean;
+};
+
+export type TwitchConfig = {
+  client_id?: string;
+  access_token?: string;
+  broadcaster_id?: string;
+};
+
 export type NotificationRule = {
-  source?: 'ec-switch' | 'vm' | 'claude' | 'desktop-notification' | 'manual';
+  source?: 'ec-switch' | 'vm' | 'claude' | 'desktop-notification' | 'manual' | 'twitch';
   app_name_glob?: string;
   urgency?: 'low' | 'normal' | 'critical' | 'any';
   content_glob?: string;
@@ -80,4 +94,6 @@ export type Config = {
   notification_rules?: NotificationRule[];
   hud_presets?: HudPreset[];
   biome_presets?: BiomePresetConfig[];
+  twitch?: TwitchConfig;
+  cast_columns?: CastColumn[];
 };

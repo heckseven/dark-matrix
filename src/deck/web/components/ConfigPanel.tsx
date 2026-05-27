@@ -8,8 +8,9 @@ import { StartupTab } from './config-tabs/StartupTab.js';
 import { DaemonTab } from './config-tabs/DaemonTab.js';
 import { NotificationsTab } from './config-tabs/NotificationsTab.js';
 import { AppearanceTab } from './config-tabs/AppearanceTab.js';
+import { IntegrationsTab } from './config-tabs/IntegrationsTab.js';
 
-const CONFIG_TABS = ['hardware', 'brightness', 'startup', 'daemon', 'notifications', 'appearance'] as const;
+const CONFIG_TABS = ['hardware', 'brightness', 'startup', 'daemon', 'notifications', 'appearance', 'integrations'] as const;
 type ConfigTab = typeof CONFIG_TABS[number];
 
 export function ConfigPanel({ dualModule, topPad }: { dualModule: boolean; topPad: number }) {
@@ -76,6 +77,9 @@ export function ConfigPanel({ dualModule, topPad }: { dualModule: boolean; topPa
             {activeTab === 'appearance' && (
               // TODO: add unsaved-changes navigation guard when App.tsx mode switch is wired
               <AppearanceTab value={configData} />
+            )}
+            {activeTab === 'integrations' && (
+              <IntegrationsTab config={configData} onChange={patchConfig} />
             )}
           </>
         ) : (

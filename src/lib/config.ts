@@ -44,7 +44,7 @@ const NotificationRuleSchema = z.object({
   scroll_text: z.string().max(200).optional(),
   scroll_size: z.enum(['tiny', 'small', 'medium', 'large']).optional(),
   dmx_path: z.string().regex(/\.dmx\.json$/i).optional(),
-  source: z.enum(['ec-switch', 'vm', 'claude', 'desktop-notification', 'manual']).optional(),
+  source: z.enum(['ec-switch', 'vm', 'claude', 'desktop-notification', 'manual', 'twitch']).optional(),
   content_glob: z.string().optional(),
   asset_path: z.string().optional(),
   composite: z.enum(['replace', 'overlay']).optional(),
@@ -54,6 +54,18 @@ const NotificationRuleSchema = z.object({
   loop_count: z.number().int().min(1).optional(),
   mirror: z.boolean().optional(),
   side: z.enum(['left', 'right']).optional(),
+});
+
+const CastColumnSchema = z.object({
+  provider: z.enum(['twitch']),
+  channel: z.string().min(1).max(100),
+  collapsed: z.boolean().optional(),
+});
+
+const TwitchConfigSchema = z.object({
+  client_id: z.string().optional(),
+  access_token: z.string().optional(),
+  broadcaster_id: z.string().optional(),
 });
 
 export const ConfigSchema = z.object({
@@ -107,6 +119,8 @@ export const ConfigSchema = z.object({
     const dupes = names.filter((n, i) => names.indexOf(n) !== i);
     for (const d of dupes) ctx.addIssue({ code: 'custom', message: `duplicate preset name: "${d}"`, path: [] });
   }),
+  twitch: TwitchConfigSchema.optional(),
+  cast_columns: z.array(CastColumnSchema).max(5).optional(),
   biome_presets: z.array(z.object({
     name: z.string().min(1),
     algorithm: z.enum(['conway', 'highlife', 'daynight', 'maze', 'coral', 'anneal', 'morley', '2x2', 'stains', 'diamoeba']),

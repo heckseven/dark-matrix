@@ -120,7 +120,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
   // Recent notification content per source, used by the deck UI to suggest
   // glob examples. Most-recent first, deduplicated, capped per source.
-  const NOTIFICATION_HISTORY_SOURCES = ['desktop-notification', 'vm', 'claude', 'manual'] as const;
+  const NOTIFICATION_HISTORY_SOURCES = ['desktop-notification', 'vm', 'claude', 'manual', 'twitch'] as const;
   const NOTIFICATION_HISTORY_MAX = 7;
   const NOTIFICATION_HISTORY_CONTENT_MAX = 512;
   type NotificationHistorySource = typeof NOTIFICATION_HISTORY_SOURCES[number];
@@ -1977,6 +1977,48 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 dispatcher.push(intent);
               }
               socket.write(JSON.stringify({ ok: true, action: effectiveAction }) + '\n');
+              break;
+            }
+            case 'twitch-notify': {
+              const m = msg as { cmd: string; eventType?: string; event?: Record<string, unknown> };
+              const eventType = m.eventType ?? '';
+              const event = m.event ?? {};
+              let content = '';
+              let priority = 30;
+              let durationMs = 5000;
+              switch (eventType) {
+                case 'channel.follow':
+                  content = `FOLLOW ${String(event['user_name'] ?? '')}`;
+                  priority = 30; durationMs = 5000;
+                  break;
+                case 'channel.subscribe':
+                  content = `SUB ${String(event['user_name'] ?? '')}`;
+                  priority = 60; durationMs = 8000;
+                  break;
+                case 'channel.cheer':
+                  content = `BITS ${String(event['bits'] ?? '')}`;
+                  priority = 60; durationMs = 8000;
+                  break;
+                case 'channel.raid':
+                  content = `RAID ${String(event['from_broadcaster_user_name'] ?? '')}`;
+                  priority = 90; durationMs = 10000;
+                  break;
+                default:
+                  break;
+              }
+              if (content) {
+                const base: DisplayIntent = {
+                  id: `twitch-${eventType}-${Date.now()}`,
+                  source: 'twitch',
+                  priority,
+                  content,
+                  durationMs,
+                  expiresAt: Date.now() + durationMs,
+                };
+                recordNotificationExample('twitch', content);
+                routeAndPush(base);
+              }
+              socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             }
             default:

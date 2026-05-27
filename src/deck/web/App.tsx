@@ -26,6 +26,8 @@ import { AssetManagerModal } from './components/AssetManagerModal.js';
 import { ThreePanelLayout } from './components/ThreePanelLayout.js';
 import { PanelBar } from './components/PanelBar.js';
 import { WelcomeScreen } from './components/WelcomeScreen.js';
+import { CastPanel } from './components/CastPanel.js';
+import { Dialog, DialogContent, DialogTitle } from './components/ui/dialog.js';
 
 const MODE_LABEL = Object.fromEntries(MODES.map(m => [m.id, m.label])) as Record<AppMode, string>;
 
@@ -172,6 +174,7 @@ export function App() {
   const lifeStepCount      = useDeckStore(s => s.lifeStepCount);
   const configDirty        = useDeckStore(s => s.configDirty);
   const saveConfig         = useDeckStore(s => s.saveConfig);
+  const isTwitchConnected  = useDeckStore(s => !!(s.configData?.twitch?.access_token));
   const videoIdle          = useVStore(s => s.idle);
 
   useEffect(() => {
@@ -195,6 +198,7 @@ export function App() {
   const [clockOverrideM, setClockOverrideM] = useState(() => new Date().getMinutes());
   const [clockFastForward, setClockFastForward] = useState(false);
   const [hudClocksVisible, setHudClocksVisible] = useState(false);
+  const [castAudioOpen, setCastAudioOpen] = useState(false);
   const [livePreviewOn, setLivePreviewOn] = useState(false);
   const bridge = usePreviewBridge();
   const hudSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -359,6 +363,12 @@ export function App() {
   return (
     <TooltipProvider>
       <ShortcutDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} dualModule={dualModule} />
+      <Dialog open={castAudioOpen} onOpenChange={setCastAudioOpen}>
+        <DialogContent className="w-[calc(100vw-80px)] h-[calc(100vh-80px)] flex flex-col gap-0 p-0 overflow-hidden">
+          <DialogTitle className="sr-only">Audio visualizer</DialogTitle>
+          <AudioPanel dualModule={dualModule} hardwareControl={false} />
+        </DialogContent>
+      </Dialog>
       <AssetManagerModal
         open={assetManagerOpen}
         onOpenChange={setAssetManagerOpen}
@@ -391,7 +401,7 @@ export function App() {
           className="absolute top-0 inset-x-0 z-10 gap-4 pl-7 pr-5 py-4"
           style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)', ...(activeMode === 'video' ? { opacity: videoIdle ? 0 : 1, transition: videoIdle ? 'opacity 300ms' : 'opacity 0ms', pointerEvents: videoIdle ? 'none' : undefined } : {}) }}
           left={
-            activeMode !== 'hud' && activeMode !== 'config' && activeMode !== 'audio' && activeMode !== 'video' && activeMode !== 'life' ? (
+            activeMode !== 'hud' && activeMode !== 'config' && activeMode !== 'audio' && activeMode !== 'video' && activeMode !== 'life' && activeMode !== 'cast' ? (
               <div className="flex items-center gap-1">
                 <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
                 <Menu>
@@ -500,6 +510,8 @@ export function App() {
               ) : (
                 <span className="font-mono text-xs text-muted-foreground">no biome selected</span>
               )
+            ) : activeMode === 'cast' ? (
+              <span className="font-mono text-xs text-foreground">cast</span>
             ) : (
               <ProjectTitle value={projectTitle} onChange={v => {
                 const { libraryPath: lp } = deckStore.getState();
@@ -568,6 +580,26 @@ export function App() {
                 <span className="w-4 shrink-0" aria-hidden="true" />
                 <VideoSettingsToggle ref={settingsToggleRef} />
               </div>
+            ) : activeMode === 'cast' ? (
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  tooltip="Audio visualizer"
+                  aria-label="Audio visualizer"
+                  onClick={() => setCastAudioOpen(true)}
+                >
+                  audio viz
+                </Button>
+                <div className="flex items-center gap-1.5">
+                  <span
+                    role="img"
+                    className={`inline-block w-2 h-2 rounded-full ${isTwitchConnected ? 'bg-green-500' : 'bg-muted-foreground'}`}
+                    aria-label={isTwitchConnected ? 'Twitch connected' : 'Twitch not connected — configure in Settings → Integrations'}
+                  />
+                  <span className="text-xs text-muted-foreground">twitch</span>
+                </div>
+              </div>
             ) : activeMode === 'life' ? (
               <div className="flex items-center gap-2">
                 {selectedBiomeName && <span className="font-mono text-xs text-muted-foreground tabular-nums w-12 text-right">{lifeStepCount}</span>}
@@ -604,6 +636,10 @@ export function App() {
           <div className="h-full flex">
             <LifePanel topPad={headerHeight} dualModule={dualModule} />
           </div>
+        ) : activeMode === 'cast' ? (
+          <div className="h-full flex">
+            <CastPanel />
+          </div>
         ) : (
           <ThreePanelLayout
             leftLabel="Color palette"
@@ -617,7 +653,7 @@ export function App() {
           />
         )}
 
-        {activeMode !== 'audio' && activeMode !== 'hud' && activeMode !== 'config' && activeMode !== 'video' && activeMode !== 'life' && <footer ref={footerRef} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+        {activeMode !== 'audio' && activeMode !== 'hud' && activeMode !== 'config' && activeMode !== 'video' && activeMode !== 'life' && activeMode !== 'cast' && <footer ref={footerRef} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
           <div className="flex-1 flex items-center gap-4">
             <span>frame {activeFrameIdx + 1}</span>
             <span>row {cursor.row}</span>

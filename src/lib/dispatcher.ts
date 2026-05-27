@@ -3,7 +3,7 @@ import type { VmEvent } from './vm-source.js';
 import type { ClaudeActivityEvent } from './claude-source.js';
 import type { DesktopNotification } from './dbus-notifications.js';
 
-export type DisplaySource = 'ec-switch' | 'vm' | 'claude' | 'desktop-notification' | 'manual';
+export type DisplaySource = 'ec-switch' | 'vm' | 'claude' | 'desktop-notification' | 'manual' | 'twitch';
 
 export type DisplayIntent = {
   id: string;

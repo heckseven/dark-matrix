@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import net from 'node:net';
 import fs from 'node:fs/promises';
@@ -17,6 +18,8 @@ import { loadConfig, ConfigSchema } from '../lib/config.js';
 import { enumerateMatrixModules } from '../lib/modules.js';
 import { AUDIO_STYLES } from '../animations/audio-renderers.js';
 import { watchProcStats } from '../lib/proc-source.js';
+import { startTwitchEventSub } from '../lib/twitch-eventsub.js';
+import type { EventSubOptions } from '../lib/twitch-eventsub.js';
 
 const require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -712,6 +715,10 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
   // the client can retrieve the message without triggering a second subprocess.
   const ytStreamErrors = new Map<string, string>();
 
+  // Twitch OAuth state — populated by /api/twitch/connect, consumed by /api/twitch/save-token.
+  let boundOrigin = `http://127.0.0.1:${opts?.port ?? 7340}`;
+  const pendingOAuthStates = new Map<string, { clientId: string; expiresAt: number }>();
+
   const server = http.createServer(async (req, res) => {
     const url = req.url ?? '/';
     const method = req.method ?? 'GET';
@@ -720,6 +727,117 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
     if (url === '/api/health' && method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true, version: 1 }));
+      return;
+    }
+
+    // Twitch OAuth — initiate implicit-grant flow
+    if (url === '/api/twitch/connect' && method === 'POST') {
+      try {
+        const body = await readBody(req);
+        const { client_id } = JSON.parse(body) as { client_id?: unknown };
+        if (typeof client_id !== 'string' || !client_id) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'client_id required' }));
+          return;
+        }
+        const state = randomBytes(32).toString('hex');
+        pendingOAuthStates.set(state, { clientId: client_id, expiresAt: Date.now() + 5 * 60 * 1000 });
+        const scopes = 'channel:read:subscriptions bits:read moderator:read:followers channel:read:raids';
+        const authUrl = 'https://id.twitch.tv/oauth2/authorize?' + new URLSearchParams({
+          client_id,
+          redirect_uri: `${boundOrigin}/auth/twitch/callback`,
+          response_type: 'token',
+          scope: scopes,
+          state,
+          force_verify: 'true',
+        }).toString();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, auth_url: authUrl }));
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'bad request' }));
+      }
+      return;
+    }
+
+    // Twitch OAuth — callback page (token arrives in URL fragment, handled client-side)
+    if (url.startsWith('/auth/twitch/callback') && method === 'GET') {
+      const html = `<!DOCTYPE html><html><head><title>Twitch Auth</title></head><body><script>
+var p=new URLSearchParams(location.hash.slice(1));
+var token=p.get('access_token'),state=p.get('state');
+if(token&&state){fetch('/api/twitch/save-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:token,state:state})}).then(function(r){r.ok?location.href='/':document.body.textContent='Save failed'});}
+else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error');}
+</script></body></html>`;
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(html);
+      return;
+    }
+
+    // Twitch OAuth — save token, fetch broadcaster_id, persist to config
+    if (url === '/api/twitch/save-token' && method === 'POST') {
+      try {
+        const body = await readBody(req);
+        const { access_token, state } = JSON.parse(body) as { access_token?: unknown; state?: unknown };
+        if (typeof access_token !== 'string' || typeof state !== 'string') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid payload' }));
+          return;
+        }
+        const pending = pendingOAuthStates.get(state);
+        if (!pending || Date.now() > pending.expiresAt) {
+          pendingOAuthStates.delete(state);
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid or expired state' }));
+          return;
+        }
+        pendingOAuthStates.delete(state);
+        const clientId = pending.clientId;
+
+        // Fetch broadcaster user ID
+        const usersRes = await fetch('https://api.twitch.tv/helix/users', {
+          headers: { 'Client-Id': clientId, 'Authorization': `Bearer ${access_token}` },
+        });
+        if (!usersRes.ok) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'could not fetch Twitch user info' }));
+          return;
+        }
+        const usersData = await usersRes.json() as { data?: Array<{ id: string }> };
+        const broadcasterId = usersData.data?.[0]?.id;
+        if (!broadcasterId) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'no Twitch user found for token' }));
+          return;
+        }
+
+        // Atomic config write: merge twitch credentials, then reload daemon
+        const cfgPath = configFilePath(configDir);
+        const config = await loadConfig(cfgPath);
+        const updated = {
+          ...config,
+          twitch: {
+            ...(config.twitch ?? {}),
+            client_id: clientId,
+            access_token,
+            broadcaster_id: broadcasterId,
+          },
+        };
+        const tmp = cfgPath + '.tmp';
+        await fs.writeFile(tmp, JSON.stringify(updated, null, 2) + '\n', { mode: 0o600 });
+        await fs.rename(tmp, cfgPath);
+        sendToDaemon({ cmd: 'reload' }).catch(() => {});
+        // (Re)start EventSub with the freshly saved credentials
+        stopEventSub?.();
+        stopEventSub = startTwitchEventSub({
+          credentials: { access_token, client_id: clientId, broadcaster_id: broadcasterId },
+          broadcastToClients,
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'internal error' }));
+      }
       return;
     }
 
@@ -1556,6 +1674,13 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
   const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 1 * 1024 * 1024 });
   wss.setMaxListeners(50);
 
+  function broadcastToClients(msg: unknown): void {
+    const payload = JSON.stringify(msg);
+    for (const client of wss.clients) {
+      if (client.readyState === 1) client.send(payload);
+    }
+  }
+
   let retryGen = 0;
   async function sendToDaemonWithRetry(cmd: Record<string, unknown>, gen: number, retries = 6, baseMs = 250): Promise<void> {
     for (let i = 0; i <= retries; i++) {
@@ -1823,17 +1948,34 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
   const boundPort = await new Promise<number>((resolve, reject) => {
     const p = opts?.port ?? 7340;
     server.listen(p, host, () => {
-      resolve((server.address() as { port: number }).port);
+      const port = (server.address() as { port: number }).port;
+      boundOrigin = `http://127.0.0.1:${port}`;
+      resolve(port);
     });
     server.on('error', reject);
   });
 
   const url = `http://${host}:${boundPort}`;
 
+  // Start Twitch EventSub if credentials are already configured
+  let stopEventSub: (() => void) | null = null;
+  try {
+    const cfg = await loadConfig(configFilePath(configDir));
+    const tw = cfg.twitch;
+    if (tw?.access_token && tw.client_id && tw.broadcaster_id) {
+      const eventSubOpts: EventSubOptions = {
+        credentials: { access_token: tw.access_token, client_id: tw.client_id, broadcaster_id: tw.broadcaster_id },
+        broadcastToClients,
+      };
+      stopEventSub = startTwitchEventSub(eventSubOpts);
+    }
+  } catch { /* config may not exist yet */ }
+
   return {
     url,
     port: boundPort,
     stop(): Promise<void> {
+      stopEventSub?.();
       return new Promise((resolve, reject) => {
         // Terminate all active WS connections so wss.close() doesn't hang
         for (const client of wss.clients) client.terminate();
