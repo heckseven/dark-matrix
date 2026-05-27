@@ -1,4 +1,5 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
+import type { RefObject } from 'react';
 import { useDeckStore, deckStore } from '../store.js';
 import { MatrixItem } from './MatrixItem.js';
 import type { AudioStyle, AudioSource } from '../store.js';
@@ -6,7 +7,6 @@ import { AUDIO_STYLES, createRenderer } from '../../../animations/audio-renderer
 import type { RenderCtx } from '../../../animations/audio-renderers.js';
 import { BAYER4 } from '../../../animations/bayer.js';
 import { AudioFullscreen } from './AudioFullscreen.js';
-import { useState } from 'react';
 
 const COLS = 9;
 const ROWS = 34;
@@ -77,15 +77,19 @@ export function AudioPanel({
   fullscreenStyle = null,
   onFullscreenChange = () => {},
   onFullscreenIdleChange = () => {},
+  gainMultiplierRef,
 }: {
   dualModule?: boolean;
   fullscreenStyle?: AudioStyle | null;
   onFullscreenChange?: (style: AudioStyle | null) => void;
   onFullscreenIdleChange?: (idle: boolean) => void;
+  gainMultiplierRef?: RefObject<number>;
 }) {
   const audioStyle = useDeckStore(s => s.audioStyle);
   const audioSource = useDeckStore(s => s.audioSource);
   const [livePixels, setLivePixels] = useState<Partial<Record<AudioStyle, string>>>({});
+  const defaultGainRef = useRef(1.0);
+  const activeGainRef = gainMultiplierRef ?? defaultGainRef;
   const wsRef = useRef<WebSocket | null>(null);
   const fullBandsRef = useRef<number[] | null>(null);
   const fftSizeRef = useRef<number>(2048);
@@ -93,6 +97,7 @@ export function AudioPanel({
   const bandCountDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
   const prevStyleRef = useRef<AudioStyle | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   const renderersRef = useRef<Record<AudioStyle, ReturnType<typeof createRenderer>> | null>(null);
   if (!renderersRef.current) {
@@ -118,16 +123,22 @@ export function AudioPanel({
     bandCountDebounceRef.current = setTimeout(() => sendSetBands(n), 200);
   }, [sendSetBands]);
 
-  // Cleanup when fullscreen exits — whether from Escape, internal button, or header switch
+  // Inert grid + restore focus when fullscreen opens/closes
   useEffect(() => {
     const prev = prevStyleRef.current;
     prevStyleRef.current = fullscreenStyle;
-    if (prev !== null && fullscreenStyle === null) {
-      fullBandsRef.current = null;
-      sendSetBands(0);
-      const trigger = triggerRef.current;
-      triggerRef.current = null;
-      if (trigger) setTimeout(() => trigger.focus(), 0);
+    const grid = gridRef.current;
+    if (fullscreenStyle !== null) {
+      if (grid) grid.setAttribute('inert', '');
+    } else {
+      if (grid) grid.removeAttribute('inert');
+      if (prev !== null) {
+        fullBandsRef.current = null;
+        sendSetBands(0);
+        const trigger = triggerRef.current;
+        triggerRef.current = null;
+        if (trigger) setTimeout(() => trigger.focus(), 0);
+      }
     }
   }, [fullscreenStyle, sendSetBands]);
 
@@ -148,7 +159,7 @@ export function AudioPanel({
           fftSizeRef.current = msg.fftSize ?? 2048;
           gainRef.current = msg.gain ?? 1.0;
           if (msg.fullBands) fullBandsRef.current = msg.fullBands;
-          const ctx: RenderCtx = { bands: msg.bands, fftSize: msg.fftSize ?? 2048, gain: msg.gain ?? 1.0 };
+          const ctx: RenderCtx = { bands: msg.bands, fftSize: msg.fftSize ?? 2048, gain: (msg.gain ?? 1.0) * activeGainRef.current };
           const renderers = renderersRef.current!;
           const next: Partial<Record<AudioStyle, string>> = {};
           for (const { id } of AUDIO_STYLES) {
@@ -175,24 +186,9 @@ export function AudioPanel({
     sendViz(audioSource, audioStyle);
   }, [audioStyle, audioSource, sendViz]);
 
-  // Fullscreen view
-  if (fullscreenStyle !== null) {
-    return (
-      <AudioFullscreen
-        style={fullscreenStyle}
-        fullBandsRef={fullBandsRef}
-        fftSizeRef={fftSizeRef}
-        gainRef={gainRef}
-        onBandCountChange={handleBandCountChange}
-        onIdleChange={onFullscreenIdleChange}
-        onExit={() => onFullscreenChange(null)}
-      />
-    );
-  }
-
   return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-10 px-8 py-8 overflow-y-auto">
-      <div role="group" aria-label="Audio visualizer style" className="grid grid-cols-7 gap-6 justify-items-center">
+    <div className="flex-1 relative flex flex-col items-center justify-center gap-10 px-8 py-8 overflow-y-auto overflow-x-hidden">
+      <div ref={gridRef} role="group" aria-label="Audio visualizer style" className="grid grid-cols-7 gap-6 justify-items-center">
         {AUDIO_STYLES.map(({ id, label }) => {
           const active = audioStyle === id;
           const base = livePixels[id as AudioStyle] ?? PLACEHOLDER[id as AudioStyle]!;
@@ -206,7 +202,7 @@ export function AudioPanel({
               pixels={pixels}
               isSelected={active}
               onSelect={() => {
-                triggerRef.current = document.activeElement as HTMLElement;
+                if (document.activeElement instanceof HTMLElement) triggerRef.current = document.activeElement;
                 deckStore.getState().setAudioStyle(id as AudioStyle);
                 onFullscreenChange(id as AudioStyle);
               }}
@@ -214,6 +210,26 @@ export function AudioPanel({
           );
         })}
       </div>
+      {fullscreenStyle !== null && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${AUDIO_STYLES.find(s => s.id === fullscreenStyle)?.label ?? fullscreenStyle} visualizer fullscreen`}
+          className="absolute inset-0 z-10 flex"
+          style={{ backdropFilter: 'blur(8px)', backgroundColor: 'rgba(0,0,0,0.88)' }}
+        >
+          <AudioFullscreen
+            style={fullscreenStyle}
+            fullBandsRef={fullBandsRef}
+            fftSizeRef={fftSizeRef}
+            gainRef={gainRef}
+            gainMultiplierRef={activeGainRef}
+            onBandCountChange={handleBandCountChange}
+            onIdleChange={onFullscreenIdleChange}
+            onExit={() => onFullscreenChange(null)}
+          />
+        </div>
+      )}
     </div>
   );
 }

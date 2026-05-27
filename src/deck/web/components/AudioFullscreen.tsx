@@ -14,12 +14,13 @@ interface Props {
   fullBandsRef: React.RefObject<number[] | null>;
   fftSizeRef: React.RefObject<number>;
   gainRef: React.RefObject<number>;
+  gainMultiplierRef: React.RefObject<number>;
   onBandCountChange: (n: number) => void;
   onIdleChange: (idle: boolean) => void;
   onExit: () => void;
 }
 
-export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBandCountChange, onIdleChange, onExit }: Props) {
+export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, gainMultiplierRef, onBandCountChange, onIdleChange, onExit }: Props) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const displayRef   = React.useRef<HTMLDivElement>(null);
   const cellsRef     = React.useRef<HTMLSpanElement[]>([]);
@@ -73,6 +74,11 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
       document.documentElement.classList.remove('audio-idle');
       onIdleChangeRef.current(false);
     };
+  }, []);
+
+  // Focus container on mount so AT announces the dialog immediately
+  React.useEffect(() => {
+    containerRef.current?.focus();
   }, []);
 
   // Escape key → exit
@@ -159,7 +165,7 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
           cols: halfCols,
           rows,
           fftSize: fftSizeRef.current,
-          gain: gainRef.current,
+          gain: gainRef.current * gainMultiplierRef.current,
         };
         // frame is column-major with halfCols columns: frame[lCol * rows + row]
         const frame = rendererRef.current(ctx);
@@ -205,10 +211,10 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
   return (
     <div
       ref={containerRef}
-      className="flex-1 flex items-center justify-center overflow-hidden bg-black"
+      className="flex-1 flex items-center justify-center overflow-hidden"
       role="img"
       aria-label={`${styleName} audio visualizer`}
-      aria-roledescription="audio visualizer"
+      tabIndex={-1}
     >
       <div
         ref={displayRef}
