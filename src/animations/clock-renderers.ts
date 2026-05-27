@@ -22,7 +22,7 @@ const ROWS = 34;
 
 // Pixel bitmasks for the elegant font (9 cols wide, cols 0-8, 5 rows tall).
 // Each number is a column bitmask: bit c = 1 → pixel at column c is set.
-const ELEGANT_DIGITS: readonly number[][] = [
+export const ELEGANT_DIGITS: readonly number[][] = [
   [56, 68, 68, 68, 56], // 0
   [16, 24, 16, 16, 16], // 1
   [60, 64, 120,  4, 116], // 2
@@ -35,7 +35,7 @@ const ELEGANT_DIGITS: readonly number[][] = [
   [56, 68, 120, 64,  64], // 9
 ];
 
-function drawElegantDigit(frame: Frame, digit: number, startRow: number): void {
+export function drawElegantDigit(frame: Frame, digit: number, startRow: number): void {
   const glyphRows = ELEGANT_DIGITS[digit];
   if (!glyphRows) return;
   for (let r = 0; r < 5; r++) {
