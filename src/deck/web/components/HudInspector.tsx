@@ -262,7 +262,10 @@ const _claudeSandRenderer = (() => {
 })();
 const _claudeTetrisRenderer = (() => {
   const r = createClaudeTetrisRenderer();
-  for (let i = 0; i < 180; i++) r.render();
+  for (let i = 0; i < 180; i++) {
+    if (i % 3 === 0) r.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
+    r.render();
+  }
   return r;
 })();
 const _claudeContextRenderer = (() => {
@@ -339,9 +342,9 @@ function AiGrid({ currentWidget, onPick }: {
       setMatrixPixels(bayerToB64(_claudeMatrixRenderer.render()));
       setContextPixels(bayerToB64(_claudeContextRenderer.render()));
 
-      // Fire synthetic sand events to show grains falling
       if (tick % 6 === 0) {
         _claudeSandRenderer.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
+        _claudeTetrisRenderer.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
       }
       setSandPixels(bayerToB64(_claudeSandRenderer.render()));
       setTetrisPixels(bayerToB64(_claudeTetrisRenderer.render()));

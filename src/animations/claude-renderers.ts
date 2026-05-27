@@ -181,16 +181,13 @@ export function createClaudeSandRenderer(): ClaudeRendererApi {
   const settled = new Uint8Array(COLS * ROWS);
   let active: Array<[number, number]> = [];
   let draining = false;
+  let pendingGrains = 0;
 
   return {
     onEvent(e) {
-      if (draining) return;
       if (e.type === 'tool_use' || e.type === 'agent_spawn') {
         const n = e.type === 'agent_spawn' ? 3 : (Math.floor(Math.random() * 3) + 1);
-        const center = Math.floor(COLS / 2);
-        for (let i = 0; i < n; i++) {
-          active.push([center, -1]);
-        }
+        pendingGrains = Math.min(30, pendingGrains + n);
       }
     },
 
@@ -207,6 +204,11 @@ export function createClaudeSandRenderer(): ClaudeRendererApi {
         active = next;
         if (active.length === 0) draining = false;
         return frame;
+      }
+
+      if (pendingGrains > 0) {
+        active.push([Math.floor(COLS / 2), -1]);
+        pendingGrains--;
       }
 
       const blocked = (c: number, r: number): boolean => {
@@ -296,9 +298,9 @@ const _TETRIS_ROTATIONS: Array<Array<Array<[number, number]>>> = _TETRIS_BASE.ma
   return rots;
 });
 
-const _TETRIS_GRAVITY = 3;
 const _TETRIS_DISSOLVE_LEN = 50;
 const _TETRIS_CLEAR_FLASH = 12;
+const _TETRIS_DROP_CAP = 10;
 type _TetrisGameState = 'playing' | 'lineclear' | 'dissolving';
 
 export function createClaudeTetrisRenderer(): ClaudeRendererApi {
@@ -307,6 +309,7 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
   let pType = 0, pRot = 0, pCol = 0, pRow = 0;
   let targetCol = 0;
   let tick = 0;
+  let pendingDrops = 0;
   let gs: _TetrisGameState = 'playing';
   let clearRows: number[] = [];
   let clearRowSet = new Set<number>();
@@ -361,7 +364,8 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
 
     pCol = Math.floor((COLS - w) / 2);
     pRow = -(cc.reduce((m, [, r]) => Math.max(m, r), 0)) - 1;
-    return canPlace(cc, pCol, pRow);
+    // Check first gravity step, not spawn position — spawn is always above-board so always passes
+    return canPlace(cc, pCol, pRow + 1);
   }
 
   function lockPiece(): void {
@@ -384,7 +388,10 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
   }
 
   function clearLines(rows: number[]): void {
-    for (const r of rows.slice().sort((a, b) => b - a)) {
+    const sorted = rows.slice().sort((a, b) => b - a);
+    for (let i = 0; i < sorted.length; i++) {
+      // Each prior clear shifted this row down by 1; compensate with +i
+      const r = sorted[i]! + i;
       for (let sr = r; sr > 0; sr--) {
         for (let sc = 0; sc < COLS; sc++) {
           board[sc * ROWS + sr] = board[sc * ROWS + (sr - 1)] ?? 0;
@@ -405,7 +412,11 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
   if (!spawnNext()) board.fill(0);
 
   return {
-    onEvent(_e) { /* autonomous simulation */ },
+    onEvent(e) {
+      if (gs === 'playing' && (e.type === 'tool_use' || e.type === 'agent_spawn')) {
+        pendingDrops = Math.min(_TETRIS_DROP_CAP, pendingDrops + (e.type === 'agent_spawn' ? 3 : 1));
+      }
+    },
 
     render(): Frame {
       const frame = createFrame();
@@ -454,8 +465,9 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
         return frame;
       }
 
-      // Gravity
-      if (tick % _TETRIS_GRAVITY === 0) {
+      // Gravity — one drop per queued event
+      if (pendingDrops > 0) {
+        pendingDrops--;
         const cc = getCells();
         if (canPlace(cc, pCol, pRow + 1)) {
           pRow++;
@@ -470,11 +482,14 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
           } else if (!spawnNext()) {
             startDissolve();
           }
+          // Render board at lock position only — no falling piece this frame
+          for (let i = 0; i < COLS * ROWS; i++) if (board[i]) frame[i] = 180;
+          return frame;
         }
       }
 
-      // AI horizontal movement toward target
-      if (tick % 3 === 0) {
+      // AI horizontal movement — runs every 2 ticks, decoupled from gravity
+      if (tick % 2 === 0) {
         const cc = getCells();
         const w = pieceWidth(cc);
         const limit = Math.max(0, Math.min(COLS - w, targetCol));
