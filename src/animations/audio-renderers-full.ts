@@ -39,10 +39,10 @@ function colEnergies(bands: number[], gain: number, ref: number, cols: number, r
     for (let i = 0; i < HW_N; i++) {
       if (f >= (HW_EDGES[i] ?? 0) && f < (HW_EDGES[i + 1] ?? Infinity)) { b = i; break; }
     }
-    buckets[b] += dbLevel(bands[k] ?? 0, gain, ref);
-    counts[b]++;
+    buckets[b] = (buckets[b] ?? 0) + dbLevel(bands[k] ?? 0, gain, ref);
+    counts[b] = (counts[b] ?? 0) + 1;
   }
-  for (let b = 0; b < HW_N; b++) if (counts[b] > 0) buckets[b] /= counts[b];
+  for (let b = 0; b < HW_N; b++) { const cnt = counts[b] ?? 0; if (cnt > 0) buckets[b] = (buckets[b] ?? 0) / cnt; }
   const result = new Float32Array(cols);
   for (let c = 0; c < cols; c++) {
     const cc = reverse ? cols - 1 - c : c;
@@ -720,7 +720,7 @@ function fullGlitchSortB(): FullRenderer {
       // Bubble sort one step
       for (let r = 1; r < rows; r++) {
         if ((colBufs![c]![r] ?? 0) > (colBufs![c]![r - 1] ?? 0)) {
-          const tmp = colBufs![c]![r]; colBufs![c]![r] = colBufs![c]![r - 1]; colBufs![c]![r - 1] = tmp;
+          const tmp = colBufs![c]![r] ?? 0; colBufs![c]![r] = colBufs![c]![r - 1] ?? 0; colBufs![c]![r - 1] = tmp;
         }
       }
     }
