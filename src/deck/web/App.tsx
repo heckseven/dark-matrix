@@ -687,42 +687,44 @@ export function App() {
           </div>
         </footer>}
 
-        {(() => {
-          if (uncalibrated) {
-            return (
-              <button
-                className="absolute top-3 right-4 z-20 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-mono bg-amber-400/10 text-amber-400 border border-amber-400/30 hover:bg-amber-400/20 transition-colors"
-                onClick={() => setWelcomeDismissed(false)}
-                aria-label="Setup required — open setup guide"
-              >
-                <span aria-hidden="true">⚠</span> Setup required
-              </button>
-            );
-          }
-          if (!daemonOnline) {
-            return (
-              <button
-                className="absolute top-3 right-4 z-20 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-mono bg-red-500/10 text-red-400 border border-red-400/30 hover:bg-red-400/20 transition-colors"
-                onClick={() => deckStore.getState().setActiveMode('config')}
-                aria-label="Daemon offline — open config"
-              >
-                <span aria-hidden="true">✕</span> Daemon offline
-              </button>
-            );
-          }
-          if (!modules.left && !modules.right) {
-            return (
-              <button
-                className="absolute top-3 right-4 z-20 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-mono bg-orange-500/10 text-orange-400 border border-orange-400/30 hover:bg-orange-400/20 transition-colors"
-                onClick={() => deckStore.getState().setActiveMode('config')}
-                aria-label="No hardware detected — open config"
-              >
-                <span aria-hidden="true">○</span> No hardware
-              </button>
-            );
-          }
-          return null;
-        })()}
+        <div aria-live="polite" aria-atomic="true">
+          {(() => {
+            if (uncalibrated) {
+              return (
+                <button
+                  className="absolute top-3 right-4 z-20 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-mono bg-amber-400/10 text-amber-400 border border-amber-400/30 hover:bg-amber-400/20 transition-colors"
+                  onClick={() => setWelcomeDismissed(false)}
+                  aria-label="Setup required — open setup guide"
+                >
+                  <span aria-hidden="true">⚠</span> Setup required
+                </button>
+              );
+            }
+            if (!daemonOnline) {
+              return (
+                <button
+                  className="absolute top-3 right-4 z-20 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-mono bg-red-500/10 text-red-400 border border-red-400/30 hover:bg-red-400/20 transition-colors"
+                  onClick={() => deckStore.getState().setActiveMode('config')}
+                  aria-label="Daemon offline — open config"
+                >
+                  <span aria-hidden="true">✕</span> Daemon offline
+                </button>
+              );
+            }
+            if (!modules.left && !modules.right) {
+              return (
+                <button
+                  className="absolute top-3 right-4 z-20 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-mono bg-orange-500/10 text-orange-400 border border-orange-400/30 hover:bg-orange-400/20 transition-colors"
+                  onClick={() => deckStore.getState().setActiveMode('config')}
+                  aria-label="No hardware detected — open config"
+                >
+                  <span aria-hidden="true">○</span> No hardware
+                </button>
+              );
+            }
+            return null;
+          })()}
+        </div>
 
         {showWelcome && (
           <WelcomeScreen

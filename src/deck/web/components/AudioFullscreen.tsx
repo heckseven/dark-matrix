@@ -214,7 +214,7 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, gain
       className="flex-1 flex items-center justify-center overflow-hidden"
       role="img"
       aria-label={`${styleName} audio visualizer`}
-      tabIndex={0}
+      tabIndex={-1}
     >
       <div
         ref={displayRef}

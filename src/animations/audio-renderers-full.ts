@@ -326,12 +326,12 @@ function fullHeat(): FullRenderer {
       }
     }
     for (let i = 0; i < cells!.length; i++) cells![i] = next[i] ?? 0;
-    // Spawn sparks: 4 attempts per col per frame — no global cap (matches hardware makeFlameSparks)
+    // Spawn sparks: 4 attempts per col per frame; cap at cols*40 to bound array growth at large sizes
     for (let c = 0; c < cols; c++) {
       const sh = sparkHeights[c] ?? 0;
       if (sh > 0) {
         for (let s = 0; s < 4; s++) {
-          if (Math.random() < (envelope![c] ?? 0) * 0.5)
+          if (sparks.length < cols * 40 && Math.random() < (envelope![c] ?? 0) * 0.5)
             sparks.push({ col: c, pos: rows - sh - 0.5, v: 200 + Math.random() * 55 });
         }
       }
@@ -593,9 +593,11 @@ function fullDrop(): FullRenderer {
     smoothed = t > smoothed ? smoothed * 0.95 + t * 0.05 : smoothed * 0.82 + t * 0.18;
     if (cooldown > 0) cooldown--;
     if (t > 0.08 && delta > 0.05 && cooldown === 0) {
-      // cx weighted by band energy (matching hardware), scaled to display columns
+      // cx weighted by band energy, normalized to display column space
       const totalE = bands.reduce((s, e) => s + e, 0);
-      const cx = totalE > 0 ? bands.reduce((s, e, i) => s + e * i, 0) / totalE : cols / 2;
+      const cx = totalE > 0
+        ? (bands.reduce((s, e, i) => s + e * i, 0) / totalE / Math.max(1, bands.length - 1)) * (cols - 1)
+        : cols / 2;
       ripples.push({ cx, cy: rows / 2 + (Math.random() - 0.5) * rows * 0.5, r: 0 });
       cooldown = 3;
     }
