@@ -7,6 +7,7 @@ import { getDataRenderer } from '../data-renderer-pool.js';
 import { createHeatmapState, bumpTool, renderHeatmap } from '../../../animations/heatmap.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
+import { createClaudeMatrixRenderer, createClaudeContextRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import { deckStore } from '../store.js';
 
@@ -121,11 +122,53 @@ const _heatmapPreview = (() => {
   return s;
 })();
 
+const _previewClaudeMatrix = createClaudeMatrixRenderer();
+const _previewClaudeContext = (() => {
+  const r = createClaudeContextRenderer();
+  for (const tool of ['Read', 'Bash', 'Edit', 'Grep', 'Write', 'Read', 'Bash']) {
+    r.onEvent({ type: 'tool_use', tool, sessionId: 'preview', rawByteLen: 600 });
+  }
+  return r;
+})();
+const _previewClaudeSand = (() => {
+  const r = createClaudeSandRenderer();
+  for (let i = 0; i < 60; i++) {
+    if (i % 4 === 0) r.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
+    r.render();
+  }
+  return r;
+})();
+const _previewClaudeTetris = (() => {
+  const r = createClaudeTetrisRenderer();
+  for (let i = 0; i < 180; i++) {
+    if (i % 3 === 0) r.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
+    r.render();
+  }
+  return r;
+})();
+
+const _usagePreviewFrame = (() => {
+  const frame = new Uint8Array(COLS * ROWS);
+  const filledRows = Math.round(0.5 * ROWS);
+  for (let col = 0; col < COLS; col++) {
+    for (let row = Math.max(0, ROWS - filledRows); row < ROWS; row++) {
+      frame[col * ROWS + row] = 255;
+    }
+  }
+  return frame;
+})();
+
+let _dualPreviewClaudeTick = 0;
+
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     for (const k in _clockL) delete _clockL[k as ClockFace];
     for (const k in _clockR) delete _clockR[k as ClockFace];
     for (const k in _audioRenderers) delete _audioRenderers[k as AudioStyle];
+    _previewClaudeMatrix.stop();
+    _previewClaudeContext.stop();
+    _previewClaudeSand.stop();
+    _previewClaudeTetris.stop();
   });
 }
 
@@ -207,6 +250,14 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, 
       const out = new Uint8Array(COLS * ROWS);
       for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
       return out;
+    } else if (widget.widget === 'claude') {
+      const style = widget.style ?? 'matrix';
+      if (style === 'usage') return _usagePreviewFrame;
+      const raw = style === 'sand'    ? _previewClaudeSand.render()
+                : style === 'tetris'  ? _previewClaudeTetris.render()
+                : style === 'context' ? _previewClaudeContext.render()
+                :                       _previewClaudeMatrix.render();
+      return bayerDither(raw);
     } else {
       return empty;
     }
@@ -352,6 +403,18 @@ export function HudDualPreview({
         }
       }
       return state.grid;
+    }
+
+    _dualPreviewClaudeTick++;
+    const t = _dualPreviewClaudeTick;
+    if (t % 8 === 0) {
+      const tools = ['Read', 'Bash', 'Edit', 'Grep', 'Write'] as const;
+      _previewClaudeMatrix.onEvent({ type: 'tool_use', tool: tools[t % tools.length]!, sessionId: 'preview' });
+    }
+    if (t % 40 === 0) _previewClaudeMatrix.onEvent({ type: 'agent_spawn', sessionId: 'preview' });
+    if (t % 6 === 0) {
+      _previewClaudeSand.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
+      _previewClaudeTetris.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
     }
 
     const leftLifeGrid  = advanceLifeSide(lifeStateL, leftWidget,  'left');
