@@ -22,7 +22,7 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
   const containerRef = React.useRef<HTMLDivElement>(null);
   const displayRef   = React.useRef<HTMLDivElement>(null);
   const cellsRef     = React.useRef<HTMLSpanElement[]>([]);
-  const cellStates   = React.useRef<number[]>([]);
+  const cellStates   = React.useRef<boolean[]>([]);
   const gridRef      = React.useRef({ cols: 0, rows: 0 });
   const rafRef       = React.useRef<number>(0);
   const rendererRef  = React.useRef(createFullRenderer(style));
@@ -36,7 +36,7 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
     rendererRef.current = createFullRenderer(style);
   }, [style]);
 
-  // Auto-hide toolbar
+  // Auto-hide toolbar + cursor
   React.useEffect(() => {
     const styleEl = document.createElement('style');
     styleEl.textContent = 'html.audio-idle * { cursor: none !important; } html.audio-idle *:focus, html.audio-idle *:focus-visible { cursor: default !important; }';
@@ -102,6 +102,7 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
     const cells = cellsRef.current;
     while (cells.length < total) {
       const span = document.createElement('span');
+      span.textContent = '∗';
       span.setAttribute('aria-hidden', 'true');
       span.style.cssText = 'display:flex;align-items:center;justify-content:center;overflow:hidden;';
       span.style.color = 'transparent';
@@ -113,7 +114,7 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
       const span = cells.pop();
       if (span && span.parentNode === display) display.removeChild(span);
     }
-    cellStates.current = new Array(total).fill(-1);
+    cellStates.current = new Array(total).fill(false);
     for (const span of cells) {
       span.style.color = 'transparent';
       span.style.background = 'transparent';
@@ -152,16 +153,20 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
           gain: gainRef.current,
         };
         const frame = rendererRef.current(ctx);
-        for (let i = 0; i < frame.length && i < cells.length; i++) {
-          const v = frame[i] ?? 0;
-          // Binarize: lit if > 127
-          const lit = v > 127 ? 1 : 0;
-          if (states[i] !== lit) {
-            states[i] = lit;
-            const span = cells[i];
-            if (span) {
-              span.style.color = lit ? '#fff' : 'transparent';
-              span.style.background = lit ? '#000' : 'transparent';
+        // frame is column-major: frame[col * rows + row]
+        // cells are row-major in the CSS grid: cells[row * cols + col]
+        for (let row = 0; row < rows; row++) {
+          for (let col = 0; col < cols; col++) {
+            const ci = row * cols + col;
+            const v = frame[col * rows + row] ?? 0;
+            const lit = v > 127;
+            if (states[ci] !== lit) {
+              states[ci] = lit;
+              const span = cells[ci];
+              if (span) {
+                span.style.color = lit ? '#fff' : 'transparent';
+                span.style.background = lit ? '#000' : 'transparent';
+              }
             }
           }
         }
@@ -179,11 +184,15 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
   }, []);
 
   return (
-    <div className="relative flex h-full w-full bg-black">
+    // Fixed overlay covers the entire viewport, including the app header
+    <div
+      className="bg-black"
+      style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', flexDirection: 'column' }}
+    >
       {/* ── LED grid ────────────────────────────────────────────── */}
       <div
         ref={containerRef}
-        className="flex-1 flex items-center justify-center overflow-hidden"
+        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
       >
         <div
           ref={displayRef}
@@ -206,8 +215,7 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
         className="absolute top-0 inset-x-0 flex items-center gap-3 px-4 py-2 bg-black/70"
         style={{
           opacity: idle ? 0 : 1,
-          visibility: idle ? 'hidden' : 'visible',
-          transition: idle ? 'opacity 300ms, visibility 300ms' : 'opacity 0ms, visibility 0ms',
+          transition: idle ? 'opacity 300ms' : 'opacity 0ms',
           pointerEvents: idle ? 'none' : undefined,
         }}
         {...(idle ? { inert: true } : {})}
