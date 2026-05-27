@@ -54,23 +54,10 @@ function patchFetch(entries: MockEntry[]): () => void {
 // ── meta ─────────────────────────────────────────────────────────────────────
 
 const meta = {
-  title: 'Life/LibraryPickerModal',
+  title: 'Components/LibraryPickerModal',
   component: LibraryPickerModal,
-  tags: ['autodocs'],
   parameters: {
     layout: 'centered',
-    docs: {
-      description: {
-        component: [
-          'Two-step modal for picking a design frame to seed a biome grid.',
-          '',
-          '**Step 1 — grid**: shows all library entries as thumbnails. Single-frame designs pick immediately; multi-frame designs advance to step 2.',
-          '**Step 2 — frame strip**: shows individual frames for the selected design.',
-          '',
-          'Fetches `/api/library` on open, then loads each entry in parallel.',
-        ].join('\n'),
-      },
-    },
   },
   argTypes: {
     open: {
