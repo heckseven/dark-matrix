@@ -31,6 +31,8 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
   const idleTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const onIdleChangeRef = React.useRef(onIdleChange);
   onIdleChangeRef.current = onIdleChange;
+  const onExitRef = React.useRef(onExit);
+  onExitRef.current = onExit;
 
   const styleName = AUDIO_STYLES.find(s => s.id === style)?.label ?? style;
 
@@ -78,17 +80,17 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, onBa
     function onKey(e: KeyboardEvent) {
       if (e.key !== 'Escape') return;
       const el = document.activeElement;
-      if (!el) { onExit(); return; }
+      if (!el) { onExitRef.current(); return; }
       const tag = (el as HTMLElement).tagName.toLowerCase();
       if (['input', 'textarea', 'select', 'a'].includes(tag)) return;
       if ((el as HTMLElement).isContentEditable) return;
       const role = el.getAttribute('role') ?? '';
       if (['link', 'menuitem', 'option', 'textbox', 'combobox'].includes(role)) return;
-      onExit();
+      onExitRef.current();
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onExit]);
+  }, []);
 
   // Grid allocation — request only halfCols bands; the right half mirrors the left
   const recomputeGrid = React.useCallback(() => {
