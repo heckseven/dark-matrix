@@ -1,6 +1,7 @@
 import type { CastColumn as CastColumnType } from '../types/config-types.js';
 import { Button } from './ui/button.js';
 import { ChatFeed } from './ChatFeed.js';
+import { Link } from './ui/link.js';
 
 export function CastColumn({ column, onCollapse, onRemove, globalWsRef }: {
   column: CastColumnType;
@@ -39,8 +40,13 @@ export function CastColumn({ column, onCollapse, onRemove, globalWsRef }: {
       style={{ width: '40ch', minWidth: '40ch' }}
     >
       {/* Column header */}
-      <div className="flex items-center justify-between px-2 py-1 border-b border-border">
-        <span className="font-mono text-xs text-foreground truncate">{column.channel}</span>
+      <div
+        className="flex items-center justify-between px-2 py-1"
+        style={{ position: 'sticky', top: 0, zIndex: 1, backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}
+      >
+        <Link href={`https://twitch.tv/${column.channel}`} className="font-mono text-xs truncate">
+          {`https://twitch.tv/${column.channel}`}
+        </Link>
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
           <Button
             variant="ghost"

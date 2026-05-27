@@ -58,7 +58,7 @@ function AddChannelDialog({ open, onOpenChange, onAdd }: {
   );
 }
 
-export function CastPanel({ topPad = 0 }: { topPad?: number }) {
+export function CastPanel() {
   const configData = useDeckStore(s => s.configData);
   const patchConfig = useDeckStore(s => s.patchConfig);
   const saveConfig = useDeckStore(s => s.saveConfig);
@@ -111,7 +111,7 @@ export function CastPanel({ topPad = 0 }: { topPad?: number }) {
   return (
     <div className="flex-1 flex flex-col bg-background font-mono min-h-0">
       {/* Columns area */}
-      <div className="flex-1 flex items-stretch overflow-x-auto overflow-y-hidden min-h-0" style={{ paddingTop: topPad || undefined }}>
+      <div className="flex-1 flex items-stretch overflow-x-auto overflow-y-hidden min-h-0">
         <ColumnInsertButton
           hidden={atMax || columns.length === 0}
           label="Add column at start"

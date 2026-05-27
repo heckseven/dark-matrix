@@ -637,8 +637,8 @@ export function App() {
             <LifePanel topPad={headerHeight} dualModule={dualModule} />
           </div>
         ) : activeMode === 'cast' ? (
-          <div className="h-full flex">
-            <CastPanel topPad={headerHeight} />
+          <div className="absolute inset-x-0 bottom-0 flex" style={{ top: headerHeight }}>
+            <CastPanel />
           </div>
         ) : (
           <ThreePanelLayout
