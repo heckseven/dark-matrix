@@ -40,7 +40,10 @@ export function ScrubInput({
   const generatedId = useId();
 
   useEffect(() => {
-    if (editing) { inputRef.current?.focus(); inputRef.current?.select(); }
+    if (editing) {
+      if (document.activeElement !== inputRef.current) inputRef.current?.focus();
+      inputRef.current?.select();
+    }
   }, [editing]);
 
   function clamp(v: number) { return Math.max(min, Math.min(max, v)); }
@@ -84,6 +87,7 @@ export function ScrubInput({
           const v = parseInt(e.target.value, 10);
           if (!isNaN(v)) onChange(clamp(v));
         }}
+        onFocus={() => { if (!drag.current && !disabled) setEditing(true); }}
         onBlur={() => setEditing(false)}
         onKeyDown={e => {
           if (!editing && (e.key === 'Enter' || e.key === ' ')) {
