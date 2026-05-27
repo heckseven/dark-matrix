@@ -878,7 +878,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     void loop();
     return () => {
       stopped = true;
-      stopAudio?.();
+      stopAudio?.stop();
       stopProc?.();
       leftRenderer.stop();
       rightRenderer.stop();
@@ -888,9 +888,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
   function streamAudioBands(
     source: AudioSource,
-    onBands: (ctx: { bands: number[]; fftSize: number; gain: number }) => void,
+    onBands: (ctx: { bands: number[]; fftSize: number; gain: number; fullBands?: number[] }) => void,
     onEnd?: () => void,
-  ): () => void {
+    opts?: { fullBandCount?: number },
+  ): { stop: () => void; setFullBandCount: (n: number) => void } {
     let stopped = false;
     let stream: ReturnType<typeof createAudioBandStream> | null = null;
 
@@ -900,7 +901,12 @@ export async function startDaemon(): Promise<() => Promise<void>> {
           source === 'monitor' ? '@DEFAULT_AUDIO_SINK@' : '@DEFAULT_AUDIO_SOURCE@',
         );
         if (stopped) break;
-        stream = createAudioBandStream({ source, gain: source === 'monitor' ? 1.5 : 1.0, ...(target ? { target } : {}) });
+        stream = createAudioBandStream({
+          source,
+          gain: source === 'monitor' ? 1.5 : 1.0,
+          ...(target ? { target } : {}),
+          ...(opts?.fullBandCount ? { fullBandCount: opts.fullBandCount } : {}),
+        });
         const iter = stream[Symbol.asyncIterator]();
         let gotData = false;
         const watchedStream = stream;
@@ -920,7 +926,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     };
 
     void run();
-    return () => { stopped = true; stream?.stop(); };
+    return {
+      stop: () => { stopped = true; stream?.stop(); },
+      setFullBandCount: (n: number) => { stream?.setFullBandCount(n); },
+    };
   }
 
   function startGifAnimation(gifPath: string, hold: boolean, dual: boolean, mode: 'bw' | 'gray' = 'gray'): void {
@@ -1541,6 +1550,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   const sockPath = socketPath();
   const server = net.createServer((socket) => {
     let buf = '';
+    let activeVizStream: { stop: () => void; setFullBandCount: (n: number) => void } | null = null;
     socket.on('data', (chunk) => {
       buf += chunk.toString();
 
@@ -1789,8 +1799,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             case 'audio-viz': {
-              const m = msg as { cmd: string; source?: string };
+              const m = msg as { cmd: string; source?: string; fullBandCount?: number };
               const source: AudioSource = m.source === 'mic' ? 'mic' : 'monitor';
+              const fullBandCount = typeof m.fullBandCount === 'number' && Number.isInteger(m.fullBandCount) && m.fullBandCount > 0 && m.fullBandCount <= 512 ? m.fullBandCount : 0;
               socket.write(JSON.stringify({ ok: true }) + '\n');
               if (hudHardwareActive && hudAudioStreaming) {
                 // HUD loop is actively streaming audio — subscribe to its shared
@@ -1811,13 +1822,21 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 // HUD is not streaming audio (no audio widget), or HUD is not
                 // active — start an independent pw-record for this subscriber.
                 if (hudHardwareActive) hudAudioSource = source;
-                const stopViz = streamAudioBands(source, (ctx) => {
+                activeVizStream?.stop();
+                activeVizStream = streamAudioBands(source, (ctx) => {
                   if (socket.destroyed) return;
                   socket.write(JSON.stringify({ type: 'audio-bands', ...ctx }) + '\n');
-                });
-                socket.once('close', stopViz);
-                socket.once('error', stopViz);
+                }, undefined, fullBandCount > 0 ? { fullBandCount } : undefined);
+                socket.once('close', () => { activeVizStream?.stop(); activeVizStream = null; });
+                socket.once('error', () => { activeVizStream?.stop(); activeVizStream = null; });
               }
+              break;
+            }
+            case 'audio-viz-setbands': {
+              const m = msg as { cmd: string; bandCount?: number };
+              const n = typeof m.bandCount === 'number' && Number.isInteger(m.bandCount) && m.bandCount > 0 && m.bandCount <= 512 ? m.bandCount : 0;
+              activeVizStream?.setFullBandCount(n);
+              socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             }
             case 'audio-hardware-start': {
