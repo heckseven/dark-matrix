@@ -2,7 +2,7 @@
 // Do NOT import from src/lib/config.ts — that file uses node:fs.
 
 export type HudWidget =
-  | { widget: 'clock'; face: 'binary-audio' | 'elegant' | 'stretch' | 'analogue' | 'binary-blocks' | 'binary-tall' | 'binary-diamond' | 'twinz' }
+  | { widget: 'clock'; face: 'binary-audio' | 'elegant' | 'stretch' | 'analogue' | 'binary-blocks' | 'binary-tall' | 'binary-diamond' | 'twinz' | 'razor' | 'blade' }
   | { widget: 'timer'; style?: 'elegant' | 'hourglass' | 'twinz'; durationMs?: number; repeat?: boolean }
   | { widget: 'data'; style?: 'line' | 'bars'; top_left?: 'cpu' | 'ram' | 'net_rx' | 'net_tx'; top_right?: 'cpu' | 'ram' | 'net_rx' | 'net_tx'; bottom_left?: 'cpu' | 'ram' | 'net_rx' | 'net_tx'; bottom_right?: 'cpu' | 'ram' | 'net_rx' | 'net_tx' };
 

@@ -1,7 +1,7 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type ClockFace = 'elegant' | 'stretch' | 'binary-audio' | 'analogue' | 'binary-blocks' | 'binary-tall' | 'binary-diamond' | 'twinz';
+export type ClockFace = 'elegant' | 'stretch' | 'binary-audio' | 'analogue' | 'binary-blocks' | 'binary-tall' | 'binary-diamond' | 'twinz' | 'razor' | 'blade';
 
 export const CLOCK_FACES: { id: ClockFace; label: string }[] = [
   { id: 'binary-audio',   label: 'stack'    },
@@ -12,6 +12,8 @@ export const CLOCK_FACES: { id: ClockFace; label: string }[] = [
   { id: 'binary-tall',    label: 'signal'   },
   { id: 'binary-diamond', label: 'struct'   },
   { id: 'twinz',          label: 'twinz'    },
+  { id: 'razor',          label: 'razor'    },
+  { id: 'blade',          label: 'blade'    },
 ];
 
 export type ClockCtx = { now: Date; bands?: number[]; fftSize?: number; gain?: number; side?: 'left' | 'right' };
@@ -458,6 +460,105 @@ function twinz(): ClockRenderer {
   };
 }
 
+// ── Razor clock renderer ──────────────────────────────────────────────────
+// Stacked HH:MM layout — four digits at rows 4/10/18/24, cols 4-5 (2-wide).
+// Divider is a single row at row 16 spanning cols 4-5.
+// bit0=col4, bit1=col5.
+
+export const RAZOR_DIGITS: readonly number[][] = [
+  [3, 3, 3, 3, 3], // 0
+  [2, 3, 2, 2, 2], // 1
+  [3, 2, 3, 1, 3], // 2
+  [3, 2, 3, 2, 3], // 3
+  [1, 3, 3, 2, 2], // 4
+  [3, 1, 3, 2, 3], // 5
+  [1, 1, 3, 3, 3], // 6
+  [3, 2, 1, 1, 1], // 7
+  [3, 3, 0, 3, 3], // 8
+  [3, 3, 3, 2, 2], // 9
+];
+
+export function drawRazorDigit(frame: Frame, digit: number, rowStart: number): void {
+  const glyph = RAZOR_DIGITS[digit];
+  if (!glyph) return;
+  for (let r = 0; r < 5; r++) {
+    const bits = glyph[r] ?? 0;
+    if (bits & 1) frame[4 * ROWS + rowStart + r] = 255;
+    if (bits & 2) frame[5 * ROWS + rowStart + r] = 255;
+  }
+}
+
+export function drawRazorDivider(frame: Frame): void {
+  frame[4 * ROWS + 16] = 255;
+  frame[5 * ROWS + 16] = 255;
+}
+
+function razor(): ClockRenderer {
+  return ({ now }) => {
+    const h = now.getHours();
+    const m = now.getMinutes();
+    const frame = createFrame();
+    drawRazorDigit(frame, Math.floor(h / 10),  4);
+    drawRazorDigit(frame, h % 10,              10);
+    drawRazorDivider(frame);
+    drawRazorDigit(frame, Math.floor(m / 10), 18);
+    drawRazorDigit(frame, m % 10,             24);
+    return frame;
+  };
+}
+
+// ── Blade clock renderer ───────────────────────────────────────────────────
+// Side-by-side HH:MM layout — top pair (rows 0-13) and bottom pair (rows 20-33).
+// Each digit is 4-wide × 14-tall; left digit at cols 0-3, right at cols 5-8.
+// Divider spans cols 3-5 at rows 16-17.
+// bit0=col+0, bit1=col+1, bit2=col+2, bit3=col+3.
+
+export const BLADE_DIGITS: readonly number[][] = [
+  [9, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,  9], // 0
+  [5,  7,  7,  6,  6,  6,  6,  6,  6, 15, 15, 15, 15,  9], // 1
+  [9, 15, 15, 12, 15, 15,  3,  3,  3, 15, 15, 15, 15,  9], // 2
+  [9, 15, 15, 12, 15, 15, 12, 12, 12, 15, 15, 15, 15,  9], // 3
+  [9, 15, 15, 15, 15, 15, 12, 12, 12, 12, 12, 12, 12,  8], // 4
+  [9, 15, 15,  3, 15, 15, 12, 12, 12, 15, 15, 15, 15,  9], // 5
+  [9, 15, 15,  3, 15, 15,  9,  9,  9, 15, 15, 15, 15,  9], // 6
+  [9, 15, 15,  8, 14,  6,  6,  6,  6, 15, 15, 15, 15,  9], // 7
+  [9, 15, 15,  9, 15, 15,  9,  9,  9, 15, 15, 15, 15,  9], // 8
+  [9, 15, 15,  9, 15, 15, 12, 12, 12, 15, 15, 15, 15,  9], // 9
+];
+
+export function drawBladeDigit(frame: Frame, digit: number, colStart: number, rowStart: number): void {
+  const glyph = BLADE_DIGITS[digit];
+  if (!glyph) return;
+  for (let r = 0; r < 14; r++) {
+    const bits = glyph[r] ?? 0;
+    for (let c = 0; c < 4; c++) {
+      if ((bits >> c) & 1) frame[(colStart + c) * ROWS + rowStart + r] = 255;
+    }
+  }
+}
+
+export function drawBladeDivider(frame: Frame): void {
+  for (const r of [16, 17]) {
+    frame[3 * ROWS + r] = 255;
+    frame[4 * ROWS + r] = 255;
+    frame[5 * ROWS + r] = 255;
+  }
+}
+
+function blade(): ClockRenderer {
+  return ({ now }) => {
+    const h = now.getHours();
+    const m = now.getMinutes();
+    const frame = createFrame();
+    drawBladeDigit(frame, Math.floor(h / 10), 0,  0);
+    drawBladeDigit(frame, h % 10,             5,  0);
+    drawBladeDivider(frame);
+    drawBladeDigit(frame, Math.floor(m / 10), 0, 20);
+    drawBladeDigit(frame, m % 10,             5, 20);
+    return frame;
+  };
+}
+
 const FACTORIES: Record<ClockFace, () => ClockRenderer> = {
   'binary-audio':   binaryAudio,
   'elegant':        elegant,
@@ -467,6 +568,8 @@ const FACTORIES: Record<ClockFace, () => ClockRenderer> = {
   'binary-tall':    binaryTall,
   'binary-diamond': binaryDiamond,
   'twinz':          twinz,
+  'razor':          razor,
+  'blade':          blade,
 };
 
 export function createClockRenderer(face: ClockFace): ClockRenderer {
