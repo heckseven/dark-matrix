@@ -21,6 +21,40 @@ function dbLevel(mag: number, gain: number, ref: number): number {
   return Math.max(0, Math.min(1, (db - MIN_DB) / -MIN_DB));
 }
 
+// Hardware frequency edges (matches computeBandMagnitudes in audio-eq.ts).
+// Maps N fine log-spaced bands to these 9 ranges, then interpolates to cols columns
+// so fullscreen styles see the same per-column frequency distribution as the hardware.
+const HW_EDGES = [20, 60, 120, 250, 500, 1000, 2000, 6000, 14000, 20000] as const;
+const HW_N = 9;
+const HW_LOG_MIN = Math.log10(20);
+const HW_LOG_RANGE = Math.log10(20000) - HW_LOG_MIN;
+
+function colEnergies(bands: number[], gain: number, ref: number, cols: number, reverse = false): Float32Array {
+  const n = bands.length;
+  const buckets = new Float32Array(HW_N);
+  const counts = new Int32Array(HW_N);
+  for (let k = 0; k < n; k++) {
+    const f = Math.pow(10, HW_LOG_MIN + ((k + 0.5) / n) * HW_LOG_RANGE);
+    let b = HW_N - 1;
+    for (let i = 0; i < HW_N; i++) {
+      if (f >= (HW_EDGES[i] ?? 0) && f < (HW_EDGES[i + 1] ?? Infinity)) { b = i; break; }
+    }
+    buckets[b] += dbLevel(bands[k] ?? 0, gain, ref);
+    counts[b]++;
+  }
+  for (let b = 0; b < HW_N; b++) if (counts[b] > 0) buckets[b] /= counts[b];
+  const result = new Float32Array(cols);
+  for (let c = 0; c < cols; c++) {
+    const cc = reverse ? cols - 1 - c : c;
+    const frac = (cc / Math.max(1, cols - 1)) * (HW_N - 1);
+    const b0 = Math.floor(frac);
+    const b1 = Math.min(HW_N - 1, b0 + 1);
+    const t = frac - b0;
+    result[c] = (buckets[b0] ?? 0) * (1 - t) + (buckets[b1] ?? 0) * t;
+  }
+  return result;
+}
+
 // ── Group A: bar/column-per-band (natural scale) ──────────────────────────
 
 function fullSpectrumFall(): FullRenderer {
@@ -29,14 +63,15 @@ function fullSpectrumFall(): FullRenderer {
     const ref = fftSize / 2;
     if (!history || history.length !== rows || history[0]?.length !== cols)
       history = Array.from({ length: rows }, () => new Uint8Array(cols));
+    const ce = colEnergies(bands, gain, ref, cols);
     const center = Math.floor(rows / 2);
     const newRow = new Uint8Array(cols);
-    for (let c = 0; c < cols; c++) newRow[c] = Math.round(dbLevel(bands[c] ?? 0, gain, ref) * 255);
+    for (let c = 0; c < cols; c++) newRow[c] = Math.round((ce[c] ?? 0) * 255);
     history.shift();
     history.push(newRow);
     const data = new Uint8Array(cols * rows);
     for (let c = 0; c < cols; c++) {
-      const halfH = Math.round(((newRow[c] ?? 0) / 255) * center);
+      const halfH = Math.round((ce[c] ?? 0) * center);
       for (let r = 0; r < rows; r++) {
         if (Math.abs(r - center) <= halfH) data[c * rows + r] = 255 - (history[r]?.[c] ?? 0);
       }
@@ -53,9 +88,10 @@ function fullSpirits(): FullRenderer {
       ghosts.length = 0;
       for (let c = 0; c < cols; c++) ghosts.push(new Float32Array(rows));
     }
+    const ce = colEnergies(bands, gain, ref, cols);
     const data = new Uint8Array(cols * rows);
     for (let c = 0; c < cols; c++) {
-      const energy = dbLevel(bands[c] ?? 0, gain, ref);
+      const energy = ce[c] ?? 0;
       const g = ghosts[c]!;
       for (let r = 0; r < rows; r++) g[r] = (g[r] ?? 0) * 0.82;
       const targetRow = Math.max(0, rows - 1 - Math.round(energy * (rows - 1)));
@@ -82,9 +118,10 @@ function fullVuGlitch(): FullRenderer {
       if (Math.random() < spike * 4) buf[r] = Math.min(1, (buf[r] ?? 0) + 0.4 + Math.random() * 0.5);
       buf[r] = (buf[r] ?? 0) * 0.88;
     }
+    const ce = colEnergies(bands, gain, ref, cols);
     const data = new Uint8Array(cols * rows);
     for (let c = 0; c < cols; c++) {
-      const energy = dbLevel(bands[c] ?? 0, gain, ref);
+      const energy = ce[c] ?? 0;
       for (let r = 0; r < rows; r++) {
         const corr = buf[r] ?? 0;
         if (corr > 0.05 && Math.random() < corr * (0.3 + energy * 0.7))
@@ -106,9 +143,10 @@ function fullKickD(): FullRenderer {
     const center = (cols - 1) / 2;
     const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
     const t = dbLevel(avg, gain, ref);
+    const ce = colEnergies(bands, gain, ref, cols);
     let maxDelta = 0;
     for (let i = 0; i < cols; i++) {
-      const bLevel = dbLevel(bands[i] ?? 0, gain, ref);
+      const bLevel = ce[i] ?? 0;
       const bDelta = bLevel - (smoothedB![i] ?? 0);
       smoothedB![i] = bLevel > (smoothedB![i] ?? 0)
         ? (smoothedB![i] ?? 0) * 0.95 + bLevel * 0.05
@@ -148,35 +186,16 @@ function fullDarkMatter(): FullRenderer {
       peaks = new Float32Array(cols);
       grid = new Uint8Array(cols * rows);
     }
-    // Aggregate many fine-grained log-spaced bands into 9 hardware-equivalent buckets,
-    // then smoothly interpolate back to cols display columns. This matches the hardware
-    // 9-band visual (wide frequency buckets) regardless of how many bands were requested.
-    const NUM_BUCKETS = Math.min(9, cols);
-    const buckets = new Float32Array(NUM_BUCKETS);
-    for (let b = 0; b < NUM_BUCKETS; b++) {
-      const start = Math.floor((b / NUM_BUCKETS) * cols);
-      const end = Math.max(start + 1, Math.floor(((b + 1) / NUM_BUCKETS) * cols));
-      let sum = 0;
-      for (let c = start; c < end; c++) sum += dbLevel(bands[c] ?? 0, gain, ref);
-      buckets[b] = sum / (end - start);
-    }
-    const energies = new Float32Array(cols);
-    for (let c = 0; c < cols; c++) {
-      const frac = (c / Math.max(1, cols - 1)) * (NUM_BUCKETS - 1);
-      const b0 = Math.floor(frac);
-      const b1 = Math.min(NUM_BUCKETS - 1, b0 + 1);
-      const lerp = frac - b0;
-      energies[c] = (buckets[b0] ?? 0) * (1 - lerp) + (buckets[b1] ?? 0) * lerp;
-    }
+    const ce = colEnergies(bands, gain, ref, cols);
     // Rising sparks: shift upward one row, spawn bottom row
     for (let r = 0; r < rows - 1; r++)
       for (let c = 0; c < cols; c++)
         grid![c * rows + r] = grid![c * rows + r + 1] ?? 0;
     for (let c = 0; c < cols; c++)
-      grid![c * rows + (rows - 1)] = Math.random() < (energies[c] ?? 0) ? 255 : 0;
+      grid![c * rows + (rows - 1)] = Math.random() < (ce[c] ?? 0) ? 255 : 0;
     const data = new Uint8Array(cols * rows);
     for (let c = 0; c < cols; c++) {
-      const energy = energies[c] ?? 0;
+      const energy = ce[c] ?? 0;
       const height = Math.round(energy * rows);
       peaks![c] = Math.max(energy, (peaks![c] ?? 0) * 0.98);
       const peakRow = rows - 1 - Math.round((peaks![c] ?? 0) * (rows - 1));
@@ -207,17 +226,18 @@ function fullHeat(): FullRenderer {
       sparks = [];
       lastCols = cols; lastRows = rows;
     }
-    // Hardware reads bands in reverse (high freq → left column)
+    // Hardware reads bands in reverse (high freq → left column); reverse=true handles that
+    const ce = colEnergies(bands, gain, ref, cols, true);
     const heights = new Int32Array(cols);
     for (let c = 0; c < cols; c++) {
-      const t = dbLevel(bands[cols - 1 - c] ?? 0, gain, ref);
+      const t = ce[c] ?? 0;
       envelope![c] = t > (envelope![c] ?? 0) ? t : (envelope![c] ?? 0) * 0.85 + t * 0.15;
       const flicker = (envelope![c] ?? 0) * (0.7 + Math.random() * 0.5);
       heights[c] = Math.round(Math.min(1, flicker) * rows * 0.25);
     }
     // Continuous cull (from band energy)
     for (let c = 0; c < cols; c++) {
-      const killProb = dbLevel(bands[cols - 1 - c] ?? 0, gain, ref) * 0.70;
+      const killProb = (ce[c] ?? 0) * 0.70;
       for (let r = 0; r < rows; r++)
         if (Math.random() < killProb) cells![c * rows + r] = 0;
     }
@@ -269,8 +289,9 @@ function fullWaterfall(): FullRenderer {
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
     if (!history || history.length !== rows || history[0]?.length !== cols) history = Array.from({ length: rows }, () => new Uint8Array(cols));
+    const ce = colEnergies(bands, gain, ref, cols);
     const newRow = new Uint8Array(cols);
-    for (let c = 0; c < cols; c++) newRow[c] = Math.round(dbLevel(bands[c] ?? 0, gain, ref) * 255);
+    for (let c = 0; c < cols; c++) newRow[c] = Math.round((ce[c] ?? 0) * 255);
     history.shift();
     history.push(newRow);
     const data = new Uint8Array(cols * rows);
@@ -297,8 +318,9 @@ function fullScopeDual(): FullRenderer {
     }
     for (let i = 0; i < bufA.length; i++) bufA[i] = (bufA[i] ?? 0) * 0.83;
     for (let i = 0; i < bufB!.length; i++) bufB![i] = (bufB![i] ?? 0) * 0.73;
+    const ce = colEnergies(bands, gain, ref, cols);
     const cur = new Float32Array(cols);
-    for (let c = 0; c < cols; c++) cur[c] = dbLevel(bands[c] ?? 0, gain, ref);
+    for (let c = 0; c < cols; c++) cur[c] = ce[c] ?? 0;
     hist![head]!.set(cur);
     head = (head + 1) % DELAY;
     const delayed = hist![head]!;
@@ -355,13 +377,14 @@ function fullSparks(): FullRenderer {
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
     if (!grid || grid.length !== cols * rows) grid = new Uint8Array(cols * rows);
+    const ce = colEnergies(bands, gain, ref, cols);
     // Shift all rows up by one
     for (let r = 0; r < rows - 1; r++)
       for (let c = 0; c < cols; c++)
         grid[c * rows + r] = grid[c * rows + r + 1] ?? 0;
     // Spawn bottom row
     for (let c = 0; c < cols; c++) {
-      const energy = dbLevel(bands[c] ?? 0, gain, ref);
+      const energy = ce[c] ?? 0;
       grid[c * rows + (rows - 1)] = Math.random() < energy ? 255 : 0;
     }
     return new Uint8Array(grid);
@@ -376,11 +399,12 @@ function fullNeo(): FullRenderer {
   const TRAIL = 12;
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
+    const ce = colEnergies(bands, gain, ref, cols);
     const data = new Uint8Array(cols * rows);
     const colCount = new Uint8Array(cols);
     for (const d of drops) colCount[d.col] = (colCount[d.col] ?? 0) + 1;
     for (let c = 0; c < cols; c++) {
-      const energy = dbLevel(bands[c] ?? 0, gain, ref);
+      const energy = ce[c] ?? 0;
       const maxDrops = Math.max(1, Math.round(cols / 8));
       if ((colCount[c] ?? 0) < maxDrops && Math.random() < energy * 0.5)
         drops.push({ pos: 0, col: c, speed: 0.5 + energy * 2.5 });
@@ -409,9 +433,10 @@ function fullHex(): FullRenderer {
   const HEADS_PER_COL = 3;
   return ({ bands, cols, rows, gain, fftSize }) => {
     const ref = fftSize / 2;
+    const ce = colEnergies(bands, gain, ref, cols);
     const data = new Uint8Array(cols * rows);
     for (let c = 0; c < cols; c++) {
-      const energy = dbLevel(bands[c] ?? 0, gain, ref);
+      const energy = ce[c] ?? 0;
       if (Math.random() < energy * 0.3) {
         drops.push({ pos: Math.random() * rows * 0.5, col: c, speed: 0.3 + energy * 1.5 });
       }
@@ -442,8 +467,9 @@ function fullCipher(): FullRenderer {
       state = new Float32Array(cols * rows);
       for (let i = 0; i < state.length; i++) state[i] = Math.random();
     }
+    const ce = colEnergies(bands, gain, ref, cols);
     for (let c = 0; c < cols; c++) {
-      const energy = dbLevel(bands[c] ?? 0, gain, ref);
+      const energy = ce[c] ?? 0;
       const flipRate = energy * 0.35;
       const decay = 0.94 - energy * 0.1;
       for (let r = 0; r < rows; r++) {
@@ -489,9 +515,10 @@ function fullDrop(): FullRenderer {
     const RING_WIDTH = 0.5;
     const INNER_TRAIL = 3;
     for (let i = 0; i < trail!.length; i++) trail![i] = (trail![i] ?? 0) * 0.65;
+    const ce = colEnergies(bands, gain, ref, cols);
     const data = new Uint8Array(cols * rows);
     for (let c = 0; c < cols; c++) {
-      const energy = dbLevel(bands[c] ?? 0, gain, ref);
+      const energy = ce[c] ?? 0;
       for (let r = 0; r < rows; r++) {
         const idx = c * rows + r;
         let v = 0, atLeadingEdge = false;
@@ -527,6 +554,7 @@ function fullWake(): FullRenderer {
       waves.push(rows - 1);
       cooldown = 2;
     }
+    const ce = colEnergies(bands, gain, ref, cols);
     // Decay before writing so newly written wave rows appear at full brightness
     for (let i = 0; i < glow!.length; i++) glow![i] = (glow![i] ?? 0) * 0.88;
     for (let w = waves.length - 1; w >= 0; w--) {
@@ -536,7 +564,7 @@ function fullWake(): FullRenderer {
       } else {
         const sr = Math.max(0, Math.min(rows - 1, Math.round(waves[w] ?? 0)));
         for (let c = 0; c < cols; c++)
-          glow![c * rows + sr] = dbLevel(bands[c] ?? 0, gain, ref);
+          glow![c * rows + sr] = ce[c] ?? 0;
       }
     }
     const data = new Uint8Array(cols * rows);
@@ -591,9 +619,10 @@ function fullLifeErode(): FullRenderer {
     }
     const avg = bands.reduce((a, b) => a + b, 0) / bands.length;
     const t = dbLevel(avg, gain, ref);
+    const ce = colEnergies(bands, gain, ref, cols);
     const next = new Uint8Array(cols * rows);
     for (let c = 0; c < cols; c++) {
-      const energy = dbLevel(bands[c] ?? 0, gain, ref);
+      const energy = ce[c] ?? 0;
       // Re-seed columns from band energy
       if (Math.random() < energy * 0.12) {
         const r = Math.floor(Math.random() * rows);
@@ -681,8 +710,9 @@ function fullGlitchSortB(): FullRenderer {
     } else {
       for (let c = 0; c < cols; c++) offsets![c] = Math.round((offsets![c] ?? 0) * 0.7);
     }
+    const ce = colEnergies(bands, gain, ref, cols);
     for (let c = 0; c < cols; c++) {
-      const energy = dbLevel(bands[c] ?? 0, gain, ref);
+      const energy = ce[c] ?? 0;
       for (let r = 0; r < rows; r++) {
         colBufs![c]![r] = (colBufs![c]![r] ?? 0) * 0.86;
         if (Math.random() < energy * energy) colBufs![c]![r] = Math.max(colBufs![c]![r] ?? 0, 0.5 + Math.random() * 0.5);
@@ -767,8 +797,9 @@ function fullSpecter(): FullRenderer {
     }
     count = write;
     // Spawn new particles from the outer row, drifting toward center column
+    const ce = colEnergies(bands, gain, ref, cols);
     for (let c = 0; c < cols; c++) {
-      const energy = dbLevel(bands[c] ?? 0, gain, ref);
+      const energy = ce[c] ?? 0;
       if (Math.random() < energy * 0.12 && count < MAX_P) {
         pcf[count] = c;
         prr[count] = rows - 1;
@@ -821,9 +852,10 @@ function fullCircuit(): FullRenderer {
     tick++;
     const bw = Math.max(3, Math.round(cols / 6));
     const bh = Math.max(3, Math.round(rows / 6));
+    const ce = colEnergies(bands, gain, ref, cols);
     const data = new Uint8Array(cols * rows);
     for (let c = 0; c < cols; c++) {
-      const energy = dbLevel(bands[c] ?? 0, gain, ref);
+      const energy = ce[c] ?? 0;
       for (let r = 0; r < rows; r++) {
         const bv = Math.floor(r / bh), bx = Math.floor(c / bw);
         const inBlock = (bv + bx + tick) % 3 !== 0 && (c * 7 + r * 11 + tick) % 5 < 3;
