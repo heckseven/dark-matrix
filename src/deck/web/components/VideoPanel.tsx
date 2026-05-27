@@ -14,7 +14,7 @@ const HW_COLS = 18;
 const HW_ROWS = 34;
 const FPS = 20;
 const BAYER4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]] as const;
-const SVG_DOT = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${CELL}" height="${CELL}"><circle cx="${CELL / 2}" cy="${CELL / 2}" r="1.5" fill="#303030"/></svg>`)}")`;
+const SVG_DOT = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${CELL}" height="${CELL}"><circle cx="${CELL / 2}" cy="${CELL / 2}" r="2" fill="#303030"/></svg>`)}")`;
 
 // ── shared store ───────────────────────────────────────────────────────────
 type Controls = { brightness: number; contrast: number; invert: boolean; dither: boolean };
@@ -491,7 +491,7 @@ export function VideoPanel({ topPad = 0, settingsToggleRef }: { topPad?: number;
             backgroundImage: SVG_DOT,
             backgroundSize: `${CELL}px ${CELL}px`,
             backgroundRepeat: 'repeat',
-            fontSize: '7px',
+            fontSize: '14px',
             fontFamily: 'monospace',
             userSelect: 'none',
           }}
