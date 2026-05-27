@@ -62,6 +62,8 @@ const DAEMON_VERSION: string = (() => {
 let activeOverlay: NotifyOverlay | null = null;
 export function setActiveOverlay(o: NotifyOverlay | null): void { activeOverlay = o; }
 
+type PersistedTimerEpoch = { durationMs: number; repeat: boolean; style: 'elegant' | 'hourglass'; epochMs: number } | null;
+
 export const socketPath = resolveSocketPath;
 
 // Parse a raw HTTP POST /hook request body from a buffer.
@@ -110,6 +112,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   const hudAudioListeners = new Map<symbol, (ctx: { bands: number[]; fftSize: number; gain: number }) => void>();
   const heatmapState = createHeatmapState();
   const claudeRenderers = new Set<ClaudeRendererApi>();
+
+  // Timer epoch persisted across HUD loop restarts so navigation doesn't reset timers.
+  // Invalidated (set to null) when the widget type changes away from timer, or when the
+  // timer config (durationMs, repeat, style) changes.
+  const persistedTimerEpochs: { left: PersistedTimerEpoch; right: PersistedTimerEpoch } = { left: null, right: null };
 
   // Recent notification content per source, used by the deck UI to suggest
   // glob examples. Most-recent first, deduplicated, capped per source.
@@ -500,6 +507,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     side: 'left' | 'right',
     procDataRendererRef: { renderer: DataRenderer | null },
   ): WidgetRenderer {
+    if (widget.widget !== 'timer') persistedTimerEpochs[side] = null;
     switch (widget.widget) {
       case 'clock': {
         const face = widget.face ?? 'elegant';
@@ -760,7 +768,14 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         const timerStyle  = widget.style ?? 'elegant';
         const durationMs  = widget.durationMs ?? 25 * 60_000;
         const repeat      = widget.repeat ?? false;
-        let   epochMs     = Date.now();
+        const savedEpoch  = persistedTimerEpochs[side];
+        let   epochMs: number;
+        if (savedEpoch && savedEpoch.durationMs === durationMs && savedEpoch.repeat === repeat && savedEpoch.style === timerStyle) {
+          epochMs = savedEpoch.epochMs;
+        } else {
+          epochMs = Date.now();
+          persistedTimerEpochs[side] = { durationMs, repeat, style: timerStyle, epochMs };
+        }
         const hgRenderer  = timerStyle === 'hourglass' ? createHourglassTimerRenderer() : null;
         const tzRenderer  = timerStyle === 'twinz'     ? createTwinzTimerRenderer()     : null;
         const elRenderer  = hgRenderer || tzRenderer   ? null                           : createElegantTimerRenderer();
@@ -1684,8 +1699,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               const mode = m.mode === 'gray' ? 'gray' : 'bw';
               if (m.left  !== undefined) frameHeldLeft  = true;
               if (m.right !== undefined) frameHeldRight = true;
-              if (!hudHardwareActive) {
-                // HUD hardware not active — stop any idle animation so it doesn't clobber the preview
+              if (!hudHardwareActive && currentAnimName !== 'hud') {
+                // Stop non-HUD idle animations — they don't check frameHeld* flags and would
+                // overwrite the preview. The HUD loop checks those flags before each write, so
+                // leave it running so the un-held side continues animating.
                 stopAnim();
                 if (idleTimer) clearTimeout(idleTimer);
               }
