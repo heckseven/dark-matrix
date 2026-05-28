@@ -24,7 +24,6 @@ import { runAnimation } from '../lib/animation.js';
 import { createStartupAnimation } from '../animations/startup.js';
 import { createScrollAnimation } from '../animations/scroll.js';
 import { createGolAnimation, createBiomeStep, createBiomeGrid, gridToFrame } from '../animations/gol.js';
-import { createHeatmapState, bumpTool, tickHeatmap, renderHeatmap } from '../animations/heatmap.js';
 import { createAudioEqAnimation, createAudioBandStream } from '../animations/audio-eq.js';
 import type { AudioSource } from '../animations/audio-eq.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../animations/audio-renderers.js';
@@ -110,7 +109,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   let frameHeldRight = false;
   // Shared band listeners: audio-viz sockets subscribe here when HUD loop owns audio
   const hudAudioListeners = new Map<symbol, (ctx: { bands: number[]; fftSize: number; gain: number }) => void>();
-  const heatmapState = createHeatmapState();
   const claudeRenderers = new Set<ClaudeRendererApi>();
 
   // Timer epoch persisted across HUD loop restarts so navigation doesn't reset timers.
@@ -263,33 +261,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     void loop();
     return () => { stopped = true; anim.stop(); };
-  }
-
-  function runHeatmapOnModules(): () => void {
-    const { left, right } = currentConfig.modules;
-    const fps = 15;
-    const frameMs = 1000 / fps;
-    let stopped = false;
-
-    const loop = async () => {
-      const { packBW } = await import('../lib/frame.js');
-      let nextAt = Date.now();
-      while (!stopped) {
-        tickHeatmap(heatmapState);
-        const [leftFrame, rightFrame] = renderHeatmap(heatmapState);
-        const [hcl, hcr] = composeFrames([leftFrame, rightFrame] as [Frame, Frame], activeOverlay);
-        try { if (left) await transport.frameBw(packBW(hcl), left); } catch { /* non-fatal */ }
-        try { if (right) await transport.frameBw(packBW(hcr), right); } catch { /* non-fatal */ }
-        nextAt += frameMs;
-        const wait = nextAt - Date.now();
-        if (wait > 0) await new Promise<void>(r => setTimeout(r, wait));
-      }
-      // No port release here — transport.close() handles it on shutdown.
-      // Releasing here races with the next animation starting immediately.
-    };
-
-    void loop();
-    return () => { stopped = true; };
   }
 
 
@@ -528,15 +499,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         return {
           render(_now, _audioCtx) { return dataRenderer.render(); },
           stop() { /* no cleanup needed */ },
-        };
-      }
-      case 'heatmap': {
-        return {
-          render(_now, _audioCtx) {
-            const [lf, rf] = renderHeatmap(heatmapState);
-            return side === 'left' ? lf! : rf!;
-          },
-          stop() { /* stateless */ },
         };
       }
       case 'audio': {
@@ -840,8 +802,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         })
       : null;
 
-    const needsHeatmap = leftHudWidget.widget === 'heatmap' || rightHudWidget.widget === 'heatmap';
-
     const leftClockFace  = leftHudWidget.widget  === 'clock' ? leftHudWidget.face  : 'elegant';
     const rightClockFace = rightHudWidget.widget === 'clock' ? rightHudWidget.face : 'elegant';
     const needsAudio = leftClockFace === 'binary-audio' || rightClockFace === 'binary-audio'
@@ -859,8 +819,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     const loop = async () => {
       while (!stopped) {
         const now = new Date();
-
-        if (needsHeatmap) tickHeatmap(heatmapState);
 
         const lf = leftRenderer.render(now, audioCtx);
         ditherBW(lf, FRAME_COLS, FRAME_ROWS);
@@ -1073,11 +1031,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     const idleName = currentConfig.daemon.idle_animation;
     currentAnimName = idleName;
     if (idleName === 'none') return;
-
-    if (idleName === 'heatmap') {
-      stopCurrentAnim = runHeatmapOnModules();
-      return;
-    }
 
     if (idleName === 'audio-eq') {
       stopCurrentAnim = runAudioEqOnModules();
@@ -1559,9 +1512,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       if (body !== null) {
         const event = parseClaudeHook(body.trim());
         if (event && event.type !== 'unknown') {
-          if (event.type === 'tool_use' || event.type === 'agent_spawn') {
-            bumpTool(heatmapState, event.type === 'agent_spawn' ? 'Agent' : event.tool);
-          }
           for (const r of claudeRenderers) {
             r.onEvent({
               type: event.type,
@@ -1893,9 +1843,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 break;
               }
               const newHud = { ...currentConfig.hud };
-              if (m.leftWidget === 'heatmap') {
-                newHud.left = { widget: 'heatmap' };
-              } else if (m.leftWidget === 'audio') {
+              if (m.leftWidget === 'audio') {
                 const style = AUDIO_STYLES.find(s => s.id === m.leftAudioStyle)?.id;
                 newHud.left = { widget: 'audio', ...(style ? { style } : {}) };
               } else if (m.leftWidget === 'data') {
@@ -1917,9 +1865,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 const face = isClockFace(m.leftFace) ? m.leftFace : 'elegant';
                 newHud.left = { widget: 'clock', face };
               }
-              if (m.rightWidget === 'heatmap') {
-                newHud.right = { widget: 'heatmap' };
-              } else if (m.rightWidget === 'audio') {
+              if (m.rightWidget === 'audio') {
                 const style = AUDIO_STYLES.find(s => s.id === m.rightAudioStyle)?.id;
                 newHud.right = { widget: 'audio', ...(style ? { style } : {}) };
               } else if (m.rightWidget === 'data') {

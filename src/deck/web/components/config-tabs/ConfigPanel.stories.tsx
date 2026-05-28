@@ -27,7 +27,7 @@ const MOCK_CONFIG: Config = {
   },
   daemon: {
     poll_interval_ms: 500,
-    idle_animation: 'heatmap',
+    idle_animation: 'none',
     idle_after_ms: 300000,
   },
 };

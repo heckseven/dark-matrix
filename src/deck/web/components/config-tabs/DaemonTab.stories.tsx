@@ -10,7 +10,7 @@ const meta = {
   args: {
     value: {
       poll_interval_ms: 500,
-      idle_animation: 'heatmap' as const,
+      idle_animation: 'none' as const,
       idle_after_ms: 300000,
     },
     onChange: fn(),

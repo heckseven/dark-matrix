@@ -44,8 +44,8 @@ export interface DeckState {
   monitorSensitivity: number;
   hudLeftFace: ClockFace;
   hudRightFace: ClockFace;
-  hudLeftWidget: 'clock' | 'data' | 'heatmap' | 'audio';
-  hudRightWidget: 'clock' | 'data' | 'heatmap' | 'audio';
+  hudLeftWidget: 'clock' | 'data' | 'audio';
+  hudRightWidget: 'clock' | 'data' | 'audio';
   hudLeftDataStyle: DataStyle;
   hudRightDataStyle: DataStyle;
   libraryPath: string | null;
@@ -97,8 +97,8 @@ export interface DeckActions {
   setMonitorSensitivity(value: number): void;
   setHudLeftFace(face: ClockFace): void;
   setHudRightFace(face: ClockFace): void;
-  setHudLeftWidget(widget: 'clock' | 'data' | 'heatmap' | 'audio', dataStyle?: DataStyle): void;
-  setHudRightWidget(widget: 'clock' | 'data' | 'heatmap' | 'audio', dataStyle?: DataStyle): void;
+  setHudLeftWidget(widget: 'clock' | 'data' | 'audio', dataStyle?: DataStyle): void;
+  setHudRightWidget(widget: 'clock' | 'data' | 'audio', dataStyle?: DataStyle): void;
   setLibraryPath(path: string | null): void;
   addRecentFile(name: string): void;
   loadPresets(presets: HudPresetClient[], activeName: string | null): void;

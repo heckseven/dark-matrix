@@ -5,7 +5,6 @@ import { createDataRenderer } from '../../../animations/data-renderers.js';
 import type { DataStyle, DataRenderer } from '../../../animations/data-renderers.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
-import { createHeatmapState, bumpTool, renderHeatmap } from '../../../animations/heatmap.js';
 import { renderElegantTimer, renderHourglassFrame, renderTwinzTimer } from '../../../animations/timer-renderers.js';
 import { createClaudeMatrixRenderer, createClaudeContextRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
@@ -20,12 +19,6 @@ const COLS = 9;
 const _clockCache: Partial<Record<ClockFace, ClockRenderer>> = {};
 const _dataCache:  Partial<Record<DataStyle, DataRenderer>> = {};
 const _audioCache: Partial<Record<AudioStyle, ReturnType<typeof createAudioRenderer>>> = {};
-
-const _heatmapPreview = (() => {
-  const s = createHeatmapState();
-  for (const t of ['Bash', 'Read', 'Edit', 'Agent', 'Skill', 'ToolSearch', 'TodoWrite', 'Task']) bumpTool(s, t);
-  return s;
-})();
 
 // Static seeded snapshots for Claude widgets — captured mid-animation so thumbnails
 // are non-blank. Computed once at module load; thumbnails return the same frame each tick.
@@ -183,13 +176,6 @@ function renderWidgetToB64(
       for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
       const pixels = side === 'right' ? mirrorFrame(out) : out;
       return btoa(String.fromCharCode(...pixels));
-    }
-    if (widget.widget === 'heatmap') {
-      const [lf, rf] = renderHeatmap(_heatmapPreview);
-      const frame = side === 'left' ? lf : rf;
-      const out = new Uint8Array(COLS * ROWS);
-      for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
-      return btoa(String.fromCharCode(...out));
     }
     if (widget.widget === 'image') {
       const asset = assetList?.find(a => a.name === widget.file);

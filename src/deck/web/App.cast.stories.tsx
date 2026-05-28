@@ -11,7 +11,7 @@ const MOCK_CONFIG: Config = {
   },
   brightness: { mode: 'manual', multiplier: 0.14, offset: 7, min: 7, max: 255, hysteresis: 10, manual_value: 100 },
   startup: { animation: 'gol-random', scroll_text: 'DARK MATRIX' },
-  daemon: { poll_interval_ms: 500, idle_animation: 'heatmap', idle_after_ms: 300000 },
+  daemon: { poll_interval_ms: 500, idle_animation: 'none', idle_after_ms: 300000 },
 };
 
 function CastStory({ columns }: { columns: Config['cast_columns'] }) {
