@@ -109,8 +109,8 @@ export function ChatMessageList({ messages }: { messages: ChatMessage[] }) {
           {msg.type === 'event' ? (
             <>
               <span className="sr-only">Event: </span>
-              <span className="text-accent font-bold select-none w-6 flex-shrink-0" aria-hidden="true">{msg.symbol}</span>
-              <span className="text-accent"><Tokens tokens={msg.tokens} /></span>
+              <span className="text-muted-foreground font-bold select-none w-6 flex-shrink-0" aria-hidden="true">{msg.symbol}</span>
+              <span className="text-muted-foreground"><Tokens tokens={msg.tokens} /></span>
             </>
           ) : (
             <>
