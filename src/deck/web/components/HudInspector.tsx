@@ -78,7 +78,7 @@ function categoryOfWidget(w: HudWidget): string {
 }
 
 function widgetHasSettings(w: HudWidget): boolean {
-  if (w.widget === 'data') return w.style === 'line' || w.style === 'fill' || w.style === undefined;
+  if (w.widget === 'data') return w.style === 'line' || w.style === 'fill' || w.style === 'scroll' || w.style === undefined;
   if (w.widget === 'life') return w.biomeName === 'random';
   if (w.widget === 'timer') return true;
   return false;
@@ -228,7 +228,7 @@ function TimerGrid({ currentWidget, onSettings }: {
 const DATA_PRESETS: { id: string; label: string; style: DataStyle; widget: HudWidget }[] = [
   { id: 'system',      label: 'system',    style: 'line',   widget: { widget: 'data', style: 'line',   top_left: 'cpu', top_right: 'ram', bottom_left: 'net_rx', bottom_right: 'net_tx' } },
   { id: 'fill-system', label: 'fill',      style: 'fill',   widget: { widget: 'data', style: 'fill',   top_left: 'cpu', top_right: 'ram', bottom_left: 'net_rx', bottom_right: 'net_tx' } },
-  { id: 'cpu-scroll',  label: 'scroll',    style: 'scroll', widget: { widget: 'data', style: 'scroll' } },
+  { id: 'cpu-scroll',  label: 'scroll',    style: 'scroll', widget: { widget: 'data', style: 'scroll', top_left: 'cpu', top_right: 'ram', bottom_left: 'net_rx', bottom_right: 'net_tx' } },
   { id: 'cpu-cores',   label: 'cores',     style: 'cores',  widget: { widget: 'data', style: 'cores'  } },
 ];
 
@@ -238,17 +238,8 @@ function initDataRenderers(): Record<DataStyle, DataRenderer> {
     if (style === 'cores') {
       r.update({ cpuPct: 45, ramPct: 70, netRxBps: 1_000_000, netTxBps: 500_000,
         cpuCores: [80, 45, 30, 60, 70, 20, 50, 40] });
-    } else if (style === 'scroll') {
-      for (let i = 16; i >= 0; i--) {
-        const b = i * 0.4;
-        r.update({ cpuPct: 0, ramPct: 0, netRxBps: 0, netTxBps: 0, cpuCores: [
-          Math.round(50 + 40 * Math.sin(b)),       Math.round(50 + 40 * Math.sin(b + 1.5)),
-          Math.round(50 + 40 * Math.sin(b + 3)),   Math.round(50 + 40 * Math.sin(b + 4.5)),
-          Math.round(50 + 40 * Math.sin(b + 0.7)), Math.round(50 + 40 * Math.sin(b + 2.2)),
-          Math.round(50 + 40 * Math.sin(b + 3.7)), Math.round(50 + 40 * Math.sin(b + 5.2)),
-        ]});
-      }
     } else {
+      // line, fill, scroll — feed metric history
       for (let i = 16; i >= 0; i--) {
         r.update({ cpuPct: 35 + 25 * Math.sin(i * 0.4), ramPct: 60 + 15 * Math.sin(i * 0.3 + 1),
           netRxBps: 800_000 + 400_000 * Math.sin(i * 0.5 + 2),
@@ -288,13 +279,7 @@ function DataGrid({ currentWidget, onPick, onSettings }: {
       };
       r.line.update(metrics);
       r.fill.update(metrics);
-      const sb = f * 0.1;
-      r.scroll.update({ cpuPct: 0, ramPct: 0, netRxBps: 0, netTxBps: 0, cpuCores: [
-        Math.round(50 + 40 * Math.sin(sb)),       Math.round(50 + 40 * Math.sin(sb + 1.5)),
-        Math.round(50 + 40 * Math.sin(sb + 3)),   Math.round(50 + 40 * Math.sin(sb + 4.5)),
-        Math.round(50 + 40 * Math.sin(sb + 0.7)), Math.round(50 + 40 * Math.sin(sb + 2.2)),
-        Math.round(50 + 40 * Math.sin(sb + 3.7)), Math.round(50 + 40 * Math.sin(sb + 5.2)),
-      ]});
+      r.scroll.update(metrics);
       r.cores.update({ cpuPct: 0, ramPct: 0, netRxBps: 0, netTxBps: 0, cpuCores: [
         Math.round(50 + 40 * Math.sin(base * 1.1)),       Math.round(30 + 30 * Math.sin(base * 0.9 + 1)),
         Math.round(70 + 25 * Math.sin(base * 1.3 + 2)),   Math.round(45 + 35 * Math.sin(base * 0.7 + 3)),
@@ -309,7 +294,7 @@ function DataGrid({ currentWidget, onPick, onSettings }: {
   return (
     <div role="group" aria-label="Data panels" className="flex flex-wrap gap-6">
       {DATA_PRESETS.map(preset => {
-        const hasSettings = preset.style === 'line' || preset.style === 'fill';
+        const hasSettings = preset.style === 'line' || preset.style === 'fill' || preset.style === 'scroll';
         return (
           <MatrixItem
             key={preset.id}
