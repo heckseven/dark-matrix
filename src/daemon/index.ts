@@ -439,57 +439,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     };
   }
 
-  function createClaudeUsageRenderer(): ClaudeRendererApi {
-    const poller = createUsagePoller();
-    let pulsePhase = 0;
-
-    return {
-      onEvent(_e) { /* usage is polled, not event-driven */ },
-
-      render(): Frame {
-        const { util, resetAt } = poller.get();
-        const frame = createFrame();
-        pulsePhase += 0.08;
-
-        if (util === null) {
-          // Unknown: single column whose height pulses (B&W — height, not brightness).
-          const rows = Math.round((0.3 + 0.25 * Math.sin(pulsePhase)) * FRAME_ROWS);
-          for (let r = FRAME_ROWS - 1; r >= Math.max(0, FRAME_ROWS - rows); r--) {
-            frame[4 * FRAME_ROWS + r] = 255;
-          }
-          return frame;
-        }
-
-        // Layout: row 0 = reset-countdown bar, row 1 = gap, rows 2..33 = fill.
-        const FILL_TOP = 2;
-        const fillHeight = FRAME_ROWS - FILL_TOP;
-        const filledRows = Math.round(util * fillHeight);
-        for (let col = 0; col < FRAME_COLS; col++) {
-          for (let r = Math.max(FILL_TOP, FRAME_ROWS - filledRows); r < FRAME_ROWS; r++) {
-            // Over 90%: each cell flickers on/off — unstable static. Otherwise solid.
-            frame[col * FRAME_ROWS + r] = util > 0.9 ? (Math.random() < 0.5 ? 255 : 0) : 255;
-          }
-        }
-
-        // Reset countdown — dedicated top row, shown whenever a reset time is known.
-        // Bar shrinks from full width toward empty as the 5h window approaches reset.
-        if (resetAt !== null) {
-          const totalSecs = 5 * 60 * 60;
-          const secsLeft = Math.max(0, resetAt - Math.floor(Date.now() / 1000));
-          const countFrac = Math.min(1, secsLeft / totalSecs);
-          const countCols = Math.round(countFrac * FRAME_COLS);
-          for (let col = 0; col < countCols && col < FRAME_COLS; col++) {
-            frame[col * FRAME_ROWS + 0] = 255;
-          }
-        }
-
-        return frame;
-      },
-
-      stop() { poller.stop(); },
-    };
-  }
-
   // Twinz-font quota widget: shows utilisation as a two-digit percentage above a
   // percent glyph. When utilisation exceeds 99% it switches to a twinz countdown
   // of the time remaining until the 5h window resets, reverting to the
@@ -807,15 +756,13 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       }
       case 'claude': {
         const claudeStyle: ClaudeStyle = widget.style ?? 'snow';
-        const claudeRenderer: ClaudeRendererApi = claudeStyle === 'usage'
-          ? createClaudeUsageRenderer()
-          : claudeStyle === 'quota'
-            ? createClaudeQuotaRenderer()
-            : claudeStyle === 'sand'
-              ? createClaudeSandRenderer()
-              : claudeStyle === 'tetris'
-                ? createClaudeTetrisRenderer()
-                : createClaudeSnowRenderer();
+        const claudeRenderer: ClaudeRendererApi = claudeStyle === 'quota'
+          ? createClaudeQuotaRenderer()
+          : claudeStyle === 'sand'
+            ? createClaudeSandRenderer()
+            : claudeStyle === 'tetris'
+              ? createClaudeTetrisRenderer()
+              : createClaudeSnowRenderer();
         claudeRenderers.add(claudeRenderer);
         return {
           render(_now, _audioCtx) { return claudeRenderer.render(); },
