@@ -58,7 +58,7 @@ const NotificationRuleSchema = z.object({
 
 const CastColumnSchema = z.object({
   provider: z.enum(['twitch']),
-  channel: z.string().min(1).max(100),
+  channel: z.string().regex(/^[a-zA-Z0-9_]{1,25}$/),
   collapsed: z.boolean().optional(),
 });
 

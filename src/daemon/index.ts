@@ -1980,6 +1980,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               break;
             }
             case 'twitch-notify': {
+              // The IPC socket is user-private via XDG_RUNTIME_DIR permissions (trusted-local-only).
+              // Any process running as this user can send crafted twitch-notify commands.
               const m = msg as { cmd: string; eventType?: string; event?: Record<string, unknown> };
               const eventType = m.eventType ?? '';
               const event = m.event ?? {};

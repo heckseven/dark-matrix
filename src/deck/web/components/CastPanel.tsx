@@ -28,7 +28,7 @@ function AddChannelDialog({ open, onOpenChange, onAdd }: {
 
   function submit() {
     const trimmed = channel.trim().replace(/^#/, '').toLowerCase();
-    if (!trimmed) return;
+    if (!trimmed || !/^[a-zA-Z0-9_]{1,25}$/.test(trimmed)) return;
     onAdd('twitch', trimmed);
     setChannel('');
     onOpenChange(false);

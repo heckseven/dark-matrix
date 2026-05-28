@@ -3,14 +3,15 @@ import type { CastColumn } from '../types/config-types.js';
 
 type EmoteRange = { id: string; start: number; end: number };
 
-type Token = { type: 'text'; value: string } | { type: 'emote'; id: string; name: string };
+export type Token = { type: 'text'; value: string } | { type: 'emote'; id: string; name: string };
 
-type ChatMessage = {
+export type ChatMessage = {
   id: string;
   type: 'chat' | 'event';
   username: string;
   color?: string;
   tokens: Token[];
+  symbol?: string; // event-type indicator rendered separately for non-color differentiation
 };
 
 let _seq = 0;
@@ -99,6 +100,34 @@ function parsePrivmsg(line: string): ChatMessage | null {
   return { id: nextId(), type: 'chat', username, ...(safeColor ? { color: safeColor } : {}), tokens };
 }
 
+export function ChatMessageList({ messages }: { messages: ChatMessage[] }) {
+  return (
+    <>
+      {messages.map(msg => (
+        <div key={msg.id} className="flex gap-1 items-baseline">
+          {msg.type === 'event' ? (
+            <>
+              <span className="sr-only">Event: </span>
+              <span className="text-accent font-bold select-none w-6 flex-shrink-0" aria-hidden="true">{msg.symbol}</span>
+              <span className="text-accent"><Tokens tokens={msg.tokens} /></span>
+            </>
+          ) : (
+            <>
+              {msg.username && (
+                <span style={msg.color ? { color: msg.color } : undefined} className="font-bold">
+                  {msg.username}
+                  <span className="text-muted-foreground font-normal">: </span>
+                </span>
+              )}
+              <Tokens tokens={msg.tokens} />
+            </>
+          )}
+        </div>
+      ))}
+    </>
+  );
+}
+
 function Tokens({ tokens }: { tokens: Token[] }) {
   return (
     <>
@@ -143,16 +172,17 @@ function TwitchFeed({ channel, globalWsRef }: { channel: string; globalWsRef: Re
         if (msg.channel && msg.channel.toLowerCase() !== channelRef.current.toLowerCase()) return;
 
         let text = '';
+        let symbol = '';
         const p = msg.payload ?? {};
         switch (msg.eventType) {
-          case 'channel.follow':    text = `★ ${p['user_name'] ?? ''} followed`; break;
-          case 'channel.subscribe': text = `★ ${p['user_name'] ?? ''} subscribed`; break;
-          case 'channel.cheer':     text = `⚡ ${p['user_name'] ?? ''} cheered ${p['bits'] ?? ''} bits`; break;
-          case 'channel.raid':      text = `⚡ ${p['from_broadcaster_user_name'] ?? ''} raided with ${p['viewers'] ?? ''} viewers`; break;
+          case 'channel.follow':    symbol = '+'; text = `${p['user_name'] ?? ''} followed`; break;
+          case 'channel.subscribe': symbol = '++'; text = `${p['user_name'] ?? ''} subscribed`; break;
+          case 'channel.cheer':     symbol = '$'; text = `${p['user_name'] ?? ''} cheered ${p['bits'] ?? ''} bits`; break;
+          case 'channel.raid':      symbol = '>>'; text = `${p['from_broadcaster_user_name'] ?? ''} raided with ${p['viewers'] ?? ''} viewers`; break;
           default: return;
         }
         setMessages(prev => [...prev.slice(-199), {
-          id: nextId(), type: 'event' as const, username: '',
+          id: nextId(), type: 'event' as const, username: '', symbol,
           tokens: [{ type: 'text' as const, value: text }],
         }]);
       } catch { /* ignore */ }
@@ -214,18 +244,7 @@ function TwitchFeed({ channel, globalWsRef }: { channel: string; globalWsRef: Re
       aria-label={`${channel} chat`}
       className="flex-1 overflow-y-auto font-mono text-xs p-2 flex flex-col gap-0.5 min-h-0"
     >
-      {messages.map(msg => (
-        <div key={msg.id} className={msg.type === 'event' ? 'text-accent' : ''}>
-          {msg.type === 'event' && <span className="sr-only">Event: </span>}
-          {msg.type === 'chat' && msg.username && (
-            <span style={msg.color ? { color: msg.color } : undefined} className="font-bold">
-              {msg.username}
-              <span className="text-muted-foreground font-normal">: </span>
-            </span>
-          )}
-          <Tokens tokens={msg.tokens} />
-        </div>
-      ))}
+      <ChatMessageList messages={messages} />
       <div ref={bottomRef} />
     </div>
   );

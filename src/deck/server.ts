@@ -717,6 +717,7 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
 
   // Twitch OAuth state — populated by /api/twitch/connect, consumed by /api/twitch/save-token.
   let boundOrigin = `http://127.0.0.1:${opts?.port ?? 7340}`;
+  let serverReady = false;
   const pendingOAuthStates = new Map<string, { clientId: string; expiresAt: number }>();
 
   const server = http.createServer(async (req, res) => {
@@ -732,6 +733,11 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
 
     // Twitch OAuth — initiate implicit-grant flow
     if (url === '/api/twitch/connect' && method === 'POST') {
+      if (!serverReady) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'server not ready' }));
+        return;
+      }
       try {
         const body = await readBody(req);
         const { client_id } = JSON.parse(body) as { client_id?: unknown };
@@ -1957,6 +1963,7 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
     server.listen(p, host, () => {
       const port = (server.address() as { port: number }).port;
       boundOrigin = `http://127.0.0.1:${port}`;
+      serverReady = true;
       resolve(port);
     });
     server.on('error', reject);
