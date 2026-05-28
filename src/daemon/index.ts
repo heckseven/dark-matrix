@@ -1962,54 +1962,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               socket.write(JSON.stringify({ ok: true, name: preset.name }) + '\n');
               break;
             }
-            case 'notify-test': {
-              const m = msg as {
-                cmd: string;
-                appName?: string;
-                summary?: string;
-                body?: string;
-                style?: 'text' | 'dmx';
-                textSize?: 'tiny' | 'small' | 'medium' | 'large';
-                textPosition?: 'top' | 'middle' | 'bottom';
-                overlayMode?: 'or' | 'replace' | 'xor' | 'halo';
-                transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash';
-                assetPath?: string;
-                composite?: 'replace' | 'overlay';
-                durationMsOverride?: number;
-                loopCount?: number;
-                mirror?: boolean;
-                side?: 'left' | 'right';
-              };
-              const n = { appName: m.appName ?? 'test', summary: m.summary ?? 'test notification', body: m.body ?? '' };
-              const base = notificationIntent(n);
-              const route = routeNotification(base, currentConfig.notification_rules ?? [], 'scroll');
-              const effectiveAction = m.style === 'text' ? 'scroll' : (m.style ?? route.action);
-              if (effectiveAction !== 'none') {
-                const intent: DisplayIntent = { ...base };
-                intent.style = effectiveAction === 'scroll' ? 'text' : effectiveAction;
-                intent.composite = m.composite ?? route.composite;
-                if (m.textSize !== undefined) intent.textSize = m.textSize;
-                if (m.textPosition !== undefined) intent.textPosition = m.textPosition;
-                if (m.overlayMode !== undefined) intent.overlayMode = m.overlayMode;
-                if (m.transition !== undefined) intent.transition = m.transition;
-                const assetPath = m.assetPath ?? route.assetPath;
-                if (assetPath !== undefined) intent.assetPath = assetPath;
-                const rawDur = m.durationMsOverride;
-                const overrideDur = typeof rawDur === 'number' && Number.isFinite(rawDur) && rawDur > 0
-                  ? Math.min(rawDur, MAX_NOTIFY_DURATION_MS) : undefined;
-                const durMs = overrideDur ?? route.durationMs;
-                if (durMs !== undefined) {
-                  intent.durationMs = durMs;
-                  intent.expiresAt = Date.now() + durMs;
-                }
-                if (m.loopCount !== undefined) intent.loopCount = m.loopCount;
-                if (m.mirror !== undefined) intent.mirror = m.mirror;
-                if (m.side !== undefined) intent.side = m.side;
-                dispatcher.push(intent);
-              }
-              socket.write(JSON.stringify({ ok: true, action: effectiveAction }) + '\n');
-              break;
-            }
             case 'twitch-notify': {
               // The IPC socket is user-private via XDG_RUNTIME_DIR permissions (trusted-local-only).
               // Any process running as this user can send crafted twitch-notify commands.
