@@ -22,6 +22,7 @@ import { AudioPanel } from './components/AudioPanel.js';
 import type { AudioStyle } from './store.js';
 import type { Config } from './types/config-types.js';
 import { AUDIO_STYLES } from '../../animations/audio-renderers.js';
+import { LIFE_ALGORITHMS } from '../../animations/gol.js';
 import { ConfigPanel } from './components/ConfigPanel.js';
 import { HudPanel, hudSendWsGlobal } from './components/HudPanel.js';
 import { VideoPanel, VideoHeader, VideoTransportControls, VideoSettingsToggle, useVStore } from './components/VideoPanel.js';
@@ -213,8 +214,10 @@ export function App() {
   const hudSelectedSide    = useDeckStore(s => s.hudSelectedSide);
   const selectedPreset     = hudPresets.find(p => p.name === selectedPresetName) ?? null;
   const selectedBiomeName  = useDeckStore(s => s.selectedBiomeName);
+  const biomePresets       = useDeckStore(s => s.biomePresets);
   const lifeIsPlaying      = useDeckStore(s => s.lifeIsPlaying);
   const lifeStepCount      = useDeckStore(s => s.lifeStepCount);
+  const lifeGeneration     = useDeckStore(s => s.lifeGeneration);
   const configDirty        = useDeckStore(s => s.configDirty);
   const saveConfig         = useDeckStore(s => s.saveConfig);
   const isTwitchConnected  = useDeckStore(s => !!(s.configData?.twitch?.broadcaster_id));
@@ -266,6 +269,7 @@ export function App() {
   const bridge = usePreviewBridge();
   const hudSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [cursor, setCursor] = useState({ col: 0, row: 0 });
+  const [lifeCursor, setLifeCursor] = useState<{ col: number; row: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
   const footerRef = useRef<HTMLElement>(null);
@@ -384,6 +388,26 @@ export function App() {
         case 'r': case 'R': if (dualModuleRef.current) { e.preventDefault(); deckStore.getState().setPreviewTarget('right'); } break;
         case 'b': case 'B': if (dualModuleRef.current) { e.preventDefault(); deckStore.getState().setPreviewTarget('both'); } break;
         case 'm': case 'M': if (dualModuleRef.current) { e.preventDefault(); deckStore.getState().setPreviewTarget('mirror'); } break;
+        case ' ': {
+          const s = deckStore.getState();
+          if (s.activeMode === 'life' && !(e.target instanceof HTMLCanvasElement) && !(e.target instanceof HTMLButtonElement) && !(e.target instanceof HTMLInputElement)) {
+            e.preventDefault();
+            s.setLifePlaying(!s.lifeIsPlaying);
+          }
+          break;
+        }
+        case '[':
+          if (deckStore.getState().activeMode === 'life') {
+            e.preventDefault();
+            deckStore.getState().stepLifeBack();
+          }
+          break;
+        case ']':
+          if (deckStore.getState().activeMode === 'life') {
+            e.preventDefault();
+            deckStore.getState().stepLifeForward();
+          }
+          break;
       }
     }
     document.addEventListener('keydown', onKey);
@@ -423,6 +447,12 @@ export function App() {
     );
   }
 
+  const lifeSelectedBiome = biomePresets.find(b => b.name === selectedBiomeName) ?? null;
+  const lifeAlgoEntry = lifeSelectedBiome ? LIFE_ALGORITHMS[lifeSelectedBiome.algorithm] : null;
+  const lifeAlgoNotation = lifeAlgoEntry
+    ? `B${lifeAlgoEntry.birth.join('')}/S${lifeAlgoEntry.survival.join('')}`
+    : null;
+
   const statusChip = (
     <div aria-live="polite" aria-atomic="true">
       {uncalibrated ? (
@@ -449,7 +479,7 @@ export function App() {
 
   return (
     <TooltipProvider>
-      <ShortcutDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} dualModule={dualModule} />
+      <ShortcutDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} dualModule={dualModule} mode={activeMode === 'life' ? 'life' : 'design'} />
       <Dialog open={castAudioOpen} onOpenChange={setCastAudioOpen}>
         <DialogContent className="w-[calc(100vw-80px)] h-[calc(100vh-80px)] flex flex-col gap-0 p-0 overflow-hidden">
           <DialogTitle className="sr-only">Audio visualizer</DialogTitle>
@@ -756,7 +786,6 @@ export function App() {
               </div>
             ) : activeMode === 'life' ? (
               <div className="flex items-center gap-2">
-                {selectedBiomeName && <span className="font-mono text-xs text-muted-foreground tabular-nums w-12 text-right">{lifeStepCount}</span>}
                 <Button variant="ghost" aria-label="Step back" tooltip="step back" disabled={lifeIsPlaying || !selectedBiomeName} onClick={() => deckStore.getState().stepLifeBack()}>◁</Button>
                 <Button variant="ghost" aria-label="Restart simulation" tooltip="restart" disabled={!selectedBiomeName} onClick={() => deckStore.getState().restartLife()}>↺</Button>
                 <Button variant="ghost" aria-label="Step forward" tooltip="step forward" disabled={lifeIsPlaying || !selectedBiomeName} onClick={() => deckStore.getState().stepLifeForward()}>▷</Button>
@@ -788,7 +817,7 @@ export function App() {
           </div>
         ) : activeMode === 'life' ? (
           <div className="h-full flex">
-            <LifePanel topPad={headerHeight} dualModule={dualModule} />
+            <LifePanel topPad={headerHeight} bottomPad={bottomPad} dualModule={dualModule} onCursorMove={setLifeCursor} />
           </div>
         ) : activeMode === 'cast' ? (
           <div className="absolute inset-x-0 bottom-0 flex" style={{ top: headerHeight }}>
@@ -807,28 +836,54 @@ export function App() {
           />
         )}
 
-        {!isFullscreenMode(activeMode) && <footer ref={footerRef} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-          <div className="flex-1 flex items-center gap-4">
-            <span>frame {activeFrameIdx + 1}</span>
-            <span>row {cursor.row}</span>
-            <span>col {cursor.col}</span>
-          </div>
-          {livePreviewOn && mode === 'gray'
-            ? <Text as="span" size="xs" className="text-red-500">degraded live preview when using grey values</Text>
-            : <Text as="span" size="xs" variant="muted">drag to draw · ? for shortcuts</Text>
-          }
-          <div className="flex-1 flex items-center justify-end gap-4">
-            <LivePreviewToggle on={livePreviewOn} onToggle={() => {
-              if (livePreviewOn) { bridge.stop(); setLivePreviewOn(false); }
-              else { bridge.start(); setLivePreviewOn(true); }
-            }} />
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" aria-label="Zoom out" disabled={zoom <= ZOOM_STEPS[0]} onClick={() => deckStore.getState().setZoom(stepZoom(deckStore.getState().zoom, -1))}>-</Button>
-              <Text as="span" size="xs">{zoom * 100}%</Text>
-              <Button variant="ghost" aria-label="Zoom in" disabled={zoom >= (ZOOM_STEPS.at(-1) ?? Infinity)} onClick={() => deckStore.getState().setZoom(stepZoom(deckStore.getState().zoom, 1))}>+</Button>
-            </div>
-            <Button variant="ghost" tooltip="shortcuts" onClick={() => setShortcutsOpen(true)} aria-label="Keyboard shortcuts"><span aria-hidden="true">???</span></Button>
-          </div>
+        {(!isFullscreenMode(activeMode) || activeMode === 'life') && <footer ref={footerRef} role="contentinfo" aria-label={activeMode === 'life' ? 'Simulation status' : 'Editor status'} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+          {activeMode === 'life' ? (
+            <>
+              <div className="flex-1 flex items-center gap-4" role="status" aria-live="off">
+                {selectedBiomeName && (
+                  <>
+                    <span className="tabular-nums">step {lifeStepCount}</span>
+                    <span className="tabular-nums">gen {lifeGeneration}</span>
+                  </>
+                )}
+                {lifeSelectedBiome && lifeAlgoNotation && <span>{lifeSelectedBiome.algorithm} {lifeAlgoNotation}</span>}
+                {lifeCursor && <><span className="tabular-nums">row {lifeCursor.row}</span><span className="tabular-nums">col {lifeCursor.col}</span></>}
+              </div>
+              <Text as="span" size="xs" variant="muted">click to draw · ? for shortcuts</Text>
+              <div className="flex-1 flex items-center justify-end gap-4">
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" aria-label="Zoom out" disabled={zoom <= ZOOM_STEPS[0]} onClick={() => deckStore.getState().setZoom(stepZoom(deckStore.getState().zoom, -1))}>-</Button>
+                  <Text as="span" size="xs">{zoom * 100}%</Text>
+                  <Button variant="ghost" aria-label="Zoom in" disabled={zoom >= (ZOOM_STEPS.at(-1) ?? Infinity)} onClick={() => deckStore.getState().setZoom(stepZoom(deckStore.getState().zoom, 1))}>+</Button>
+                </div>
+                <Button variant="ghost" tooltip="shortcuts" onClick={() => setShortcutsOpen(true)} aria-label="Keyboard shortcuts"><span aria-hidden="true">???</span></Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex-1 flex items-center gap-4">
+                <span>frame {activeFrameIdx + 1}</span>
+                <span>row {cursor.row}</span>
+                <span>col {cursor.col}</span>
+              </div>
+              {livePreviewOn && mode === 'gray'
+                ? <Text as="span" size="xs" className="text-red-500">degraded live preview when using grey values</Text>
+                : <Text as="span" size="xs" variant="muted">drag to draw · ? for shortcuts</Text>
+              }
+              <div className="flex-1 flex items-center justify-end gap-4">
+                <LivePreviewToggle on={livePreviewOn} onToggle={() => {
+                  if (livePreviewOn) { bridge.stop(); setLivePreviewOn(false); }
+                  else { bridge.start(); setLivePreviewOn(true); }
+                }} />
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" aria-label="Zoom out" disabled={zoom <= ZOOM_STEPS[0]} onClick={() => deckStore.getState().setZoom(stepZoom(deckStore.getState().zoom, -1))}>-</Button>
+                  <Text as="span" size="xs">{zoom * 100}%</Text>
+                  <Button variant="ghost" aria-label="Zoom in" disabled={zoom >= (ZOOM_STEPS.at(-1) ?? Infinity)} onClick={() => deckStore.getState().setZoom(stepZoom(deckStore.getState().zoom, 1))}>+</Button>
+                </div>
+                <Button variant="ghost" tooltip="shortcuts" onClick={() => setShortcutsOpen(true)} aria-label="Keyboard shortcuts"><span aria-hidden="true">???</span></Button>
+              </div>
+            </>
+          )}
         </footer>}
 
 

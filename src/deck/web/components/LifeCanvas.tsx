@@ -159,7 +159,7 @@ export function stepGrid(grid: Uint8Array, cols: number, birth: readonly number[
 
 const HISTORY_MAX = 64;
 
-export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCount = 0, stepBackCount = 0, onGridChange, onTick, onStep }: {
+export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCount = 0, stepBackCount = 0, onGridChange, onTick, onStep, onCursorMove }: {
   biome: BiomePreset | null;
   playing: boolean;
   generation: number;
@@ -169,6 +169,7 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCo
   onGridChange: (snapshot: string) => void;
   onTick?: (snapshot: string) => void;
   onStep?: (count: number) => void;
+  onCursorMove?: (pos: { col: number; row: number } | null) => void;
 }) {
   const zoom = useDeckStore(s => s.zoom);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -183,6 +184,8 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCo
   onStepRef.current = onStep;
   const onTickRef = useRef(onTick);
   onTickRef.current = onTick;
+  const onCursorMoveRef = useRef(onCursorMove);
+  onCursorMoveRef.current = onCursorMove;
 
   const state = useRef({
     grid: new Uint8Array(cols * ROWS) as Uint8Array<ArrayBuffer>,
@@ -271,6 +274,7 @@ export function LifeCanvas({ biome, playing, generation, cols = 9, stepForwardCo
     state.current.hovered = next;
     if (prev) repaintCell(prev.col, prev.row);
     if (next) repaintCell(next.col, next.row);
+    onCursorMoveRef.current?.(next);
   }
 
   function setFocusMarks(on: boolean) {

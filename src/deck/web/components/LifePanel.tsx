@@ -32,7 +32,7 @@ function makeBiome(): BiomePreset {
   return { name: `biome-${ts}`, algorithm: 'conway', tickMs: 120 };
 }
 
-export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number; dualModule?: boolean }) {
+export function LifePanel({ topPad = 0, bottomPad = 0, dualModule = false, onCursorMove }: { topPad?: number; bottomPad?: number; dualModule?: boolean; onCursorMove?: (pos: { col: number; row: number } | null) => void }) {
   const [designPickerOpen, setDesignPickerOpen] = useState(false);
   const [importEntries, setImportEntries] = useState<LibraryEntry[] | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -86,7 +86,7 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
       frame: snapshot,
       mode: 'bw',
       width: colsRef.current,
-      target: dualRef.current ? 'both' : 'left',
+      target: dualRef.current ? deckStore.getState().previewTarget : 'left',
     }));
   }, []);
 
@@ -258,9 +258,9 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
       <ThreePanelLayout
         gap="1rem"
         leftLabel="Biome list"
-        leftStyle={{ paddingTop: topPad }}
+        leftStyle={{ paddingTop: topPad, paddingBottom: bottomPad }}
         rightLabel="Life inspector"
-        rightStyle={{ paddingTop: topPad }}
+        rightStyle={{ paddingTop: topPad, paddingBottom: bottomPad }}
         centerClassName="overflow-hidden flex items-center justify-center"
         centerRef={mainRef}
         left={
@@ -304,6 +304,7 @@ export function LifePanel({ topPad = 0, dualModule = false }: { topPad?: number;
                 onGridChange={handleGridChange}
                 onTick={sendPreviewFrame}
                 onStep={n => deckStore.getState().setLifeStepCount(n)}
+                {...(onCursorMove !== undefined ? { onCursorMove } : {})}
               />
             </div>
           ) : (
