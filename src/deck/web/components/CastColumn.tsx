@@ -35,8 +35,7 @@ export function CastColumn({ column, onCollapse, onRemove }: {
 
   return (
     <div
-      className="group flex flex-col min-h-0 flex-shrink-0"
-      style={{ width: '40ch', minWidth: '40ch' }}
+      className="group flex flex-col min-h-0 flex-1"
     >
       {/* Column header */}
       <div

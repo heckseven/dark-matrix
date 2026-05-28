@@ -109,15 +109,15 @@ export function ChatMessageList({ messages }: { messages: ChatMessage[] }) {
           {msg.type === 'event' ? (
             <>
               <span className="sr-only">Event: </span>
-              <span className="text-muted-foreground font-bold select-none flex-shrink-0" aria-hidden="true">{msg.symbol}</span>
-              <span className="text-muted-foreground"><Tokens tokens={msg.tokens} /></span>
+              <span className="text-primary font-bold select-none flex-shrink-0" aria-hidden="true">{msg.symbol}</span>
+              <span className="text-primary"><Tokens tokens={msg.tokens} /></span>
             </>
           ) : (
             <>
               {msg.username && (
                 <span style={msg.color ? { color: msg.color } : undefined} className="font-bold">
                   {msg.username}
-                  <span className="text-muted-foreground font-normal">: </span>
+                  <span className="text-primary font-normal">: </span>
                 </span>
               )}
               <Tokens tokens={msg.tokens} />
@@ -243,7 +243,7 @@ export function ChatFeed({ column }: { column: CastColumn }) {
     return <TwitchFeed channel={column.channel} />;
   }
   return (
-    <div className="flex-1 flex items-center justify-center font-mono text-xs text-muted-foreground">
+    <div className="flex-1 flex items-center justify-center font-mono text-xs text-primary">
       unknown provider
     </div>
   );

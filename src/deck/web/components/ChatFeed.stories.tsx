@@ -30,7 +30,7 @@ const EVENTS_ONLY: ChatMessage[] = [
 ];
 
 const meta = {
-  title: 'Cast/ChatMessageList',
+  title: 'App/Cast/ChatMessageList',
   component: ChatMessageList,
   decorators: [
     (Story) => (
