@@ -10,7 +10,6 @@ const SENSOR_PATH_RE = /^\/sys\/bus\/iio\/devices\/iio:device\d+\/in_illuminance
 const HudWidgetSchema = z.discriminatedUnion('widget', [
   z.object({ widget: z.literal('clock'), face: z.enum(['binary-audio', 'elegant', 'stretch', 'analog', 'binary-blocks', 'binary-tall', 'binary-diamond', 'twinz', 'razor', 'blade']) }),
   z.object({ widget: z.literal('data'), style: z.enum(['line', 'fill', 'scroll', 'cores']).optional(), top_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), top_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional() }),
-  z.object({ widget: z.literal('heatmap') }),
   z.object({ widget: z.literal('audio'), style: z.enum(['vu-glitch', 'circuit', 'spirits', 'scope-dual', 'kick-d', 'waterfall', 'sparks', 'hex', 'specter', 'heat', 'dark-matter', 'spectrum-fall', 'neo', 'cipher', 'wake', 'rhythm', 'drop', 'life-erode-4', 'glitch-sort-b', 'spiral-d', 'strobe', 'glitch-corrupt']).optional() }),
   z.object({ widget: z.literal('image'), file: z.string().regex(/^[a-zA-Z0-9_\-]+\.dmx\.json$/i).max(73), speed: z.number().min(0.25).max(8).optional(), loop: z.boolean().optional() }),
   z.object({ widget: z.literal('life'), biomeName: z.string().min(1).max(100), randomIntervalMs: z.number().int().min(5000).max(3_600_000).optional() }),
@@ -108,7 +107,7 @@ export const ConfigSchema = z.object({
   }),
   daemon: z.object({
     poll_interval_ms: z.number().int().min(100).max(60000),
-    idle_animation: z.enum(['heatmap', 'audio-eq', 'gol-random', 'scroll', 'gif', 'hud', 'none']),
+    idle_animation: z.enum(['audio-eq', 'gol-random', 'scroll', 'gif', 'hud', 'none']),
     idle_after_ms: z.number().int().min(0),
     idle_gif_path: z.string().regex(/\.gif$/i).optional(),
     idle_gif_mode: z.enum(['bw', 'gray']).optional(),
@@ -183,7 +182,7 @@ export const DEFAULT_CONFIG: Config = {
   },
   daemon: {
     poll_interval_ms: 500,
-    idle_animation: 'heatmap',
+    idle_animation: 'none',
     idle_after_ms: 300000,
   },
 };

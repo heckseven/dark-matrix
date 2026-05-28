@@ -4,7 +4,6 @@ import { createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
 import { renderElegantTimer, renderTwinzTimer, createHourglassTimerRenderer } from '../../../animations/timer-renderers.js';
 import { getDataRenderer } from '../data-renderer-pool.js';
-import { createHeatmapState, bumpTool, renderHeatmap } from '../../../animations/heatmap.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { createClaudeMatrixRenderer, createClaudeContextRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
@@ -113,15 +112,6 @@ function extractHalf(full: Uint8Array, side: 'left' | 'right'): Uint8Array {
   return out;
 }
 
-// Seeded heatmap preview state — static demo for the dual-preview canvas
-const _heatmapPreview = (() => {
-  const s = createHeatmapState();
-  for (const t of ['Bash', 'Read', 'Edit', 'Write', 'Grep', 'Agent', 'Skill', 'ToolSearch', 'TodoWrite', 'Task', 'WebSearch', 'WebFetch']) {
-    bumpTool(s, t);
-  }
-  return s;
-})();
-
 const _previewClaudeMatrix = createClaudeMatrixRenderer();
 const _previewClaudeContext = (() => {
   const r = createClaudeContextRenderer();
@@ -217,12 +207,6 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, 
       const style = widget.style ?? AUDIO_STYLES[0]!.id;
       const rendered = bayerDither(getAudioRenderer(style)(audioCtx));
       return side === 'right' ? mirrorFrame(rendered) : rendered;
-    } else if (widget.widget === 'heatmap') {
-      const [lf, rf] = renderHeatmap(_heatmapPreview);
-      const frame = side === 'left' ? lf : rf;
-      const out = new Uint8Array(COLS * ROWS);
-      for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
-      return out;
     } else if (widget.widget === 'image') {
       const cached = imageCache[widget.file];
       if (!cached || !cached.frames.length) return empty;

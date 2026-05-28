@@ -127,13 +127,6 @@ export const DataGridFromSettings: Story = {
   },
 };
 
-/** Agent grid — heatmap widget and Claude styles. */
-export const AgentHeatmap: Story = {
-  args: {
-    widget: { widget: 'heatmap' } satisfies HudWidget,
-  },
-};
-
 /** Audio grid — dark matter style active; mic toggle visible. */
 export const AudioDarkMatter: Story = {
   args: {

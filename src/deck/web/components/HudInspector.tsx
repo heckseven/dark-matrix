@@ -14,7 +14,6 @@ import { createDataRenderer } from '../../../animations/data-renderers.js';
 import type { DataStyle, DataMetric, DataRenderer } from '../../../animations/data-renderers.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
-import { createHeatmapState, bumpTool, tickHeatmap, renderHeatmap } from '../../../animations/heatmap.js';
 import { CLAUDE_STYLES, createClaudeMatrixRenderer, createClaudeContextRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import type { ClaudeStyle } from '../../../animations/claude-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
@@ -69,7 +68,6 @@ function bayerToB64(frame: Uint8Array): string {
 function categoryOfWidget(w: HudWidget): string {
   if (w.widget === 'clock')   return 'time';
   if (w.widget === 'timer')   return 'timer';
-  if (w.widget === 'heatmap') return 'agent';
   if (w.widget === 'claude')  return 'agent';
   if (w.widget === 'audio')   return 'audio';
   if (w.widget === 'image')   return 'media';
@@ -313,14 +311,6 @@ function DataGrid({ currentWidget, onPick, onSettings }: {
 
 // ── Layer 2: Agent grid ───────────────────────────────────────────────────
 
-const _heatmapGridState = (() => {
-  const s = createHeatmapState();
-  for (const t of ['Bash', 'Read', 'Edit', 'Write', 'Grep', 'Agent', 'Skill', 'ToolSearch', 'TodoWrite', 'Task', 'WebSearch']) {
-    bumpTool(s, t);
-  }
-  return s;
-})();
-
 const _claudeMatrixRenderer = createClaudeMatrixRenderer();
 const _claudeSandRenderer = (() => {
   const r = createClaudeSandRenderer();
@@ -383,10 +373,6 @@ function AgentGrid({ currentWidget, onPick }: {
   currentWidget: HudWidget | null;
   onPick: (w: HudWidget) => void;
 }) {
-  const [heatmapPixels, setHeatmapPixels] = useState(() => {
-    const [left] = renderHeatmap(_heatmapGridState);
-    return bwToB64(left);
-  });
   const [matrixPixels, setMatrixPixels] = useState(() => bayerToB64(_claudeMatrixRenderer.render()));
   const [contextPixels, setContextPixels] = useState(() => bayerToB64(_claudeContextRenderer.render()));
   const [sandPixels, setSandPixels] = useState(() => bayerToB64(_claudeSandRenderer.render()));
@@ -397,10 +383,6 @@ function AgentGrid({ currentWidget, onPick }: {
     let tick = 0;
     const iid = setInterval(() => {
       tick++;
-      tickHeatmap(_heatmapGridState);
-      const [left] = renderHeatmap(_heatmapGridState);
-      setHeatmapPixels(bwToB64(left));
-
       // Fire synthetic matrix events occasionally to show activity
       if (tick % 8 === 0) {
         const tools = ['Read', 'Bash', 'Edit', 'Grep', 'Write'];
@@ -426,14 +408,6 @@ function AgentGrid({ currentWidget, onPick }: {
 
   return (
     <div role="group" aria-label="Agent panels" className="flex flex-wrap gap-6">
-      <MatrixItem
-        name="tool heatmap"
-        aria-label="tool heatmap"
-        width={9}
-        pixels={heatmapPixels}
-        isSelected={currentWidget?.widget === 'heatmap'}
-        onSelect={() => onPick({ widget: 'heatmap' })}
-      />
       {CLAUDE_STYLES.map(({ id, label }) => {
         const preview = id === 'matrix' ? matrixPixels
           : id === 'context' ? contextPixels

@@ -5,7 +5,7 @@ import { Checkbox } from '../ui/checkbox.js';
 import { ScrubInput } from '../ui/scrub-input.js';
 import { TabFrame, TabRow } from './tab-frame.js';
 
-type IdleAnimation = 'heatmap' | 'audio-eq' | 'gol-random' | 'scroll' | 'gif' | 'hud' | 'none';
+type IdleAnimation = 'audio-eq' | 'gol-random' | 'scroll' | 'gif' | 'hud' | 'none';
 type GifMode = 'bw' | 'gray';
 type EqSource = 'monitor' | 'mic';
 
@@ -25,7 +25,6 @@ interface DaemonTabProps {
 }
 
 const IDLE_ANIMATION_OPTIONS: { value: IdleAnimation; label: string }[] = [
-  { value: 'heatmap',    label: 'heatmap' },
   { value: 'audio-eq',  label: 'audio-eq' },
   { value: 'gol-random', label: 'gol-random' },
   { value: 'scroll',    label: 'scroll' },

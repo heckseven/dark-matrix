@@ -85,7 +85,7 @@ export type Config = {
   };
   daemon: {
     poll_interval_ms: number;
-    idle_animation: 'heatmap' | 'audio-eq' | 'gol-random' | 'scroll' | 'gif' | 'hud' | 'none';
+    idle_animation: 'audio-eq' | 'gol-random' | 'scroll' | 'gif' | 'hud' | 'none';
     idle_after_ms: number;
     idle_gif_path?: string;
     idle_gif_mode?: 'bw' | 'gray';

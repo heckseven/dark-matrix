@@ -7,7 +7,6 @@ export type HudWidget =
   | { widget: 'clock'; face?: ClockFace }
   | { widget: 'timer'; style?: 'elegant' | 'hourglass' | 'twinz'; durationMs?: number; repeat?: boolean }
   | { widget: 'data'; style?: DataStyle; top_left?: DataMetric; top_right?: DataMetric; bottom_left?: DataMetric; bottom_right?: DataMetric }
-  | { widget: 'heatmap' }
   | { widget: 'audio'; style?: AudioStyle }
   | { widget: 'image'; file: string; speed?: number; loop?: boolean }
   | { widget: 'life'; biomeName: string; randomIntervalMs?: number }
