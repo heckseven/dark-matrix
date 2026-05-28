@@ -282,21 +282,23 @@ export function createHourglassTimerRenderer(): HourglassTimerRenderer {
   }
 
   // Step a single grain one row. Returns true if still falling, false if settled.
-  function stepGrain(grain: [number, number]): boolean {
+  function stepGrain(grain: [number, number], occupied: Set<number>): boolean {
     const [col, row] = grain;
     const nr = row + 1;
     if (nr >= ROWS || !inBounds(col, nr)) {
       bottomPile[col * ROWS + row] = 1;
       return false;
     }
-    if (bottomPile[col * ROWS + nr] === 0) {
+    const downIdx = col * ROWS + nr;
+    if (bottomPile[downIdx] === 0 && !occupied.has(downIdx)) {
       grain[1] = nr;
       return true;
     }
     const dirs: readonly [-1 | 1, 1 | -1] = Math.random() < 0.5 ? [-1, 1] : [1, -1];
     for (const d of dirs) {
       const nc = col + d;
-      if (inBounds(nc, nr) && bottomPile[nc * ROWS + nr] === 0) {
+      const sideIdx = nc * ROWS + nr;
+      if (inBounds(nc, nr) && bottomPile[sideIdx] === 0 && !occupied.has(sideIdx)) {
         grain[0] = nc;
         grain[1] = nr;
         return true;
@@ -307,9 +309,18 @@ export function createHourglassTimerRenderer(): HourglassTimerRenderer {
   }
 
   function advanceInFlight(): void {
+    // Track occupied positions so two grains can't converge on the same cell
+    // in the same tick.
+    const occupied = new Set<number>();
+    for (const [c, r] of inFlight) occupied.add(c * ROWS + r);
     const still: Array<[number, number]> = [];
     for (const g of inFlight) {
-      if (stepGrain(g)) still.push(g);
+      const fromIdx = g[0] * ROWS + g[1];
+      occupied.delete(fromIdx);
+      if (stepGrain(g, occupied)) {
+        occupied.add(g[0] * ROWS + g[1]);
+        still.push(g);
+      }
     }
     inFlight = still;
   }
