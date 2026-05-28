@@ -157,10 +157,11 @@ function TimerGrid({ currentWidget, onSettings }: {
   const elegantRemRef    = useRef(TIMER_DEMO_MS);
   const hourglassRemRef  = useRef(HOURGLASS_DEMO_MS);
   const twinzRemRef      = useRef(TWINZ_DEMO_MS);
+  const fallPhaseRef     = useRef(0);
 
   const [pixels, setPixels] = useState<{ elegant: string; hourglass: string; twinz: string }>(() => ({
     elegant:   bwToB64(renderElegantTimer(elegantRemRef.current)),
-    hourglass: bwToB64(renderHourglassFrame(1 - hourglassRemRef.current / HOURGLASS_DEMO_MS)),
+    hourglass: bwToB64(renderHourglassFrame(1 - hourglassRemRef.current / HOURGLASS_DEMO_MS, fallPhaseRef.current)),
     twinz:     bwToB64(renderTwinzTimer(twinzRemRef.current)),
   }));
 
@@ -175,9 +176,11 @@ function TimerGrid({ currentWidget, onSettings }: {
       twinzRemRef.current = Math.max(0, twinzRemRef.current - 100);
       if (twinzRemRef.current === 0) twinzRemRef.current = TWINZ_DEMO_MS;
 
+      fallPhaseRef.current++;
+
       setPixels({
         elegant:   bwToB64(renderElegantTimer(elegantRemRef.current)),
-        hourglass: bwToB64(renderHourglassFrame(1 - hourglassRemRef.current / HOURGLASS_DEMO_MS)),
+        hourglass: bwToB64(renderHourglassFrame(1 - hourglassRemRef.current / HOURGLASS_DEMO_MS, fallPhaseRef.current)),
         twinz:     bwToB64(renderTwinzTimer(twinzRemRef.current)),
       });
     }, 100);

@@ -170,7 +170,7 @@ const HG_BOTTOM_DRAIN_ORDER: ReadonlyArray<readonly [number, number]> =
     ((c1 - 4) ** 2 + (r1 - 17) ** 2) - ((c2 - 4) ** 2 + (r2 - 17) ** 2),
   );
 
-export function renderHourglassFrame(fraction: number): Frame {
+export function renderHourglassFrame(fraction: number, fallPhase?: number): Frame {
   const f = Math.max(0, Math.min(1, fraction));
   const frame = createFrame();
 
@@ -184,6 +184,20 @@ export function renderHourglassFrame(fraction: number): Frame {
     const [c, r] = HG_BOTTOM_CELLS[i]!;
     frame[c * ROWS + r] = 255;
   }
+
+  // Falling-grain animation: a single grain cycles through the neck region
+  // each call when fallPhase is provided and there's anything to drain.
+  if (fallPhase !== undefined && elapsed > 0 && elapsed < HG_TOP_CELLS.length) {
+    const NECK_COL = 4;
+    const NECK_TOP = 14;
+    const NECK_BOTTOM = 19;
+    const span = NECK_BOTTOM - NECK_TOP + 1;
+    const row = NECK_TOP + (((fallPhase % span) + span) % span);
+    if ((HG_BOUNDARY_BUF[NECK_COL * ROWS + row] ?? 0) > 0) {
+      frame[NECK_COL * ROWS + row] = 255;
+    }
+  }
+
   return frame;
 }
 
@@ -273,6 +287,12 @@ export function createHourglassTimerRenderer(): HourglassTimerRenderer {
   let drainedCount = 0;
   let burstCells: Array<[number, number]> = [];
   let burstFrames = 0;
+  // Falling grain that cycles through the neck each frame to give a visible
+  // "sand flowing" effect on top of the snap-based pile state.
+  const NECK_COL = 4;
+  const NECK_TOP = 14;
+  const NECK_BOTTOM = 19;
+  let neckGrainRow = NECK_TOP;
 
   function inBounds(c: number, r: number): boolean {
     return c >= 0 && c < COLS && r >= 0 && r < ROWS &&
@@ -333,6 +353,17 @@ export function createHourglassTimerRenderer(): HourglassTimerRenderer {
             frame[c * ROWS + r] = 255;
           }
           if (--burstFrames === 0) burstCells = [];
+        }
+        // Continuous falling grain through the neck while drain is in progress.
+        const draining = drainedCount > 0 && drainedCount < TOTAL_GRAINS;
+        if (draining) {
+          neckGrainRow++;
+          if (neckGrainRow > NECK_BOTTOM) neckGrainRow = NECK_TOP;
+          if (inBounds(NECK_COL, neckGrainRow)) {
+            frame[NECK_COL * ROWS + neckGrainRow] = 255;
+          }
+        } else {
+          neckGrainRow = NECK_TOP;
         }
         return frame;
       }

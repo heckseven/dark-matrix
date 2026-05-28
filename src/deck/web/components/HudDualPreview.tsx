@@ -242,8 +242,10 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, 
       for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
       return out;
     } else if (widget.widget === 'timer') {
+      // Cycle the hourglass slowly so the static preview shows drain + fall animation.
+      const hgFraction = (_dualPreviewClaudeTick % 300) / 300;
       const frame = widget.style === 'hourglass'
-        ? renderHourglassFrame(0.5)
+        ? renderHourglassFrame(hgFraction, _dualPreviewClaudeTick)
         : widget.style === 'twinz'
           ? renderTwinzTimer(90_061)
           : renderElegantTimer(90_000);
