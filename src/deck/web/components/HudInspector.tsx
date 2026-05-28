@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useId, useCallback, useReducer } from 'rea
 import type { ReactNode } from 'react';
 import { MatrixPreview } from './MatrixPreview.js';
 import { MatrixItem, CornerBrackets } from './MatrixItem.js';
-import { Tabs } from './ui/tabs.js';
 import { Select } from './ui/select.js';
 import { Button } from './ui/button.js';
 import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogClose } from './ui/dialog.js';
@@ -11,7 +10,7 @@ import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-rend
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
 import { renderElegantTimer, renderTwinzTimer, createHourglassTimerRenderer } from '../../../animations/timer-renderers.js';
 import type { HourglassTimerRenderer } from '../../../animations/timer-renderers.js';
-import { DATA_STYLES, createDataRenderer } from '../../../animations/data-renderers.js';
+import { createDataRenderer } from '../../../animations/data-renderers.js';
 import type { DataStyle, DataMetric, DataRenderer } from '../../../animations/data-renderers.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
@@ -976,19 +975,6 @@ function DataSettings({ widget, uid, onChange }: {
 }) {
   return (
     <div role="group" aria-label="Data widget settings" className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <span className="font-mono text-xs text-muted-foreground">style</span>
-        <Tabs
-          options={DATA_STYLES.filter(s => s.id !== 'cores' && s.id !== 'scroll').map(s => ({ value: s.id, label: s.label }))}
-          value={widget.style ?? 'line'}
-          onChange={(v) => {
-            const s = DATA_STYLES.find(d => d.id === v);
-            if (s) onChange({ ...widget, widget: 'data', style: s.id });
-          }}
-          aria-label="Data style"
-        />
-      </div>
-
       <div className="flex flex-col gap-3">
         <span className="font-mono text-xs text-muted-foreground">quadrants</span>
         <div className="grid grid-cols-2 gap-2">
@@ -1148,7 +1134,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
         />
       )}
       <span aria-hidden="true" className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
-        {showImportHeader ? 'import image' : (view === 'settings' ? activeCategory : '')}
+        {showImportHeader ? 'import image' : (view === 'settings' ? `${activeCategory} settings` : '')}
       </span>
       <div aria-live="polite" aria-atomic="true" className="ml-auto">
         {showImportHeader && importHasFile && (
