@@ -40,6 +40,13 @@ const MATRIX: Row[] = [
   { label: 'mirror', keys: 'M' },
 ];
 
+const LIFE_SIM: Row[] = [
+  { label: 'play / pause',  keys: 'space' },
+  { label: 'step back',     keys: '[' },
+  { label: 'step forward',  keys: ']' },
+  { label: 'zoom in / out', keys: '+ -' },
+];
+
 function Col({ header, rows }: { header: string; rows: Row[] }) {
   const id = `shortcut-col-${header}`;
   return (
@@ -62,10 +69,12 @@ export function ShortcutDialog({
   open,
   onOpenChange,
   dualModule = true,
+  mode = 'design',
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   dualModule?: boolean;
+  mode?: 'design' | 'life';
 }) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
@@ -75,11 +84,18 @@ export function ShortcutDialog({
           <DialogPrimitive.Title className="text-center mb-5 tracking-widest">
             <span aria-hidden="true">??? </span>shortcuts<span aria-hidden="true"> ???</span>
           </DialogPrimitive.Title>
-          <div className="flex gap-8">
-            <Col header="canvas" rows={CANVAS} />
-            <Col header="project" rows={PROJECT} />
-            {dualModule && <Col header="matrix" rows={MATRIX} />}
-          </div>
+          {mode === 'life' ? (
+            <div className="flex gap-8">
+              <Col header="simulation" rows={LIFE_SIM} />
+              {dualModule && <Col header="matrix" rows={MATRIX} />}
+            </div>
+          ) : (
+            <div className="flex gap-8">
+              <Col header="canvas" rows={CANVAS} />
+              <Col header="project" rows={PROJECT} />
+              {dualModule && <Col header="matrix" rows={MATRIX} />}
+            </div>
+          )}
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
