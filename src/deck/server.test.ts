@@ -133,7 +133,8 @@ describe('deck server — library API', () => {
 
   beforeEach(async () => {
     configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dm-library-test-'));
-    server = await startDeckServer({ port: 0, configDir });
+    // Isolate from shipped built-ins so these tests see only user files.
+    server = await startDeckServer({ port: 0, configDir, builtinsDir: path.join(configDir, '__no_builtins__') });
   });
 
   afterEach(async () => {
@@ -219,5 +220,74 @@ describe('deck server — library API', () => {
     const { body } = await get(`${server.url}/api/library`);
     const data = JSON.parse(body) as { files: { name: string }[] };
     expect(data.files.filter(f => f.name === 'overwrite_me')).toHaveLength(1);
+  });
+});
+
+describe('deck server — built-in designs', () => {
+  let server: DeckServer;
+  let configDir: string;
+  let builtinsDir: string;
+
+  beforeEach(async () => {
+    configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dm-builtin-cfg-'));
+    builtinsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dm-builtin-src-'));
+    await fs.writeFile(path.join(builtinsDir, 'starter.dmx.json'), JSON.stringify(validProject));
+    server = await startDeckServer({ port: 0, configDir, builtinsDir });
+  });
+
+  afterEach(async () => {
+    await server.stop();
+    await fs.rm(configDir, { recursive: true, force: true });
+    await fs.rm(builtinsDir, { recursive: true, force: true });
+  });
+
+  it('GET /api/library lists built-ins flagged builtin:true', async () => {
+    const { body } = await get(`${server.url}/api/library`);
+    const data = JSON.parse(body) as { files: { name: string; builtin?: boolean }[] };
+    expect(data.files).toContainEqual({ name: 'starter', builtin: true });
+  });
+
+  it('GET /api/library/:name serves a built-in project', async () => {
+    const { status, body } = await get(`${server.url}/api/library/starter`);
+    expect(status).toBe(200);
+    expect(JSON.parse(body)).toMatchObject({ format: 'dark-matrix', width: 9 });
+  });
+
+  it('GET /api/assets includes built-ins flagged builtin:true', async () => {
+    const { body } = await get(`${server.url}/api/assets`);
+    const data = JSON.parse(body) as { assets: { name: string; builtin?: boolean }[] };
+    expect(data.assets.find(a => a.name === 'starter.dmx.json')?.builtin).toBe(true);
+  });
+
+  it('DELETE /api/library/:name rejects a built-in as read-only', async () => {
+    const { status } = await del(`${server.url}/api/library/starter`);
+    expect(status).toBe(403);
+  });
+
+  it('PUT /api/library/:name/rename rejects a built-in as read-only', async () => {
+    const { status } = await put(`${server.url}/api/library/starter/rename`, JSON.stringify({ newName: 'renamed' }));
+    expect(status).toBe(403);
+  });
+
+  it('DELETE /api/assets/:name rejects a built-in as read-only', async () => {
+    const { status } = await del(`${server.url}/api/assets/starter.dmx.json`);
+    expect(status).toBe(403);
+  });
+
+  it('POST /api/assets/copy duplicates a built-in into the user library', async () => {
+    const { status, body } = await post(`${server.url}/api/assets/copy`, JSON.stringify({ name: 'starter.dmx.json' }));
+    expect(status).toBe(200);
+    const { name } = JSON.parse(body) as { name: string };
+    expect(name).toBe('starter_2.dmx.json');
+    await expect(fs.access(path.join(configDir, 'library', name))).resolves.toBeUndefined();
+  });
+
+  it('a user file shadows a built-in of the same name', async () => {
+    await post(`${server.url}/api/library`, JSON.stringify({ name: 'starter', project: validProject }));
+    const { body } = await get(`${server.url}/api/library`);
+    const data = JSON.parse(body) as { files: { name: string; builtin?: boolean }[] };
+    const matches = data.files.filter(f => f.name === 'starter');
+    expect(matches).toHaveLength(1);
+    expect(matches[0]!.builtin).toBeUndefined();
   });
 });

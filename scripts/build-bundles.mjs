@@ -1,7 +1,11 @@
 import { build } from 'esbuild';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, cpSync } from 'node:fs';
 
 mkdirSync('dist/bundles', { recursive: true });
+
+// Ship the curated starter designs alongside the deck web assets. The deck
+// server resolves them at dist/deck/builtins (sibling of dist/deck/web).
+cpSync('src/deck/builtins', 'dist/deck/builtins', { recursive: true });
 
 const shared = {
   bundle: true,

@@ -78,7 +78,7 @@ jobs:
           cp _runtime/node "$STAGE/node"
           cp dark-matrix-privacy "$STAGE/dark-matrix-privacy"
           cp dist/bundles/daemon.js dist/bundles/cli.js "$STAGE/dist/bundles/"
-          cp -r dist/deck/web "$STAGE/dist/deck/"
+          cp -r dist/deck/web dist/deck/builtins "$STAGE/dist/deck/"
           cp -r _runtime/node_modules "$STAGE/"
           cp -r systemd "$STAGE/"
           cp -r udev "$STAGE/"

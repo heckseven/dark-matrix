@@ -113,6 +113,7 @@ dark-matrix ui [--port <n>]   # default: 7340
 - **Zoom** — 50% to 400%
 - **Undo/redo** — 50-level history; stroke-batched so dragging counts as one undo step
 - **Library** — save and open projects in `~/.config/dark-matrix/library/`; rename by editing the title
+- **Built-in designs** — a handful of starter animations ship with each release as read-only entries (marked ⊘); duplicate one to get an editable copy in your library. Saving a project under the same name shadows the built-in. To add more, drop a `.dmx.json` file into `src/deck/builtins/`.
 - **Open recent** — last 7 saved/opened projects in the File menu, persisted across reloads
 - **Duplicate** — saves a `_copy` variant without overwriting the current file
 - **Import** — open `.dmx.json` projects from disk, PNG images, or GIFs (all converted to frame format)
@@ -361,7 +362,7 @@ Wire format for BW frames is row-major — `packBW` handles the transposition.
 | `/api/export/gif` | POST | Render project frames to animated GIF |
 | `/api/export/png` | POST | Render a single frame to PNG |
 | `/api/prefs` | GET/PUT | Persist deck UI preferences |
-| `/api/library` | GET | List saved projects in `~/.config/dark-matrix/library/` |
+| `/api/library` | GET | List saved projects in `~/.config/dark-matrix/library/`, plus bundled built-ins (flagged `builtin:true`; shadowed by a user file of the same name) |
 | `/api/library` | POST | Save project `{ name, project, copy? }` — `copy:true` writes a `_copy` variant |
 | `/api/library/:name` | GET | Load a saved project |
 | `/api/library/:name/rename` | PUT | Rename a project `{ newName }` |
