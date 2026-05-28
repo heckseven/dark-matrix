@@ -158,9 +158,8 @@ function buildHgCells(pixels: string, rowFrom: number, rowTo: number): ReadonlyA
   return cells;
 }
 
-// top → neck (drain top-first: cells at the top of the pile disappear before the neck),
-// bottom → neck (fill from bottom up)
-const HG_TOP_CELLS    = buildHgCells(HG_START, 0, 16);
+// top → neck (drain order = neck drains first), bottom → neck (fill from bottom up)
+const HG_TOP_CELLS    = buildHgCells(HG_START, 16, 0);
 const HG_BOTTOM_CELLS = buildHgCells(HG_FULL,  33, 17);
 const HG_BOUNDARY_BUF = Uint8Array.from(atob(HG_BOUNDARY), c => c.charCodeAt(0));
 
