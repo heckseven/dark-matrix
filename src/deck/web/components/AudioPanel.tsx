@@ -216,7 +216,7 @@ export function AudioPanel({
           aria-modal="true"
           aria-label={`${AUDIO_STYLES.find(s => s.id === fullscreenStyle)?.label ?? fullscreenStyle} visualizer fullscreen`}
           className="absolute inset-0 z-10 flex"
-          style={{ backdropFilter: 'blur(8px)', backgroundColor: 'rgba(0,0,0,0.88)' }}
+          style={{ backdropFilter: 'blur(8px)', backgroundColor: 'color-mix(in srgb, var(--color-background) 88%, transparent)' }}
         >
           <AudioFullscreen
             style={fullscreenStyle}

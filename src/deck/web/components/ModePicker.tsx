@@ -17,7 +17,7 @@ function ModeCard({ label, active, pixels, dualModule, onSelect }: {
   onSelect: () => void;
 }) {
   const c = { position: 'absolute', width: 16, height: 16, pointerEvents: 'none' } as const;
-  const b = `1px solid ${active ? 'white' : 'rgba(255,255,255,0.35)'}`;
+  const b = `1px solid ${active ? 'var(--color-foreground)' : 'color-mix(in srgb, var(--color-foreground) 35%, transparent)'}`;
 
   return (
     <button

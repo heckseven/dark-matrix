@@ -48,7 +48,7 @@ export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
             chrome,
             fluid ? 'w-full' : className,
           )}
-          style={primary ? { textShadow: '0 0 8px rgba(74,222,128,0.6)' } : undefined}
+          style={primary ? { textShadow: '0 0 8px color-mix(in srgb, var(--color-primary) 60%, transparent)' } : undefined}
         >
           <span aria-hidden="true" className="select-none">{'['}&nbsp;</span>
           <span className={cn(
