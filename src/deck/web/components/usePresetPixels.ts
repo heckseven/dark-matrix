@@ -63,12 +63,15 @@ const _claudeTetrisThumb = (() => {
 
 const _usageThumb = (() => {
   const out = new Uint8Array(COLS * ROWS);
-  const filledRows = Math.round(0.5 * ROWS);
+  const FILL_TOP = 2;
+  const filledRows = Math.round(0.5 * (ROWS - FILL_TOP));
   for (let col = 0; col < COLS; col++) {
-    for (let row = Math.max(0, ROWS - filledRows); row < ROWS; row++) {
+    for (let row = Math.max(FILL_TOP, ROWS - filledRows); row < ROWS; row++) {
       out[col * ROWS + row] = 255;
     }
   }
+  // Reset countdown bar — top row, ~6 of 9 cols remaining.
+  for (let col = 0; col < 6; col++) out[col * ROWS + 0] = 255;
   return btoa(String.fromCharCode(...out));
 })();
 

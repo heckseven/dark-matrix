@@ -328,19 +328,19 @@ const _claudeTetrisRenderer = (() => {
   }
   return r;
 })();
-// Build a static usage preview frame (~50% fill)
+// Build a static usage preview frame: row 0 countdown, row 1 gap, ~50% fill below.
 function makeUsagePreviewPixels(): string {
   const frame = new Uint8Array(COLS * ROWS);
-  const filledRows = Math.round(0.5 * ROWS);
+  const FILL_TOP = 2;
+  const filledRows = Math.round(0.5 * (ROWS - FILL_TOP));
   for (let col = 0; col < COLS; col++) {
-    for (let r = Math.max(0, ROWS - filledRows); r < ROWS; r++) {
+    for (let r = Math.max(FILL_TOP, ROWS - filledRows); r < ROWS; r++) {
       frame[col * ROWS + r] = 255;
     }
   }
-  // Dim reset countdown dots in top row (3 of 9 cols)
-  for (let col = 0; col < 3; col++) {
-    frame[col * ROWS + 0] = 200;
-    frame[col * ROWS + 1] = 100;
+  // Reset countdown bar — top row, ~6 of 9 cols remaining.
+  for (let col = 0; col < 6; col++) {
+    frame[col * ROWS + 0] = 255;
   }
   return btoa(String.fromCharCode(...frame));
 }
