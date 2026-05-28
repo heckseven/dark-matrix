@@ -41,6 +41,7 @@ export interface DeckState {
   audioStyle: AudioStyle;
   audioSource: AudioSource;
   micSensitivity: number;
+  monitorSensitivity: number;
   hudLeftFace: ClockFace;
   hudRightFace: ClockFace;
   hudLeftWidget: 'clock' | 'data' | 'heatmap' | 'audio';
@@ -93,6 +94,7 @@ export interface DeckActions {
   setAudioStyle(style: AudioStyle): void;
   setAudioSource(source: AudioSource): void;
   setMicSensitivity(value: number): void;
+  setMonitorSensitivity(value: number): void;
   setHudLeftFace(face: ClockFace): void;
   setHudRightFace(face: ClockFace): void;
   setHudLeftWidget(widget: 'clock' | 'data' | 'heatmap' | 'audio', dataStyle?: DataStyle): void;
@@ -222,6 +224,7 @@ export function createDeckStore() {
     audioStyle: 'dark-matter',
     audioSource: 'monitor',
     micSensitivity: 50,
+    monitorSensitivity: 0,
     hudLeftFace: 'elegant',
     hudRightFace: 'elegant',
     hudLeftWidget: 'clock',
@@ -420,6 +423,7 @@ export function createDeckStore() {
     setAudioStyle(style) { set({ audioStyle: style }); },
     setAudioSource(source) { set({ audioSource: source }); },
     setMicSensitivity(value) { set({ micSensitivity: Math.min(100, Math.max(0, Math.round(value))) }); },
+    setMonitorSensitivity(value) { set({ monitorSensitivity: Math.min(100, Math.max(0, Math.round(value))) }); },
     setHudLeftFace(face)   { set({ hudLeftFace: face }); },
     setHudRightFace(face)  { set({ hudRightFace: face }); },
     setHudLeftWidget(widget, dataStyle)  { set({ hudLeftWidget: widget,  ...(dataStyle ? { hudLeftDataStyle: dataStyle }  : {}) }); },
@@ -624,7 +628,7 @@ const SESSION_KEY = 'dark-matrix';
 type SessionSnapshot = Pick<DeckState,
   'frames' | 'width' | 'mode' | 'loop' | 'activeFrameIdx' |
   'zoom' | 'activeColor' | 'previewTarget' | 'projectTitle' |
-  'audioStyle' | 'audioSource' | 'micSensitivity' |
+  'audioStyle' | 'audioSource' | 'micSensitivity' | 'monitorSensitivity' |
   'hudLeftFace' | 'hudRightFace' |
   'hudLeftWidget' | 'hudRightWidget' | 'hudLeftDataStyle' | 'hudRightDataStyle' |
   'libraryPath' | 'recentFiles' |
@@ -652,6 +656,7 @@ if (typeof localStorage !== 'undefined') {
           ...(s.audioStyle !== undefined ? { audioStyle: s.audioStyle } : {}),
           ...(s.audioSource !== undefined ? { audioSource: s.audioSource } : {}),
           ...(s.micSensitivity !== undefined ? { micSensitivity: Math.min(100, Math.max(0, Math.round(Number(s.micSensitivity)))) } : {}),
+          ...(s.monitorSensitivity !== undefined ? { monitorSensitivity: Math.min(100, Math.max(0, Math.round(Number(s.monitorSensitivity)))) } : {}),
           ...(s.hudLeftFace !== undefined ? { hudLeftFace: s.hudLeftFace } : {}),
           ...(s.hudRightFace !== undefined ? { hudRightFace: s.hudRightFace } : {}),
           ...(s.hudLeftWidget !== undefined ? { hudLeftWidget: s.hudLeftWidget } : {}),
@@ -673,8 +678,8 @@ if (typeof localStorage !== 'undefined') {
     if (_saveTimer) clearTimeout(_saveTimer);
     _saveTimer = setTimeout(() => {
       try {
-        const { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, micSensitivity, hudLeftFace, hudRightFace, hudLeftWidget, hudRightWidget, hudLeftDataStyle, hudRightDataStyle, libraryPath, recentFiles, selectedPresetName, hudSelectedSide } = state;
-        const snapshot: SessionSnapshot = { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, audioStyle, audioSource, micSensitivity, hudLeftFace, hudRightFace, hudLeftWidget, hudRightWidget, hudLeftDataStyle, hudRightDataStyle, libraryPath, recentFiles, selectedPresetName, hudSelectedSide };
+        const { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, micSensitivity, monitorSensitivity, hudLeftFace, hudRightFace, hudLeftWidget, hudRightWidget, hudLeftDataStyle, hudRightDataStyle, libraryPath, recentFiles, selectedPresetName, hudSelectedSide } = state;
+        const snapshot: SessionSnapshot = { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, audioStyle, audioSource, micSensitivity, monitorSensitivity, hudLeftFace, hudRightFace, hudLeftWidget, hudRightWidget, hudLeftDataStyle, hudRightDataStyle, libraryPath, recentFiles, selectedPresetName, hudSelectedSide };
         if (activeMode !== null) snapshot.activeMode = activeMode;
         localStorage.setItem(SESSION_KEY, JSON.stringify(snapshot));
       } catch { /* storage full or unavailable */ }

@@ -37,6 +37,7 @@ import { Popover, PopoverTrigger, PopoverContent } from './components/ui/popover
 const MODE_LABEL = Object.fromEntries(MODES.map(m => [m.id, m.label])) as Record<AppMode, string>;
 const FULLSCREEN_MODES: ReadonlySet<AppMode> = new Set(['hud', 'audio', 'config', 'video', 'life', 'cast']);
 const isFullscreenMode = (m: AppMode | null) => m !== null && FULLSCREEN_MODES.has(m);
+const MAX_GAIN_BOOST = 7; // 0% → 1×, 100% → 8×
 
 function idleFadeStyle(idle: boolean): CSSProperties {
   return {
@@ -201,8 +202,10 @@ export function App() {
   const previewTarget = useDeckStore(s => s.previewTarget);
   const projectTitle = useDeckStore(s => s.projectTitle);
   const activeMode = useDeckStore(s => s.activeMode);
-  const audioSource       = useDeckStore(s => s.audioSource);
-  const micSensitivity    = useDeckStore(s => s.micSensitivity);
+  const audioSource        = useDeckStore(s => s.audioSource);
+  const micSensitivity     = useDeckStore(s => s.micSensitivity);
+  const monitorSensitivity = useDeckStore(s => s.monitorSensitivity);
+  const sensitivity        = audioSource === 'mic' ? micSensitivity : monitorSensitivity;
   const libraryPath = useDeckStore(s => s.libraryPath);
   const recentFiles = useDeckStore(s => s.recentFiles);
   const hudPresets         = useDeckStore(s => s.hudPresets);
@@ -237,8 +240,7 @@ export function App() {
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [audioFullscreenStyle, setAudioFullscreenStyle] = useState<AudioStyle | null>(null);
   const [audioIdle, setAudioIdle] = useState(false);
-  const [audioGain, setAudioGain] = useState(1.0);
-  const audioGainRef = useRef(1.0);
+  const gainMultiplierRef = useRef<number>(1 + (sensitivity / 100) * MAX_GAIN_BOOST);
 
   useEffect(() => {
     const el = headerRef.current;
@@ -671,19 +673,35 @@ export function App() {
               <Button variant="ghost" disabled={!configDirty} onClick={() => void saveConfig()}>save</Button>
             ) : activeMode === 'audio' ? (
               <div className="flex items-center gap-2">
-                {audioSource !== 'mic' && (
-                  <Slider aria-label="Visualizer gain" value={audioGain} min={1} max={8} step={0.5} className="w-28" valueLabel={audioGain.toFixed(1) + '×'} onChange={e => { const v = Number(e.target.value); setAudioGain(v); audioGainRef.current = v; }} />
-                )}
-                {hasMic && audioSource === 'mic' && (
-                  <Slider aria-label="Mic sensitivity" value={micSensitivity} min={0} max={100} step={1} className="w-36" valueLabel={`${micSensitivity}%`} onChange={e => deckStore.getState().setMicSensitivity(Number(e.target.value))} />
-                )}
                 {audioFullscreenStyle !== null && (
-                  <Button variant="ghost" size="sm" aria-label="Back to visualizer list" onClick={() => setAudioFullscreenStyle(null)}>visualizers</Button>
+                  <Button variant="ghost" size="sm" aria-label="Switch visualizer" onClick={() => setAudioFullscreenStyle(null)}>switch</Button>
                 )}
+                <Slider
+                  aria-label={`${audioSource === 'mic' ? 'Mic' : 'Monitor'} sensitivity`}
+                  aria-valuetext={`${sensitivity}%`}
+                  value={sensitivity}
+                  min={0}
+                  max={100}
+                  step={1}
+                  className="w-32"
+                  valueLabel={`${sensitivity}%`}
+                  onChange={e => {
+                    const v = Number(e.target.value);
+                    gainMultiplierRef.current = 1 + (v / 100) * MAX_GAIN_BOOST;
+                    if (audioSource === 'mic') {
+                      deckStore.getState().setMicSensitivity(v);
+                    } else {
+                      deckStore.getState().setMonitorSensitivity(v);
+                    }
+                  }}
+                />
                 {hasMic && (
                   <Toggle
                     pressed={audioSource === 'mic'}
-                    onPressedChange={(on) => deckStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
+                    onPressedChange={(on) => {
+                      deckStore.getState().setAudioSource(on ? 'mic' : 'monitor');
+                      gainMultiplierRef.current = 1 + ((on ? micSensitivity : monitorSensitivity) / 100) * MAX_GAIN_BOOST;
+                    }}
                     title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
                     aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
                   >
@@ -758,7 +776,7 @@ export function App() {
           </div>
         ) : activeMode === 'audio' ? (
           <div className="h-full flex">
-            <AudioPanel dualModule={dualModule} fullscreenStyle={audioFullscreenStyle} onFullscreenChange={setAudioFullscreenStyle} onFullscreenIdleChange={setAudioIdle} gainMultiplierRef={audioGainRef} />
+            <AudioPanel dualModule={dualModule} fullscreenStyle={audioFullscreenStyle} onFullscreenChange={setAudioFullscreenStyle} onFullscreenIdleChange={setAudioIdle} gainMultiplierRef={gainMultiplierRef} />
           </div>
         ) : activeMode === 'config' ? (
           <div className="h-full flex">
