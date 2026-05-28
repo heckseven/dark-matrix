@@ -89,8 +89,10 @@ export function ConfigPanel({ dualModule, topPad }: { dualModule: boolean; topPa
               />
             )}
             {activeTab === 'appearance' && (
-              // TODO: add unsaved-changes navigation guard when App.tsx mode switch is wired
-              <AppearanceTab value={configData} />
+              <AppearanceTab
+                value={configData.appearance}
+                onChange={v => patchConfig({ appearance: v })}
+              />
             )}
             {activeTab === 'integrations' && (
               <IntegrationsTab config={configData} onChange={patchConfig} onDisconnect={() => void handleTwitchDisconnect()} disconnecting={disconnecting} />
