@@ -30,7 +30,8 @@ import { ThreePanelLayout } from './components/ThreePanelLayout.js';
 import { PanelBar } from './components/PanelBar.js';
 import { WelcomeScreen } from './components/WelcomeScreen.js';
 import { CastPanel } from './components/CastPanel.js';
-import { Dialog, DialogContent, DialogTitle } from './components/ui/dialog.js';
+import { Dialog, DialogContent, DialogTitle, DialogClose } from './components/ui/dialog.js';
+import { Popover, PopoverTrigger, PopoverContent } from './components/ui/popover.js';
 
 const MODE_LABEL = Object.fromEntries(MODES.map(m => [m.id, m.label])) as Record<AppMode, string>;
 const FULLSCREEN_MODES: ReadonlySet<AppMode> = new Set(['hud', 'audio', 'config', 'video', 'life', 'cast']);
@@ -438,6 +439,17 @@ export function App() {
       <Dialog open={castAudioOpen} onOpenChange={setCastAudioOpen}>
         <DialogContent className="w-[calc(100vw-80px)] h-[calc(100vh-80px)] flex flex-col gap-0 p-0 overflow-hidden">
           <DialogTitle className="sr-only">Audio visualizer</DialogTitle>
+          <DialogClose asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              tooltip="Close"
+              aria-label="Close audio visualizer"
+              className="absolute top-2 right-2 z-10"
+            >
+              ×
+            </Button>
+          </DialogClose>
           <AudioPanel dualModule={dualModule} />
         </DialogContent>
       </Dialog>
@@ -682,16 +694,31 @@ export function App() {
                   aria-label="Audio visualizer"
                   onClick={() => setCastAudioOpen(true)}
                 >
-                  audio viz
+                  visualizer
                 </Button>
-                <div className="flex items-center gap-1.5">
-                  <span
-                    role="img"
-                    className={`inline-block w-2 h-2 rounded-full ${isTwitchConnected ? 'bg-green-500' : 'bg-muted-foreground'}`}
-                    aria-label={isTwitchConnected ? 'Twitch connected' : 'Twitch not connected — configure in Settings → Integrations'}
-                  />
-                  <span className="text-xs text-muted-foreground" aria-hidden="true">twitch</span>
-                </div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={isTwitchConnected ? 'Twitch connected' : 'Twitch not connected'}
+                    >
+                      twitch
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent side="bottom" className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${isTwitchConnected ? 'bg-green-500' : 'bg-muted-foreground'}`}
+                        aria-hidden="true"
+                      />
+                      <span>{isTwitchConnected ? 'connected' : 'not connected'}</span>
+                    </div>
+                    {!isTwitchConnected && (
+                      <span className="text-muted-foreground">configure in Settings → Integrations</span>
+                    )}
+                  </PopoverContent>
+                </Popover>
               </div>
             ) : activeMode === 'life' ? (
               <div className="flex items-center gap-2">
