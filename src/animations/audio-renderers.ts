@@ -20,9 +20,9 @@ export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'spirits',             label: 'spirits' },
   { id: 'spectrum-fall',       label: 'timeline' },
   { id: 'cipher',              label: 'cipher' },
-  { id: 'neo',                 label: 'neo' },
+  { id: 'spiral-d',            label: 'hypno' },
   { id: 'rhythm',              label: 'rhythm' },
-  { id: 'spiral-d',            label: 'spiral d' },
+  { id: 'neo',                 label: 'neo' },
   { id: 'glitch-sort-b',       label: 'rift' },
   { id: 'strobe',              label: 'beam' },
 ];
