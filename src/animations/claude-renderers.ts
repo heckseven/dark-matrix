@@ -26,14 +26,17 @@ export type ClaudeRendererApi = {
 
 const COLS = 9;
 const ROWS = 34;
-const TRAIL = 9;
 
 export function createClaudeSnowRenderer(): ClaudeRendererApi {
-  // Gentle falling streaks (matrix-style trails). At rest only a few flakes
-  // drift down; a Claude hook injects an offset burst of extra streaks that
-  // appear scattered across the display and fall away.
-  const AMBIENT = 0.02;       // idle flake spawn chance per column per frame
-  const TRAIL_MIN = 4;        // shortest streak
+  // Matrix-style rain: each drop is a bright head with a tail that fades to
+  // black. The fade is grayscale, which the daemon's Bayer ditherBW renders as
+  // a tapering-density trail — pure black & white on hardware, classic "matrix"
+  // look. At rest only the occasional stream falls; a Claude hook injects an
+  // offset burst of streams scattered across the display.
+  const AMBIENT = 0.008;      // idle stream spawn chance per column per frame
+  const TRAIL_MIN = 6;        // shortest streak (long tails read as matrix rain)
+  const TRAIL_MAX = 14;       // longest streak
+  const FADE = 0.78;          // per-row tail brightness falloff
   const MAX_PER_COL = 6;      // cap so bursts can't oversaturate a column
   type Drop = { pos: number; speed: number; trail: number };
   const drops: Drop[][] = Array.from({ length: COLS }, () => []);
@@ -43,7 +46,7 @@ export function createClaudeSnowRenderer(): ClaudeRendererApi {
     return {
       pos,
       speed: 0.25 + Math.random() * 0.5 + flurry * 0.6,
-      trail: TRAIL_MIN + Math.floor(Math.random() * (TRAIL - TRAIL_MIN + 1)),
+      trail: TRAIL_MIN + Math.floor(Math.random() * (TRAIL_MAX - TRAIL_MIN + 1)),
     };
   }
 
@@ -88,7 +91,10 @@ export function createClaudeSnowRenderer(): ClaudeRendererApi {
           for (let t = 0; t < drop.trail; t++) {
             const r = head - t;
             if (r >= 0 && r < ROWS) {
-              frame[col * ROWS + r] = 255;
+              // Bright head, tail fades to black — dithered to a tapering trail.
+              const v = Math.round(255 * Math.pow(FADE, t));
+              const idx = col * ROWS + r;
+              frame[idx] = Math.max(frame[idx] ?? 0, v);
             }
           }
           return drop.pos < ROWS + drop.trail;
