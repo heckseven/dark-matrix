@@ -285,6 +285,7 @@ export function App() {
   const dualModule = modules.left && modules.right;
   const dualModuleRef = useRef(true);
   dualModuleRef.current = dualModule;
+  const dualDefaultApplied = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -297,6 +298,16 @@ export function App() {
         setDaemonOnline(data.daemonOnline ?? true);
         setUncalibrated(data.uncalibrated ?? false);
         if (data.micSwitchOn !== undefined) setHasMic(data.micSwitchOn);
+        // On first dual-module confirmation, upgrade the preview target from the
+        // 'left' default to 'both' so design-mode live preview reaches both modules.
+        // Direct setState bypasses setPreviewTarget's canvas resize — width stays at
+        // whatever the project uses, and the server sends the same frame to both modules.
+        if (data.left && data.right && !dualDefaultApplied.current) {
+          dualDefaultApplied.current = true;
+          if (deckStore.getState().previewTarget === 'left') {
+            deckStore.setState({ previewTarget: 'both' });
+          }
+        }
       } catch { /* deck server unreachable */ }
     };
     void poll();
