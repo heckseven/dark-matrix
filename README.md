@@ -49,7 +49,7 @@ Optional (the installer reports which are absent):
 - `yt-dlp` — video download
 - `dbus-monitor` — desktop notification watching
 - `ectool` — EC privacy switch detection; run `dark-matrix install --ec-access` for setup
-- User in `libvirt` group — VM state detection
+- User in `libvirt` group — VM state detection (`sudo usermod -aG libvirt $USER`; log out and back in)
 
 ### First-run calibration
 
@@ -334,7 +334,7 @@ src/
     ├── gol.ts              # Game of Life
     ├── scroll.ts           # Dual-module text scroll
     ├── gif.ts              # GIF decoder + frame iterator
-    ├── audio-eq.ts         # pw-record → FFT → EQ bars
+    ├── audio-eq.ts         # ffmpeg → FFT → EQ bars
     ├── heatmap.ts          # Simulated heatmap
     ├── image.ts            # Static image animation
     └── startup.ts          # Wipe/rain/pulse startup sequences
