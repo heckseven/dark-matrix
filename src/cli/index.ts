@@ -279,6 +279,7 @@ async function cmdShow(args: string[]) {
 
   const frame = await convertImage(imagePath, { mode, fit });
   const anim = staticAnim(frame);
+  await releaseDaemonPort();
   const transport = new SerialTransport();
 
   const stop = runAnimation(anim, { transport, devicePath, mode });
@@ -310,6 +311,7 @@ async function cmdShowSplit(args: string[]) {
 
   const leftAnim = staticAnim(leftFrame);
   const rightAnim = staticAnim(rightFrame);
+  await releaseDaemonPort();
   const transport = new SerialTransport();
 
   const stopLeft = runAnimation(leftAnim, { transport, devicePath: leftDev, mode });
@@ -317,6 +319,22 @@ async function cmdShowSplit(args: string[]) {
 
   process.stdout.write(`Displaying split: ${leftPath} | ${rightPath} (Ctrl+C to stop)\n`);
   process.once('SIGINT', () => { stopLeft(); stopRight(); process.exit(0); });
+}
+
+// Empirical settle time after the daemon releases its port handles, before a
+// fresh SerialTransport reopens the port.
+const PORT_SETTLE_MS = 200;
+
+// Direct-draw commands open the serial port themselves. If the daemon is
+// running it holds the port open across frames (see transport invariant), so
+// release its handles first to avoid two SerialTransports fighting over the port.
+async function releaseDaemonPort(): Promise<void> {
+  try {
+    await sendToDaemon({ cmd: 'release' });
+    await new Promise<void>(r => setTimeout(r, PORT_SETTLE_MS));
+  } catch {
+    // daemon not running — proceed directly
+  }
 }
 
 const ASSET_DIR = path.resolve(__dirname, '../../images');
@@ -338,6 +356,8 @@ async function cmdDisplay(args: string[]) {
   const config = await loadConfig();
   const leftDev = config.modules.left;
   const rightDev = config.modules.right;
+
+  await releaseDaemonPort();
 
   switch (name) {
     case 'yeah': {
@@ -391,8 +411,10 @@ async function cmdImage(args: string[]) {
     process.stdout.write(renderPreview(frame) + '\n');
   } else {
     const config = await loadConfig();
-    const devicePath = args[args.indexOf('--device') + 1] ?? config.modules.left;
+    const devIdx = args.indexOf('--device');
+    const devicePath = (devIdx !== -1 ? args[devIdx + 1] : undefined) ?? config.modules.left;
     const anim = staticAnim(frame);
+    await releaseDaemonPort();
     const transport = new SerialTransport();
     const stop = runAnimation(anim, { transport, devicePath, mode });
     process.stdout.write(`Displaying ${imagePath} (Ctrl+C to stop)\n`);
@@ -408,14 +430,7 @@ async function cmdCalibrate() {
   }
   const [devA, devB] = [modules[0]!, modules[1]!];
 
-  // Release daemon's port handles if it's running
-  try {
-    await sendToDaemon({ cmd: 'release' });
-    process.stdout.write('Released daemon port handles.\n');
-    await new Promise<void>(r => setTimeout(r, 200));
-  } catch {
-    // daemon not running — proceed directly
-  }
+  await releaseDaemonPort();
 
   const { createInterface } = await import('node:readline');
   const rl = createInterface({ input: process.stdin, output: process.stdout });

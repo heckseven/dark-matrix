@@ -42,7 +42,6 @@ const PrefsSchema = z.object({
   port:          z.number().int().min(1).max(65535).optional(),
   activeColor:   z.number().int().min(0).max(255).optional(),
   activeMode:    z.enum(['bw', 'gray']).optional(),
-  setupComplete: z.boolean().optional(),
 });
 
 export type DeckPrefs = z.infer<typeof PrefsSchema>;
