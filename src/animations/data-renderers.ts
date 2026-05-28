@@ -175,14 +175,8 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
         coreValues = cores.length > CORES_TOTAL_CAP
           ? cpuGroups(cores, CORES_TOTAL_CAP)
           : cores.map(c => Math.max(0, Math.min(1, c / 100)));
-      } else if (style === 'scroll') {
-        const groups = cpuGroups(stats.cpuCores ?? [], 4);
-        shiftPush(histTL, groups[0] ?? 0);
-        shiftPush(histTR, groups[1] ?? 0);
-        shiftPush(histBL, groups[2] ?? 0);
-        shiftPush(histBR, groups[3] ?? 0);
       } else {
-        // line and fill — use configurable metrics with full history
+        // line, fill, and scroll — use configurable metrics with full history
         updateCeilings(stats);
         shiftPush(histTL, metricValue(stats, topLeftM));
         shiftPush(histTR, metricValue(stats, topRightM));

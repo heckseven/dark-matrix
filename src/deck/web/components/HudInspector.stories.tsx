@@ -87,10 +87,17 @@ export const DataSettingsFill: Story = {
   },
 };
 
-/** Data grid — scroll preset active (Layer 2, no settings). */
+/** Data settings — scroll preset (per-quadrant metric configuration). */
 export const DataGridScroll: Story = {
   args: {
-    widget: { widget: 'data', style: 'scroll' } satisfies HudWidget,
+    widget: {
+      widget: 'data',
+      style: 'scroll',
+      top_left: 'cpu',
+      top_right: 'ram',
+      bottom_left: 'net_rx',
+      bottom_right: 'net_tx',
+    } satisfies HudWidget,
   },
 };
 
