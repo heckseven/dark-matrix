@@ -1,3 +1,4 @@
+import { fn } from 'storybook/test';
 import type { Meta, StoryObj } from '@storybook/tanstack-react';
 import { AppearanceTab } from './AppearanceTab.js';
 
@@ -5,17 +6,23 @@ const meta = {
   title: 'App/Config/Appearance',
   component: AppearanceTab,
   args: {
-    value: { hud_presets: [] },
+    onChange: fn(),
   },
 } satisfies Meta<typeof AppearanceTab>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Playground: Story = {};
+export const Default: Story = {};
 
-export const WithPresets: Story = {
-  args: {
-    value: { hud_presets: [{ name: 'default' }, { name: 'night' }] },
-  },
+export const Phosphor: Story = {
+  args: { value: { preset: 'phosphor', color_scheme: 'dark' } },
+};
+
+export const LightMode: Story = {
+  args: { value: { preset: 'dark-matrix', color_scheme: 'light' } },
+};
+
+export const Custom: Story = {
+  args: { value: { preset: 'custom', color_scheme: 'dark', accent: '#22D3EE' } },
 };
