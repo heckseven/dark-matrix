@@ -254,54 +254,75 @@ export function createHourglassTimerRenderer(): HourglassTimerRenderer {
   let drainFrame = -1;
   let wasExpired = false;
 
-  function makeSettled(fraction: number): Uint8Array {
+  function initialTopPile(): Uint8Array {
     const s = new Uint8Array(COLS * ROWS);
-    const topCount = Math.round(fraction * TOTAL_GRAINS);
-    for (let i = TOTAL_GRAINS - topCount; i < TOTAL_GRAINS; i++) {
-      const [c, r] = HG_TOP_CELLS[i]!;
-      s[c * ROWS + r] = 1;
-    }
-    const bottomCount = TOTAL_GRAINS - topCount;
-    for (let i = 0; i < bottomCount && i < HG_BOTTOM_CELLS.length; i++) {
-      const [c, r] = HG_BOTTOM_CELLS[i]!;
-      s[c * ROWS + r] = 1;
-    }
+    for (const [c, r] of HG_TOP_CELLS) s[c * ROWS + r] = 1;
     return s;
   }
 
-  let settled = makeSettled(1);
+  // Static reservoirs.
+  let topPile = initialTopPile();
+  let bottomPile = new Uint8Array(COLS * ROWS);
+  // In-flight grains (column, row), one row per render tick.
+  let inFlight: Array<[number, number]> = [];
+  // Grains scheduled and removed from the top so far.
+  let drainCount = 0;
 
   function inBounds(c: number, r: number): boolean {
     return c >= 0 && c < COLS && r >= 0 && r < ROWS &&
       (HG_BOUNDARY_BUF[c * ROWS + r] ?? 0) > 0;
   }
 
-  function physicsTick(): boolean {
-    const next = new Uint8Array(COLS * ROWS);
-    let anyMoved = false;
-    for (let row = ROWS - 1; row >= 0; row--) {
-      for (const col of HG_COL_ORDER) {
-        const idx = col * ROWS + row;
-        if (!settled[idx]) continue;
-        const nr = row + 1;
-        if (nr >= ROWS) { next[idx] = 1; continue; }
-        if (inBounds(col, nr) && !settled[col * ROWS + nr] && !next[col * ROWS + nr]) {
-          next[col * ROWS + nr] = 1; anyMoved = true; continue;
-        }
-        const dirs = Math.random() < 0.5 ? ([-1, 1] as const) : ([1, -1] as const);
-        let fell = false;
-        for (const d of dirs) {
-          const nc = col + d;
-          const ni = nc * ROWS + nr;
-          if (inBounds(nc, nr) && !settled[ni] && !next[ni]) {
-            next[ni] = 1; anyMoved = true; fell = true; break;
-          }
-        }
-        if (!fell) next[idx] = 1;
+  function spawnDrop(): void {
+    if (drainCount >= TOTAL_GRAINS) return;
+    const [c, r] = HG_TOP_CELLS[drainCount]!;
+    topPile[c * ROWS + r] = 0;
+    inFlight.push([c, r]);
+    drainCount++;
+  }
+
+  // Step a single grain one row. Returns true if still falling, false if settled.
+  function stepGrain(grain: [number, number]): boolean {
+    const [col, row] = grain;
+    const nr = row + 1;
+    if (nr >= ROWS || !inBounds(col, nr)) {
+      bottomPile[col * ROWS + row] = 1;
+      return false;
+    }
+    if (bottomPile[col * ROWS + nr] === 0) {
+      grain[1] = nr;
+      return true;
+    }
+    const dirs: readonly [-1 | 1, 1 | -1] = Math.random() < 0.5 ? [-1, 1] : [1, -1];
+    for (const d of dirs) {
+      const nc = col + d;
+      if (inBounds(nc, nr) && bottomPile[nc * ROWS + nr] === 0) {
+        grain[0] = nc;
+        grain[1] = nr;
+        return true;
       }
     }
-    settled = next;
-    return anyMoved;
+    bottomPile[col * ROWS + row] = 1;
+    return false;
+  }
+
+  function advanceInFlight(): void {
+    const still: Array<[number, number]> = [];
+    for (const g of inFlight) {
+      if (stepGrain(g)) still.push(g);
+    }
+    inFlight = still;
+  }
+
+  function renderActiveFrame(): Frame {
+    const frame = createFrame();
+    for (let i = 0; i < COLS * ROWS; i++) {
+      if (topPile[i] || bottomPile[i]) frame[i] = 255;
+    }
+    for (const [c, r] of inFlight) {
+      frame[c * ROWS + r] = 255;
+    }
+    return frame;
   }
 
   return {
@@ -310,25 +331,45 @@ export function createHourglassTimerRenderer(): HourglassTimerRenderer {
 
       if (!expired) {
         if (wasExpired) {
-          // Repeat timer restarted — reset physics to full top.
-          settled = makeSettled(1);
+          // Repeat timer restarted — reset state to top-full, bottom-empty.
+          topPile = initialTopPile();
+          bottomPile = new Uint8Array(COLS * ROWS);
+          inFlight = [];
+          drainCount = 0;
           wasExpired = false;
         }
         flashFrame = 0;
         rotationFrame = -1;
         drainFrame = -1;
-        const fraction = totalMs > 0 ? remainingMs / totalMs : 1;
 
-        if (!physicsTick()) {
-          settled = makeSettled(fraction);
-          physicsTick();
+        // Schedule new drops based on elapsed time.
+        if (totalMs > 0) {
+          const msPerGrain = totalMs / TOTAL_GRAINS;
+          const targetDrained = Math.min(
+            Math.max(0, Math.floor((totalMs - remainingMs) / msPerGrain)),
+            TOTAL_GRAINS,
+          );
+          // Implicit restart: timer went backwards (e.g. a demo loop that resets
+          // remainingMs without going through the expired branch). Snap state.
+          if (targetDrained < drainCount) {
+            topPile = initialTopPile();
+            bottomPile = new Uint8Array(COLS * ROWS);
+            inFlight = [];
+            drainCount = 0;
+          }
+          while (drainCount < targetDrained) spawnDrop();
         }
 
-        const frame = createFrame();
-        for (let i = 0; i < COLS * ROWS; i++) {
-          if (settled[i]) frame[i] = 255;
-        }
-        return frame;
+        advanceInFlight();
+        return renderActiveFrame();
+      }
+
+      // Expired: hold the flash sequence until all in-flight grains settle
+      // and the top has finished draining. Keeps the transition continuous.
+      if (!wasExpired) {
+        while (drainCount < TOTAL_GRAINS) spawnDrop();
+        advanceInFlight();
+        if (inFlight.length > 0) return renderActiveFrame();
       }
 
       wasExpired = true;
