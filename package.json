@@ -13,7 +13,7 @@
     "dev": "node --watch dist/daemon/index.js",
     "dev:deck": "vite",
     "dev:all": "concurrently -n daemon,deck,vite -c blue,yellow,green \"node --watch dist/daemon/index.js\" \"node dist/cli/index.js ui\" \"vite\"",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && node scripts/build-bundles.mjs",
     "build:deck": "vite build",
     "test": "vitest run",
     "test:watch": "vitest",
