@@ -158,8 +158,9 @@ function buildHgCells(pixels: string, rowFrom: number, rowTo: number): ReadonlyA
   return cells;
 }
 
-// top → neck (drain order = neck drains first), bottom → neck (fill from bottom up)
-const HG_TOP_CELLS    = buildHgCells(HG_START, 16, 0);
+// top → neck (drain top-first: cells at the top of the pile disappear before the neck),
+// bottom → neck (fill from bottom up)
+const HG_TOP_CELLS    = buildHgCells(HG_START, 0, 16);
 const HG_BOTTOM_CELLS = buildHgCells(HG_FULL,  33, 17);
 const HG_BOUNDARY_BUF = Uint8Array.from(atob(HG_BOUNDARY), c => c.charCodeAt(0));
 
@@ -169,12 +170,6 @@ const HG_BOTTOM_DRAIN_ORDER: ReadonlyArray<readonly [number, number]> =
   [...HG_BOTTOM_CELLS].sort(([c1, r1], [c2, r2]) =>
     ((c1 - 4) ** 2 + (r1 - 17) ** 2) - ((c2 - 4) ** 2 + (r2 - 17) ** 2),
   );
-
-function applyHgBoundary(frame: Frame): void {
-  for (let i = 0; i < COLS * ROWS; i++) {
-    if ((HG_BOUNDARY_BUF[i] ?? 0) > 0) frame[i] = 255;
-  }
-}
 
 export function renderHourglassFrame(fraction: number): Frame {
   const f = Math.max(0, Math.min(1, fraction));
@@ -190,7 +185,6 @@ export function renderHourglassFrame(fraction: number): Frame {
     const [c, r] = HG_BOTTOM_CELLS[i]!;
     frame[c * ROWS + r] = 255;
   }
-  applyHgBoundary(frame);
   return frame;
 }
 
@@ -241,7 +235,6 @@ export function renderHourglassDraining(drainStep: number): Frame {
     const [c, r] = HG_BOTTOM_DRAIN_ORDER[i]!;
     frame[c * ROWS + r] = 255;
   }
-  applyHgBoundary(frame);
   return frame;
 }
 
@@ -342,7 +335,6 @@ export function createHourglassTimerRenderer(): HourglassTimerRenderer {
           }
           if (--burstFrames === 0) burstCells = [];
         }
-        applyHgBoundary(frame);
         return frame;
       }
 
@@ -380,7 +372,9 @@ export function createHourglassTimerRenderer(): HourglassTimerRenderer {
 
 function renderHourglassAllFilled(): Frame {
   const frame = createFrame();
-  applyHgBoundary(frame);
+  for (let i = 0; i < COLS * ROWS; i++) {
+    if ((HG_BOUNDARY_BUF[i] ?? 0) > 0) frame[i] = 255;
+  }
   return frame;
 }
 
