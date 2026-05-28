@@ -676,25 +676,29 @@ export function App() {
                 {audioFullscreenStyle !== null && (
                   <Button variant="ghost" size="sm" aria-label="Switch visualizer" onClick={() => setAudioFullscreenStyle(null)}>switch</Button>
                 )}
-                <Slider
-                  aria-label={`${audioSource === 'mic' ? 'Mic' : 'Monitor'} sensitivity`}
-                  aria-valuetext={`${sensitivity}%`}
-                  value={sensitivity}
-                  min={0}
-                  max={100}
-                  step={1}
-                  className="w-32"
-                  valueLabel={`${sensitivity}%`}
-                  onChange={e => {
-                    const v = Number(e.target.value);
-                    gainMultiplierRef.current = 1 + (v / 100) * MAX_GAIN_BOOST;
-                    if (audioSource === 'mic') {
-                      deckStore.getState().setMicSensitivity(v);
-                    } else {
-                      deckStore.getState().setMonitorSensitivity(v);
-                    }
-                  }}
-                />
+                <Tooltip content={`${audioSource === 'mic' ? 'Mic' : 'Monitor'} sensitivity`} side="bottom">
+                  <span>
+                    <Slider
+                      aria-label={`${audioSource === 'mic' ? 'Mic' : 'Monitor'} sensitivity`}
+                      aria-valuetext={`${sensitivity}%`}
+                      value={sensitivity}
+                      min={0}
+                      max={100}
+                      step={1}
+                      className="w-32"
+                      valueLabel={`${sensitivity}%`}
+                      onChange={e => {
+                        const v = Number(e.target.value);
+                        gainMultiplierRef.current = 1 + (v / 100) * MAX_GAIN_BOOST;
+                        if (audioSource === 'mic') {
+                          deckStore.getState().setMicSensitivity(v);
+                        } else {
+                          deckStore.getState().setMonitorSensitivity(v);
+                        }
+                      }}
+                    />
+                  </span>
+                </Tooltip>
                 {hasMic && (
                   <Toggle
                     pressed={audioSource === 'mic'}
