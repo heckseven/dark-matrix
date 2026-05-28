@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { MatrixItemList } from './MatrixItemList.js';

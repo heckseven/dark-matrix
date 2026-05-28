@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { fn, userEvent, expect, within } from 'storybook/test';
 import { Button } from './button.js';
 import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogClose } from './dialog.js';

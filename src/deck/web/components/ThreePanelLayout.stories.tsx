@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { ThreePanelLayout } from './ThreePanelLayout.js';
 
 const Panel = ({ label }: { label: string }) => (

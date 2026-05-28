@@ -1,5 +1,5 @@
 import * as React from 'react';
-import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, userEvent, waitFor } from 'storybook/test';
 import { VideoPanel, VideoHeader, VideoTransportControls, VideoSettingsToggle, resetVStore, useVStore } from './VideoPanel.js';
 

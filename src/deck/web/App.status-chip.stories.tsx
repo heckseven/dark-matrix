@@ -1,6 +1,6 @@
 import { useLayoutEffect } from 'react';
 import { expect } from 'storybook/test';
-import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { App } from './App.js';
 import { deckStore, DEFAULT_WIDTH, ROWS } from './store.js';
 import type { AppMode } from './app-modes.js';

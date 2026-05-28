@@ -1,5 +1,5 @@
 import { fn } from 'storybook/test';
-import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AppearanceTab } from './AppearanceTab.js';
 
 const meta = {

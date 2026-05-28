@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn } from 'storybook/test';
 import { useArgs } from 'storybook/preview-api';
 import { Toggle } from './toggle';

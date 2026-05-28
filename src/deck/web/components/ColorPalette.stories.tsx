@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { fn } from 'storybook/test';
 import { ColorPalette } from './ColorPalette.js';
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { MatrixPreview } from './MatrixPreview.js';
 
 const ROWS = 34;

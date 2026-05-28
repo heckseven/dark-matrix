@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { userEvent, expect, within } from 'storybook/test';
 import { ShortcutDialog } from './shortcut-dialog.js';
 import { Button } from './button.js';
