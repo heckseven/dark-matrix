@@ -436,9 +436,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         pulsePhase += 0.08;
 
         if (util === null) {
+          // Unknown: single column whose height pulses (B&W — height, not brightness).
           const rows = Math.round((0.3 + 0.25 * Math.sin(pulsePhase)) * FRAME_ROWS);
           for (let r = FRAME_ROWS - 1; r >= Math.max(0, FRAME_ROWS - rows); r--) {
-            frame[4 * FRAME_ROWS + r] = 160;
+            frame[4 * FRAME_ROWS + r] = 255;
           }
           return frame;
         }
@@ -446,9 +447,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         const filledRows = Math.round(util * FRAME_ROWS);
         for (let col = 0; col < FRAME_COLS; col++) {
           for (let r = Math.max(0, FRAME_ROWS - filledRows); r < FRAME_ROWS; r++) {
-            frame[col * FRAME_ROWS + r] = util > 0.9
-              ? (Math.random() < 0.35 + util * 0.4 ? 255 : 160)
-              : 255;
+            // Over 90%: each cell flickers on/off — unstable static. Otherwise solid.
+            frame[col * FRAME_ROWS + r] = util > 0.9 ? (Math.random() < 0.5 ? 255 : 0) : 255;
           }
         }
 
@@ -458,8 +458,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
           const countFrac = secsLeft / totalSecs;
           const countCols = Math.round(countFrac * FRAME_COLS);
           for (let col = 0; col < countCols && col < FRAME_COLS; col++) {
-            frame[col * FRAME_ROWS + 0] = 200;
-            frame[col * FRAME_ROWS + 1] = 100;
+            frame[col * FRAME_ROWS + 0] = 255;
           }
         }
 
