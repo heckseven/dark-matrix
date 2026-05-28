@@ -61,20 +61,6 @@ const _claudeTetrisThumb = (() => {
   return out;
 })();
 
-const _usageThumb = (() => {
-  const out = new Uint8Array(COLS * ROWS);
-  const FILL_TOP = 2;
-  const filledRows = Math.round(0.5 * (ROWS - FILL_TOP));
-  for (let col = 0; col < COLS; col++) {
-    for (let row = Math.max(FILL_TOP, ROWS - filledRows); row < ROWS; row++) {
-      out[col * ROWS + row] = 255;
-    }
-  }
-  // Reset countdown bar — top row, ~6 of 9 cols remaining.
-  for (let col = 0; col < 6; col++) out[col * ROWS + 0] = 255;
-  return btoa(String.fromCharCode(...out));
-})();
-
 // Quota widget thumbnail — sample percentage in the twinz font.
 const _quotaThumb = (() => {
   const frame = renderTwinzUsagePercent(42);
@@ -205,7 +191,6 @@ function renderWidgetToB64(
       const style = widget.style ?? 'snow';
       return style === 'sand'    ? _claudeSandThumb
            : style === 'tetris'  ? _claudeTetrisThumb
-           : style === 'usage'   ? _usageThumb
            : style === 'quota'   ? _quotaThumb
            :                       _claudeSnowThumb;
     }

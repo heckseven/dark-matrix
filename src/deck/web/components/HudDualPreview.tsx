@@ -130,20 +130,6 @@ const _previewClaudeTetris = (() => {
   return r;
 })();
 
-const _usagePreviewFrame = (() => {
-  const frame = new Uint8Array(COLS * ROWS);
-  const FILL_TOP = 2;
-  const filledRows = Math.round(0.5 * (ROWS - FILL_TOP));
-  for (let col = 0; col < COLS; col++) {
-    for (let row = Math.max(FILL_TOP, ROWS - filledRows); row < ROWS; row++) {
-      frame[col * ROWS + row] = 255;
-    }
-  }
-  // Reset countdown bar — top row, ~6 of 9 cols remaining.
-  for (let col = 0; col < 6; col++) frame[col * ROWS + 0] = 255;
-  return frame;
-})();
-
 // Quota widget preview — sample percentage in the twinz font.
 const _quotaPreviewFrame = renderTwinzUsagePercent(42);
 
@@ -240,7 +226,6 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, 
       return out;
     } else if (widget.widget === 'claude') {
       const style = widget.style ?? 'snow';
-      if (style === 'usage') return _usagePreviewFrame;
       if (style === 'quota') return _quotaPreviewFrame;
       const raw = style === 'sand'    ? _previewClaudeSand.render()
                 : style === 'tetris'  ? _previewClaudeTetris.render()

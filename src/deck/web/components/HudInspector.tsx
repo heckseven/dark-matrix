@@ -328,23 +328,6 @@ const _claudeTetrisRenderer = (() => {
   }
   return r;
 })();
-// Build a static usage preview frame: row 0 countdown, row 1 gap, ~50% fill below.
-function makeUsagePreviewPixels(): string {
-  const frame = new Uint8Array(COLS * ROWS);
-  const FILL_TOP = 2;
-  const filledRows = Math.round(0.5 * (ROWS - FILL_TOP));
-  for (let col = 0; col < COLS; col++) {
-    for (let r = Math.max(FILL_TOP, ROWS - filledRows); r < ROWS; r++) {
-      frame[col * ROWS + r] = 255;
-    }
-  }
-  // Reset countdown bar — top row, ~6 of 9 cols remaining.
-  for (let col = 0; col < 6; col++) {
-    frame[col * ROWS + 0] = 255;
-  }
-  return btoa(String.fromCharCode(...frame));
-}
-const USAGE_PREVIEW_PIXELS = makeUsagePreviewPixels();
 // Quota widget preview — sample percentage in the twinz font.
 const QUOTA_PREVIEW_PIXELS = bwToB64(renderTwinzUsagePercent(42));
 
@@ -394,11 +377,10 @@ function AgentGrid({ currentWidget, onPick }: {
   return (
     <div role="group" aria-label="Agent panels" className="flex flex-wrap gap-6">
       {CLAUDE_STYLES.map(({ id, label }) => {
-        const preview = id === 'snow' ? snowPixels
+        const preview = id === 'quota' ? QUOTA_PREVIEW_PIXELS
           : id === 'sand' ? sandPixels
           : id === 'tetris' ? tetrisPixels
-          : id === 'quota' ? QUOTA_PREVIEW_PIXELS
-          : USAGE_PREVIEW_PIXELS;
+          : snowPixels;
         return (
           <MatrixItem
             key={id}
