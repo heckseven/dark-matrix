@@ -1,6 +1,11 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 
+/**
+ * mic: 0 = active/live, 1 = muted/killed — matches MIC_SW GPIO polarity (hardware-confirmed)
+ * cam: 1 = active/live, 0 = covered/killed — CAM_SW GPIO is inverted relative to mic
+ * All read paths normalise to these polarities.
+ */
 export type SwitchState = { cam: number; mic: number };
 
 export type SwitchEvent = {
@@ -54,7 +59,7 @@ async function readSwitchesSysfs(): Promise<SwitchState> {
   let cam = 0;
   let mic = 0;
   for (const line of content.split('\n')) {
-    if (line.startsWith('[Microphone]')) mic = line.includes('unmuted') ? 1 : 0;
+    if (line.startsWith('[Microphone]')) mic = line.includes('unmuted') ? 0 : 1;
     if (line.startsWith('[Camera]')) cam = line.includes('unmuted') ? 1 : 0;
   }
   return { cam, mic };
