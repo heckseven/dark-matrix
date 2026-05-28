@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { createBiomeGrid, createBiomeStep } from '../../../animations/gol.js';
 import { createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
-import { renderElegantTimer, renderHourglassFrame, renderTwinzTimer } from '../../../animations/timer-renderers.js';
+import { renderElegantTimer, renderTwinzTimer, createHourglassTimerRenderer } from '../../../animations/timer-renderers.js';
 import { getDataRenderer } from '../data-renderer-pool.js';
 import { createHeatmapState, bumpTool, renderHeatmap } from '../../../animations/heatmap.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
@@ -160,6 +160,12 @@ const _usagePreviewFrame = (() => {
 
 let _dualPreviewClaudeTick = 0;
 
+// Hourglass preview: stateful renderer cycling through a 60s demo timer so the
+// preview matches what hardware will draw, including grain physics.
+const HG_PREVIEW_TOTAL_MS = 60_000;
+let _hgPreviewRem = HG_PREVIEW_TOTAL_MS;
+const _previewHourglass = createHourglassTimerRenderer();
+
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     for (const k in _clockL) delete _clockL[k as ClockFace];
@@ -242,10 +248,8 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, 
       for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
       return out;
     } else if (widget.widget === 'timer') {
-      // Cycle the hourglass slowly so the static preview shows drain + fall animation.
-      const hgFraction = (_dualPreviewClaudeTick % 300) / 300;
       const frame = widget.style === 'hourglass'
-        ? renderHourglassFrame(hgFraction, _dualPreviewClaudeTick)
+        ? _previewHourglass.render(_hgPreviewRem, HG_PREVIEW_TOTAL_MS)
         : widget.style === 'twinz'
           ? renderTwinzTimer(90_061)
           : renderElegantTimer(90_000);
@@ -408,6 +412,8 @@ export function HudDualPreview({
     }
 
     _dualPreviewClaudeTick++;
+    _hgPreviewRem = Math.max(0, _hgPreviewRem - 100);
+    if (_hgPreviewRem === 0) _hgPreviewRem = HG_PREVIEW_TOTAL_MS;
     const t = _dualPreviewClaudeTick;
     if (t % 8 === 0) {
       const tools = ['Read', 'Bash', 'Edit', 'Grep', 'Write'] as const;

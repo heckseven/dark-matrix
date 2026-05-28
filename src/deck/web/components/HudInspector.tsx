@@ -9,7 +9,8 @@ import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription, D
 import { AssetImportPanel } from './AssetImportPanel.js';
 import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
-import { renderElegantTimer, renderHourglassFrame, renderTwinzTimer } from '../../../animations/timer-renderers.js';
+import { renderElegantTimer, renderTwinzTimer, createHourglassTimerRenderer } from '../../../animations/timer-renderers.js';
+import type { HourglassTimerRenderer } from '../../../animations/timer-renderers.js';
 import { DATA_STYLES, createDataRenderer } from '../../../animations/data-renderers.js';
 import type { DataStyle, DataMetric, DataRenderer } from '../../../animations/data-renderers.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
@@ -157,11 +158,12 @@ function TimerGrid({ currentWidget, onSettings }: {
   const elegantRemRef    = useRef(TIMER_DEMO_MS);
   const hourglassRemRef  = useRef(HOURGLASS_DEMO_MS);
   const twinzRemRef      = useRef(TWINZ_DEMO_MS);
-  const fallPhaseRef     = useRef(0);
+  const hgRendererRef    = useRef<HourglassTimerRenderer | null>(null);
+  if (!hgRendererRef.current) hgRendererRef.current = createHourglassTimerRenderer();
 
   const [pixels, setPixels] = useState<{ elegant: string; hourglass: string; twinz: string }>(() => ({
     elegant:   bwToB64(renderElegantTimer(elegantRemRef.current)),
-    hourglass: bwToB64(renderHourglassFrame(1 - hourglassRemRef.current / HOURGLASS_DEMO_MS, fallPhaseRef.current)),
+    hourglass: bwToB64(hgRendererRef.current!.render(hourglassRemRef.current, HOURGLASS_DEMO_MS)),
     twinz:     bwToB64(renderTwinzTimer(twinzRemRef.current)),
   }));
 
@@ -176,11 +178,9 @@ function TimerGrid({ currentWidget, onSettings }: {
       twinzRemRef.current = Math.max(0, twinzRemRef.current - 100);
       if (twinzRemRef.current === 0) twinzRemRef.current = TWINZ_DEMO_MS;
 
-      fallPhaseRef.current++;
-
       setPixels({
         elegant:   bwToB64(renderElegantTimer(elegantRemRef.current)),
-        hourglass: bwToB64(renderHourglassFrame(1 - hourglassRemRef.current / HOURGLASS_DEMO_MS, fallPhaseRef.current)),
+        hourglass: bwToB64(hgRendererRef.current!.render(hourglassRemRef.current, HOURGLASS_DEMO_MS)),
         twinz:     bwToB64(renderTwinzTimer(twinzRemRef.current)),
       });
     }, 100);
