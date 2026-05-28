@@ -109,7 +109,7 @@ export function ChatMessageList({ messages }: { messages: ChatMessage[] }) {
           {msg.type === 'event' ? (
             <>
               <span className="sr-only">Event: </span>
-              <span className="text-muted-foreground font-bold select-none w-6 flex-shrink-0" aria-hidden="true">{msg.symbol}</span>
+              <span className="text-muted-foreground font-bold select-none flex-shrink-0" aria-hidden="true">{msg.symbol}</span>
               <span className="text-muted-foreground"><Tokens tokens={msg.tokens} /></span>
             </>
           ) : (
@@ -167,10 +167,10 @@ function TwitchFeed({ channel }: { channel: string }) {
       let symbol = '';
       const p = msg.payload ?? {};
       switch (msg.eventType) {
-        case 'channel.follow':    symbol = '+'; text = `${p['user_name'] ?? ''} followed`; break;
-        case 'channel.subscribe': symbol = '++'; text = `${p['user_name'] ?? ''} subscribed`; break;
-        case 'channel.cheer':     symbol = '$'; text = `${p['user_name'] ?? ''} cheered ${p['bits'] ?? ''} bits`; break;
-        case 'channel.raid':      symbol = '>>'; text = `${p['from_broadcaster_user_name'] ?? ''} raided with ${p['viewers'] ?? ''} viewers`; break;
+        case 'channel.follow':    symbol = '+++'; text = `${p['user_name'] ?? ''} followed`; break;
+        case 'channel.subscribe': symbol = '++++++'; text = `${p['user_name'] ?? ''} subscribed`; break;
+        case 'channel.cheer':     symbol = '$$$'; text = `${p['user_name'] ?? ''} cheered ${p['bits'] ?? ''} bits`; break;
+        case 'channel.raid':      symbol = '>>>>>>'; text = `${p['from_broadcaster_user_name'] ?? ''} raided with ${p['viewers'] ?? ''} viewers`; break;
         default: return;
       }
       setMessages(prev => [...prev.slice(-199), {

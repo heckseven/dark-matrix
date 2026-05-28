@@ -11,22 +11,22 @@ const SAMPLE_CHAT: ChatMessage[] = [
   msg({ username: 'moonbeam', color: '#FF6B6B', tokens: text('hello everyone!') }),
   msg({ username: 'codecraft', tokens: text('PogChamp that was sick') }),
   msg({ username: 'zephyr_x', color: '#4ECDC4', tokens: text('how long have you been streaming?') }),
-  msg({ type: 'event', symbol: '+',  tokens: text('moonbeam followed') }),
+  msg({ type: 'event', symbol: '+++',    tokens: text('moonbeam followed') }),
   msg({ username: 'velvet',   color: '#A8E063', tokens: text('lol nice') }),
-  msg({ type: 'event', symbol: '++', tokens: text('codecraft subscribed') }),
+  msg({ type: 'event', symbol: '++++++', tokens: text('codecraft subscribed') }),
   msg({ username: 'pixel9',   tokens: text('gg') }),
-  msg({ type: 'event', symbol: '$',  tokens: text('velvet cheered 100 bits') }),
+  msg({ type: 'event', symbol: '$$$',    tokens: text('velvet cheered 100 bits') }),
   msg({ username: 'nightowl', color: '#F7DC6F', tokens: text('this is amazing') }),
-  msg({ type: 'event', symbol: '>>', tokens: text('streampal raided with 42 viewers') }),
+  msg({ type: 'event', symbol: '>>>>>>', tokens: text('streampal raided with 42 viewers') }),
   msg({ username: 'zephyr_x', color: '#4ECDC4', tokens: text('welcome raiders!!') }),
   msg({ username: 'moonbeam', color: '#FF6B6B', tokens: text('PogChamp') }),
 ];
 
 const EVENTS_ONLY: ChatMessage[] = [
-  msg({ type: 'event', symbol: '+',  tokens: text('alice followed') }),
-  msg({ type: 'event', symbol: '++', tokens: text('bob subscribed') }),
-  msg({ type: 'event', symbol: '$',  tokens: text('carol cheered 500 bits') }),
-  msg({ type: 'event', symbol: '>>', tokens: text('davestream raided with 250 viewers') }),
+  msg({ type: 'event', symbol: '+++',    tokens: text('alice followed') }),
+  msg({ type: 'event', symbol: '++++++', tokens: text('bob subscribed') }),
+  msg({ type: 'event', symbol: '$$$',    tokens: text('carol cheered 500 bits') }),
+  msg({ type: 'event', symbol: '>>>>>>', tokens: text('davestream raided with 250 viewers') }),
 ];
 
 const meta = {
