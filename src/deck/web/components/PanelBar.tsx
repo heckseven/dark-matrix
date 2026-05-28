@@ -25,7 +25,7 @@ export const PanelBar = forwardRef<HTMLElement, PanelBarProps>(function PanelBar
   style,
 }, ref) {
   const blurStyle: CSSProperties = blur
-    ? { backdropFilter: 'blur(4px)', backgroundColor: 'rgba(0,0,0,0.55)' }
+    ? { backdropFilter: 'blur(4px)', backgroundColor: 'var(--color-backdrop-strong)' }
     : {};
   const cn = [
     'flex items-center',
