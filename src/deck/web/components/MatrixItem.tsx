@@ -96,7 +96,7 @@ export function MatrixItem({
     <button
       type="button"
       aria-label={`Open ${name ?? 'item'}`}
-      className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 rounded-sm"
+      className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 rounded-sm"
       onClick={e => { e.stopPropagation(); onPreviewClick(); }}
     >
       <MatrixPreview pixels={pixels} width={width} />
@@ -166,7 +166,7 @@ export function MatrixItem({
             <input
               ref={inputRef}
               aria-label={`Rename ${name}`}
-              className="font-mono text-xs bg-transparent border-b border-white text-foreground outline-none w-full"
+              className="font-mono text-xs bg-transparent border-b border-foreground text-foreground outline-none w-full"
               value={draft}
               maxLength={128}
               onChange={e => setDraft(e.target.value)}

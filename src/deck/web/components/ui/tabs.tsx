@@ -51,7 +51,7 @@ export function Tabs({
             aria-label={label}
             className={cn(
               'font-mono text-xs transition-colors text-left',
-              active ? 'text-white' : 'text-white/50 hover:text-white/70',
+              active ? 'text-foreground' : 'text-foreground/50 hover:text-foreground/70',
             )}
             onClick={() => onChange(v)}
           >

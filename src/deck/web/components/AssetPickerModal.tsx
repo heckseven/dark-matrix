@@ -47,7 +47,7 @@ function AssetGrid({ items, animState, current, onPick }: AssetGridProps) {
               type="button"
               aria-label={active ? `${label}, selected` : label}
               aria-pressed={active}
-              className="group relative flex flex-col gap-2 items-center p-2 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
+              className="group relative flex flex-col gap-2 items-center p-2 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[-2px]"
               onClick={() => onPick(asset.name, asset)}
             >
               <CornerBrackets active={active} />

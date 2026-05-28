@@ -928,7 +928,7 @@ export function NotificationsTab({ value, onChange, dualModule = false }: Notifi
 
   return (
     <div className="flex flex-col p-2">
-      <p className="font-mono text-xs text-white/55 mb-2">
+      <p className="font-mono text-xs text-muted-foreground mb-2">
         first match wins — default when no rules match: scroll (replace)
       </p>
 
