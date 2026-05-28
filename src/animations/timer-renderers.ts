@@ -448,3 +448,50 @@ export function renderTwinzTimer(remainingMs: number): Frame {
 export function createTwinzTimerRenderer(): ElegantTimerRenderer {
   return createFlashingTimerRenderer(renderTwinzTimer);
 }
+
+// ── Twinz usage renderer ──────────────────────────────────────────────────
+// Percentage of the 5h quota, drawn in the twinz font: a two-digit number
+// (rows 10–14) above a percent glyph (rows 18–22), bracketed by twinz divider
+// dots at rows 8 and 24. Layout matches frame 1 of the claude_twinz_usage design.
+
+// Percent "%" glyph, 9-col bitmask per row (bit c → column c), 5 rows tall.
+const TWINZ_PERCENT: readonly number[] = [
+  0b001000110, // cols 1,2,6
+  0b000100110, // cols 1,2,5
+  0b000010000, // col 4
+  0b011001000, // cols 3,6,7
+  0b011000100, // cols 2,6,7
+];
+
+function drawPercentGlyph(frame: Frame, rowStart: number): void {
+  for (let r = 0; r < TWINZ_PERCENT.length; r++) {
+    const bits = TWINZ_PERCENT[r] ?? 0;
+    for (let c = 0; c < COLS; c++) {
+      if ((bits >> c) & 1) frame[c * ROWS + rowStart + r] = 255;
+    }
+  }
+}
+
+function drawUsageBrackets(frame: Frame): void {
+  // Bracket dots top and bottom (twinz divider style).
+  frame[0 * ROWS + 8]  = 255; frame[8 * ROWS + 8]  = 255;
+  frame[0 * ROWS + 24] = 255; frame[8 * ROWS + 24] = 255;
+}
+
+// pct is 0–99 (two digits). Higher utilisation switches to the countdown.
+export function renderTwinzUsagePercent(pct: number): Frame {
+  const p = Math.max(0, Math.min(99, Math.round(pct)));
+  const frame = createFrame();
+  drawTwinzPair(frame, Math.floor(p / 10), p % 10, 10);
+  drawPercentGlyph(frame, 18);
+  drawUsageBrackets(frame);
+  return frame;
+}
+
+// Percent glyph + brackets with no digits — shown before the first poll lands.
+export function renderTwinzUsageUnknown(): Frame {
+  const frame = createFrame();
+  drawPercentGlyph(frame, 18);
+  drawUsageBrackets(frame);
+  return frame;
+}

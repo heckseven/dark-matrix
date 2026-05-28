@@ -1,11 +1,12 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type ClaudeStyle = 'snow' | 'usage' | 'sand' | 'tetris';
+export type ClaudeStyle = 'snow' | 'usage' | 'quota' | 'sand' | 'tetris';
 
 export const CLAUDE_STYLES: { id: ClaudeStyle; label: string }[] = [
   { id: 'snow',    label: 'snow'    },
   { id: 'usage',   label: 'usage'   },
+  { id: 'quota',   label: 'quota'   },
   { id: 'sand',    label: 'sand'    },
   { id: 'tetris',  label: 'tetris'  },
 ];

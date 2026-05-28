@@ -8,7 +8,7 @@ import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription, D
 import { AssetImportPanel } from './AssetImportPanel.js';
 import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
-import { renderElegantTimer, renderTwinzTimer, createHourglassTimerRenderer } from '../../../animations/timer-renderers.js';
+import { renderElegantTimer, renderTwinzTimer, renderTwinzUsagePercent, createHourglassTimerRenderer } from '../../../animations/timer-renderers.js';
 import type { HourglassTimerRenderer } from '../../../animations/timer-renderers.js';
 import { createDataRenderer } from '../../../animations/data-renderers.js';
 import type { DataStyle, DataMetric, DataRenderer } from '../../../animations/data-renderers.js';
@@ -345,6 +345,8 @@ function makeUsagePreviewPixels(): string {
   return btoa(String.fromCharCode(...frame));
 }
 const USAGE_PREVIEW_PIXELS = makeUsagePreviewPixels();
+// Quota widget preview — sample percentage in the twinz font.
+const QUOTA_PREVIEW_PIXELS = bwToB64(renderTwinzUsagePercent(42));
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
@@ -395,6 +397,7 @@ function AgentGrid({ currentWidget, onPick }: {
         const preview = id === 'snow' ? snowPixels
           : id === 'sand' ? sandPixels
           : id === 'tetris' ? tetrisPixels
+          : id === 'quota' ? QUOTA_PREVIEW_PIXELS
           : USAGE_PREVIEW_PIXELS;
         return (
           <MatrixItem

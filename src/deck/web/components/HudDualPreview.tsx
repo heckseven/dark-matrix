@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { createBiomeGrid, createBiomeStep } from '../../../animations/gol.js';
 import { createClockRenderer } from '../../../animations/clock-renderers.js';
 import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
-import { renderElegantTimer, renderTwinzTimer, createHourglassTimerRenderer } from '../../../animations/timer-renderers.js';
+import { renderElegantTimer, renderTwinzTimer, renderTwinzUsagePercent, createHourglassTimerRenderer } from '../../../animations/timer-renderers.js';
 import { getDataRenderer } from '../data-renderer-pool.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
@@ -144,6 +144,9 @@ const _usagePreviewFrame = (() => {
   return frame;
 })();
 
+// Quota widget preview — sample percentage in the twinz font.
+const _quotaPreviewFrame = renderTwinzUsagePercent(42);
+
 let _dualPreviewClaudeTick = 0;
 
 // Hourglass preview: stateful renderer cycling through a 60s demo timer so the
@@ -238,6 +241,7 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, 
     } else if (widget.widget === 'claude') {
       const style = widget.style ?? 'snow';
       if (style === 'usage') return _usagePreviewFrame;
+      if (style === 'quota') return _quotaPreviewFrame;
       const raw = style === 'sand'    ? _previewClaudeSand.render()
                 : style === 'tetris'  ? _previewClaudeTetris.render()
                 :                       _previewClaudeSnow.render();
