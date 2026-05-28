@@ -6,7 +6,7 @@ import { renderElegantTimer, renderTwinzTimer, createHourglassTimerRenderer } fr
 import { getDataRenderer } from '../data-renderer-pool.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
-import { createClaudeSnowRenderer, createClaudeContextRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
+import { createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import { deckStore } from '../store.js';
 
@@ -113,13 +113,6 @@ function extractHalf(full: Uint8Array, side: 'left' | 'right'): Uint8Array {
 }
 
 const _previewClaudeSnow = createClaudeSnowRenderer();
-const _previewClaudeContext = (() => {
-  const r = createClaudeContextRenderer();
-  for (const tool of ['Read', 'Bash', 'Edit', 'Grep', 'Write', 'Read', 'Bash']) {
-    r.onEvent({ type: 'tool_use', tool, sessionId: 'preview', rawByteLen: 600 });
-  }
-  return r;
-})();
 const _previewClaudeSand = (() => {
   const r = createClaudeSandRenderer();
   for (let i = 0; i < 60; i++) {
@@ -162,7 +155,6 @@ if (import.meta.hot) {
     for (const k in _clockR) delete _clockR[k as ClockFace];
     for (const k in _audioRenderers) delete _audioRenderers[k as AudioStyle];
     _previewClaudeSnow.stop();
-    _previewClaudeContext.stop();
     _previewClaudeSand.stop();
     _previewClaudeTetris.stop();
   });
@@ -245,7 +237,6 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, 
       if (style === 'usage') return _usagePreviewFrame;
       const raw = style === 'sand'    ? _previewClaudeSand.render()
                 : style === 'tetris'  ? _previewClaudeTetris.render()
-                : style === 'context' ? _previewClaudeContext.render()
                 :                       _previewClaudeSnow.render();
       return bayerDither(raw);
     } else {

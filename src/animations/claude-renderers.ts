@@ -1,12 +1,11 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type ClaudeStyle = 'snow' | 'usage' | 'context' | 'sand' | 'tetris';
+export type ClaudeStyle = 'snow' | 'usage' | 'sand' | 'tetris';
 
 export const CLAUDE_STYLES: { id: ClaudeStyle; label: string }[] = [
   { id: 'snow',    label: 'snow'    },
   { id: 'usage',   label: 'usage'   },
-  { id: 'context', label: 'context' },
   { id: 'sand',    label: 'sand'    },
   { id: 'tetris',  label: 'tetris'  },
 ];
@@ -99,74 +98,6 @@ export function createClaudeSnowRenderer(): ClaudeRendererApi {
           }
           return drop.pos < ROWS + drop.trail;
         });
-      }
-
-      return frame;
-    },
-
-    stop() { /* stateless */ },
-  };
-}
-
-export function createClaudeContextRenderer(): ClaudeRendererApi {
-  const TOOL_BUDGET = 80;
-  const BYTE_BUDGET = 150_000;
-
-  let currentSession: string | null = null;
-  let toolCount = 0;
-  let approxBytes = 0;
-  let pulsePhase = 0;
-
-  return {
-    onEvent(e) {
-      if (e.sessionId !== currentSession) {
-        currentSession = e.sessionId;
-        toolCount = 0;
-        approxBytes = 0;
-      }
-      if (e.type === 'tool_use') {
-        toolCount++;
-        if (e.rawByteLen) approxBytes += e.rawByteLen;
-      } else if (e.type === 'agent_spawn') {
-        toolCount += 3;
-        if (e.rawByteLen) approxBytes += e.rawByteLen;
-      }
-    },
-
-    render(): Frame {
-      const frame = createFrame();
-      pulsePhase += 0.06;
-
-      if (toolCount === 0) {
-        // Idle: a single column whose height gently pulses (B&W — height, not brightness).
-        const rows = Math.round((0.15 + 0.08 * Math.sin(pulsePhase)) * ROWS * 0.3);
-        for (let r = ROWS - 1; r >= ROWS - rows; r--) {
-          frame[4 * ROWS + r] = 255;
-        }
-        return frame;
-      }
-
-      const fill = Math.min(1, Math.max(toolCount / TOOL_BUDGET, approxBytes / BYTE_BUDGET));
-      const filledRows = Math.round(fill * ROWS);
-      const WARNING = 0.75;
-      const DANGER  = 0.9;
-
-      for (let col = 0; col < COLS; col++) {
-        for (let r = Math.max(0, ROWS - filledRows); r < ROWS; r++) {
-          // Danger: each cell flickers on/off — unstable static. Otherwise solid.
-          frame[col * ROWS + r] = fill > DANGER ? (Math.random() < 0.5 ? 255 : 0) : 255;
-        }
-      }
-
-      // Warning threshold line — blinks through the warning band, solid in danger.
-      if (fill > WARNING) {
-        const warnRow = Math.round(ROWS - WARNING * ROWS);
-        const lineOn = fill > DANGER || Math.abs(Math.sin(pulsePhase)) > 0.5;
-        if (lineOn) {
-          for (let col = 0; col < COLS; col++) {
-            if (warnRow >= 0 && warnRow < ROWS) frame[col * ROWS + warnRow] = 255;
-          }
-        }
       }
 
       return frame;
