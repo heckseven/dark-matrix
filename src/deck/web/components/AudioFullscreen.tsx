@@ -1,4 +1,6 @@
 import * as React from 'react';
+import { useMemo } from 'react';
+import { useDeckStore } from '../store.js';
 import { AUDIO_STYLES } from '../../../animations/audio-renderers.js';
 import type { AudioStyle } from '../../../animations/audio-renderers.js';
 import { createFullRenderer } from '../../../animations/audio-renderers-full.js';
@@ -7,7 +9,9 @@ import { BAYER_THRESHOLD } from '../../../animations/bayer.js';
 
 const CELL = 20;
 const IDLE_MS = 3000;
-const SVG_DOT = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${CELL}" height="${CELL}"><circle cx="${CELL / 2}" cy="${CELL / 2}" r="2" fill="#303030"/></svg>`)}")`;
+function makeSvgDot(color: string): string {
+  return `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${CELL}" height="${CELL}"><circle cx="${CELL / 2}" cy="${CELL / 2}" r="2" fill="${color}"/></svg>`)}")`;
+}
 
 interface Props {
   style: AudioStyle;
@@ -21,6 +25,11 @@ interface Props {
 }
 
 export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, gainMultiplierRef, onBandCountChange, onIdleChange, onExit }: Props) {
+  const appearance = useDeckStore(s => s.configData?.appearance);
+  const svgDot = useMemo(() => makeSvgDot(
+    getComputedStyle(document.documentElement).getPropertyValue('--color-border').trim() || '#2a2a2a'
+  ), [appearance]);
+
   const containerRef = React.useRef<HTMLDivElement>(null);
   const displayRef   = React.useRef<HTMLDivElement>(null);
   const cellsRef     = React.useRef<HTMLSpanElement[]>([]);
@@ -220,7 +229,7 @@ export function AudioFullscreen({ style, fullBandsRef, fftSizeRef, gainRef, gain
         ref={displayRef}
         style={{
           display: 'grid',
-          backgroundImage: SVG_DOT,
+          backgroundImage: svgDot,
           backgroundSize: `${CELL}px ${CELL}px`,
           backgroundRepeat: 'repeat',
           fontSize: '14px',
