@@ -1,4 +1,4 @@
-import type { Preview } from '@storybook/tanstack-react'
+import type { Preview } from '@storybook/react-vite'
 import { themes } from 'storybook/theming'
 import { TooltipProvider } from '../src/deck/web/components/ui/tooltip.js'
 import '../src/deck/web/globals.css'

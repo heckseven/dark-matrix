@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { fn } from 'storybook/test';
 import { HudDualPreview } from './HudDualPreview.js';
 import type { HudWidget } from '../types/hud-preset.js';

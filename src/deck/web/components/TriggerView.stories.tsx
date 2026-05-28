@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { fn } from 'storybook/test';
 import { TriggerView } from './TriggerView.js';
 import type { HudTrigger, HudPresetClient } from '../types/hud-preset.js';

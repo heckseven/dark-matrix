@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, userEvent, fn } from 'storybook/test';
 import { AudioPanel } from './AudioPanel.js';
 import { deckStore } from '../store.js';

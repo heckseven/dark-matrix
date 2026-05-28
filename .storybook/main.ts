@@ -1,4 +1,4 @@
-import type { StorybookConfig } from '@storybook/tanstack-react';
+import type { StorybookConfig } from '@storybook/react-vite';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -15,7 +15,7 @@ const config: StorybookConfig = {
     '@storybook/addon-docs',
     '@storybook/addon-mcp',
   ],
-  framework: '@storybook/tanstack-react',
+  framework: '@storybook/react-vite',
   staticDirs: ['../public'],
   async viteFinal(config) {
     const { mergeConfig } = await import('vite');

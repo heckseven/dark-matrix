@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { ChatMessageList, type ChatMessage } from './ChatFeed.js';
 
 let _id = 0;

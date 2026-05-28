@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { userEvent, expect } from 'storybook/test';
 import { App } from './App';
 import { deckStore, ROWS, DEFAULT_WIDTH } from './store.js';

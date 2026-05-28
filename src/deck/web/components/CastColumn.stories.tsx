@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { CastColumn as CastColumnType } from '../types/config-types.js';
 import { CastColumn } from './CastColumn.js';
 

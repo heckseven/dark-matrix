@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/tanstack-react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { fn, userEvent, expect } from 'storybook/test';
 import { ModePicker } from './ModePicker';
 import type { AppMode } from './ModePicker';
