@@ -137,9 +137,10 @@ export function createClaudeContextRenderer(): ClaudeRendererApi {
       pulsePhase += 0.06;
 
       if (toolCount === 0) {
+        // Idle: a single column whose height gently pulses (B&W — height, not brightness).
         const rows = Math.round((0.15 + 0.08 * Math.sin(pulsePhase)) * ROWS * 0.3);
         for (let r = ROWS - 1; r >= ROWS - rows; r--) {
-          frame[4 * ROWS + r] = 120;
+          frame[4 * ROWS + r] = 255;
         }
         return frame;
       }
@@ -151,23 +152,19 @@ export function createClaudeContextRenderer(): ClaudeRendererApi {
 
       for (let col = 0; col < COLS; col++) {
         for (let r = Math.max(0, ROWS - filledRows); r < ROWS; r++) {
-          let brightness: number;
-          if (fill > DANGER) {
-            brightness = Math.random() < 0.45 ? 255 : 170;
-          } else if (fill > WARNING) {
-            brightness = Math.round(170 + 85 * Math.abs(Math.sin(pulsePhase)));
-          } else {
-            brightness = 210;
-          }
-          frame[col * ROWS + r] = brightness;
+          // Danger: each cell flickers on/off — unstable static. Otherwise solid.
+          frame[col * ROWS + r] = fill > DANGER ? (Math.random() < 0.5 ? 255 : 0) : 255;
         }
       }
 
-      // Warning threshold line
+      // Warning threshold line — blinks through the warning band, solid in danger.
       if (fill > WARNING) {
         const warnRow = Math.round(ROWS - WARNING * ROWS);
-        for (let col = 0; col < COLS; col++) {
-          if (warnRow >= 0 && warnRow < ROWS) frame[col * ROWS + warnRow] = 255;
+        const lineOn = fill > DANGER || Math.abs(Math.sin(pulsePhase)) > 0.5;
+        if (lineOn) {
+          for (let col = 0; col < COLS; col++) {
+            if (warnRow >= 0 && warnRow < ROWS) frame[col * ROWS + warnRow] = 255;
+          }
         }
       }
 
@@ -313,6 +310,14 @@ const _TETRIS_DROP_CAP = 10;
 const _TETRIS_KEY_INTERVAL = 3;
 type _TetrisGameState = 'playing' | 'lineclear' | 'dissolving';
 
+// 1-bit display: settled blocks are stippled (checkerboard) so the solid
+// falling piece stays distinguishable from the pile without using brightness.
+function _tetrisStipple(i: number): boolean {
+  const col = Math.floor(i / ROWS);
+  const row = i % ROWS;
+  return (col + row) % 2 === 0;
+}
+
 export function createClaudeTetrisRenderer(): ClaudeRendererApi {
 
   const board = new Uint8Array(COLS * ROWS);
@@ -450,10 +455,10 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
           gs = 'playing';
           if (!spawnNext()) board.fill(0);
         } else if (dissolveBoard && dissolveTimes) {
-          const fade = 1 - dissolveFrame / _TETRIS_DISSOLVE_LEN;
+          // Cells wink out by timing (not fade); survivors keep the settled stipple.
           for (let i = 0; i < COLS * ROWS; i++) {
-            if (dissolveBoard[i] && (dissolveTimes[i] ?? 0) > dissolveFrame) {
-              frame[i] = Math.round(180 * fade + 30);
+            if (dissolveBoard[i] && (dissolveTimes[i] ?? 0) > dissolveFrame && _tetrisStipple(i)) {
+              frame[i] = 255;
             }
           }
         }
@@ -465,10 +470,11 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
         const flash = clearTimer % 4 < 2;
         for (let col = 0; col < COLS; col++) {
           for (let row = 0; row < ROWS; row++) {
+            const i = col * ROWS + row;
             if (clearRowSet.has(row)) {
-              if (flash) frame[col * ROWS + row] = 255;
-            } else if (board[col * ROWS + row]) {
-              frame[col * ROWS + row] = 180;
+              if (flash) frame[i] = 255;
+            } else if (board[i] && _tetrisStipple(i)) {
+              frame[i] = 255;
             }
           }
         }
@@ -500,7 +506,7 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
             startDissolve();
           }
           // Render board at lock position only — no falling piece this frame
-          for (let i = 0; i < COLS * ROWS; i++) if (board[i]) frame[i] = 180;
+          for (let i = 0; i < COLS * ROWS; i++) if (board[i] && _tetrisStipple(i)) frame[i] = 255;
           return frame;
         }
       }
@@ -528,9 +534,9 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
         lastMoveTick = tick;
       }
 
-      // Render board
+      // Render board — settled blocks stippled so the falling piece stays distinct
       for (let i = 0; i < COLS * ROWS; i++) {
-        if (board[i]) frame[i] = 180;
+        if (board[i] && _tetrisStipple(i)) frame[i] = 255;
       }
 
       // Render falling piece
