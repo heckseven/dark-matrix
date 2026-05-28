@@ -200,7 +200,7 @@ export function createClaudeSandRenderer(): ClaudeRendererApi {
       if (draining) {
         const next: Array<[number, number]> = [];
         for (const [col, row] of active) {
-          if (row >= 0 && row < ROWS) frame[col * ROWS + row] = 200;
+          if (row >= 0 && row < ROWS) frame[col * ROWS + row] = 255;
           const nr = row + 1;
           if (nr < ROWS) next.push([col, nr]);
         }
@@ -263,7 +263,7 @@ export function createClaudeSandRenderer(): ClaudeRendererApi {
       }
 
       for (let i = 0; i < COLS * ROWS; i++) {
-        if (settled[i]) frame[i] = 200;
+        if (settled[i]) frame[i] = 255;
       }
       for (const [col, row] of active) {
         if (col >= 0 && col < COLS && row >= 0 && row < ROWS) {

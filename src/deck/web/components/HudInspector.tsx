@@ -941,7 +941,6 @@ function TimerSettings({ widget, uid, onChange }: {
         label="duration"
         value={timeValue}
         showSeconds={true}
-        maxHours={undefined}
         onChange={handleTimeChange}
       />
       <label htmlFor={repeatId} className="flex items-center gap-2 cursor-pointer select-none">

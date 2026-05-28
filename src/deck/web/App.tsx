@@ -1,4 +1,5 @@
 import { useState, useLayoutEffect, useRef, useEffect, useCallback } from 'react';
+import type { CSSProperties } from 'react';
 import { PixelCanvas, canvasComponentH } from './components/PixelCanvas.js';
 import { FrameStrip } from './components/FrameStrip.js';
 import { ColorPalette } from './components/ColorPalette.js';
@@ -7,7 +8,7 @@ import { Toggle } from './components/ui/toggle.js';
 import { Button } from './components/ui/button.js';
 import { Slider } from './components/ui/slider.js';
 import { Input } from './components/ui/input.js';
-import { ScrubInput } from './components/ui/scrub-input.js';
+import { TimeInput } from './components/ui/time-input.js';
 import { Text } from './components/ui/text.js';
 import { Tooltip, TooltipProvider } from './components/ui/tooltip.js';
 import { Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger } from './components/ui/menu.js';
@@ -18,6 +19,8 @@ import { ModePicker } from './components/ModePicker.js';
 import { MODES } from './app-modes.js';
 import type { AppMode } from './app-modes.js';
 import { AudioPanel } from './components/AudioPanel.js';
+import type { AudioStyle } from './store.js';
+import { AUDIO_STYLES } from '../../animations/audio-renderers.js';
 import { ConfigPanel } from './components/ConfigPanel.js';
 import { HudPanel, hudSendWsGlobal } from './components/HudPanel.js';
 import { VideoPanel, VideoHeader, VideoTransportControls, VideoSettingsToggle, useVStore } from './components/VideoPanel.js';
@@ -33,8 +36,24 @@ const MODE_LABEL = Object.fromEntries(MODES.map(m => [m.id, m.label])) as Record
 const FULLSCREEN_MODES: ReadonlySet<AppMode> = new Set(['hud', 'audio', 'config', 'video', 'life', 'cast']);
 const isFullscreenMode = (m: AppMode | null) => m !== null && FULLSCREEN_MODES.has(m);
 
+function idleFadeStyle(idle: boolean): CSSProperties {
+  return {
+    opacity: idle ? 0 : 1,
+    transition: idle ? 'opacity 300ms' : 'opacity 0ms',
+    ...(idle ? { pointerEvents: 'none' as const } : {}),
+  };
+}
+
 function storeCompat() {
   return { state: deckStore.getState(), loadProject: (p: unknown) => deckStore.getState().loadProject(p) };
+}
+
+function applyOpenAsset(name: string, project: unknown) {
+  const baseName = name.replace(/\.dmx\.json$/i, '');
+  const s = deckStore.getState();
+  s.loadProject(project);
+  s.setProjectTitle(baseName);
+  s.setLibraryPath(baseName);
 }
 
 function newProject() {
@@ -154,6 +173,23 @@ function LivePreviewToggle({ on, onToggle }: { on: boolean; onToggle: () => void
   );
 }
 
+function StatusChip({ icon, label, srSuffix, colorClass, onClick }: {
+  icon: string;
+  label: string;
+  srSuffix: string;
+  colorClass: 'text-amber-400' | 'text-red-400' | 'text-orange-400';
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`font-mono text-xs px-1 py-0.5 hover:opacity-70 transition-opacity ${colorClass}`}
+      onClick={onClick}
+    >
+      <span aria-hidden="true">(</span><span aria-hidden="true">{icon}</span> {label}<span className="sr-only">{srSuffix}</span><span aria-hidden="true">)</span>
+    </button>
+  );
+}
 
 export function App() {
   const activeColor = useDeckStore(s => s.activeColor);
@@ -181,17 +217,27 @@ export function App() {
 
   useEffect(() => {
     document.title = activeMode ? `dark-matrix - ${MODE_LABEL[activeMode]}` : 'dark-matrix';
+    if (activeMode !== 'audio') setAudioFullscreenStyle(null);
   }, [activeMode]);
+
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [modePickerOpen, setModePickerOpen] = useState(false);
+  const [audioFullscreenStyle, setAudioFullscreenStyle] = useState<AudioStyle | null>(null);
+  const [audioIdle, setAudioIdle] = useState(false);
+  const [audioGain, setAudioGain] = useState(1.0);
+  const audioGainRef = useRef(1.0);
 
   useEffect(() => {
     const el = headerRef.current;
     if (!el) return;
-    if (activeMode === 'video' && videoIdle) el.setAttribute('inert', '');
-    else el.removeAttribute('inert');
-  }, [activeMode, videoIdle]);
-
-  const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const [modePickerOpen, setModePickerOpen] = useState(false);
+    const shouldHide = (activeMode === 'video' && videoIdle) || (activeMode === 'audio' && audioFullscreenStyle !== null && audioIdle);
+    if (shouldHide) {
+      if (el.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
+      el.setAttribute('inert', '');
+    } else {
+      el.removeAttribute('inert');
+    }
+  }, [activeMode, videoIdle, audioIdle, audioFullscreenStyle]);
   const [assetManagerOpen, setAssetManagerOpen] = useState(false);
   const [assetImportOpen, setAssetImportOpen] = useState(false);
   const [hasMic, setHasMic] = useState(false);
@@ -362,6 +408,30 @@ export function App() {
     );
   }
 
+  const statusChip = (
+    <div aria-live="polite" aria-atomic="true">
+      {uncalibrated ? (
+        <StatusChip
+          icon="⚠" label="Setup required" srSuffix=" — open setup guide"
+          colorClass="text-amber-400"
+          onClick={() => setWelcomeDismissed(false)}
+        />
+      ) : !daemonOnline ? (
+        <StatusChip
+          icon="✕" label="Daemon offline" srSuffix=" — open config"
+          colorClass="text-red-400"
+          onClick={() => deckStore.getState().setActiveMode('config')}
+        />
+      ) : !modules.left && !modules.right ? (
+        <StatusChip
+          icon="○" label="No hardware" srSuffix=" — open config"
+          colorClass="text-orange-400"
+          onClick={() => deckStore.getState().setActiveMode('config')}
+        />
+      ) : null}
+    </div>
+  );
+
   return (
     <TooltipProvider>
       <ShortcutDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} dualModule={dualModule} />
@@ -375,10 +445,7 @@ export function App() {
         open={assetManagerOpen}
         onOpenChange={setAssetManagerOpen}
         onOpenAsset={(name, project) => {
-          deckStore.getState().loadProject(project);
-          const baseName = name.replace(/\.dmx\.json$/i, '');
-          deckStore.getState().setProjectTitle(baseName);
-          deckStore.getState().setLibraryPath(baseName);
+          applyOpenAsset(name, project);
           setAssetManagerOpen(false);
         }}
       />
@@ -386,6 +453,11 @@ export function App() {
         open={assetImportOpen}
         onOpenChange={setAssetImportOpen}
         initialView="import"
+        onOpenAsset={(name, project) => {
+          applyOpenAsset(name, project);
+          deckStore.getState().setActiveMode('design');
+          setAssetImportOpen(false);
+        }}
       />
       {modePickerOpen && (
         <ModePicker
@@ -400,12 +472,13 @@ export function App() {
           as="header"
           ref={headerRef}
           blur={false}
-          className="absolute top-0 inset-x-0 z-10 gap-4 pl-7 pr-5 py-4"
-          style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)', ...(activeMode === 'video' ? { opacity: videoIdle ? 0 : 1, transition: videoIdle ? 'opacity 300ms' : 'opacity 0ms', pointerEvents: videoIdle ? 'none' : undefined } : {}) }}
+          className="absolute top-0 inset-x-0 z-20 gap-4 pl-7 pr-5 py-3"
+          style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)', ...(activeMode === 'video' ? idleFadeStyle(videoIdle) : activeMode === 'audio' && audioFullscreenStyle !== null ? idleFadeStyle(audioIdle) : {}) }}
           left={
             !isFullscreenMode(activeMode) ? (
               <div className="flex items-center gap-1">
                 <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
+                {statusChip}
                 <Menu>
                   <MenuTrigger asChild>
                     <Button variant="ghost">file <span aria-hidden="true">▾</span></Button>
@@ -422,9 +495,7 @@ export function App() {
                             <MenuItem key={name} onSelect={() => {
                               openFromLibrary(name)
                                 .then(project => {
-                                  deckStore.getState().loadProject(project);
-                                  deckStore.getState().setProjectTitle(name);
-                                  deckStore.getState().setLibraryPath(name);
+                                  applyOpenAsset(name, project);
                                   deckStore.getState().addRecentFile(name);
                                 })
                                 .catch(console.error);
@@ -476,7 +547,10 @@ export function App() {
                 )}
               </div>
             ) : (
-              <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" tooltip="switch mode" aria-label="Mode picker" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen(v => !v)}>◫</Button>
+                {statusChip}
+              </div>
             )
           }
           center={
@@ -497,7 +571,9 @@ export function App() {
                 </span>
               </>
             ) : activeMode === 'audio' ? (
-              <span className="font-mono text-xs text-foreground">audio</span>
+              <span className="font-mono text-xs text-foreground">
+                {AUDIO_STYLES.find(s => s.id === audioFullscreenStyle)?.label ?? 'audio'}
+              </span>
             ) : activeMode === 'video' ? (
               <VideoHeader />
             ) : activeMode === 'life' ? (
@@ -533,8 +609,17 @@ export function App() {
                 <div className="flex items-center gap-2">
                   {isClockSelected && (
                     <>
-                      <ScrubInput aria-label="Clock hours" value={clockOverrideH} min={0} max={23} onChange={setClockOverrideH} />
-                      <ScrubInput aria-label="Clock minutes" value={clockOverrideM} min={0} max={59} onChange={setClockOverrideM} />
+                      <TimeInput
+                        aria-label="Preview time"
+                        value={`${String(clockOverrideH).padStart(2, '0')}:${String(clockOverrideM).padStart(2, '0')}`}
+                        onChange={v => {
+                          const [hStr, mStr] = v.split(':');
+                          const h = parseInt(hStr ?? '0', 10);
+                          const m = parseInt(mStr ?? '0', 10);
+                          setClockOverrideH(isNaN(h) ? 0 : h);
+                          setClockOverrideM(isNaN(m) ? 0 : m);
+                        }}
+                      />
                       <Button variant="ghost" size="sm" aria-label="Reset to current time" onClick={() => { const n = new Date(); setClockOverrideH(n.getHours()); setClockOverrideM(n.getMinutes()); }}>
                         now
                       </Button>
@@ -561,11 +646,17 @@ export function App() {
             ) : activeMode === 'config' ? (
               <Button variant="ghost" disabled={!configDirty} onClick={() => void saveConfig()}>save</Button>
             ) : activeMode === 'audio' ? (
-              hasMic ? (
-                <div className="flex items-center gap-2">
-                  {audioSource === 'mic' && (
-                    <Slider aria-label="Mic sensitivity" value={micSensitivity} min={0} max={100} className="w-36" onChange={e => deckStore.getState().setMicSensitivity(Number(e.target.value))} />
-                  )}
+              <div className="flex items-center gap-2">
+                {audioSource !== 'mic' && (
+                  <Slider aria-label="Visualizer gain" value={audioGain} min={1} max={8} step={0.5} className="w-28" valueLabel={audioGain.toFixed(1) + '×'} onChange={e => { const v = Number(e.target.value); setAudioGain(v); audioGainRef.current = v; }} />
+                )}
+                {hasMic && audioSource === 'mic' && (
+                  <Slider aria-label="Mic sensitivity" value={micSensitivity} min={0} max={100} step={1} className="w-36" valueLabel={`${micSensitivity}%`} onChange={e => deckStore.getState().setMicSensitivity(Number(e.target.value))} />
+                )}
+                {audioFullscreenStyle !== null && (
+                  <Button variant="ghost" size="sm" aria-label="Back to visualizer list" onClick={() => setAudioFullscreenStyle(null)}>visualizers</Button>
+                )}
+                {hasMic && (
                   <Toggle
                     pressed={audioSource === 'mic'}
                     onPressedChange={(on) => deckStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
@@ -574,8 +665,8 @@ export function App() {
                   >
                     <span aria-hidden="true">mic</span>
                   </Toggle>
-                </div>
-              ) : undefined
+                )}
+              </div>
             ) : activeMode === 'video' ? (
               <div className="flex items-center gap-1">
                 <VideoTransportControls />
@@ -628,7 +719,7 @@ export function App() {
           </div>
         ) : activeMode === 'audio' ? (
           <div className="h-full flex">
-            <AudioPanel dualModule={dualModule} />
+            <AudioPanel dualModule={dualModule} fullscreenStyle={audioFullscreenStyle} onFullscreenChange={setAudioFullscreenStyle} onFullscreenIdleChange={setAudioIdle} gainMultiplierRef={audioGainRef} />
           </div>
         ) : activeMode === 'config' ? (
           <div className="h-full flex">
@@ -679,42 +770,6 @@ export function App() {
           </div>
         </footer>}
 
-        {(() => {
-          if (uncalibrated) {
-            return (
-              <button
-                className="absolute top-3 right-4 z-20 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-mono bg-amber-400/10 text-amber-400 border border-amber-400/30 hover:bg-amber-400/20 transition-colors"
-                onClick={() => setWelcomeDismissed(false)}
-                aria-label="Setup required — open setup guide"
-              >
-                <span aria-hidden="true">⚠</span> Setup required
-              </button>
-            );
-          }
-          if (!daemonOnline) {
-            return (
-              <button
-                className="absolute top-3 right-4 z-20 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-mono bg-red-500/10 text-red-400 border border-red-400/30 hover:bg-red-400/20 transition-colors"
-                onClick={() => deckStore.getState().setActiveMode('config')}
-                aria-label="Daemon offline — open config"
-              >
-                <span aria-hidden="true">✕</span> Daemon offline
-              </button>
-            );
-          }
-          if (!modules.left && !modules.right) {
-            return (
-              <button
-                className="absolute top-3 right-4 z-20 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-mono bg-orange-500/10 text-orange-400 border border-orange-400/30 hover:bg-orange-400/20 transition-colors"
-                onClick={() => deckStore.getState().setActiveMode('config')}
-                aria-label="No hardware detected — open config"
-              >
-                <span aria-hidden="true">○</span> No hardware
-              </button>
-            );
-          }
-          return null;
-        })()}
 
         {showWelcome && (
           <WelcomeScreen
@@ -723,6 +778,9 @@ export function App() {
             onDismiss={() => setWelcomeDismissed(true)}
           />
         )}
+        <span className="sr-only" aria-live="polite" aria-atomic="true">
+          {(activeMode === 'video' && videoIdle) || (activeMode === 'audio' && audioFullscreenStyle !== null && audioIdle) ? 'Controls hidden. Move mouse or press a key to show.' : ''}
+        </span>
       </div>
     </TooltipProvider>
   );

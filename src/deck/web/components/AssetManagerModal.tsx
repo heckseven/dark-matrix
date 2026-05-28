@@ -167,9 +167,13 @@ export function AssetManagerModal({ open, onOpenChange, onOpenAsset, initialView
     forceUpdate();
   }
 
+  function fetchFullAsset(name: string): Promise<unknown> {
+    return fetch(`/api/assets/${encodeURIComponent(name)}?full=1`)
+      .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json(); });
+  }
+
   function handleOpen(asset: AssetMeta) {
-    fetch(`/api/assets/${encodeURIComponent(asset.name)}?full=1`)
-      .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() as Promise<unknown>; })
+    fetchFullAsset(asset.name)
       .then(project => { onOpenAsset?.(asset.name, project); })
       .catch(console.error);
   }
@@ -243,9 +247,15 @@ export function AssetManagerModal({ open, onOpenChange, onOpenAsset, initialView
           <div className="p-10">
             {view === 'import' ? (
               <AssetImportPanel
-                onSaved={() => {
+                onSaved={(filename) => {
                   if (initialView === 'import') {
-                    onOpenChange(false);
+                    if (onOpenAsset) {
+                      fetchFullAsset(filename)
+                        .then(project => { onOpenAsset(filename, project); })
+                        .catch(e => { console.error(e); onOpenChange(false); });
+                    } else {
+                      onOpenChange(false);
+                    }
                   } else {
                     void fetchAssets().then(() => setView('grid'));
                   }

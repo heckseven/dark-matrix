@@ -40,12 +40,14 @@ function applyCarry(
 
 interface SegProps {
   value: number;
+  min: number;
+  max: number;
   onChange: (v: number) => void;
   disabled?: boolean;
   ariaLabel: string;
 }
 
-function Seg({ value, onChange, disabled, ariaLabel }: SegProps) {
+function Seg({ value, min, max, onChange, disabled, ariaLabel }: SegProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -91,10 +93,16 @@ function Seg({ value, onChange, disabled, ariaLabel }: SegProps) {
     >
       <input
         ref={inputRef}
+        role="spinbutton"
         type="text"
         inputMode="numeric"
         value={displayVal}
         aria-label={ariaLabel}
+        aria-readonly={!editing}
+        aria-valuenow={value}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuetext={pad2(value)}
         disabled={disabled}
         readOnly={!editing}
         onChange={e => setDraft(e.target.value.replace(/\D/g, '').slice(0, 2))}
@@ -102,6 +110,9 @@ function Seg({ value, onChange, disabled, ariaLabel }: SegProps) {
           const parsed = parseInt(draft, 10);
           if (!isNaN(parsed)) onChange(parsed);
           setEditing(false);
+        }}
+        onClick={() => {
+          if (!editing && !disabled) { setDraft(pad2(value)); setEditing(true); }
         }}
         onKeyDown={e => {
           if (editing) {
@@ -117,7 +128,6 @@ function Seg({ value, onChange, disabled, ariaLabel }: SegProps) {
         }}
         className="text-center bg-transparent border-none outline-none font-mono text-xs text-foreground disabled:cursor-not-allowed"
         style={{
-          pointerEvents: editing ? 'auto' : 'none',
           cursor: editing ? 'text' : 'ew-resize',
           width: `${Math.max(displayVal.length, 2)}ch`,
         }}
@@ -157,7 +167,7 @@ export function TimeInput({
 }: TimeInputProps) {
   const [h, m, s] = parse(value);
   const labelId = useId();
-  const prefix = label ?? '';
+  const prefix = label ?? ariaLabel ?? '';
 
   function update(newH: number, newM: number, newS: number) {
     const carried = applyCarry(newH, newM, newS, maxHours);
@@ -175,13 +185,13 @@ export function TimeInput({
       )}
     >
       <span aria-hidden={true} className="text-foreground select-none">{'['}&nbsp;</span>
-      <Seg value={h} {...(disabled ? { disabled } : {})} ariaLabel={`${prefix ? prefix + ' ' : ''}hours`}   onChange={v => update(v, m, s)} />
+      <Seg value={h} min={0} max={maxHours} {...(disabled ? { disabled } : {})} ariaLabel={`${prefix ? prefix + ' ' : ''}hours`}   onChange={v => update(v, m, s)} />
       <span aria-hidden={true} className="text-foreground/40 select-none px-px">:</span>
-      <Seg value={m} {...(disabled ? { disabled } : {})} ariaLabel={`${prefix ? prefix + ' ' : ''}minutes`} onChange={v => update(h, v, s)} />
+      <Seg value={m} min={0} max={59} {...(disabled ? { disabled } : {})} ariaLabel={`${prefix ? prefix + ' ' : ''}minutes`} onChange={v => update(h, v, s)} />
       {showSeconds && (
         <>
           <span aria-hidden={true} className="text-foreground/40 select-none px-px">:</span>
-          <Seg value={s} {...(disabled ? { disabled } : {})} ariaLabel={`${prefix ? prefix + ' ' : ''}seconds`} onChange={v => update(h, m, v)} />
+          <Seg value={s} min={0} max={59} {...(disabled ? { disabled } : {})} ariaLabel={`${prefix ? prefix + ' ' : ''}seconds`} onChange={v => update(h, m, v)} />
         </>
       )}
       <span aria-hidden={true} className="text-foreground select-none">&nbsp;{']'}</span>
