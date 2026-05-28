@@ -217,11 +217,15 @@ export function App() {
   const isTwitchConnected  = useDeckStore(s => !!(s.configData?.twitch?.broadcaster_id));
   const videoIdle          = useVStore(s => s.idle);
 
+  const [configLoading, setConfigLoading] = useState(true);
   useEffect(() => {
-    fetch('/api/config')
-      .then(r => r.ok ? r.json() as Promise<{ config: Config }> : Promise.reject(r.status))
+    const controller = new AbortController();
+    fetch('/api/config', { signal: controller.signal })
+      .then(r => r.ok ? r.json() as Promise<{ config: Config }> : Promise.reject(new Error(`/api/config HTTP ${r.status}`)))
       .then(({ config }) => deckStore.getState().loadConfigData(config))
-      .catch(console.error);
+      .catch(err => { if ((err as Error).name !== 'AbortError') console.error(err); })
+      .finally(() => setConfigLoading(false));
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
@@ -487,7 +491,7 @@ export function App() {
           onClose={() => setModePickerOpen(false)}
         />
       )}
-      <div ref={containerRef} className="relative h-screen bg-background text-foreground font-mono">
+      <div ref={containerRef} aria-busy={configLoading} className="relative h-screen bg-background text-foreground font-mono">
         <PanelBar
           as="header"
           ref={headerRef}
