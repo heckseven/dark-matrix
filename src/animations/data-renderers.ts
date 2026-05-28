@@ -29,6 +29,7 @@ export const DATA_STYLES: { id: DataStyle; label: string }[] = [
 ];
 
 // Layout constants
+const COLS       = 9;
 const ROWS       = 34;
 const HIST_LEN   = 17;
 // Top sections: row 16 = newest (nearest center), row 0 = oldest
@@ -38,6 +39,9 @@ const BOT_BASE   = 17;
 // Column groups (section-relative offset 0–3)
 const LEFT_BASE  = 0;
 const RIGHT_BASE = 5;
+// Cores layout
+const CORES_FULL_THRESHOLD = 9;   // ≤9 cores → full-height (center-out) bars
+const CORES_TOTAL_CAP      = 18;  // group cores into 18 buckets when >18
 
 export type DataRenderer = {
   update(stats: DataStats): void;
@@ -51,15 +55,14 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
   const botLeftM: DataMetric = cfg.bottomLeft ?? 'net_rx';
   const botRightM:DataMetric = cfg.bottomRight ?? 'net_tx';
 
-  // Ring buffers — line/fill/scroll use full history; cores uses slot [0] only
+  // Ring buffers — line/fill/scroll use full history. cores uses coreValues below.
   const histTL = new Float32Array(HIST_LEN);
   const histTR = new Float32Array(HIST_LEN);
   const histBL = new Float32Array(HIST_LEN);
   const histBR = new Float32Array(HIST_LEN);
 
-  // cores: 5th group value and group count (4 or 5 depending on core count)
-  let coreCenterVal  = 0;
-  let coreGroupCount: 4 | 5 = 4;
+  // cores: per-core (or per-bucket) values normalized 0..1
+  let coreValues: number[] = [];
 
   let netRxCeil = 1 * 1024 * 1024;
   let netTxCeil = 1 * 1024 * 1024;
@@ -86,7 +89,7 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
   }
 
   // Group cpuCores into n evenly-sized buckets, return avg per bucket (0–1)
-  function cpuGroups(cores: number[], n: 4 | 5): number[] {
+  function cpuGroups(cores: number[], n: number): number[] {
     if (cores.length === 0) return Array(n).fill(0) as number[];
     const gs = Math.ceil(cores.length / n);
     return Array.from({ length: n }, (_, gi) => {
@@ -135,8 +138,9 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
     }
   }
 
-  // Cores: full-height bar (top + bottom) for a single column
-  function drawCoreBar(f: Frame, v: number, col: number): void {
+  // Full-height bar (center-out): grows both up and down from the central
+  // horizontal axis. Used when total core count ≤ CORES_FULL_THRESHOLD.
+  function drawFullHeightBar(f: Frame, v: number, col: number): void {
     const filled = Math.round(v * HIST_LEN);
     for (let i = 0; i < filled; i++) {
       const rowTop = TOP_BASE - i;
@@ -146,17 +150,31 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
     }
   }
 
+  // Half-height bar growing upward from the central axis.
+  function drawHalfBarTop(f: Frame, v: number, col: number): void {
+    const filled = Math.round(v * HIST_LEN);
+    for (let i = 0; i < filled; i++) {
+      const row = TOP_BASE - i;
+      if (row >= 0) f[col * ROWS + row] = 255;
+    }
+  }
+
+  // Half-height bar growing downward from the central axis.
+  function drawHalfBarBot(f: Frame, v: number, col: number): void {
+    const filled = Math.round(v * HIST_LEN);
+    for (let i = 0; i < filled; i++) {
+      const row = BOT_BASE + i;
+      if (row < ROWS) f[col * ROWS + row] = 255;
+    }
+  }
+
   return {
     update(stats: DataStats) {
       if (style === 'cores') {
-        const n: 4 | 5 = (stats.cpuCores?.length ?? 0) > 16 ? 5 : 4;
-        coreGroupCount = n;
-        const groups = cpuGroups(stats.cpuCores ?? [], n);
-        histTL[0] = groups[0] ?? 0;
-        histTR[0] = groups[1] ?? 0;
-        histBL[0] = groups[2] ?? 0;
-        histBR[0] = groups[3] ?? 0;
-        coreCenterVal = groups[4] ?? 0;
+        const cores = stats.cpuCores ?? [];
+        coreValues = cores.length > CORES_TOTAL_CAP
+          ? cpuGroups(cores, CORES_TOTAL_CAP)
+          : cores.map(c => Math.max(0, Math.min(1, c / 100)));
       } else if (style === 'scroll') {
         const groups = cpuGroups(stats.cpuCores ?? [], 4);
         shiftPush(histTL, groups[0] ?? 0);
@@ -185,22 +203,29 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
         drawScrollBars(f, histBL, LEFT_BASE,  false, true);
         drawScrollBars(f, histBR, RIGHT_BASE, false, false);
       } else if (style === 'cores') {
-        const g0 = histTL[0] ?? 0;
-        const g1 = histTR[0] ?? 0;
-        const g2 = histBL[0] ?? 0;
-        const g3 = histBR[0] ?? 0;
-        // Left half: groups 0–3, innermost at col 3
-        drawCoreBar(f, g0, LEFT_BASE + 0);
-        drawCoreBar(f, g1, LEFT_BASE + 1);
-        drawCoreBar(f, g2, LEFT_BASE + 2);
-        drawCoreBar(f, g3, LEFT_BASE + 3);
-        // Right half: mirrored
-        drawCoreBar(f, g3, RIGHT_BASE + 0);
-        drawCoreBar(f, g2, RIGHT_BASE + 1);
-        drawCoreBar(f, g1, RIGHT_BASE + 2);
-        drawCoreBar(f, g0, RIGHT_BASE + 3);
-        // Center column: 5th group, only when >16 cores
-        if (coreGroupCount === 5) drawCoreBar(f, coreCenterVal, 4);
+        const n = coreValues.length;
+        if (n === 0) {
+          // No core data — render empty frame.
+        } else if (n <= CORES_FULL_THRESHOLD) {
+          // Full-height bars centered in the 9-column display.
+          const startCol = Math.floor((COLS - n) / 2);
+          for (let i = 0; i < n; i++) {
+            drawFullHeightBar(f, coreValues[i] ?? 0, startCol + i);
+          }
+        } else {
+          // Split into top half (grows up) and bottom half (grows down).
+          // Even split: ceil(N/2) on top, floor(N/2) on bottom.
+          const topCount = Math.ceil(n / 2);
+          const topStart = Math.floor((COLS - topCount) / 2);
+          for (let i = 0; i < topCount; i++) {
+            drawHalfBarTop(f, coreValues[i] ?? 0, topStart + i);
+          }
+          const botCount = n - topCount;
+          const botStart = Math.floor((COLS - botCount) / 2);
+          for (let i = 0; i < botCount; i++) {
+            drawHalfBarBot(f, coreValues[topCount + i] ?? 0, botStart + i);
+          }
+        }
       } else {
         // line
         drawLine(f, histTL, LEFT_BASE,  true,  true);
