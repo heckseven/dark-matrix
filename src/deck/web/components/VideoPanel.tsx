@@ -1,5 +1,7 @@
 import * as React from 'react';
+import { useMemo } from 'react';
 import { create } from 'zustand';
+import { useDeckStore } from '../store.js';
 import { createPreviewBridge } from '../preview.js';
 import { Button } from './ui/button.js';
 import { Checkbox } from './ui/checkbox.js';
@@ -14,7 +16,9 @@ const HW_COLS = 18;
 const HW_ROWS = 34;
 const FPS = 20;
 const BAYER4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]] as const;
-const SVG_DOT = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${CELL}" height="${CELL}"><circle cx="${CELL / 2}" cy="${CELL / 2}" r="2" fill="#303030"/></svg>`)}")`;
+function makeSvgDot(color: string): string {
+  return `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${CELL}" height="${CELL}"><circle cx="${CELL / 2}" cy="${CELL / 2}" r="2" fill="${color}"/></svg>`)}")`;
+}
 
 // ── shared store ───────────────────────────────────────────────────────────
 type Controls = { brightness: number; contrast: number; invert: boolean; dither: boolean };
@@ -227,6 +231,10 @@ export function VideoPanel({ topPad = 0, settingsToggleRef }: { topPad?: number;
   const playing = useVStore(s => s.playing);
   const controls = useVStore(s => s.controls);
   const settingsOpen = useVStore(s => s.settingsOpen);
+  const appearance = useDeckStore(s => s.configData?.appearance);
+  const svgDot = useMemo(() => makeSvgDot(
+    getComputedStyle(document.documentElement).getPropertyValue('--color-border').trim() || '#2a2a2a'
+  ), [appearance]);
   const currentTime = useVStore(s => s.currentTime);
   const duration = useVStore(s => s.duration);
   const ytError = useVStore(s => s.ytError);
@@ -488,7 +496,7 @@ export function VideoPanel({ topPad = 0, settingsToggleRef }: { topPad?: number;
           aria-label={src ? 'Video output' : 'No source loaded'}
           style={{
             display: 'grid',
-            backgroundImage: SVG_DOT,
+            backgroundImage: svgDot,
             backgroundSize: `${CELL}px ${CELL}px`,
             backgroundRepeat: 'repeat',
             fontSize: '14px',

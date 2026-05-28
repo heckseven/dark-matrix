@@ -8,7 +8,6 @@ const BASE_CELL = 20;
 const GAP = 1;
 const BASE_CORNER = 4;
 const BASE_MODULE_GAP = 8;
-const CURSOR_COLOR = '#4ade80';
 
 // ── rendering helpers (mirrors PixelCanvas exactly) ──────────────────────────
 
@@ -58,7 +57,7 @@ function drawCell(
   ctx.textBaseline = 'middle';
   ctx.fillText(v === 0 ? '•' : '∗', x + m.cell / 2, y + m.cell / 2 + 1);
   if (isCursor) {
-    ctx.strokeStyle = CURSOR_COLOR;
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#0DC45C';
     ctx.lineWidth = 1;
     const x1 = x + 1.5, y1 = y + 1.5, x2 = x + m.cell - 1.5, y2 = y + m.cell - 1.5;
     ctx.beginPath();
