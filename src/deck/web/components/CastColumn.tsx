@@ -40,7 +40,7 @@ export function CastColumn({ column, onCollapse, onRemove }: {
       {/* Column header */}
       <div
         className="flex items-center justify-between px-2 py-1"
-        style={{ position: 'sticky', top: 0, zIndex: 1, backdropFilter: 'blur(2px)', backgroundColor: 'var(--color-backdrop)' }}
+        style={{ position: 'sticky', top: 0, zIndex: 1, backdropFilter: 'blur(2px)', backgroundColor: 'color-mix(in srgb, var(--color-background) 65%, transparent)' }}
       >
         <Link href={`https://twitch.tv/${column.channel}`} className="font-mono text-xs truncate">
           {column.channel}
