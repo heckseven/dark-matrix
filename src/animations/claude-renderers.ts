@@ -35,8 +35,11 @@ function toolToCol(tool: string): number {
 }
 
 export function createClaudeMatrixRenderer(): ClaudeRendererApi {
-  const AMBIENT = 0.04;
-  type Drop = { pos: number; speed: number };
+  // 1-bit display: idle vs. active is conveyed by lit-pixel density, not
+  // brightness. Idle = sparse single dots; active = dense long streaks.
+  const AMBIENT = 0.012;     // idle drop spawn chance per column per frame
+  const IDLE_TRAIL = 1;      // ambient (zero-energy) drops are a single pixel
+  type Drop = { pos: number; speed: number; trail: number };
   const colEnergy = new Float32Array(COLS);
   const drops: Drop[][] = Array.from({ length: COLS }, () => []);
   let burstEffect = 0;
@@ -70,30 +73,30 @@ export function createClaudeMatrixRenderer(): ClaudeRendererApi {
           drops[col]!.push({
             pos: 0,
             speed: 0.3 + energy * 1.6 + Math.random() * 0.3,
+            trail: IDLE_TRAIL + Math.round(energy * (TRAIL - IDLE_TRAIL)),
           });
         }
 
         drops[col] = (drops[col] ?? []).filter(drop => {
           drop.pos += drop.speed;
           const head = Math.round(drop.pos);
-          for (let t = 0; t < TRAIL; t++) {
+          for (let t = 0; t < drop.trail; t++) {
             const r = head - t;
             if (r >= 0 && r < ROWS) {
-              const v = Math.round(255 * Math.pow(0.65, t));
               const idx = col * ROWS + r;
-              frame[idx] = Math.max(frame[idx] ?? 0, v);
+              frame[idx] = 255;
             }
           }
-          return drop.pos < ROWS + TRAIL;
+          return drop.pos < ROWS + drop.trail;
         });
       }
 
-      // Agent burst: random scatter overlay
+      // Agent burst: random scatter overlay — count fades with the burst.
       if (burstEffect > 0.1) {
         for (let i = 0; i < Math.round(burstEffect * 12); i++) {
           const c = Math.floor(Math.random() * COLS);
           const r = Math.floor(Math.random() * ROWS);
-          frame[c * ROWS + r] = Math.max(frame[c * ROWS + r] ?? 0, Math.round(burstEffect * 200));
+          frame[c * ROWS + r] = 255;
         }
       }
 
