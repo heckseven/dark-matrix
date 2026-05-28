@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "files": ["dist/", "systemd/", "udev/", "images/"],
   "bin": {
