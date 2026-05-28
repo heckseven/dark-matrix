@@ -94,7 +94,7 @@ export const DataGridScroll: Story = {
   },
 };
 
-/** Data grid — cpu cores preset active (Layer 2, no settings). */
+/** Data grid — cores preset active (Layer 2, no settings). */
 export const DataGridCores: Story = {
   args: {
     widget: { widget: 'data', style: 'cores' } satisfies HudWidget,
