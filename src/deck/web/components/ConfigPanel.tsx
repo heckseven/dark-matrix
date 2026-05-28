@@ -99,7 +99,7 @@ export function ConfigPanel({ dualModule, topPad }: { dualModule: boolean; topPa
             )}
           </>
         ) : (
-          <p className="text-xs text-white/60">loading…</p>
+          <p className="text-xs text-muted-foreground">loading…</p>
         )}
         </div>
       </div>

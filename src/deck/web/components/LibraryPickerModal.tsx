@@ -114,7 +114,7 @@ export function LibraryPickerModal({ open, onOpenChange, onPick, initialEntries 
                       key={entry.name}
                       type="button"
                       aria-label={entry.name}
-                      className={`relative flex flex-col gap-2 items-center p-2 w-full rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px] hover:bg-foreground/5${entry.width === 18 ? ' col-span-2' : ''}`}
+                      className={`relative flex flex-col gap-2 items-center p-2 w-full rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[-2px] hover:bg-foreground/5${entry.width === 18 ? ' col-span-2' : ''}`}
                       onClick={() => {
                         if (entry.frames.length === 1) {
                           handlePick(entry.name, entry.frames[0]!, entry.width);
@@ -139,7 +139,7 @@ export function LibraryPickerModal({ open, onOpenChange, onPick, initialEntries 
                   key={`${view.entry.name}-${idx}`}
                   type="button"
                   aria-label={`Frame ${idx + 1}`}
-                  className="flex flex-col gap-1 items-center p-2 rounded-sm hover:bg-foreground/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-[-2px]"
+                  className="flex flex-col gap-1 items-center p-2 rounded-sm hover:bg-foreground/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[-2px]"
                   onClick={() => handlePick(view.entry.name, pixels, view.entry.width)}
                 >
                   <MatrixPreview width={view.entry.width} pixels={pixels} />
