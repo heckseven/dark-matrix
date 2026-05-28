@@ -541,7 +541,7 @@ export function App() {
           ref={headerRef}
           blur={false}
           className="absolute top-0 inset-x-0 z-20 gap-4 pl-7 pr-5 py-3"
-          style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)', ...(activeMode === 'video' ? idleFadeStyle(videoIdle) : activeMode === 'audio' && audioFullscreenStyle !== null ? idleFadeStyle(audioIdle) : {}) }}
+          style={{ backdropFilter: 'blur(2px)', backgroundColor: 'var(--color-backdrop)', ...(activeMode === 'video' ? idleFadeStyle(videoIdle) : activeMode === 'audio' && audioFullscreenStyle !== null ? idleFadeStyle(audioIdle) : {}) }}
           left={
             !isFullscreenMode(activeMode) ? (
               <div className="flex items-center gap-1">
@@ -848,7 +848,7 @@ export function App() {
           />
         )}
 
-        {(!isFullscreenMode(activeMode) || activeMode === 'life') && <footer ref={footerRef} role="contentinfo" aria-label={activeMode === 'life' ? 'Simulation status' : 'Editor status'} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+        {(!isFullscreenMode(activeMode) || activeMode === 'life') && <footer ref={footerRef} role="contentinfo" aria-label={activeMode === 'life' ? 'Simulation status' : 'Editor status'} className="absolute bottom-0 inset-x-0 z-10 flex items-center px-7 py-4 text-xs" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'var(--color-backdrop)' }}>
           {activeMode === 'life' ? (
             <>
               <div className="flex-1 flex items-center gap-4" role="status" aria-live="off">

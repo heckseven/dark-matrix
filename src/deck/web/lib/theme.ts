@@ -53,6 +53,8 @@ export function applyTheme(appearance?: Appearance): () => void {
     for (const [k, v] of Object.entries(base)) {
       document.documentElement.style.setProperty(`--color-${k}`, v);
     }
+    document.documentElement.style.setProperty('--color-backdrop',        isDark ? 'rgba(0,0,0,0.4)'   : 'rgba(255,255,255,0.7)');
+    document.documentElement.style.setProperty('--color-backdrop-strong', isDark ? 'rgba(0,0,0,0.55)'  : 'rgba(255,255,255,0.8)');
     let accentHex: string;
     if (preset === 'custom') {
       accentHex = appearance?.accent ?? base['foreground']!;
