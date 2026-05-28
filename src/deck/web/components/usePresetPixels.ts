@@ -7,6 +7,7 @@ import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../an
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { createHeatmapState, bumpTool, renderHeatmap } from '../../../animations/heatmap.js';
 import { renderElegantTimer, renderHourglassFrame, renderTwinzTimer } from '../../../animations/timer-renderers.js';
+import { createClaudeMatrixRenderer, createClaudeContextRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { HudPresetClient } from '../types/hud-preset.js';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
@@ -24,6 +25,68 @@ const _heatmapPreview = (() => {
   const s = createHeatmapState();
   for (const t of ['Bash', 'Read', 'Edit', 'Agent', 'Skill', 'ToolSearch', 'TodoWrite', 'Task']) bumpTool(s, t);
   return s;
+})();
+
+// Static seeded snapshots for Claude widgets — captured mid-animation so thumbnails
+// are non-blank. Computed once at module load; thumbnails return the same frame each tick.
+function frameToB64(frame: { [i: number]: number; length: number }): string {
+  const out = new Uint8Array(COLS * ROWS);
+  for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
+  return btoa(String.fromCharCode(...out));
+}
+
+const _claudeMatrixThumb = (() => {
+  const r = createClaudeMatrixRenderer();
+  for (let i = 0; i < 30; i++) {
+    if (i % 4 === 0) r.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
+    r.render();
+  }
+  const out = frameToB64(r.render());
+  r.stop();
+  return out;
+})();
+
+const _claudeContextThumb = (() => {
+  const r = createClaudeContextRenderer();
+  for (const tool of ['Read', 'Bash', 'Edit', 'Grep', 'Write', 'Read', 'Bash']) {
+    r.onEvent({ type: 'tool_use', tool, sessionId: 'preview', rawByteLen: 600 });
+  }
+  const out = frameToB64(r.render());
+  r.stop();
+  return out;
+})();
+
+const _claudeSandThumb = (() => {
+  const r = createClaudeSandRenderer();
+  for (let i = 0; i < 40; i++) {
+    if (i % 3 === 0) r.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
+    r.render();
+  }
+  const out = frameToB64(r.render());
+  r.stop();
+  return out;
+})();
+
+const _claudeTetrisThumb = (() => {
+  const r = createClaudeTetrisRenderer();
+  for (let i = 0; i < 180; i++) {
+    if (i % 3 === 0) r.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
+    r.render();
+  }
+  const out = frameToB64(r.render());
+  r.stop();
+  return out;
+})();
+
+const _usageThumb = (() => {
+  const out = new Uint8Array(COLS * ROWS);
+  const filledRows = Math.round(0.5 * ROWS);
+  for (let col = 0; col < COLS; col++) {
+    for (let row = Math.max(0, ROWS - filledRows); row < ROWS; row++) {
+      out[col * ROWS + row] = 255;
+    }
+  }
+  return btoa(String.fromCharCode(...out));
 })();
 
 if (import.meta.hot) {
@@ -151,7 +214,14 @@ function renderWidgetToB64(
       for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
       return btoa(String.fromCharCode(...out));
     }
-    if (widget.widget === 'claude') return empty;
+    if (widget.widget === 'claude') {
+      const style = widget.style ?? 'matrix';
+      return style === 'sand'    ? _claudeSandThumb
+           : style === 'tetris'  ? _claudeTetrisThumb
+           : style === 'context' ? _claudeContextThumb
+           : style === 'usage'   ? _usageThumb
+           :                       _claudeMatrixThumb;
+    }
     const style: DataStyle = widget.style ?? 'line';
     if (!_dataCache[style]) _dataCache[style] = createDataRenderer({ style });
     const frame = _dataCache[style]!.render();
