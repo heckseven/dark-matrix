@@ -21,6 +21,7 @@ import type { AppMode } from './app-modes.js';
 import { AudioPanel } from './components/AudioPanel.js';
 import type { AudioStyle } from './store.js';
 import type { Config } from './types/config-types.js';
+import { applyTheme } from './lib/theme.js';
 import { AUDIO_STYLES } from '../../animations/audio-renderers.js';
 import { LIFE_ALGORITHMS } from '../../animations/gol.js';
 import { ConfigPanel } from './components/ConfigPanel.js';
@@ -221,17 +222,29 @@ export function App() {
   const saveConfig         = useDeckStore(s => s.saveConfig);
   const isTwitchConnected  = useDeckStore(s => !!(s.configData?.twitch?.broadcaster_id));
   const videoIdle          = useVStore(s => s.idle);
+  const appearance         = useDeckStore(s => s.configData?.appearance);
+
+  const themeCleanupRef = useRef<() => void>(() => {});
 
   const [configLoading, setConfigLoading] = useState(true);
   useEffect(() => {
     const controller = new AbortController();
     fetch('/api/config', { signal: controller.signal })
       .then(r => r.ok ? r.json() as Promise<{ config: Config }> : Promise.reject(new Error(`/api/config HTTP ${r.status}`)))
-      .then(({ config }) => deckStore.getState().loadConfigData(config))
+      .then(({ config }) => {
+        deckStore.getState().loadConfigData(config);
+        themeCleanupRef.current();
+        themeCleanupRef.current = applyTheme(config.appearance);
+      })
       .catch(err => { if ((err as Error).name !== 'AbortError') console.error(err); })
       .finally(() => setConfigLoading(false));
-    return () => controller.abort();
+    return () => { controller.abort(); themeCleanupRef.current(); };
   }, []);
+
+  useEffect(() => {
+    themeCleanupRef.current();
+    themeCleanupRef.current = applyTheme(appearance);
+  }, [appearance]);
 
   useEffect(() => {
     document.title = activeMode ? `dark-matrix - ${MODE_LABEL[activeMode]}` : 'dark-matrix';

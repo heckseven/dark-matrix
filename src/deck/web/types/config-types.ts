@@ -57,6 +57,12 @@ export type BiomePresetConfig = {
   gridSnapshot?: string;
 };
 
+export type Appearance = {
+  preset: 'dark-matrix' | 'phosphor' | 'mono' | 'custom';
+  accent?: string;
+  color_scheme: 'dark' | 'light' | 'auto';
+};
+
 export type Config = {
   modules: {
     left: string;
@@ -95,4 +101,5 @@ export type Config = {
   biome_presets?: BiomePresetConfig[];
   twitch?: TwitchConfig;
   cast_columns?: CastColumn[];
+  appearance?: Appearance;
 };

@@ -67,6 +67,16 @@ const TwitchConfigSchema = z.object({
   broadcaster_id: z.string().optional(),
 });
 
+const AppearanceSchema = z.object({
+  preset: z.enum(['dark-matrix', 'phosphor', 'mono', 'custom']),
+  accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  color_scheme: z.enum(['dark', 'light', 'auto']),
+}).superRefine((a, ctx) => {
+  if (a.preset === 'custom' && !a.accent) {
+    ctx.addIssue({ code: 'custom', message: 'accent is required when preset is "custom"', path: ['accent'] });
+  }
+});
+
 export const ConfigSchema = z.object({
   version: z.literal(1).default(1),
   uncalibrated: z.boolean().optional(),
@@ -120,6 +130,7 @@ export const ConfigSchema = z.object({
   }),
   twitch: TwitchConfigSchema.optional(),
   cast_columns: z.array(CastColumnSchema).max(5).optional(),
+  appearance: AppearanceSchema.optional(),
   biome_presets: z.array(z.object({
     name: z.string().min(1),
     algorithm: z.enum(['conway', 'highlife', 'daynight', 'maze', 'coral', 'anneal', 'morley', '2x2', 'stains', 'diamoeba']),
@@ -146,6 +157,7 @@ export const ConfigSchema = z.object({
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
+export type Appearance = z.infer<typeof AppearanceSchema>;
 export type HudPreset = z.infer<typeof HudPresetSchema>;
 export type HudTrigger = z.infer<typeof HudTriggerSchema>;
 export type NotificationRule = z.infer<typeof NotificationRuleSchema>;
