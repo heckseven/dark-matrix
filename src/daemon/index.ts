@@ -444,18 +444,23 @@ export async function startDaemon(): Promise<() => Promise<void>> {
           return frame;
         }
 
-        const filledRows = Math.round(util * FRAME_ROWS);
+        // Layout: row 0 = reset-countdown bar, row 1 = gap, rows 2..33 = fill.
+        const FILL_TOP = 2;
+        const fillHeight = FRAME_ROWS - FILL_TOP;
+        const filledRows = Math.round(util * fillHeight);
         for (let col = 0; col < FRAME_COLS; col++) {
-          for (let r = Math.max(0, FRAME_ROWS - filledRows); r < FRAME_ROWS; r++) {
+          for (let r = Math.max(FILL_TOP, FRAME_ROWS - filledRows); r < FRAME_ROWS; r++) {
             // Over 90%: each cell flickers on/off — unstable static. Otherwise solid.
             frame[col * FRAME_ROWS + r] = util > 0.9 ? (Math.random() < 0.5 ? 255 : 0) : 255;
           }
         }
 
-        if (resetAt !== null && util > 0.5) {
+        // Reset countdown — dedicated top row, shown whenever a reset time is known.
+        // Bar shrinks from full width toward empty as the 5h window approaches reset.
+        if (resetAt !== null) {
           const totalSecs = 5 * 60 * 60;
           const secsLeft = Math.max(0, resetAt - Math.floor(Date.now() / 1000));
-          const countFrac = secsLeft / totalSecs;
+          const countFrac = Math.min(1, secsLeft / totalSecs);
           const countCols = Math.round(countFrac * FRAME_COLS);
           for (let col = 0; col < countCols && col < FRAME_COLS; col++) {
             frame[col * FRAME_ROWS + 0] = 255;
