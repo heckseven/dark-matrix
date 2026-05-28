@@ -14,7 +14,7 @@ import { createDataRenderer } from '../../../animations/data-renderers.js';
 import type { DataStyle, DataMetric, DataRenderer } from '../../../animations/data-renderers.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
-import { CLAUDE_STYLES, createClaudeSnowRenderer, createClaudeContextRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
+import { CLAUDE_STYLES, createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import type { ClaudeStyle } from '../../../animations/claude-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
@@ -328,20 +328,6 @@ const _claudeTetrisRenderer = (() => {
   }
   return r;
 })();
-const _claudeContextRenderer = (() => {
-  const r = createClaudeContextRenderer();
-  // seed with fake events so the preview shows a partial fill
-  r.onEvent({ type: 'tool_use', tool: 'Read',   sessionId: 'preview', rawByteLen: 1200 });
-  r.onEvent({ type: 'tool_use', tool: 'Bash',   sessionId: 'preview', rawByteLen: 800  });
-  r.onEvent({ type: 'tool_use', tool: 'Edit',   sessionId: 'preview', rawByteLen: 600  });
-  r.onEvent({ type: 'tool_use', tool: 'Grep',   sessionId: 'preview', rawByteLen: 400  });
-  r.onEvent({ type: 'tool_use', tool: 'Read',   sessionId: 'preview', rawByteLen: 950  });
-  r.onEvent({ type: 'tool_use', tool: 'Write',  sessionId: 'preview', rawByteLen: 700  });
-  r.onEvent({ type: 'tool_use', tool: 'Bash',   sessionId: 'preview', rawByteLen: 1100 });
-  r.onEvent({ type: 'agent_spawn', sessionId: 'preview', rawByteLen: 300 });
-  return r;
-})();
-
 // Build a static usage preview frame (~50% fill)
 function makeUsagePreviewPixels(): string {
   const frame = new Uint8Array(COLS * ROWS);
@@ -365,7 +351,6 @@ if (import.meta.hot) {
     _claudeSnowRenderer.stop();
     _claudeSandRenderer.stop();
     _claudeTetrisRenderer.stop();
-    _claudeContextRenderer.stop();
   });
 }
 
@@ -374,7 +359,6 @@ function AgentGrid({ currentWidget, onPick }: {
   onPick: (w: HudWidget) => void;
 }) {
   const [snowPixels, setSnowPixels] = useState(() => bayerToB64(_claudeSnowRenderer.render()));
-  const [contextPixels, setContextPixels] = useState(() => bayerToB64(_claudeContextRenderer.render()));
   const [sandPixels, setSandPixels] = useState(() => bayerToB64(_claudeSandRenderer.render()));
   const [tetrisPixels, setTetrisPixels] = useState(() => bayerToB64(_claudeTetrisRenderer.render()));
 
@@ -392,7 +376,6 @@ function AgentGrid({ currentWidget, onPick }: {
         _claudeSnowRenderer.onEvent({ type: 'agent_spawn', sessionId: 'preview' });
       }
       setSnowPixels(bayerToB64(_claudeSnowRenderer.render()));
-      setContextPixels(bayerToB64(_claudeContextRenderer.render()));
 
       if (tick % 6 === 0) {
         _claudeSandRenderer.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
@@ -410,7 +393,6 @@ function AgentGrid({ currentWidget, onPick }: {
     <div role="group" aria-label="Agent panels" className="flex flex-wrap gap-6">
       {CLAUDE_STYLES.map(({ id, label }) => {
         const preview = id === 'snow' ? snowPixels
-          : id === 'context' ? contextPixels
           : id === 'sand' ? sandPixels
           : id === 'tetris' ? tetrisPixels
           : USAGE_PREVIEW_PIXELS;

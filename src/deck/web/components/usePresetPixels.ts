@@ -6,7 +6,7 @@ import type { DataStyle, DataRenderer } from '../../../animations/data-renderers
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { renderElegantTimer, renderHourglassFrame, renderTwinzTimer } from '../../../animations/timer-renderers.js';
-import { createClaudeSnowRenderer, createClaudeContextRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
+import { createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { HudPresetClient } from '../types/hud-preset.js';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
@@ -33,16 +33,6 @@ const _claudeSnowThumb = (() => {
   for (let i = 0; i < 30; i++) {
     if (i % 4 === 0) r.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
     r.render();
-  }
-  const out = frameToB64(r.render());
-  r.stop();
-  return out;
-})();
-
-const _claudeContextThumb = (() => {
-  const r = createClaudeContextRenderer();
-  for (const tool of ['Read', 'Bash', 'Edit', 'Grep', 'Write', 'Read', 'Bash']) {
-    r.onEvent({ type: 'tool_use', tool, sessionId: 'preview', rawByteLen: 600 });
   }
   const out = frameToB64(r.render());
   r.stop();
@@ -204,7 +194,6 @@ function renderWidgetToB64(
       const style = widget.style ?? 'snow';
       return style === 'sand'    ? _claudeSandThumb
            : style === 'tetris'  ? _claudeTetrisThumb
-           : style === 'context' ? _claudeContextThumb
            : style === 'usage'   ? _usageThumb
            :                       _claudeSnowThumb;
     }
