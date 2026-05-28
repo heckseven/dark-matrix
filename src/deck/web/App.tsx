@@ -20,6 +20,7 @@ import { MODES } from './app-modes.js';
 import type { AppMode } from './app-modes.js';
 import { AudioPanel } from './components/AudioPanel.js';
 import type { AudioStyle } from './store.js';
+import type { Config } from './types/config-types.js';
 import { AUDIO_STYLES } from '../../animations/audio-renderers.js';
 import { ConfigPanel } from './components/ConfigPanel.js';
 import { HudPanel, hudSendWsGlobal } from './components/HudPanel.js';
@@ -215,6 +216,13 @@ export function App() {
   const saveConfig         = useDeckStore(s => s.saveConfig);
   const isTwitchConnected  = useDeckStore(s => !!(s.configData?.twitch?.broadcaster_id));
   const videoIdle          = useVStore(s => s.idle);
+
+  useEffect(() => {
+    fetch('/api/config')
+      .then(r => r.ok ? r.json() as Promise<{ config: Config }> : Promise.reject(r.status))
+      .then(({ config }) => deckStore.getState().loadConfigData(config))
+      .catch(console.error);
+  }, []);
 
   useEffect(() => {
     document.title = activeMode ? `dark-matrix - ${MODE_LABEL[activeMode]}` : 'dark-matrix';
