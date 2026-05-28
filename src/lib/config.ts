@@ -7,15 +7,24 @@ import { enumerateMatrixModules } from './modules.js';
 const BY_PATH_RE = /^\/dev\/(serial\/by-path\/[a-zA-Z0-9:._-]+|ttyACM\d+|ttyUSB\d+)$/;
 const SENSOR_PATH_RE = /^\/sys\/bus\/iio\/devices\/iio:device\d+\/in_illuminance_raw$/;
 
+// Style enums use .catch(undefined): a known widget that references a removed
+// style keeps its widget type and falls back to the renderer's default style,
+// rather than failing the whole config. Clock face .catch('elegant') likewise.
 const HudWidgetSchema = z.discriminatedUnion('widget', [
-  z.object({ widget: z.literal('clock'), face: z.enum(['binary-audio', 'elegant', 'stretch', 'analog', 'binary-blocks', 'binary-tall', 'binary-diamond', 'twinz', 'razor', 'blade']) }),
-  z.object({ widget: z.literal('data'), style: z.enum(['line', 'fill', 'scroll', 'cores']).optional(), top_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), top_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional() }),
-  z.object({ widget: z.literal('audio'), style: z.enum(['vu-glitch', 'circuit', 'spirits', 'scope-dual', 'kick-d', 'waterfall', 'sparks', 'hex', 'specter', 'heat', 'dark-matter', 'spectrum-fall', 'neo', 'cipher', 'wake', 'rhythm', 'drop', 'life-erode-4', 'glitch-sort-b', 'spiral-d', 'strobe', 'glitch-corrupt']).optional() }),
+  z.object({ widget: z.literal('clock'), face: z.enum(['binary-audio', 'elegant', 'stretch', 'analog', 'binary-blocks', 'binary-tall', 'binary-diamond', 'twinz', 'razor', 'blade']).optional().catch('elegant') }),
+  z.object({ widget: z.literal('data'), style: z.enum(['line', 'fill', 'scroll', 'cores']).optional().catch(undefined), top_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), top_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional() }),
+  z.object({ widget: z.literal('audio'), style: z.enum(['vu-glitch', 'circuit', 'spirits', 'scope-dual', 'kick-d', 'waterfall', 'sparks', 'hex', 'specter', 'heat', 'dark-matter', 'spectrum-fall', 'neo', 'cipher', 'wake', 'rhythm', 'drop', 'life-erode-4', 'glitch-sort-b', 'spiral-d', 'strobe', 'glitch-corrupt']).optional().catch(undefined) }),
   z.object({ widget: z.literal('image'), file: z.string().regex(/^[a-zA-Z0-9_\-]+\.dmx\.json$/i).max(73), speed: z.number().min(0.25).max(8).optional(), loop: z.boolean().optional() }),
   z.object({ widget: z.literal('life'), biomeName: z.string().min(1).max(100), randomIntervalMs: z.number().int().min(5000).max(3_600_000).optional() }),
-  z.object({ widget: z.literal('claude'), style: z.enum(['snow', 'quota', 'sand', 'tetris']).optional() }),
-  z.object({ widget: z.literal('timer'), style: z.enum(['elegant', 'hourglass', 'twinz']).optional(), durationMs: z.number().int().min(1000).optional(), repeat: z.boolean().optional() }),
+  z.object({ widget: z.literal('claude'), style: z.enum(['snow', 'quota', 'sand', 'tetris']).optional().catch(undefined) }),
+  z.object({ widget: z.literal('timer'), style: z.enum(['elegant', 'hourglass', 'twinz']).optional().catch(undefined), durationMs: z.number().int().min(1000).optional(), repeat: z.boolean().optional() }),
 ]);
+
+// A preset slot referencing a removed widget *type* (e.g. a deleted widget)
+// degrades to a plain clock instead of crashing config load. Healed in memory
+// only — the file on disk is left untouched.
+const HUD_WIDGET_FALLBACK = { widget: 'clock', face: 'elegant' } as const;
+const HudWidgetSlot = HudWidgetSchema.catch(HUD_WIDGET_FALLBACK);
 
 const HudTriggerSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('time'), from: z.string().regex(/^\d{2}:\d{2}$/), to: z.string().regex(/^\d{2}:\d{2}$/) }),
@@ -30,8 +39,8 @@ const HudTriggerSchema = z.discriminatedUnion('type', [
 
 const HudPresetSchema = z.object({
   name: z.string().min(1),
-  left: HudWidgetSchema,
-  right: HudWidgetSchema,
+  left: HudWidgetSlot,
+  right: HudWidgetSlot,
   triggers: z.array(HudTriggerSchema).optional(),
   match: z.enum(['all', 'any']).optional(),
 });
@@ -115,8 +124,8 @@ export const ConfigSchema = z.object({
     idle_eq_source: z.enum(['monitor', 'mic']).optional(),
   }),
   hud: z.object({
-    left:  HudWidgetSchema.optional(),
-    right: HudWidgetSchema.optional(),
+    left:  HudWidgetSlot.optional(),
+    right: HudWidgetSlot.optional(),
   }).optional(),
   ectool_path: z.string().regex(/^\/[a-zA-Z0-9_\-.\/]+$/).optional(),
   notification_rules: z.array(NotificationRuleSchema).optional(),

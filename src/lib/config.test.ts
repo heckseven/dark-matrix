@@ -95,6 +95,50 @@ describe('loadConfig', () => {
   });
 });
 
+describe('stale widget coercion (graceful degradation)', () => {
+  it('coerces a removed widget type to a clock without failing the config', async () => {
+    await write({
+      ...DEFAULT_CONFIG,
+      hud_presets: [{ name: 'p', left: { widget: 'heatmap' }, right: { widget: 'clock', face: 'elegant' } }],
+    });
+    const cfg = await loadConfig();
+    expect(cfg.hud_presets![0]!.left).toEqual({ widget: 'clock', face: 'elegant' });
+    expect(cfg.hud_presets![0]!.right).toEqual({ widget: 'clock', face: 'elegant' });
+  });
+
+  it('resets a removed widget style to the default, keeping the widget', async () => {
+    await write({
+      ...DEFAULT_CONFIG,
+      hud_presets: [{ name: 'p', left: { widget: 'claude', style: 'context' }, right: { widget: 'clock', face: 'elegant' } }],
+    });
+    const cfg = await loadConfig();
+    expect(cfg.hud_presets![0]!.left).toEqual({ widget: 'claude' });
+  });
+
+  it('resets a stale clock face to elegant', async () => {
+    await write({
+      ...DEFAULT_CONFIG,
+      hud_presets: [{ name: 'p', left: { widget: 'clock', face: 'nope' }, right: { widget: 'clock', face: 'elegant' } }],
+    });
+    const cfg = await loadConfig();
+    expect(cfg.hud_presets![0]!.left).toEqual({ widget: 'clock', face: 'elegant' });
+  });
+
+  it('preserves valid presets alongside coerced ones', async () => {
+    await write({
+      ...DEFAULT_CONFIG,
+      hud_presets: [
+        { name: 'bad',  left: { widget: 'heatmap' }, right: { widget: 'audio', style: 'dark-matter' } },
+        { name: 'good', left: { widget: 'clock', face: 'stretch' }, right: { widget: 'claude', style: 'sand' } },
+      ],
+    });
+    const cfg = await loadConfig();
+    expect(cfg.hud_presets![0]!.right).toEqual({ widget: 'audio', style: 'dark-matter' });
+    expect(cfg.hud_presets![1]!.left).toEqual({ widget: 'clock', face: 'stretch' });
+    expect(cfg.hud_presets![1]!.right).toEqual({ widget: 'claude', style: 'sand' });
+  });
+});
+
 describe('notification_rules', () => {
   it('accepts a rule with all fields', async () => {
     const rule: NotificationRule = { app_name_glob: 'firefox', urgency: 'critical', animation: 'dmx', dmx_path: '/home/user/alert.dmx.json' };
