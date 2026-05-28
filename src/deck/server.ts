@@ -1806,13 +1806,19 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
         const leftDataStyle    = typeof msg['leftDataStyle']    === 'string' ? msg['leftDataStyle']    : undefined;
         const leftAudioStyle   = typeof msg['leftAudioStyle']   === 'string' ? msg['leftAudioStyle']   : undefined;
         const leftClaudeStyle  = typeof msg['leftClaudeStyle']  === 'string' ? msg['leftClaudeStyle']  : undefined;
+        const leftTimerStyle      = typeof msg['leftTimerStyle']      === 'string'  ? msg['leftTimerStyle']      : undefined;
+        const leftTimerDurationMs = typeof msg['leftTimerDurationMs'] === 'number' && Number.isFinite(msg['leftTimerDurationMs']) && (msg['leftTimerDurationMs'] as number) > 0 ? msg['leftTimerDurationMs'] : undefined;
+        const leftTimerRepeat     = typeof msg['leftTimerRepeat']     === 'boolean' ? msg['leftTimerRepeat']     : undefined;
         const rightFace        = typeof msg['rightFace']        === 'string' ? msg['rightFace']        : undefined;
         const rightWidget      = typeof msg['rightWidget']      === 'string' ? msg['rightWidget']      : undefined;
         const rightDataStyle   = typeof msg['rightDataStyle']   === 'string' ? msg['rightDataStyle']   : undefined;
         const rightAudioStyle  = typeof msg['rightAudioStyle']  === 'string' ? msg['rightAudioStyle']  : undefined;
         const rightClaudeStyle = typeof msg['rightClaudeStyle'] === 'string' ? msg['rightClaudeStyle'] : undefined;
+        const rightTimerStyle      = typeof msg['rightTimerStyle']      === 'string'  ? msg['rightTimerStyle']      : undefined;
+        const rightTimerDurationMs = typeof msg['rightTimerDurationMs'] === 'number' && Number.isFinite(msg['rightTimerDurationMs']) && (msg['rightTimerDurationMs'] as number) > 0 ? msg['rightTimerDurationMs'] : undefined;
+        const rightTimerRepeat     = typeof msg['rightTimerRepeat']     === 'boolean' ? msg['rightTimerRepeat']     : undefined;
         if (leftFace || leftWidget || rightFace || rightWidget) {
-          sendToDaemon({ cmd: 'hud-config', leftFace, leftWidget, leftDataStyle, leftAudioStyle, leftClaudeStyle, rightFace, rightWidget, rightDataStyle, rightAudioStyle, rightClaudeStyle }).catch(() => {});
+          sendToDaemon({ cmd: 'hud-config', leftFace, leftWidget, leftDataStyle, leftAudioStyle, leftClaudeStyle, leftTimerStyle, leftTimerDurationMs, leftTimerRepeat, rightFace, rightWidget, rightDataStyle, rightAudioStyle, rightClaudeStyle, rightTimerStyle, rightTimerDurationMs, rightTimerRepeat }).catch(() => {});
         }
         sendToDaemon({ cmd: 'hud-hardware-start' }).catch(() => {});
       } else if (type === 'hud-config') {
@@ -1824,6 +1830,9 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
         const leftFile               = typeof msg['leftFile']               === 'string' ? msg['leftFile']               : undefined;
         const leftBiomeName          = typeof msg['leftBiomeName']          === 'string' ? msg['leftBiomeName']          : undefined;
         const leftRandomIntervalMs   = typeof msg['leftRandomIntervalMs']   === 'number' ? Math.max(5000, Math.min(3_600_000, msg['leftRandomIntervalMs']))  : undefined;
+        const leftTimerStyle         = typeof msg['leftTimerStyle']         === 'string' ? msg['leftTimerStyle']         : undefined;
+        const leftTimerDurationMs    = typeof msg['leftTimerDurationMs']    === 'number' && Number.isFinite(msg['leftTimerDurationMs']) && (msg['leftTimerDurationMs'] as number) > 0 ? msg['leftTimerDurationMs'] : undefined;
+        const leftTimerRepeat        = typeof msg['leftTimerRepeat']        === 'boolean' ? msg['leftTimerRepeat']        : undefined;
         const rightFace              = typeof msg['rightFace']              === 'string' ? msg['rightFace']              : undefined;
         const rightWidget            = typeof msg['rightWidget']            === 'string' ? msg['rightWidget']            : undefined;
         const rightDataStyle         = typeof msg['rightDataStyle']         === 'string' ? msg['rightDataStyle']         : undefined;
@@ -1832,7 +1841,10 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
         const rightFile              = typeof msg['rightFile']              === 'string' ? msg['rightFile']              : undefined;
         const rightBiomeName         = typeof msg['rightBiomeName']         === 'string' ? msg['rightBiomeName']         : undefined;
         const rightRandomIntervalMs  = typeof msg['rightRandomIntervalMs']  === 'number' ? Math.max(5000, Math.min(3_600_000, msg['rightRandomIntervalMs'])) : undefined;
-        sendToDaemon({ cmd: 'hud-config', leftFace, leftWidget, leftDataStyle, leftAudioStyle, leftClaudeStyle, leftFile, leftBiomeName, leftRandomIntervalMs, rightFace, rightWidget, rightDataStyle, rightAudioStyle, rightClaudeStyle, rightFile, rightBiomeName, rightRandomIntervalMs }).catch(() => {});
+        const rightTimerStyle        = typeof msg['rightTimerStyle']        === 'string' ? msg['rightTimerStyle']        : undefined;
+        const rightTimerDurationMs   = typeof msg['rightTimerDurationMs']   === 'number' && Number.isFinite(msg['rightTimerDurationMs']) && (msg['rightTimerDurationMs'] as number) > 0 ? msg['rightTimerDurationMs'] : undefined;
+        const rightTimerRepeat       = typeof msg['rightTimerRepeat']       === 'boolean' ? msg['rightTimerRepeat']       : undefined;
+        sendToDaemon({ cmd: 'hud-config', leftFace, leftWidget, leftDataStyle, leftAudioStyle, leftClaudeStyle, leftFile, leftBiomeName, leftRandomIntervalMs, leftTimerStyle, leftTimerDurationMs, leftTimerRepeat, rightFace, rightWidget, rightDataStyle, rightAudioStyle, rightClaudeStyle, rightFile, rightBiomeName, rightRandomIntervalMs, rightTimerStyle, rightTimerDurationMs, rightTimerRepeat }).catch(() => {});
       } else if (type === 'hud-presets-get') {
         void (async () => {
           try {
