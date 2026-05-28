@@ -5,7 +5,7 @@ import { createDataRenderer } from '../../../animations/data-renderers.js';
 import type { DataStyle, DataRenderer } from '../../../animations/data-renderers.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
-import { renderElegantTimer, renderHourglassFrame, renderTwinzTimer } from '../../../animations/timer-renderers.js';
+import { renderElegantTimer, renderHourglassFrame, renderTwinzTimer, renderTwinzUsagePercent } from '../../../animations/timer-renderers.js';
 import { createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { HudPresetClient } from '../types/hud-preset.js';
@@ -72,6 +72,14 @@ const _usageThumb = (() => {
   }
   // Reset countdown bar — top row, ~6 of 9 cols remaining.
   for (let col = 0; col < 6; col++) out[col * ROWS + 0] = 255;
+  return btoa(String.fromCharCode(...out));
+})();
+
+// Quota widget thumbnail — sample percentage in the twinz font.
+const _quotaThumb = (() => {
+  const frame = renderTwinzUsagePercent(42);
+  const out = new Uint8Array(COLS * ROWS);
+  for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
   return btoa(String.fromCharCode(...out));
 })();
 
@@ -198,6 +206,7 @@ function renderWidgetToB64(
       return style === 'sand'    ? _claudeSandThumb
            : style === 'tetris'  ? _claudeTetrisThumb
            : style === 'usage'   ? _usageThumb
+           : style === 'quota'   ? _quotaThumb
            :                       _claudeSnowThumb;
     }
     const style: DataStyle = widget.style ?? 'line';

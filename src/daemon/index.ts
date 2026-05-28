@@ -33,7 +33,7 @@ import { createDataRenderer } from '../animations/data-renderers.js';
 import { DATA_STYLES } from '../animations/data-renderers.js';
 import type { DataStyle, DataWidgetConfig, DataRenderer } from '../animations/data-renderers.js';
 import { createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer, CLAUDE_STYLES } from '../animations/claude-renderers.js';
-import { createElegantTimerRenderer, createHourglassTimerRenderer, createTwinzTimerRenderer } from '../animations/timer-renderers.js';
+import { createElegantTimerRenderer, createHourglassTimerRenderer, createTwinzTimerRenderer, renderTwinzTimer, renderTwinzUsagePercent, renderTwinzUsageUnknown } from '../animations/timer-renderers.js';
 import type { ClaudeStyle, ClaudeRendererApi } from '../animations/claude-renderers.js';
 import { watchProcStats } from '../lib/proc-source.js';
 import { createPresetTriggerEngine } from '../lib/preset-triggers.js';
@@ -363,14 +363,16 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     stop(): void;
   }
 
-  function createClaudeUsageRenderer(): ClaudeRendererApi {
+  // Polls the Anthropic API once a minute for 5h-window rate-limit utilisation
+  // and reset time. Shared by the usage and quota Claude widgets.
+  type UsagePoll = { util: number | null; resetAt: number | null };
+  function createUsagePoller(): { get(): UsagePoll; stop(): void } {
     const POLL_MS = 60_000;
     const CREDS_PATH = path.join(os.homedir(), '.claude', '.credentials.json');
     let util: number | null = null;
     let resetAt: number | null = null;
     let fetchTimer: ReturnType<typeof setTimeout> | null = null;
     let stopped = false;
-    let pulsePhase = 0;
 
     function schedulePoll(delayMs: number): void {
       if (stopped) return;
@@ -429,9 +431,23 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     schedulePoll(0);
 
     return {
+      get: () => ({ util, resetAt }),
+      stop() {
+        stopped = true;
+        if (fetchTimer) { clearTimeout(fetchTimer); fetchTimer = null; }
+      },
+    };
+  }
+
+  function createClaudeUsageRenderer(): ClaudeRendererApi {
+    const poller = createUsagePoller();
+    let pulsePhase = 0;
+
+    return {
       onEvent(_e) { /* usage is polled, not event-driven */ },
 
       render(): Frame {
+        const { util, resetAt } = poller.get();
         const frame = createFrame();
         pulsePhase += 0.08;
 
@@ -470,10 +486,41 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         return frame;
       },
 
-      stop() {
-        stopped = true;
-        if (fetchTimer) { clearTimeout(fetchTimer); fetchTimer = null; }
+      stop() { poller.stop(); },
+    };
+  }
+
+  // Twinz-font quota widget: shows utilisation as a two-digit percentage above a
+  // percent glyph. When utilisation exceeds 99% it switches to a twinz countdown
+  // of the time remaining until the 5h window resets, reverting to the
+  // percentage once usage resets.
+  function createClaudeQuotaRenderer(): ClaudeRendererApi {
+    const poller = createUsagePoller();
+    let pulsePhase = 0;
+
+    return {
+      onEvent(_e) { /* polled, not event-driven */ },
+
+      render(): Frame {
+        const { util, resetAt } = poller.get();
+
+        if (util === null) {
+          // Unknown: pulse the percent glyph alone until the first poll lands.
+          pulsePhase += 0.08;
+          return Math.sin(pulsePhase) > 0 ? renderTwinzUsageUnknown() : createFrame();
+        }
+
+        // Over 99%: countdown to reset in the twinz timer style.
+        if (util > 0.99 && resetAt !== null) {
+          const secsLeft = Math.max(0, resetAt - Math.floor(Date.now() / 1000));
+          return renderTwinzTimer(secsLeft * 1000);
+        }
+
+        // Otherwise show the integer percentage (0–99).
+        return renderTwinzUsagePercent(util * 100);
       },
+
+      stop() { poller.stop(); },
     };
   }
 
@@ -762,11 +809,13 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         const claudeStyle: ClaudeStyle = widget.style ?? 'snow';
         const claudeRenderer: ClaudeRendererApi = claudeStyle === 'usage'
           ? createClaudeUsageRenderer()
-          : claudeStyle === 'sand'
-            ? createClaudeSandRenderer()
-            : claudeStyle === 'tetris'
-              ? createClaudeTetrisRenderer()
-              : createClaudeSnowRenderer();
+          : claudeStyle === 'quota'
+            ? createClaudeQuotaRenderer()
+            : claudeStyle === 'sand'
+              ? createClaudeSandRenderer()
+              : claudeStyle === 'tetris'
+                ? createClaudeTetrisRenderer()
+                : createClaudeSnowRenderer();
         claudeRenderers.add(claudeRenderer);
         return {
           render(_now, _audioCtx) { return claudeRenderer.render(); },
