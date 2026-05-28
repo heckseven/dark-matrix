@@ -20,6 +20,22 @@ const _clockCache: Partial<Record<ClockFace, ClockRenderer>> = {};
 const _dataCache:  Partial<Record<DataStyle, DataRenderer>> = {};
 const _audioCache: Partial<Record<AudioStyle, ReturnType<typeof createAudioRenderer>>> = {};
 
+// Create a data renderer seeded with representative stats so the thumbnail is
+// non-blank — fill/scroll/cores draw nothing from a zeroed history.
+function makeSeededDataRenderer(style: DataStyle): DataRenderer {
+  const r = createDataRenderer({ style });
+  for (let i = 16; i >= 0; i--) {
+    r.update({
+      cpuPct:   35 + 25 * Math.sin(i * 0.4),
+      ramPct:   60 + 15 * Math.sin(i * 0.3 + 1),
+      netRxBps: 800_000 + 400_000 * Math.sin(i * 0.5 + 2),
+      netTxBps: 300_000 + 200_000 * Math.sin(i * 0.35),
+      cpuCores: [80, 45, 30, 60, 70, 20, 50, 40],
+    });
+  }
+  return r;
+}
+
 // Static seeded snapshots for Claude widgets — captured mid-animation so thumbnails
 // are non-blank. Computed once at module load; thumbnails return the same frame each tick.
 function frameToB64(frame: { [i: number]: number; length: number }): string {
@@ -195,7 +211,7 @@ function renderWidgetToB64(
            :                       _claudeSnowThumb;
     }
     const style: DataStyle = widget.style ?? 'line';
-    if (!_dataCache[style]) _dataCache[style] = createDataRenderer({ style });
+    if (!_dataCache[style]) _dataCache[style] = makeSeededDataRenderer(style);
     const frame = _dataCache[style]!.render();
     const out = new Uint8Array(COLS * ROWS);
     for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
