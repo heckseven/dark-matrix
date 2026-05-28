@@ -6,7 +6,7 @@ import { renderElegantTimer, renderTwinzTimer, createHourglassTimerRenderer } fr
 import { getDataRenderer } from '../data-renderer-pool.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
-import { createClaudeMatrixRenderer, createClaudeContextRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
+import { createClaudeSnowRenderer, createClaudeContextRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import { deckStore } from '../store.js';
 
@@ -112,7 +112,7 @@ function extractHalf(full: Uint8Array, side: 'left' | 'right'): Uint8Array {
   return out;
 }
 
-const _previewClaudeMatrix = createClaudeMatrixRenderer();
+const _previewClaudeSnow = createClaudeSnowRenderer();
 const _previewClaudeContext = (() => {
   const r = createClaudeContextRenderer();
   for (const tool of ['Read', 'Bash', 'Edit', 'Grep', 'Write', 'Read', 'Bash']) {
@@ -161,7 +161,7 @@ if (import.meta.hot) {
     for (const k in _clockL) delete _clockL[k as ClockFace];
     for (const k in _clockR) delete _clockR[k as ClockFace];
     for (const k in _audioRenderers) delete _audioRenderers[k as AudioStyle];
-    _previewClaudeMatrix.stop();
+    _previewClaudeSnow.stop();
     _previewClaudeContext.stop();
     _previewClaudeSand.stop();
     _previewClaudeTetris.stop();
@@ -241,12 +241,12 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, 
       for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
       return out;
     } else if (widget.widget === 'claude') {
-      const style = widget.style ?? 'matrix';
+      const style = widget.style ?? 'snow';
       if (style === 'usage') return _usagePreviewFrame;
       const raw = style === 'sand'    ? _previewClaudeSand.render()
                 : style === 'tetris'  ? _previewClaudeTetris.render()
                 : style === 'context' ? _previewClaudeContext.render()
-                :                       _previewClaudeMatrix.render();
+                :                       _previewClaudeSnow.render();
       return bayerDither(raw);
     } else {
       return empty;
@@ -401,9 +401,9 @@ export function HudDualPreview({
     const t = _dualPreviewClaudeTick;
     if (t % 8 === 0) {
       const tools = ['Read', 'Bash', 'Edit', 'Grep', 'Write'] as const;
-      _previewClaudeMatrix.onEvent({ type: 'tool_use', tool: tools[t % tools.length]!, sessionId: 'preview' });
+      _previewClaudeSnow.onEvent({ type: 'tool_use', tool: tools[t % tools.length]!, sessionId: 'preview' });
     }
-    if (t % 40 === 0) _previewClaudeMatrix.onEvent({ type: 'agent_spawn', sessionId: 'preview' });
+    if (t % 40 === 0) _previewClaudeSnow.onEvent({ type: 'agent_spawn', sessionId: 'preview' });
     if (t % 6 === 0) {
       _previewClaudeSand.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
       _previewClaudeTetris.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });

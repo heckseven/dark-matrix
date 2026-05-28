@@ -6,7 +6,7 @@ import type { DataStyle, DataRenderer } from '../../../animations/data-renderers
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { renderElegantTimer, renderHourglassFrame, renderTwinzTimer } from '../../../animations/timer-renderers.js';
-import { createClaudeMatrixRenderer, createClaudeContextRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
+import { createClaudeSnowRenderer, createClaudeContextRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { HudPresetClient } from '../types/hud-preset.js';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
@@ -28,8 +28,8 @@ function frameToB64(frame: { [i: number]: number; length: number }): string {
   return btoa(String.fromCharCode(...out));
 }
 
-const _claudeMatrixThumb = (() => {
-  const r = createClaudeMatrixRenderer();
+const _claudeSnowThumb = (() => {
+  const r = createClaudeSnowRenderer();
   for (let i = 0; i < 30; i++) {
     if (i % 4 === 0) r.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
     r.render();
@@ -201,12 +201,12 @@ function renderWidgetToB64(
       return btoa(String.fromCharCode(...out));
     }
     if (widget.widget === 'claude') {
-      const style = widget.style ?? 'matrix';
+      const style = widget.style ?? 'snow';
       return style === 'sand'    ? _claudeSandThumb
            : style === 'tetris'  ? _claudeTetrisThumb
            : style === 'context' ? _claudeContextThumb
            : style === 'usage'   ? _usageThumb
-           :                       _claudeMatrixThumb;
+           :                       _claudeSnowThumb;
     }
     const style: DataStyle = widget.style ?? 'line';
     if (!_dataCache[style]) _dataCache[style] = createDataRenderer({ style });
