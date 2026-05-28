@@ -9,7 +9,7 @@ import { PanelBar } from './PanelBar.js';
 
 function CornerBrackets({ active }: { active: boolean }) {
   const c = { position: 'absolute' as const, width: 16, height: 16, pointerEvents: 'none' as const };
-  const b = `1px solid ${active ? 'white' : 'rgba(255,255,255,0.35)'}`;
+  const b = `1px solid ${active ? 'var(--color-foreground)' : 'color-mix(in srgb, var(--color-foreground) 35%, transparent)'}`;
   return (
     <div aria-hidden="true" className={`absolute inset-0 pointer-events-none transition-opacity ${active ? '' : 'opacity-0 group-hover:opacity-100'}`}>
       <span style={{ ...c, top: 0,    left: 0,    borderTop: b, borderLeft: b }} />
