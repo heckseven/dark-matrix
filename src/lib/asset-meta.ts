@@ -6,4 +6,5 @@ export type AssetMeta = {
   firstFrame: string; // base64 pixels of first frame
   frames: string[];   // base64 pixels for all frames
   delays: number[];   // per-frame delay in ms
+  builtin?: boolean;  // true for read-only designs bundled with the release
 };

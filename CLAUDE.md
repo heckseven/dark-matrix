@@ -82,6 +82,14 @@ The config is Zod-validated (`src/lib/config.ts`). Changes to the schema require
 2. `DEFAULT_CONFIG`
 3. Any `bootstrapConfig` logic that touches the changed field
 
+### Built-in designs
+
+Starter designs ship in `dist/deck/builtins/` (built from `src/deck/builtins/*.dmx.json`) and are surfaced by the deck server alongside the user library — they are **never** copied into `~/.config/dark-matrix/library/` on install.
+
+- Built-ins are **read-only**: rename/delete on a built-in returns **403** (`/api/library/:name`, `/api/assets/:name`)
+- A user file whose stem matches a built-in **shadows** it — the list endpoints omit the built-in when a user file of the same name exists. Never drop this shadow check; it is the only way a user can override a shipped design
+- To edit a built-in, duplicate it (`/api/assets/copy`) — the copy lands in the user library
+
 ---
 
 ## Testing
@@ -115,6 +123,7 @@ Do not attempt to fix these as part of unrelated changes.
 | Animation runtime | `src/lib/animation.ts` |
 | Deck web app shell | `src/deck/web/App.tsx` |
 | First-run welcome screen | `src/deck/web/components/WelcomeScreen.tsx` |
+| Bundled read-only starter designs | `src/deck/builtins/*.dmx.json` (copied to `dist/deck/builtins` at build) |
 
 ---
 

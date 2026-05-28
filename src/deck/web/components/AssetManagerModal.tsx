@@ -44,6 +44,7 @@ function AssetManagerGrid({ items, animState, activeKeyRef, onAnimReset, onAnimC
         const pixels = asset.frames[frameIdx] ?? asset.firstFrame;
         const label = asset.name.replace(/\.dmx\.json$/i, '');
         const confirmingDelete = confirmDelete === asset.name;
+        const isBuiltin = asset.builtin === true;
 
         function activate() {
           activeKeyRef.current = asset.name;
@@ -74,13 +75,20 @@ function AssetManagerGrid({ items, animState, activeKeyRef, onAnimReset, onAnimC
                 <Button
                   variant="ghost"
                   className="w-8"
-                  aria-label={`Duplicate ${label}`}
-                  tooltip="Duplicate"
+                  aria-label={isBuiltin ? `Duplicate ${label} to edit` : `Duplicate ${label}`}
+                  tooltip={isBuiltin ? 'Duplicate to edit' : 'Duplicate'}
                   tooltipSide="right"
                   onClick={() => onCopy(asset)}
                 >⎘</Button>
               }
-              controlsBottom={
+              controlsBottom={isBuiltin ? (
+                <span
+                  role="img"
+                  className="flex items-center justify-center w-8 h-8 text-muted-foreground cursor-default"
+                  aria-label={`${label} is a built-in design (read-only)`}
+                  title="built-in · duplicate to edit"
+                >⊘</span>
+              ) : (
                 <Button
                   variant="ghost"
                   className={`w-8 ${confirmingDelete ? 'text-red-400' : ''}`}
@@ -91,7 +99,7 @@ function AssetManagerGrid({ items, animState, activeKeyRef, onAnimReset, onAnimC
                 >
                   {confirmingDelete ? '?' : '×'}
                 </Button>
-              }
+              )}
             />
           </div>
         );

@@ -50,6 +50,7 @@ export interface DeckServerOptions {
   port?:      number;
   host?:      string;
   configDir?: string;  // override for tests
+  builtinsDir?: string;  // override for tests; defaults to bundled dist/deck/builtins
 }
 
 export interface DeckServer {
@@ -86,6 +87,46 @@ function safeLibraryPath(name: string, configDir?: string): string | null {
   const candidate = path.join(dir, `${stem}.dmx.json`);
   if (!candidate.startsWith(dir + path.sep)) return null;
   return candidate;
+}
+
+// Read-only starter designs bundled with the release. They live in a separate
+// directory from the user library and are surfaced alongside it (user files of
+// the same name shadow the built-in). Mutating a built-in copies it into the
+// user library rather than touching the shipped file.
+async function listBuiltinFiles(dir: string): Promise<string[]> {
+  try {
+    return (await fs.readdir(dir)).filter(e => /\.dmx\.json$/i.test(e)).sort();
+  } catch {
+    return []; // directory absent (dev/test) — no built-ins
+  }
+}
+
+function safeBuiltinPath(name: string, dir: string): string | null {
+  const stem = path.basename(name).replace(/\.dmx\.json$/i, '');
+  if (!stem) return null; // e.g. a ".dmx.json"-only name leaves an empty stem
+  if (!/^[a-zA-Z0-9_ \-]{1,100}$/.test(stem)) return null;
+  const candidate = path.join(dir, `${stem}.dmx.json`);
+  if (!candidate.startsWith(dir + path.sep)) return null;
+  return candidate;
+}
+
+// Read a design's raw JSON from the user library, falling back to a bundled
+// built-in of the same name only when the user file is genuinely absent. A
+// non-ENOENT error on the user file (permissions, I/O) propagates unchanged so
+// a real problem is never masked by silently serving the built-in.
+async function readDesignFile(
+  userPath: string,
+  name: string,
+  builtinsDir: string,
+): Promise<{ content: string; builtin: boolean }> {
+  try {
+    return { content: await fs.readFile(userPath, 'utf-8'), builtin: false };
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+    const bPath = safeBuiltinPath(name, builtinsDir);
+    if (bPath) return { content: await fs.readFile(bPath, 'utf-8'), builtin: true };
+    throw e;
+  }
 }
 
 async function uniqueLibraryCopyPath(stem: string, dir: string): Promise<string> {
@@ -712,6 +753,7 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
   const host = opts?.host ?? '127.0.0.1';
   const configDir = opts?.configDir;
   const staticDir = path.resolve(__dirname, '../../dist/deck/web');
+  const builtinsDirPath = opts?.builtinsDir ?? path.resolve(__dirname, '../../dist/deck/builtins');
 
   let prefs = await loadPrefs(configDir);
 
@@ -1160,9 +1202,18 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
         const dir = libraryDir(configDir);
         await fs.mkdir(dir, { recursive: true });
         const entries = await fs.readdir(dir);
-        const files = entries
-          .filter(e => /\.dmx\.json$/i.test(e))
-          .map(e => ({ name: e.replace(/\.dmx\.json$/i, '') }));
+        const userStems = new Set<string>();
+        const files: { name: string; builtin?: boolean }[] = [];
+        for (const e of entries.filter(e => /\.dmx\.json$/i.test(e))) {
+          const stem = e.replace(/\.dmx\.json$/i, '');
+          userStems.add(stem);
+          files.push({ name: stem });
+        }
+        for (const e of await listBuiltinFiles(builtinsDirPath)) {
+          const stem = e.replace(/\.dmx\.json$/i, '');
+          if (userStems.has(stem)) continue; // a user copy shadows the built-in
+          files.push({ name: stem, builtin: true });
+        }
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, files }));
       } catch {
@@ -1225,7 +1276,8 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
         const filePath = safeLibraryPath(rawName, configDir);
         if (!filePath) { res.writeHead(400); res.end(); return; }
         try {
-          const content = await fs.readFile(filePath, 'utf-8');
+          // Falls back to a bundled built-in when no user file of this name exists.
+          const { content } = await readDesignFile(filePath, rawName, builtinsDirPath);
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(content);
         } catch {
@@ -1233,6 +1285,19 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
           res.end(JSON.stringify({ ok: false, error: 'not found' }));
         }
         return;
+      }
+
+      // Built-ins are read-only: rename/delete only succeed when the name has no
+      // user file but does match a shipped design.
+      if ((method === 'PUT' && isRename) || (method === 'DELETE' && !isRename)) {
+        const userPath = safeLibraryPath(rawName, configDir);
+        const bPath = safeBuiltinPath(rawName, builtinsDirPath);
+        const userExists = userPath ? await fs.access(userPath).then(() => true, () => false) : false;
+        if (!userExists && bPath && await fs.access(bPath).then(() => true, () => false)) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'built-in designs are read-only' }));
+          return;
+        }
       }
 
       if (method === 'PUT' && isRename) {
@@ -1412,6 +1477,25 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
           } catch { /* skip invalid files silently */ }
         }
       } catch { /* readdir failed — skip */ }
+      // Append bundled built-ins not shadowed by a user file of the same name.
+      const userNames = new Set(assets.map(a => a.name));
+      for (const name of await listBuiltinFiles(builtinsDirPath)) {
+        if (userNames.has(name)) continue;
+        try {
+          const raw = await fs.readFile(path.join(builtinsDirPath, name), 'utf8');
+          const project = parseProject(raw);
+          if (!project.frames.length) continue;
+          assets.push({
+            name,
+            width: project.width,
+            frameCount: project.frames.length,
+            firstFrame: project.frames[0]!.pixels,
+            frames: project.frames.map(f => f.pixels),
+            delays: project.frames.map(f => f.delayMs),
+            builtin: true,
+          });
+        } catch { /* skip invalid built-in silently */ }
+      }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true, assets }));
       return;
@@ -1453,7 +1537,10 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
         return;
       }
       try {
-        const data = await fs.readFile(srcPath, 'utf8');
+        // Source from the user library, falling back to a bundled built-in so a
+        // shipped design can be duplicated into the (editable) user library.
+        const { content: data } = await readDesignFile(srcPath, name, builtinsDirPath);
+        await fs.mkdir(dir, { recursive: true }); // may be the first user file (e.g. forking a built-in)
         const stem = name.replace(/\.dmx\.json$/i, '');
         let copyBase = '';
         for (let i = 2; i < 1000; i++) {
@@ -1498,7 +1585,7 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
         return;
       }
       try {
-        const raw = await fs.readFile(resolved, 'utf-8');
+        const { content: raw, builtin } = await readDesignFile(resolved, base, builtinsDirPath);
         if (new URLSearchParams(assetQueryStr).get('full') === '1') {
           parseProject(raw); // validate before serving; throws on malformed file
           res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -1513,6 +1600,7 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
           firstFrame: project.frames[0]!.pixels,
           frames: project.frames.map(f => f.pixels),
           delays: project.frames.map(f => f.delayMs),
+          ...(builtin ? { builtin: true } : {}),
         };
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, asset }));
@@ -1544,6 +1632,13 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
       } catch (err: unknown) {
         const code = (err as NodeJS.ErrnoException).code;
         if (code === 'ENOENT') {
+          // A bundled built-in with no user copy can't be deleted — it's read-only.
+          const bPath = safeBuiltinPath(base, builtinsDirPath);
+          if (bPath && await fs.access(bPath).then(() => true, () => false)) {
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: 'built-in designs are read-only' }));
+            return;
+          }
           res.writeHead(404, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: false, error: 'not found' }));
         } else {
