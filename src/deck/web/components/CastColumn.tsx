@@ -12,7 +12,7 @@ export function CastColumn({ column, onCollapse, onRemove }: {
     return (
       <div
         role="region"
-        className="flex flex-col items-center py-2 border-r border-border"
+        className="flex flex-col items-center py-2"
         style={{ width: '2rem', minWidth: '2rem' }}
         aria-label={`${column.channel} (collapsed)`}
       >
