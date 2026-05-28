@@ -217,7 +217,6 @@ export function App() {
   const biomePresets       = useDeckStore(s => s.biomePresets);
   const lifeIsPlaying      = useDeckStore(s => s.lifeIsPlaying);
   const lifeStepCount      = useDeckStore(s => s.lifeStepCount);
-  const lifeGeneration     = useDeckStore(s => s.lifeGeneration);
   const configDirty        = useDeckStore(s => s.configDirty);
   const saveConfig         = useDeckStore(s => s.saveConfig);
   const isTwitchConnected  = useDeckStore(s => !!(s.configData?.twitch?.broadcaster_id));
@@ -842,8 +841,7 @@ export function App() {
               <div className="flex-1 flex items-center gap-4" role="status" aria-live="off">
                 {selectedBiomeName && (
                   <>
-                    <span className="tabular-nums">step {lifeStepCount}</span>
-                    <span className="tabular-nums">gen {lifeGeneration}</span>
+                    <span className="tabular-nums">gen {lifeStepCount}</span>
                   </>
                 )}
                 {lifeSelectedBiome && lifeAlgoNotation && <span>{lifeSelectedBiome.algorithm} {lifeAlgoNotation}</span>}
