@@ -86,7 +86,7 @@ export function LifePanel({ topPad = 0, bottomPad = 0, dualModule = false, onCur
       frame: snapshot,
       mode: 'bw',
       width: colsRef.current,
-      target: dualRef.current ? deckStore.getState().previewTarget : 'left',
+      target: dualRef.current ? 'both' : 'left',
     }));
   }, []);
 
