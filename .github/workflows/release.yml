@@ -39,36 +39,22 @@ jobs:
       - name: Build TypeScript + Vite
         run: pnpm build
 
-      - name: Bundle with esbuild
-        run: |
-          mkdir -p dist/bundles
-          node_modules/.bin/esbuild dist/daemon/index.js \
-            --bundle --platform=node --format=esm \
-            --external:serialport '--external:@serialport/*' \
-            --external:sharp '--external:@img/sharp-*' \
-            --outfile=dist/bundles/daemon.js
-          node_modules/.bin/esbuild dist/cli/index.js \
-            --bundle --platform=node --format=esm \
-            --external:serialport '--external:@serialport/*' \
-            --external:sharp '--external:@img/sharp-*' \
-            --outfile=dist/bundles/cli.js
-
       - name: Package runtime node_modules (serialport + sharp)
         run: |
+          SERIALPORT_VER=$(node -p "require('./package.json').dependencies.serialport.replace(/[^0-9.]/g,'')")
+          SHARP_VER=$(node -p "require('./package.json').dependencies.sharp.replace(/[^0-9.]/g,'')")
           mkdir -p _runtime
-          # Minimal package.json — only runtime deps that are external to bundles
-          cat > _runtime/package.json << 'EOF'
+          cat > _runtime/package.json << EOF
           {
             "name": "dm-runtime",
             "version": "1.0.0",
             "dependencies": {
-              "serialport": "12.0.0",
-              "sharp": "0.34.5"
+              "serialport": "${SERIALPORT_VER}",
+              "sharp": "${SHARP_VER}"
             }
           }
           EOF
-          # pnpm will detect the current arch and install the matching @img/sharp-* package
-          pnpm install --prod --frozen-lockfile=false --node-linker=hoisted --dir _runtime
+          pnpm install --prod --no-frozen-lockfile --node-linker=hoisted --dir _runtime
 
       - name: Download pinned Node binary
         run: |
