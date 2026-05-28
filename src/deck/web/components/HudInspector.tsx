@@ -14,7 +14,7 @@ import { createDataRenderer } from '../../../animations/data-renderers.js';
 import type { DataStyle, DataMetric, DataRenderer } from '../../../animations/data-renderers.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
-import { CLAUDE_STYLES, createClaudeMatrixRenderer, createClaudeContextRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
+import { CLAUDE_STYLES, createClaudeSnowRenderer, createClaudeContextRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import type { ClaudeStyle } from '../../../animations/claude-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
@@ -311,7 +311,7 @@ function DataGrid({ currentWidget, onPick, onSettings }: {
 
 // ── Layer 2: Agent grid ───────────────────────────────────────────────────
 
-const _claudeMatrixRenderer = createClaudeMatrixRenderer();
+const _claudeSnowRenderer = createClaudeSnowRenderer();
 const _claudeSandRenderer = (() => {
   const r = createClaudeSandRenderer();
   for (let i = 0; i < 60; i++) {
@@ -362,7 +362,7 @@ const USAGE_PREVIEW_PIXELS = makeUsagePreviewPixels();
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
-    _claudeMatrixRenderer.stop();
+    _claudeSnowRenderer.stop();
     _claudeSandRenderer.stop();
     _claudeTetrisRenderer.stop();
     _claudeContextRenderer.stop();
@@ -373,7 +373,7 @@ function AgentGrid({ currentWidget, onPick }: {
   currentWidget: HudWidget | null;
   onPick: (w: HudWidget) => void;
 }) {
-  const [matrixPixels, setMatrixPixels] = useState(() => bayerToB64(_claudeMatrixRenderer.render()));
+  const [snowPixels, setSnowPixels] = useState(() => bayerToB64(_claudeSnowRenderer.render()));
   const [contextPixels, setContextPixels] = useState(() => bayerToB64(_claudeContextRenderer.render()));
   const [sandPixels, setSandPixels] = useState(() => bayerToB64(_claudeSandRenderer.render()));
   const [tetrisPixels, setTetrisPixels] = useState(() => bayerToB64(_claudeTetrisRenderer.render()));
@@ -383,15 +383,15 @@ function AgentGrid({ currentWidget, onPick }: {
     let tick = 0;
     const iid = setInterval(() => {
       tick++;
-      // Fire synthetic matrix events occasionally to show activity
+      // Fire synthetic events occasionally to show snow activity bursts
       if (tick % 8 === 0) {
         const tools = ['Read', 'Bash', 'Edit', 'Grep', 'Write'];
-        _claudeMatrixRenderer.onEvent({ type: 'tool_use', tool: tools[tick % tools.length]!, sessionId: 'preview' });
+        _claudeSnowRenderer.onEvent({ type: 'tool_use', tool: tools[tick % tools.length]!, sessionId: 'preview' });
       }
       if (tick % 40 === 0) {
-        _claudeMatrixRenderer.onEvent({ type: 'agent_spawn', sessionId: 'preview' });
+        _claudeSnowRenderer.onEvent({ type: 'agent_spawn', sessionId: 'preview' });
       }
-      setMatrixPixels(bayerToB64(_claudeMatrixRenderer.render()));
+      setSnowPixels(bayerToB64(_claudeSnowRenderer.render()));
       setContextPixels(bayerToB64(_claudeContextRenderer.render()));
 
       if (tick % 6 === 0) {
@@ -404,12 +404,12 @@ function AgentGrid({ currentWidget, onPick }: {
     return () => clearInterval(iid);
   }, []);
 
-  const claudeStyle = currentWidget?.widget === 'claude' ? (currentWidget.style ?? 'matrix') : null;
+  const claudeStyle = currentWidget?.widget === 'claude' ? (currentWidget.style ?? 'snow') : null;
 
   return (
     <div role="group" aria-label="Agent panels" className="flex flex-wrap gap-6">
       {CLAUDE_STYLES.map(({ id, label }) => {
-        const preview = id === 'matrix' ? matrixPixels
+        const preview = id === 'snow' ? snowPixels
           : id === 'context' ? contextPixels
           : id === 'sand' ? sandPixels
           : id === 'tetris' ? tetrisPixels
