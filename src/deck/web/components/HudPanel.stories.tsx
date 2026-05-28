@@ -10,7 +10,7 @@ const PRESETS: HudPresetClient[] = [
   {
     name: 'default',
     left:  { widget: 'clock', face: 'elegant' },
-    right: { widget: 'clock', face: 'analogue' },
+    right: { widget: 'clock', face: 'analog' },
   },
   {
     name: 'system watch',
@@ -161,7 +161,7 @@ export const SingleClockPreset: Story = {
   decorators: [
     (Story) => {
       const presets: HudPresetClient[] = [
-        { name: 'elegant', left: { widget: 'clock', face: 'elegant' }, right: { widget: 'clock', face: 'analogue' } },
+        { name: 'elegant', left: { widget: 'clock', face: 'elegant' }, right: { widget: 'clock', face: 'analog' } },
       ];
       installMockWs({ presets, activeName: 'elegant' });
       deckStore.setState({ hudPresets: [], activePresetName: null, selectedPresetName: null, hudSelectedSide: 'left' });

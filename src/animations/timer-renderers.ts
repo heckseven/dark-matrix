@@ -170,6 +170,12 @@ const HG_BOTTOM_DRAIN_ORDER: ReadonlyArray<readonly [number, number]> =
     ((c1 - 4) ** 2 + (r1 - 17) ** 2) - ((c2 - 4) ** 2 + (r2 - 17) ** 2),
   );
 
+function applyHgBoundary(frame: Frame): void {
+  for (let i = 0; i < COLS * ROWS; i++) {
+    if ((HG_BOUNDARY_BUF[i] ?? 0) > 0) frame[i] = 255;
+  }
+}
+
 export function renderHourglassFrame(fraction: number): Frame {
   const f = Math.max(0, Math.min(1, fraction));
   const frame = createFrame();
@@ -184,6 +190,7 @@ export function renderHourglassFrame(fraction: number): Frame {
     const [c, r] = HG_BOTTOM_CELLS[i]!;
     frame[c * ROWS + r] = 255;
   }
+  applyHgBoundary(frame);
   return frame;
 }
 
@@ -234,6 +241,7 @@ export function renderHourglassDraining(drainStep: number): Frame {
     const [c, r] = HG_BOTTOM_DRAIN_ORDER[i]!;
     frame[c * ROWS + r] = 255;
   }
+  applyHgBoundary(frame);
   return frame;
 }
 
@@ -334,6 +342,7 @@ export function createHourglassTimerRenderer(): HourglassTimerRenderer {
           }
           if (--burstFrames === 0) burstCells = [];
         }
+        applyHgBoundary(frame);
         return frame;
       }
 
@@ -371,9 +380,7 @@ export function createHourglassTimerRenderer(): HourglassTimerRenderer {
 
 function renderHourglassAllFilled(): Frame {
   const frame = createFrame();
-  for (let i = 0; i < COLS * ROWS; i++) {
-    if ((HG_BOUNDARY_BUF[i] ?? 0) > 0) frame[i] = 255;
-  }
+  applyHgBoundary(frame);
   return frame;
 }
 

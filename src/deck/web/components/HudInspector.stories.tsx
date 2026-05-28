@@ -52,10 +52,10 @@ export const ClockGrid: Story = {
   },
 };
 
-/** Clock grid — analogue face active. */
-export const ClockAnalogue: Story = {
+/** Clock grid — analog face active. */
+export const ClockAnalog: Story = {
   args: {
-    widget: { widget: 'clock', face: 'analogue' } satisfies HudWidget,
+    widget: { widget: 'clock', face: 'analog' } satisfies HudWidget,
   },
 };
 
@@ -120,8 +120,8 @@ export const DataGridFromSettings: Story = {
   },
 };
 
-/** AI grid — heatmap (only option in the category). */
-export const AiHeatmap: Story = {
+/** Agent grid — heatmap widget and Claude styles. */
+export const AgentHeatmap: Story = {
   args: {
     widget: { widget: 'heatmap' } satisfies HudWidget,
   },

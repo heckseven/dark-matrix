@@ -1943,6 +1943,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               }
               currentConfig = { ...currentConfig, hud: newHud };
               if ((hudHardwareActive || currentConfig.daemon.idle_animation === 'hud') && !dispatcher.current()) {
+                frameHeldLeft = false;
+                frameHeldRight = false;
                 stopAnim();
                 stopCurrentAnim = runHudOnModules();
               }

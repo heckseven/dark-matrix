@@ -1,19 +1,19 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type ClockFace = 'elegant' | 'stretch' | 'binary-audio' | 'analogue' | 'binary-blocks' | 'binary-tall' | 'binary-diamond' | 'twinz' | 'razor' | 'blade';
+export type ClockFace = 'elegant' | 'stretch' | 'binary-audio' | 'analog' | 'binary-blocks' | 'binary-tall' | 'binary-diamond' | 'twinz' | 'razor' | 'blade';
 
 export const CLOCK_FACES: { id: ClockFace; label: string }[] = [
-  { id: 'binary-audio',   label: 'stack'    },
-  { id: 'elegant',        label: 'elegant'  },
   { id: 'stretch',        label: 'stretch'  },
-  { id: 'analogue',       label: 'analogue' },
-  { id: 'binary-blocks',  label: 'blocks'   },
-  { id: 'binary-tall',    label: 'signal'   },
-  { id: 'binary-diamond', label: 'struct'   },
   { id: 'twinz',          label: 'twinz'    },
+  { id: 'elegant',        label: 'elegant'  },
+  { id: 'binary-diamond', label: 'struct'   },
+  { id: 'binary-audio',   label: 'stack'    },
+  { id: 'binary-tall',    label: 'signal'   },
+  { id: 'binary-blocks',  label: 'blocks'   },
   { id: 'razor',          label: 'razor'    },
   { id: 'blade',          label: 'blade'    },
+  { id: 'analog',         label: 'analog'   },
 ];
 
 export type ClockCtx = { now: Date; bands?: number[]; fftSize?: number; gain?: number; side?: 'left' | 'right' };
@@ -238,7 +238,7 @@ function binaryAudio(): ClockRenderer {
   };
 }
 
-function analogue(): ClockRenderer {
+function analog(): ClockRenderer {
   const CX = 4;
   const CY = 16;
   const MIN_LEN = 6;
@@ -563,7 +563,7 @@ const FACTORIES: Record<ClockFace, () => ClockRenderer> = {
   'binary-audio':   binaryAudio,
   'elegant':        elegant,
   'stretch':        stretch,
-  'analogue':       analogue,
+  'analog':         analog,
   'binary-blocks':  binaryBlocks,
   'binary-tall':    binaryTall,
   'binary-diamond': binaryDiamond,

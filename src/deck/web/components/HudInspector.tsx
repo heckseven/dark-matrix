@@ -69,10 +69,10 @@ function bayerToB64(frame: Uint8Array): string {
 function categoryOfWidget(w: HudWidget): string {
   if (w.widget === 'clock')   return 'time';
   if (w.widget === 'timer')   return 'timer';
-  if (w.widget === 'heatmap') return 'ai';
-  if (w.widget === 'claude')  return 'ai';
+  if (w.widget === 'heatmap') return 'agent';
+  if (w.widget === 'claude')  return 'agent';
   if (w.widget === 'audio')   return 'audio';
-  if (w.widget === 'image')   return 'image';
+  if (w.widget === 'image')   return 'media';
   if (w.widget === 'life')    return 'life';
   return 'data';
 }
@@ -89,13 +89,13 @@ function widgetHasSettings(w: HudWidget): boolean {
 // ── Layer 1: Category select ──────────────────────────────────────────────
 
 const CATEGORIES = [
-  { id: 'audio', label: 'audio' },
   { id: 'time',  label: 'time'  },
   { id: 'timer', label: 'timer' },
+  { id: 'media', label: 'media' },
   { id: 'data',  label: 'data'  },
-  { id: 'image', label: 'image' },
-  { id: 'ai',    label: 'ai'    },
+  { id: 'audio', label: 'audio' },
   { id: 'life',  label: 'life'  },
+  { id: 'agent', label: 'agent' },
 ] as const;
 
 // ── Layer 2: Clock grid ───────────────────────────────────────────────────
@@ -324,7 +324,7 @@ function DataGrid({ currentWidget, onPick, onSettings }: {
   );
 }
 
-// ── Layer 2: AI grid ──────────────────────────────────────────────────────
+// ── Layer 2: Agent grid ───────────────────────────────────────────────────
 
 const _heatmapGridState = (() => {
   const s = createHeatmapState();
@@ -392,7 +392,7 @@ if (import.meta.hot) {
   });
 }
 
-function AiGrid({ currentWidget, onPick }: {
+function AgentGrid({ currentWidget, onPick }: {
   currentWidget: HudWidget | null;
   onPick: (w: HudWidget) => void;
 }) {
@@ -438,7 +438,7 @@ function AiGrid({ currentWidget, onPick }: {
   const claudeStyle = currentWidget?.widget === 'claude' ? (currentWidget.style ?? 'matrix') : null;
 
   return (
-    <div role="group" aria-label="AI panels" className="flex flex-wrap gap-6">
+    <div role="group" aria-label="Agent panels" className="flex flex-wrap gap-6">
       <MatrixItem
         name="tool heatmap"
         aria-label="tool heatmap"
@@ -1061,7 +1061,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
 
   // Fetch assets when image category is active
   useEffect(() => {
-    if (activeCategory !== 'image') return;
+    if (activeCategory !== 'media') return;
     let cancelled = false;
     fetch('/api/assets')
       .then(r => r.json() as Promise<{ ok: boolean; assets: AssetMeta[] }>)
@@ -1123,7 +1123,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
 
   const backLabel = `‹ ${activeCategory}`;
   const backAriaLabel = `Back to ${activeCategory}`;
-  const showImportHeader = showImport && activeCategory === 'image';
+  const showImportHeader = showImport && activeCategory === 'media';
 
   // ── Layer 2 + Layer 3 header
   const header = (
@@ -1153,7 +1153,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
             import
           </Button>
         )}
-        {!showImportHeader && activeCategory === 'image' && assets !== null && assets.length > 0 && (
+        {!showImportHeader && activeCategory === 'media' && assets !== null && assets.length > 0 && (
           <Button variant="ghost" size="sm" className="font-mono text-xs" aria-label="Import image" onClick={() => { setImportHasFile(false); setShowImport(true); }}>
             + import
           </Button>
@@ -1170,7 +1170,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
     return (
       <div className="flex flex-col h-full overflow-hidden">
         {header}
-        {showImport && activeCategory === 'image' ? (
+        {showImport && activeCategory === 'media' ? (
           <div className="flex-1 overflow-y-auto">
             <AssetImportPanel
               onSaved={(savedFilename) => {
@@ -1189,10 +1189,10 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
               {activeCategory === 'time'   && <ClockGrid currentWidget={widget} onPick={handlePick} />}
               {activeCategory === 'timer'  && <TimerGrid currentWidget={widget} onSettings={handleSettings} />}
               {activeCategory === 'data'   && <DataGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} />}
-              {activeCategory === 'ai'     && <AiGrid    currentWidget={widget} onPick={handlePick} />}
+              {activeCategory === 'agent'   && <AgentGrid  currentWidget={widget} onPick={handlePick} />}
               {activeCategory === 'audio'  && <AudioGrid currentWidget={widget} audioCtx={audioCtx} side={side} onPick={handlePick} onMount={handleAudioMount} onUnmount={handleAudioUnmount} />}
               {activeCategory === 'life'   && <LifeGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} dualModule={dualModule} {...(onDeleteBiome ? { onDeleteBiome } : {})} {...(onEditBiome ? { onEditBiome } : {})} />}
-              {activeCategory === 'image'  && (
+              {activeCategory === 'media'  && (
                 <ImageGrid
                   currentWidget={widget}
                   assets={assets}
