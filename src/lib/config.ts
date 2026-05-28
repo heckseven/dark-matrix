@@ -64,7 +64,6 @@ const CastColumnSchema = z.object({
 
 const TwitchConfigSchema = z.object({
   client_id: z.string().optional(),
-  access_token: z.string().optional(),
   broadcaster_id: z.string().optional(),
 });
 

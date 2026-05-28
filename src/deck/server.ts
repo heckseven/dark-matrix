@@ -69,6 +69,11 @@ function configFilePath(configDir?: string): string {
   return path.join(dir, 'config.json');
 }
 
+function credentialsFilePath(configDir?: string): string {
+  const dir = configDir ?? path.join(os.homedir(), '.config', 'dark-matrix');
+  return path.join(dir, 'twitch-credentials.json');
+}
+
 function libraryDir(configDir?: string): string {
   const dir = configDir ?? path.join(os.homedir(), '.config', 'dark-matrix');
   return path.join(dir, 'library');
@@ -823,17 +828,19 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
           return;
         }
 
-        // Atomic config write: merge twitch credentials, then reload daemon
+        // Write access_token to separate credentials file (not config)
+        const credsPath = credentialsFilePath(configDir);
+        await fs.mkdir(path.dirname(credsPath), { recursive: true });
+        const credsTmp = credsPath + '.tmp';
+        await fs.writeFile(credsTmp, JSON.stringify({ access_token }, null, 2) + '\n', { mode: 0o600 });
+        await fs.rename(credsTmp, credsPath);
+
+        // Atomic config write: broadcaster_id + client_id only (no access_token)
         const cfgPath = configFilePath(configDir);
         const config = await loadConfig(cfgPath);
         const updated = {
           ...config,
-          twitch: {
-            ...(config.twitch ?? {}),
-            client_id: clientId,
-            access_token,
-            broadcaster_id: broadcasterId,
-          },
+          twitch: { ...(config.twitch ?? {}), client_id: clientId, broadcaster_id: broadcasterId },
         };
         const tmp = cfgPath + '.tmp';
         await fs.writeFile(tmp, JSON.stringify(updated, null, 2) + '\n', { mode: 0o600 });
@@ -845,6 +852,32 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
           credentials: { access_token, client_id: clientId, broadcaster_id: broadcasterId },
           broadcastToClients,
         });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'internal error' }));
+      }
+      return;
+    }
+
+    // Twitch OAuth — clear token and broadcaster_id, stop EventSub
+    if (url === '/api/twitch/disconnect' && method === 'POST') {
+      try {
+        // Clear credentials file
+        const credsPath = credentialsFilePath(configDir);
+        await fs.writeFile(credsPath, JSON.stringify({}) + '\n', { mode: 0o600 });
+        // Remove access_token and broadcaster_id from config
+        const cfgPath = configFilePath(configDir);
+        const config = await loadConfig(cfgPath);
+        const { broadcaster_id: _bid, ...twitchRest } = config.twitch ?? {};
+        const updated = { ...config, twitch: { ...twitchRest } };
+        const tmp = cfgPath + '.tmp';
+        await fs.writeFile(tmp, JSON.stringify(updated, null, 2) + '\n', { mode: 0o600 });
+        await fs.rename(tmp, cfgPath);
+        stopEventSub?.();
+        stopEventSub = null;
+        sendToDaemon({ cmd: 'reload' }).catch(() => {});
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
       } catch {
@@ -2024,9 +2057,15 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
   try {
     const cfg = await loadConfig(configFilePath(configDir));
     const tw = cfg.twitch;
-    if (tw?.access_token && tw.client_id && tw.broadcaster_id) {
+    // Load access_token from credentials file
+    let accessToken: string | undefined;
+    try {
+      const creds = JSON.parse(await fs.readFile(credentialsFilePath(configDir), 'utf-8')) as { access_token?: string };
+      if (typeof creds.access_token === 'string') accessToken = creds.access_token;
+    } catch { /* credentials file absent */ }
+    if (accessToken && tw?.client_id && tw?.broadcaster_id) {
       const eventSubOpts: EventSubOptions = {
-        credentials: { access_token: tw.access_token, client_id: tw.client_id, broadcaster_id: tw.broadcaster_id },
+        credentials: { access_token: accessToken, client_id: tw.client_id, broadcaster_id: tw.broadcaster_id },
         broadcastToClients,
       };
       stopEventSub = startTwitchEventSub(eventSubOpts);

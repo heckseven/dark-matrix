@@ -3,11 +3,10 @@ import { Button } from './ui/button.js';
 import { ChatFeed } from './ChatFeed.js';
 import { Link } from './ui/link.js';
 
-export function CastColumn({ column, onCollapse, onRemove, globalWsRef }: {
+export function CastColumn({ column, onCollapse, onRemove }: {
   column: CastColumnType;
   onCollapse(): void;
   onRemove(): void;
-  globalWsRef: React.MutableRefObject<WebSocket | null>;
 }) {
   if (column.collapsed) {
     return (
@@ -70,7 +69,7 @@ export function CastColumn({ column, onCollapse, onRemove, globalWsRef }: {
       </div>
 
       {/* Chat feed */}
-      <ChatFeed column={column} globalWsRef={globalWsRef} />
+      <ChatFeed column={column} />
     </div>
   );
 }

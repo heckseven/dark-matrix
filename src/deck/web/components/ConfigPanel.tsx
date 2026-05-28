@@ -13,18 +13,32 @@ import { IntegrationsTab } from './config-tabs/IntegrationsTab.js';
 const CONFIG_TABS = ['hardware', 'brightness', 'startup', 'daemon', 'notifications', 'appearance', 'integrations'] as const;
 type ConfigTab = typeof CONFIG_TABS[number];
 
+async function reloadConfig() {
+  const r = await fetch('/api/config');
+  if (!r.ok) throw new Error(`config reload failed: ${r.status}`);
+  const { config } = await r.json() as { config: Config };
+  deckStore.getState().loadConfigData(config);
+}
+
 export function ConfigPanel({ dualModule, topPad }: { dualModule: boolean; topPad: number }) {
   const configData = useDeckStore(s => s.configData);
   const patchConfig = useDeckStore(s => s.patchConfig);
   const [activeTab, setActiveTab] = useState<ConfigTab>('hardware');
 
   useEffect(() => {
-    fetch('/api/config')
-      .then(r => r.json())
-      // Accepted boundary: server always returns Config shape; Zod validates on write.
-      .then(({ config }: { config: Config }) => deckStore.getState().loadConfigData(config))
-      .catch(console.error);
+    reloadConfig().catch(console.error);
   }, []);
+
+  const [disconnecting, setDisconnecting] = useState(false);
+  async function handleTwitchDisconnect() {
+    setDisconnecting(true);
+    try {
+      const r = await fetch('/api/twitch/disconnect', { method: 'POST' });
+      if (r.ok) await reloadConfig();
+    } finally {
+      setDisconnecting(false);
+    }
+  }
 
   return (
     <div className="flex flex-col h-full w-full font-mono overflow-auto" style={{ paddingTop: topPad }}>
@@ -79,7 +93,7 @@ export function ConfigPanel({ dualModule, topPad }: { dualModule: boolean; topPa
               <AppearanceTab value={configData} />
             )}
             {activeTab === 'integrations' && (
-              <IntegrationsTab config={configData} onChange={patchConfig} onSave={() => void deckStore.getState().saveConfig()} />
+              <IntegrationsTab config={configData} onChange={patchConfig} onDisconnect={() => void handleTwitchDisconnect()} disconnecting={disconnecting} />
             )}
           </>
         ) : (

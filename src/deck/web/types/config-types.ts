@@ -32,7 +32,6 @@ export type CastColumn = {
 
 export type TwitchConfig = {
   client_id?: string;
-  access_token?: string;
   broadcaster_id?: string;
 };
 

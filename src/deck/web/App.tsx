@@ -212,7 +212,7 @@ export function App() {
   const lifeStepCount      = useDeckStore(s => s.lifeStepCount);
   const configDirty        = useDeckStore(s => s.configDirty);
   const saveConfig         = useDeckStore(s => s.saveConfig);
-  const isTwitchConnected  = useDeckStore(s => !!(s.configData?.twitch?.access_token));
+  const isTwitchConnected  = useDeckStore(s => !!(s.configData?.twitch?.broadcaster_id));
   const videoIdle          = useVStore(s => s.idle);
 
   useEffect(() => {

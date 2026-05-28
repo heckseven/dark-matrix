@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useDeckStore } from '../store.js';
 import type { CastColumn as CastColumnType } from '../types/config-types.js';
 import { Button } from './ui/button.js';
@@ -67,17 +67,6 @@ export function CastPanel() {
 
   const [addDialog, setAddDialog] = useState<{ open: boolean; insertAt: number }>({ open: false, insertAt: 0 });
 
-  // Shared deck WebSocket for receiving twitch-event messages
-  const globalWsRef = useRef<WebSocket | null>(null);
-  useEffect(() => {
-    const ws = new WebSocket(`ws://${location.host}/ws`);
-    globalWsRef.current = ws;
-    return () => {
-      globalWsRef.current = null;
-      ws.close();
-    };
-  }, []);
-
   function openAdd(insertAt: number) {
     setAddDialog({ open: true, insertAt });
   }
@@ -126,7 +115,6 @@ export function CastPanel() {
               column={col}
               onCollapse={() => handleCollapse(idx)}
               onRemove={() => handleRemove(idx)}
-              globalWsRef={globalWsRef}
             />
             <ColumnInsertButton
               hidden={atMax}

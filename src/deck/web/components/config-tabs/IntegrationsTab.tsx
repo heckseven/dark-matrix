@@ -2,17 +2,18 @@ import { useState } from 'react';
 import { Button } from '../ui/button.js';
 import { Input } from '../ui/input.js';
 import { TabFrame, TabRow } from './tab-frame.js';
-import type { Config, TwitchConfig } from '../../types/config-types.js';
+import type { Config } from '../../types/config-types.js';
 
 type DeepPartial<T> = T extends object ? { [K in keyof T]?: DeepPartial<T[K]> } : T;
 
-export function IntegrationsTab({ config, onChange, onSave }: {
+export function IntegrationsTab({ config, onChange, onDisconnect, disconnecting }: {
   config: Config;
   onChange: (patch: DeepPartial<Config>) => void;
-  onSave: () => void;
+  onDisconnect: () => void;
+  disconnecting?: boolean;
 }) {
   const twitch = config.twitch;
-  const isConnected = !!(twitch?.access_token);
+  const isConnected = !!(twitch?.broadcaster_id);
 
   const [clientId, setClientId] = useState(twitch?.client_id ?? '');
   const [connecting, setConnecting] = useState(false);
@@ -32,7 +33,7 @@ export function IntegrationsTab({ config, onChange, onSave }: {
       const data = await res.json() as { ok: boolean; auth_url?: string; error?: string };
       if (!data.ok || !data.auth_url) { setError(data.error ?? 'failed to start auth'); return; }
       // Save client_id to config before opening browser
-      onChange({ twitch: { ...(twitch?.access_token ? { access_token: twitch.access_token } : {}), ...(twitch?.broadcaster_id ? { broadcaster_id: twitch.broadcaster_id } : {}), client_id: id } });
+      onChange({ twitch: { ...(twitch?.broadcaster_id ? { broadcaster_id: twitch.broadcaster_id } : {}), client_id: id } });
       window.open(data.auth_url, '_blank', 'noopener,noreferrer');
     } catch {
       setError('network error');
@@ -41,11 +42,6 @@ export function IntegrationsTab({ config, onChange, onSave }: {
     }
   }
 
-  function handleDisconnect() {
-    const next: TwitchConfig = { ...(clientId ? { client_id: clientId } : {}) };
-    onChange({ twitch: next });
-    onSave();
-  }
 
   return (
     <TabFrame>
@@ -69,7 +65,7 @@ export function IntegrationsTab({ config, onChange, onSave }: {
             onChange={e => setClientId(e.target.value)}
             onBlur={() => {
               const id = clientId.trim();
-              if (id) onChange({ twitch: { ...(twitch?.access_token ? { access_token: twitch.access_token } : {}), ...(twitch?.broadcaster_id ? { broadcaster_id: twitch.broadcaster_id } : {}), client_id: id } });
+              if (id) onChange({ twitch: { ...(twitch?.broadcaster_id ? { broadcaster_id: twitch.broadcaster_id } : {}), client_id: id } });
             }}
           />
         </TabRow>
@@ -90,9 +86,11 @@ export function IntegrationsTab({ config, onChange, onSave }: {
                   variant="destructive"
                   size="sm"
                   tooltip="Remove Twitch token from config"
-                  onClick={handleDisconnect}
+                  onClick={onDisconnect}
+                  disabled={!!disconnecting}
+                  aria-busy={!!disconnecting}
                 >
-                  disconnect
+                  {disconnecting ? 'disconnecting…' : 'disconnect'}
                 </Button>
               </>
             ) : (

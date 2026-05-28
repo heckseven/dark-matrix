@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { CastColumn } from '../types/config-types.js';
+import { subscribeTwitchEvents } from '../twitch-events.js';
 
 type EmoteRange = { id: string; start: number; end: number };
 
@@ -150,7 +151,7 @@ function Tokens({ tokens }: { tokens: Token[] }) {
   );
 }
 
-function TwitchFeed({ channel, globalWsRef }: { channel: string; globalWsRef: React.MutableRefObject<WebSocket | null> }) {
+function TwitchFeed({ channel }: { channel: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const ircWsRef = useRef<WebSocket | null>(null);
@@ -158,39 +159,26 @@ function TwitchFeed({ channel, globalWsRef }: { channel: string; globalWsRef: Re
   const channelRef = useRef(channel);
   channelRef.current = channel;
 
-  // Receive stream events from the deck WS
+  // Receive stream events from the deck WS via shared singleton
   useEffect(() => {
-    const ws = globalWsRef.current;
-    if (!ws) return;
-
-    function onMessage(e: MessageEvent) {
-      try {
-        if (typeof e.data !== 'string') return;
-        const msg = JSON.parse(e.data) as { type: string; eventType?: string; payload?: Record<string, unknown>; channel?: string };
-        if (msg.type !== 'twitch-event') return;
-        // Only show events for this column's channel
-        if (msg.channel && msg.channel.toLowerCase() !== channelRef.current.toLowerCase()) return;
-
-        let text = '';
-        let symbol = '';
-        const p = msg.payload ?? {};
-        switch (msg.eventType) {
-          case 'channel.follow':    symbol = '+'; text = `${p['user_name'] ?? ''} followed`; break;
-          case 'channel.subscribe': symbol = '++'; text = `${p['user_name'] ?? ''} subscribed`; break;
-          case 'channel.cheer':     symbol = '$'; text = `${p['user_name'] ?? ''} cheered ${p['bits'] ?? ''} bits`; break;
-          case 'channel.raid':      symbol = '>>'; text = `${p['from_broadcaster_user_name'] ?? ''} raided with ${p['viewers'] ?? ''} viewers`; break;
-          default: return;
-        }
-        setMessages(prev => [...prev.slice(-199), {
-          id: nextId(), type: 'event' as const, username: '', symbol,
-          tokens: [{ type: 'text' as const, value: text }],
-        }]);
-      } catch { /* ignore */ }
-    }
-
-    ws.addEventListener('message', onMessage);
-    return () => ws.removeEventListener('message', onMessage);
-  }, [globalWsRef]);
+    return subscribeTwitchEvents((msg) => {
+      if (msg.channel && msg.channel.toLowerCase() !== channelRef.current.toLowerCase()) return;
+      let text = '';
+      let symbol = '';
+      const p = msg.payload ?? {};
+      switch (msg.eventType) {
+        case 'channel.follow':    symbol = '+'; text = `${p['user_name'] ?? ''} followed`; break;
+        case 'channel.subscribe': symbol = '++'; text = `${p['user_name'] ?? ''} subscribed`; break;
+        case 'channel.cheer':     symbol = '$'; text = `${p['user_name'] ?? ''} cheered ${p['bits'] ?? ''} bits`; break;
+        case 'channel.raid':      symbol = '>>'; text = `${p['from_broadcaster_user_name'] ?? ''} raided with ${p['viewers'] ?? ''} viewers`; break;
+        default: return;
+      }
+      setMessages(prev => [...prev.slice(-199), {
+        id: nextId(), type: 'event' as const, username: '', symbol,
+        tokens: [{ type: 'text' as const, value: text }],
+      }]);
+    });
+  }, []);
 
   // IRC chat connection
   const connect = useCallback(() => {
@@ -250,12 +238,9 @@ function TwitchFeed({ channel, globalWsRef }: { channel: string; globalWsRef: Re
   );
 }
 
-export function ChatFeed({ column, globalWsRef }: {
-  column: CastColumn;
-  globalWsRef: React.MutableRefObject<WebSocket | null>;
-}) {
+export function ChatFeed({ column }: { column: CastColumn }) {
   if (column.provider === 'twitch') {
-    return <TwitchFeed channel={column.channel} globalWsRef={globalWsRef} />;
+    return <TwitchFeed channel={column.channel} />;
   }
   return (
     <div className="flex-1 flex items-center justify-center font-mono text-xs text-muted-foreground">
