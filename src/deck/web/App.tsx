@@ -321,6 +321,15 @@ export function App() {
     }
   }, [hasMic]);
 
+  // Stop live preview when leaving design mode so preview frames don't keep
+  // setting frameHeld* in the daemon and blocking the HUD loop.
+  useEffect(() => {
+    if (activeMode !== 'design' && livePreviewOn) {
+      bridge.stop();
+      setLivePreviewOn(false);
+    }
+  }, [activeMode]);
+
   const isClockSelected = activeMode === 'hud' && (selectedPreset?.[hudSelectedSide]?.widget === 'clock' || hudClocksVisible);
 
   useEffect(() => {
