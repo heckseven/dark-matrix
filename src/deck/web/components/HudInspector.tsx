@@ -953,6 +953,9 @@ const STRINGS_STYLE_LABELS: Record<TextStyle, string> = {
 const SIZE_RESTRICTED: readonly TextStyle[] = ['spine', 'neon', 'bigglyph'];
 const sizeOptionsFor = (style: TextStyle): readonly TextSize[] =>
   SIZE_RESTRICTED.includes(style) ? (['tiny', 'small'] as const) : TEXT_SIZES;
+// The two fastest tiers (fast2/fast3) are bigglyph-only; scrolling stops at 'fast'.
+const speedOptionsFor = (style: TextStyle): readonly TextSpeed[] =>
+  style === 'bigglyph' ? TEXT_SPEEDS : TEXT_SPEEDS.filter(s => s !== 'fast2' && s !== 'fast3');
 
 // Build the text widget for a chosen style, enforcing per-style constraints:
 // only marquee spans, and restricted styles cap at 'small'.
@@ -1027,7 +1030,10 @@ function StringsSettings({ widget, uid, onChange, onChangeBoth }: {
   // Style isn't a setting here — it's chosen by picking a widget tile in the grid.
   const fields: { key: string; label: string; value: string; options: { value: string; label: string }[]; set: (v: string) => void }[] = [
     { key: 'size',  label: 'size',  value: widget.size  ?? 'small',  options: sizeOptionsFor(style).map(o => ({ value: o, label: o })), set: v => apply({ ...widget, size: v as TextSize }) },
-    { key: 'speed', label: 'speed', value: widget.speed ?? 'normal', options: TEXT_SPEEDS.map(o => ({ value: o, label: speedLabel(o) })),  set: v => apply({ ...widget, speed: v as TextSpeed }) },
+    // neon is static — speed doesn't apply, so it has no speed group.
+    ...(style !== 'neon'
+      ? [{ key: 'speed', label: 'speed', value: widget.speed ?? 'normal', options: speedOptionsFor(style).map(o => ({ value: o, label: speedLabel(o) })), set: (v: string) => apply({ ...widget, speed: v as TextSpeed }) }]
+      : []),
     ...(style === 'neon'
       ? [{ key: 'flicker', label: 'flicker', value: widget.flicker ?? 'medium', options: TEXT_FLICKERS.map(o => ({ value: o, label: o })), set: (v: string) => apply({ ...widget, flicker: v as TextFlicker }) }]
       : []),

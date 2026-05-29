@@ -10,7 +10,9 @@ export const TEXT_SIZES = ['tiny', 'small', 'medium', 'large'] as const;
 export type TextSize = (typeof TEXT_SIZES)[number];
 // Ordered slowest→fastest. Keys are internal only — the UI shows the value
 // (px/s or ms/letter), so add/rename tiers freely without touching labels.
-export const TEXT_SPEEDS = ['slowest', 'slow', 'normal', 'fast'] as const;
+// Ordered slowest→fastest. fast2/fast3 are bigglyph-only (very short dwells);
+// scrolling styles expose just slowest..fast (see speedOptionsFor in the UI).
+export const TEXT_SPEEDS = ['slowest', 'slow', 'normal', 'fast', 'fast2', 'fast3'] as const;
 export type TextSpeed = (typeof TEXT_SPEEDS)[number];
 // neon flicker frequency — how often a flicker event fires. 'none' disables it.
 export const TEXT_FLICKERS = ['none', 'low', 'medium', 'high'] as const;
@@ -53,9 +55,9 @@ const TICK_MS = 100;     // neon flicker re-roll cadence (independent of render 
 
 // Scroll speed in pixels per SECOND (wall-clock-continuous, so motion is smooth
 // at any render frame rate). 10/20/40 px/s ≡ the old 1/2/4 px per 100ms tick.
-export const SPEED_PXPS: Record<TextSpeed, number> = { slowest: 5, slow: 10, normal: 20, fast: 40 };
-// Per-glyph dwell (ms) for bigglyph. Slower = longer dwell, so 'slowest' doubles it.
-export const SPEED_DWELL_MS: Record<TextSpeed, number> = { slowest: 2400, slow: 1200, normal: 700, fast: 350 };
+export const SPEED_PXPS: Record<TextSpeed, number> = { slowest: 5, slow: 10, normal: 20, fast: 40, fast2: 80, fast3: 160 };
+// Per-glyph dwell (ms) for bigglyph. Slower = longer dwell; each faster tier halves it.
+export const SPEED_DWELL_MS: Record<TextSpeed, number> = { slowest: 2400, slow: 1200, normal: 700, fast: 350, fast2: 175, fast3: 88 };
 
 function sanitizeText(text: string): string {
   return text.replace(/[^\x20-\x7e]/g, '').slice(0, 128);
@@ -217,7 +219,7 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
     // Center the rotated band horizontally in the canvas (the glyph band sits
     // around the vertical centerline of the original 34-tall buffer). The glyph
     // height differs by size, so nudge right to visually center per size.
-    const nudge = size === 'tiny' ? 2 : size === 'small' ? 1 : 0;
+    const nudge = size === 'tiny' ? 2 : 0;
     const left = Math.floor((canvasW - rotW) / 2) + nudge;
     const wrap = rotH + ROWS;
     return {
