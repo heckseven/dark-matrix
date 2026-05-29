@@ -4,12 +4,15 @@ import { renderText, extractFrame, decodeGlyph, scaleGlyph, SCALE_MAP, type Scro
 
 // Single source of truth for the "strings" widget category. Reused by the Zod
 // schema (config.ts), the daemon hud-config validation, and the deck inspector.
-export const TEXT_STYLES = ['marquee', 'label', 'columnar', 'spine', 'bigglyph', 'neon'] as const;
+export const TEXT_STYLES = ['marquee', 'columnar', 'spine', 'bigglyph', 'neon'] as const;
 export type TextStyle = (typeof TEXT_STYLES)[number];
 export const TEXT_SIZES = ['tiny', 'small', 'medium', 'large'] as const;
 export type TextSize = (typeof TEXT_SIZES)[number];
 export const TEXT_SPEEDS = ['slow', 'normal', 'fast'] as const;
 export type TextSpeed = (typeof TEXT_SPEEDS)[number];
+// neon flicker frequency — how often a character blinks dark per tick.
+export const TEXT_FLICKERS = ['low', 'medium', 'high'] as const;
+export type TextFlicker = (typeof TEXT_FLICKERS)[number];
 
 export interface TextWidgetConfig {
   text: string;
@@ -17,6 +20,7 @@ export interface TextWidgetConfig {
   size?: TextSize | undefined;
   speed?: TextSpeed | undefined;
   span?: boolean | undefined;
+  flicker?: TextFlicker | undefined;
 }
 
 // Stable cache key for memoizing a per-side renderer. Browser preview
@@ -24,8 +28,11 @@ export interface TextWidgetConfig {
 // a rendering-relevant field actually changes (not on every keystroke's new
 // widget object). Single source so the differentiating-field set can't drift.
 export function textRendererCacheKey(w: TextWidgetConfig, side: 'left' | 'right'): string {
-  return `${side}|${w.span ? 1 : 0}|${w.style ?? ''}|${w.size ?? ''}|${w.speed ?? ''}|${w.text}`;
+  return `${side}|${w.span ? 1 : 0}|${w.style ?? ''}|${w.size ?? ''}|${w.speed ?? ''}|${w.flicker ?? ''}|${w.text}`;
 }
+
+// neon flicker frequency → fraction of characters dark on a given tick.
+const FLICKER_PCT: Record<TextFlicker, number> = { low: 6, medium: 14, high: 28 };
 
 // Matches the daemon's WidgetRenderer shape (object with render(now)/stop()).
 export interface TextRenderer {
@@ -111,20 +118,6 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
     };
   }
 
-  // ── label: static, centered horizontally; truncate to what fits ──────────
-  if (style === 'label') {
-    const dims = glyphDims(size);
-    const step = dims.w + dims.scale;
-    const maxChars = Math.max(1, Math.floor(canvasW / step));
-    const shown = text.slice(0, maxChars);
-    const { buf, width } = renderText(shown, size);
-    const xoff = -Math.floor((canvasW - width) / 2); // center within the canvas
-    return {
-      render() { return extractFrame(buf, width, xoff + rightShift); },
-      stop() { /* stateless */ },
-    };
-  }
-
   // The remaining styles build a fresh canvasW-wide buffer each tick, then the
   // side's 9-col window is extracted.
   const dims = glyphDims(size);
@@ -160,12 +153,13 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
     const maxRows = Math.max(1, Math.floor(ROWS / slot));
     const shown = glyphs.slice(0, maxRows);
     const top0 = Math.floor((ROWS - shown.length * slot + (slot - dims.h)) / 2);
+    const flickerPct = FLICKER_PCT[(widget.flicker && (TEXT_FLICKERS as readonly string[]).includes(widget.flicker)) ? widget.flicker : 'medium'];
     return {
       render(now) {
         const tick = Math.floor(now.getTime() / TICK_MS);
         const buf = new Uint8Array(canvasW * ROWS);
         for (let i = 0; i < shown.length; i++) {
-          if (hash01(tick, i) < 12) continue; // ~12% of chars dark this tick
+          if (hash01(tick, i) < flickerPct) continue; // some chars dark this tick
           blitGlyph(buf, canvasW, shown[i]!, left, top0 + i * slot);
         }
         return extractFrame(buf, canvasW, rightShift);
