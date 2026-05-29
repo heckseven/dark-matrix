@@ -59,6 +59,7 @@ function buildPresetConfigPayload(preset: HudPresetClient) {
     leftTextSpeed: l.widget === 'text' ? l.speed : undefined,
     leftTextSpan: l.widget === 'text' ? l.span : undefined,
     leftTextFlicker: l.widget === 'text' ? l.flicker : undefined,
+    leftTextTransition: l.widget === 'text' ? l.transition : undefined,
     rightWidget: r.widget,
     rightFace: r.widget === 'clock' ? r.face : undefined,
     rightTimerStyle: r.widget === 'timer' ? (r.style ?? 'elegant') : undefined,
@@ -76,6 +77,7 @@ function buildPresetConfigPayload(preset: HudPresetClient) {
     rightTextSpeed: r.widget === 'text' ? r.speed : undefined,
     rightTextSpan: r.widget === 'text' ? r.span : undefined,
     rightTextFlicker: r.widget === 'text' ? r.flicker : undefined,
+    rightTextTransition: r.widget === 'text' ? r.transition : undefined,
   };
 }
 

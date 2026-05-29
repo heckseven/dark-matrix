@@ -13,6 +13,9 @@ export type TextSpeed = (typeof TEXT_SPEEDS)[number];
 // neon flicker frequency — how often a flicker event fires. 'none' disables it.
 export const TEXT_FLICKERS = ['none', 'low', 'medium', 'high'] as const;
 export type TextFlicker = (typeof TEXT_FLICKERS)[number];
+// bigglyph between-letter transition.
+export const TEXT_TRANSITIONS = ['none', 'slide', 'dissolve'] as const;
+export type TextTransition = (typeof TEXT_TRANSITIONS)[number];
 
 export interface TextWidgetConfig {
   text: string;
@@ -21,6 +24,7 @@ export interface TextWidgetConfig {
   speed?: TextSpeed | undefined;
   span?: boolean | undefined;
   flicker?: TextFlicker | undefined;
+  transition?: TextTransition | undefined;
 }
 
 // Stable cache key for memoizing a per-side renderer. Browser preview
@@ -28,7 +32,7 @@ export interface TextWidgetConfig {
 // a rendering-relevant field actually changes (not on every keystroke's new
 // widget object). Single source so the differentiating-field set can't drift.
 export function textRendererCacheKey(w: TextWidgetConfig, side: 'left' | 'right'): string {
-  return `${side}|${w.span ? 1 : 0}|${w.style ?? ''}|${w.size ?? ''}|${w.speed ?? ''}|${w.flicker ?? ''}|${w.text}`;
+  return `${side}|${w.span ? 1 : 0}|${w.style ?? ''}|${w.size ?? ''}|${w.speed ?? ''}|${w.flicker ?? ''}|${w.transition ?? ''}|${w.text}`;
 }
 
 // neon flicker frequency = how OFTEN a flicker event happens (each a quick
@@ -63,7 +67,9 @@ function glyphDims(size: TextSize): { w: number; h: number; scale: number; tiny:
 }
 
 // Blit a decoded+scaled glyph (boolean[][], row-major) into a column-major buffer.
-function blitGlyph(buf: Uint8Array, bw: number, glyph: boolean[][], left: number, top: number): void {
+// Optional `keep` predicate (by buffer x,y) filters which set pixels are drawn —
+// used by the dissolve transition.
+function blitGlyph(buf: Uint8Array, bw: number, glyph: boolean[][], left: number, top: number, keep?: (x: number, y: number) => boolean): void {
   for (let r = 0; r < glyph.length; r++) {
     const row = glyph[r]!;
     const y = top + r;
@@ -72,6 +78,7 @@ function blitGlyph(buf: Uint8Array, bw: number, glyph: boolean[][], left: number
       if (!row[c]) continue;
       const x = left + c;
       if (x < 0 || x >= bw) continue;
+      if (keep && !keep(x, y)) continue;
       buf[x * ROWS + y] = 255;
     }
   }
@@ -224,23 +231,34 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
     };
   }
 
-  // ── bigglyph: one large glyph at a time, dwell + simple slide transition ──
+  // ── bigglyph: one large glyph at a time, dwell + between-letter transition ──
   const dwell = SPEED_DWELL_MS[speed];
   const glyphs = [...text].map(ch => getGlyph(ch.charCodeAt(0), size));
-  const transMs = Math.min(200, Math.floor(dwell / 3));
+  const transition: TextTransition = (widget.transition && (TEXT_TRANSITIONS as readonly string[]).includes(widget.transition)) ? widget.transition : 'slide';
+  const transMs = transition === 'none' ? 0 : Math.min(200, Math.floor(dwell / 3));
+  const top = Math.floor((ROWS - dims.h) / 2);
+  const leftOf = (g: boolean[][]) => Math.floor((canvasW - (g[0]?.length ?? 0)) / 2);
   return {
     render(now) {
       const t = now.getTime();
       const idx = Math.floor(t / dwell) % glyphs.length;
       const within = t % dwell;
       const buf = new Uint8Array(canvasW * ROWS);
-      const g = glyphs[idx]!;
-      const gw = g[0]?.length ?? 0;
-      const baseLeft = Math.floor((canvasW - gw) / 2);
-      const top = Math.floor((ROWS - dims.h) / 2);
-      // slide-in from the bottom during the transition window
-      const slide = within < transMs ? Math.round((1 - within / transMs) * (ROWS - top)) : 0;
-      blitGlyph(buf, canvasW, g, baseLeft, top + slide);
+      const cur = glyphs[idx]!;
+      const inTransition = transMs > 0 && within < transMs && glyphs.length > 1;
+      if (inTransition && transition === 'dissolve') {
+        const p = within / transMs; // 0→1: incoming dissolves in, outgoing out
+        const prev = glyphs[(idx - 1 + glyphs.length) % glyphs.length]!;
+        // Per-screen-pixel threshold, stable within this transition (keyed by idx).
+        const randAt = (x: number, y: number) => (hashInt(idx, ((y << 6) ^ x) >>> 0) % 1000) / 1000;
+        blitGlyph(buf, canvasW, prev, leftOf(prev), top, (x, y) => randAt(x, y) >= p);
+        blitGlyph(buf, canvasW, cur, leftOf(cur), top, (x, y) => randAt(x, y) < p);
+      } else if (inTransition && transition === 'slide') {
+        const slide = Math.round((1 - within / transMs) * (ROWS - top)); // rise from bottom
+        blitGlyph(buf, canvasW, cur, leftOf(cur), top + slide);
+      } else {
+        blitGlyph(buf, canvasW, cur, leftOf(cur), top); // 'none' or settled
+      }
       return extractFrame(buf, canvasW, rightShift);
     },
     stop() { /* stateless */ },
