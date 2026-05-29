@@ -16,9 +16,10 @@ import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../an
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { CLAUDE_STYLES, createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import type { ClaudeStyle } from '../../../animations/claude-renderers.js';
-import { TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS, TEXT_FLICKERS, TEXT_TRANSITIONS, createTextRenderer } from '../../../animations/text-renderers.js';
+import { TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS, TEXT_FLICKERS, TEXT_TRANSITIONS, SPEED_PXPS, SPEED_DWELL_MS, createTextRenderer } from '../../../animations/text-renderers.js';
 import type { TextStyle, TextSize, TextSpeed, TextFlicker, TextTransition } from '../../../animations/text-renderers.js';
 import { Input } from './ui/input.js';
+import { Radio } from './ui/radio.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
 import type { BiomePreset } from '../types/life-types.js';
@@ -1014,15 +1015,23 @@ function StringsSettings({ widget, uid, onChange, onChangeBoth }: {
   const apply = (next: HudWidget & { widget: 'text' }) => {
     ((widget.span || next.span) && onChangeBoth ? onChangeBoth : onChange)(next);
   };
+  // bigglyph speed = per-letter dwell; everything else that moves = scroll px/s.
+  const speedLabel = (s: TextSpeed): string => {
+    if (style === 'bigglyph') {
+      const ms = SPEED_DWELL_MS[s];
+      return `${s} – ${ms >= 1000 ? `${ms / 1000}s` : `${ms}ms`}/letter`;
+    }
+    return `${s} – ${SPEED_PXPS[s]}px/s`;
+  };
   // Style isn't a setting here — it's chosen by picking a widget tile in the grid.
-  const selects: { key: string; label: string; value: string; options: readonly string[]; set: (v: string) => void }[] = [
-    { key: 'size',  label: 'size',  value: widget.size  ?? 'small', options: sizeOptionsFor(style), set: v => apply({ ...widget, size: v as TextSize }) },
-    { key: 'speed', label: 'speed', value: widget.speed ?? 'normal', options: TEXT_SPEEDS, set: v => apply({ ...widget, speed: v as TextSpeed }) },
+  const fields: { key: string; label: string; value: string; options: { value: string; label: string }[]; set: (v: string) => void }[] = [
+    { key: 'size',  label: 'size',  value: widget.size  ?? 'small',  options: sizeOptionsFor(style).map(o => ({ value: o, label: o })), set: v => apply({ ...widget, size: v as TextSize }) },
+    { key: 'speed', label: 'speed', value: widget.speed ?? 'normal', options: TEXT_SPEEDS.map(o => ({ value: o, label: speedLabel(o) })),  set: v => apply({ ...widget, speed: v as TextSpeed }) },
     ...(style === 'neon'
-      ? [{ key: 'flicker', label: 'flicker', value: widget.flicker ?? 'medium', options: TEXT_FLICKERS, set: (v: string) => apply({ ...widget, flicker: v as TextFlicker }) }]
+      ? [{ key: 'flicker', label: 'flicker', value: widget.flicker ?? 'medium', options: TEXT_FLICKERS.map(o => ({ value: o, label: o })), set: (v: string) => apply({ ...widget, flicker: v as TextFlicker }) }]
       : []),
     ...(style === 'bigglyph'
-      ? [{ key: 'transition', label: 'transition', value: widget.transition ?? 'slide', options: TEXT_TRANSITIONS, set: (v: string) => apply({ ...widget, transition: v as TextTransition }) }]
+      ? [{ key: 'transition', label: 'transition', value: widget.transition ?? 'slide', options: TEXT_TRANSITIONS.map(o => ({ value: o, label: o })), set: (v: string) => apply({ ...widget, transition: v as TextTransition }) }]
       : []),
   ];
   return (
@@ -1038,16 +1047,17 @@ function StringsSettings({ widget, uid, onChange, onChangeBoth }: {
           onChange={e => apply({ ...widget, text: e.currentTarget.value })}
         />
       </div>
-      {selects.map(({ key, label, value, options, set }) => (
-        <div key={key} className="flex flex-col gap-1">
-          <label id={`${uid}-${key}-label`} htmlFor={`${uid}-${key}`} className="font-mono text-xs text-muted-foreground">{label}</label>
-          <Select
-            id={`${uid}-${key}`}
-            aria-labelledby={`${uid}-${key}-label`}
-            value={value}
-            options={options.map(o => ({ value: o, label: o }))}
-            onValueChange={set}
-          />
+      {fields.map(({ key, label, value, options, set }) => (
+        <div key={key} className="flex flex-col gap-1.5">
+          <span id={`${uid}-${key}-label`} className="font-mono text-xs text-muted-foreground">{label}</span>
+          <div role="radiogroup" aria-labelledby={`${uid}-${key}-label`} className="flex flex-col gap-1">
+            {options.map(opt => (
+              <label key={opt.value} className="flex items-center gap-2 cursor-pointer select-none">
+                <Radio name={`${uid}-${key}`} value={opt.value} checked={value === opt.value} onChange={() => set(opt.value)} />
+                <span className="font-mono text-xs">{opt.label}</span>
+              </label>
+            ))}
+          </div>
         </div>
       ))}
       {style === 'marquee' && (

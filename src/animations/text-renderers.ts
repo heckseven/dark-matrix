@@ -35,10 +35,9 @@ export function textRendererCacheKey(w: TextWidgetConfig, side: 'left' | 'right'
   return `${side}|${w.span ? 1 : 0}|${w.style ?? ''}|${w.size ?? ''}|${w.speed ?? ''}|${w.flicker ?? ''}|${w.transition ?? ''}|${w.text}`;
 }
 
-// neon flicker frequency = how OFTEN a flicker event happens (each a quick
-// ~100ms flick that darkens up to 3 random letters at once). The setting is the
-// per-tick chance that an event fires — kept low so flickers stay occasional.
-const FLICKER_EVENT_PCT: Record<TextFlicker, number> = { none: 0, low: 4, medium: 10, high: 20 };
+// neon flicker frequency = how OFTEN a flicker burst begins (per-tick chance).
+// A burst darkens up to 3 random letters and blinks them 2-5 times. 'none' off.
+const FLICKER_EVENT_PCT: Record<TextFlicker, number> = { none: 0, low: 2, medium: 5, high: 10 };
 
 // Matches the daemon's WidgetRenderer shape (object with render(now)/stop()).
 export interface TextRenderer {
@@ -52,9 +51,9 @@ const TICK_MS = 100;     // neon flicker re-roll cadence (independent of render 
 
 // Scroll speed in pixels per SECOND (wall-clock-continuous, so motion is smooth
 // at any render frame rate). 10/20/40 px/s ≡ the old 1/2/4 px per 100ms tick.
-const SPEED_PXPS: Record<TextSpeed, number> = { slow: 10, normal: 20, fast: 40 };
+export const SPEED_PXPS: Record<TextSpeed, number> = { slow: 10, normal: 20, fast: 40 };
 // Per-glyph dwell (ms) for bigglyph.
-const SPEED_DWELL_MS: Record<TextSpeed, number> = { slow: 1200, normal: 700, fast: 350 };
+export const SPEED_DWELL_MS: Record<TextSpeed, number> = { slow: 1200, normal: 700, fast: 350 };
 
 function sanitizeText(text: string): string {
   return text.replace(/[^\x20-\x7e]/g, '').slice(0, 128);
@@ -169,14 +168,22 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
       render(now) {
         const tick = Math.floor(now.getTime() / TICK_MS);
         const buf = new Uint8Array(canvasW * ROWS);
-        // Occasionally (per the frequency setting) a quick flicker darkens up to
-        // 3 random letters at once for this tick; otherwise all letters are lit.
+        // A flicker burst begins rarely (per the frequency setting) and blinks
+        // its 1-3 letters several times: dark on even tick-offsets from the
+        // start, lit on odd, for `blinks` (2-5, weighted to 2-3) dark phases.
         const dark = new Set<number>();
-        if (hashInt(tick, 0) % 100 < eventPct) {
-          const count = Math.min(shown.length, 1 + (hashInt(tick, 1) % 3));
-          for (let salt = 2; dark.size < count && salt < 64; salt++) {
-            dark.add(hashInt(tick, salt) % shown.length);
-          }
+        const MAX_BURST_AGE = 2 * (5 - 1); // n=5 → dark at offsets 0,2,4,6,8
+        for (let age = 0; age <= MAX_BURST_AGE; age++) {
+          if (age % 2 !== 0) continue;                       // lit gap between blinks
+          const start = tick - age;
+          if (hashInt(start, 0) % 100 >= eventPct) continue; // no burst began here
+          const r = hashInt(start, 1) % 100;
+          const blinks = r < 35 ? 2 : r < 70 ? 3 : r < 88 ? 4 : 5; // 2-3 most common
+          if (age / 2 >= blinks) continue;                   // this burst has finished
+          const n = Math.min(shown.length, 1 + (hashInt(start, 2) % 3));
+          const picked = new Set<number>();
+          for (let salt = 3; picked.size < n && salt < 64; salt++) picked.add(hashInt(start, salt) % shown.length);
+          for (const idx of picked) dark.add(idx);
         }
         for (let i = 0; i < shown.length; i++) {
           if (dark.has(i)) continue;
