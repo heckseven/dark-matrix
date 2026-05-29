@@ -8,6 +8,8 @@ export const TEXT_STYLES = ['marquee', 'columnar', 'spine', 'bigglyph', 'neon'] 
 export type TextStyle = (typeof TEXT_STYLES)[number];
 export const TEXT_SIZES = ['tiny', 'small', 'medium', 'large'] as const;
 export type TextSize = (typeof TEXT_SIZES)[number];
+// Glyph height in pixels per size (mirrors glyphDims().h) — used for UI labels.
+export const TEXT_SIZE_PX: Record<TextSize, number> = { tiny: 5, small: 7, medium: 14, large: 21 };
 // Ordered slowest→fastest. Keys are internal only — the UI shows the value
 // (px/s or ms/letter), so add/rename tiers freely without touching labels.
 // Ordered slowest→fastest. fast2/fast3 are bigglyph-only (very short dwells);

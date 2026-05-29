@@ -16,7 +16,7 @@ import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../an
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { CLAUDE_STYLES, createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import type { ClaudeStyle } from '../../../animations/claude-renderers.js';
-import { TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS, TEXT_FLICKERS, TEXT_TRANSITIONS, SPEED_PXPS, SPEED_DWELL_MS, createTextRenderer } from '../../../animations/text-renderers.js';
+import { TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS, TEXT_FLICKERS, TEXT_TRANSITIONS, TEXT_SIZE_PX, SPEED_PXPS, SPEED_DWELL_MS, createTextRenderer } from '../../../animations/text-renderers.js';
 import type { TextStyle, TextSize, TextSpeed, TextFlicker, TextTransition } from '../../../animations/text-renderers.js';
 import { Input } from './ui/input.js';
 import { Radio } from './ui/radio.js';
@@ -1029,7 +1029,7 @@ function StringsSettings({ widget, uid, onChange, onChangeBoth }: {
   };
   // Style isn't a setting here — it's chosen by picking a widget tile in the grid.
   const fields: { key: string; label: string; value: string; options: { value: string; label: string }[]; set: (v: string) => void }[] = [
-    { key: 'size',  label: 'size',  value: widget.size  ?? 'small',  options: sizeOptionsFor(style).map(o => ({ value: o, label: o })), set: v => apply({ ...widget, size: v as TextSize }) },
+    { key: 'size',  label: 'size',  value: widget.size  ?? 'small',  options: sizeOptionsFor(style).map(o => ({ value: o, label: `${TEXT_SIZE_PX[o]}px` })), set: v => apply({ ...widget, size: v as TextSize }) },
     // neon is static — speed doesn't apply, so it has no speed group.
     ...(style !== 'neon'
       ? [{ key: 'speed', label: 'speed', value: widget.speed ?? 'normal', options: speedOptionsFor(style).map(o => ({ value: o, label: speedLabel(o) })), set: (v: string) => apply({ ...widget, speed: v as TextSpeed }) }]
