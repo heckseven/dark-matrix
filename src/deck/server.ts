@@ -14,7 +14,7 @@ import type { DmxProject } from './format.js';
 import type { AssetMeta } from '../lib/asset-meta.js';
 import { convertGifToDmx, applyPixelValue } from '../lib/image-convert.js';
 import { sendToDaemon, PersistentDaemonClient, daemonSocketPath } from '../lib/daemon-client.js';
-import { loadConfig, ConfigSchema } from '../lib/config.js';
+import { loadConfig, ConfigSchema, writeJsonAtomic } from '../lib/config.js';
 import { enumerateMatrixModules } from '../lib/modules.js';
 import { AUDIO_STYLES } from '../animations/audio-renderers.js';
 import { watchProcStats } from '../lib/proc-source.js';
@@ -151,11 +151,7 @@ async function loadPrefs(configDir?: string): Promise<DeckPrefs> {
 }
 
 async function savePrefs(prefs: DeckPrefs, configDir?: string): Promise<void> {
-  const p = prefsPath(configDir);
-  await fs.mkdir(path.dirname(p), { recursive: true });
-  const tmp = p + '.tmp';
-  await fs.writeFile(tmp, JSON.stringify(prefs, null, 2) + '\n', { mode: 0o600 });
-  await fs.rename(tmp, p);
+  await writeJsonAtomic(prefsPath(configDir), prefs);
 }
 
 const MAX_JSON_BODY = 1 * 1024 * 1024; // 1 MB
@@ -660,10 +656,7 @@ async function handleAssetsImport(
     const sourceBuf = Buffer.from(p['sourceBase64'] as string, 'base64');
     const project = await convertSourceToProject(sourceBuf, width, mode, fit, brightness, contrast, invert);
 
-    await fs.mkdir(aDir, { recursive: true });
-    const tmp = outputPath + '.tmp';
-    await fs.writeFile(tmp, JSON.stringify(project, null, 2) + '\n', { mode: 0o600 });
-    await fs.rename(tmp, outputPath);
+    await writeJsonAtomic(outputPath, project);
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true, filename: filename + '.dmx.json' }));
@@ -871,21 +864,16 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
 
         // Write access_token to separate credentials file (not config)
         const credsPath = credentialsFilePath(configDir);
-        await fs.mkdir(path.dirname(credsPath), { recursive: true });
-        const credsTmp = credsPath + '.tmp';
-        await fs.writeFile(credsTmp, JSON.stringify({ access_token }, null, 2) + '\n', { mode: 0o600 });
-        await fs.rename(credsTmp, credsPath);
+        await writeJsonAtomic(credsPath, { access_token });
 
-        // Atomic config write: broadcaster_id + client_id only (no access_token)
+        // Config write: broadcaster_id + client_id only (no access_token)
         const cfgPath = configFilePath(configDir);
         const config = await loadConfig(cfgPath);
         const updated = {
           ...config,
           twitch: { ...(config.twitch ?? {}), client_id: clientId, broadcaster_id: broadcasterId },
         };
-        const tmp = cfgPath + '.tmp';
-        await fs.writeFile(tmp, JSON.stringify(updated, null, 2) + '\n', { mode: 0o600 });
-        await fs.rename(tmp, cfgPath);
+        await writeJsonAtomic(cfgPath, updated);
         sendToDaemon({ cmd: 'reload' }).catch(() => {});
         // (Re)start EventSub with the freshly saved credentials
         stopEventSub?.();
@@ -907,15 +895,13 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
       try {
         // Clear credentials file
         const credsPath = credentialsFilePath(configDir);
-        await fs.writeFile(credsPath, JSON.stringify({}) + '\n', { mode: 0o600 });
+        await writeJsonAtomic(credsPath, {});
         // Remove access_token and broadcaster_id from config
         const cfgPath = configFilePath(configDir);
         const config = await loadConfig(cfgPath);
         const { broadcaster_id: _bid, ...twitchRest } = config.twitch ?? {};
         const updated = { ...config, twitch: { ...twitchRest } };
-        const tmp = cfgPath + '.tmp';
-        await fs.writeFile(tmp, JSON.stringify(updated, null, 2) + '\n', { mode: 0o600 });
-        await fs.rename(tmp, cfgPath);
+        await writeJsonAtomic(cfgPath, updated);
         stopEventSub?.();
         stopEventSub = null;
         sendToDaemon({ cmd: 'reload' }).catch(() => {});
@@ -1167,10 +1153,7 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
           return;
         }
         const cfgPath = configFilePath(configDir);
-        await fs.mkdir(path.dirname(cfgPath), { recursive: true });
-        const tmp = cfgPath + '.tmp';
-        await fs.writeFile(tmp, JSON.stringify(result.data, null, 2) + '\n', { mode: 0o600 });
-        await fs.rename(tmp, cfgPath);
+        await writeJsonAtomic(cfgPath, result.data);
         sendToDaemon({ cmd: 'reload' }).catch(() => {});
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
@@ -1253,9 +1236,7 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
           res.end(JSON.stringify({ ok: false, error: result.error.message }));
           return;
         }
-        const tmp = targetPath + '.tmp';
-        await fs.writeFile(tmp, JSON.stringify(result.data, null, 2) + '\n', { mode: 0o600 });
-        await fs.rename(tmp, targetPath);
+        await writeJsonAtomic(targetPath, result.data);
         const savedName = path.basename(targetPath).replace(/\.dmx\.json$/i, '');
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, name: savedName }));
@@ -1961,9 +1942,7 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
             const cfgPath = configFilePath(configDir);
             const config = await loadConfig(cfgPath);
             const updated = { ...config, hud_presets: presets };
-            const tmp = cfgPath + '.tmp';
-            await fs.writeFile(tmp, JSON.stringify(updated, null, 2) + '\n', { mode: 0o600 });
-            await fs.rename(tmp, cfgPath);
+            await writeJsonAtomic(cfgPath, updated);
             sendToDaemon({ cmd: 'reload' }).catch(() => {});
             ws.send(JSON.stringify({ type: 'hud-presets-saved' }));
           } catch (err) {
@@ -1988,9 +1967,7 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
                   return;
                 }
                 ws.send(JSON.stringify({ type: 'hud-preset-activated', name: activeHudPresetName }));
-                const tmp = cfgPath + '.tmp';
-                await fs.writeFile(tmp, JSON.stringify({ ...cfg, active_hud_preset: activeHudPresetName }, null, 2) + '\n', { mode: 0o600 });
-                await fs.rename(tmp, cfgPath);
+                await writeJsonAtomic(cfgPath, { ...cfg, active_hud_preset: activeHudPresetName });
               } else {
                 ws.send(JSON.stringify({ type: 'error', error: reply.error ?? 'activation failed' }));
               }
@@ -2020,9 +1997,7 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
             const cfgPath = configFilePath(configDir);
             const config = await loadConfig(cfgPath);
             const updated = { ...config, biome_presets: presets };
-            const tmp = cfgPath + '.tmp';
-            await fs.writeFile(tmp, JSON.stringify(updated, null, 2) + '\n', { mode: 0o600 });
-            await fs.rename(tmp, cfgPath);
+            await writeJsonAtomic(cfgPath, updated);
             ws.send(JSON.stringify({ type: 'biome-presets-saved' }));
           } catch (err) {
             ws.send(JSON.stringify({ type: 'error', error: String(err) }));
