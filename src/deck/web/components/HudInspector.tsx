@@ -946,8 +946,10 @@ function DataSettings({ widget, uid, onChange }: {
   );
 }
 
+// Display names only — the internal style keys (columnar/bigglyph) stay the same
+// so existing saved presets keep working.
 const STRINGS_STYLE_LABELS: Record<TextStyle, string> = {
-  marquee: 'marquee', columnar: 'columnar', spine: 'spine', bigglyph: 'big glyph', neon: 'neon',
+  marquee: 'marquee', columnar: 'tokyo', spine: 'spine', bigglyph: 'byte', neon: 'neon',
 };
 
 // spine/neon/bigglyph only read well at the two smallest sizes on the 9-wide panel.
@@ -1070,8 +1072,9 @@ function StringsSettings({ widget, uid, onChange, onChangeBoth }: {
       ))}
       {style !== 'neon' && (
         <div className="flex flex-col gap-1.5">
+          <span className="font-mono text-xs text-muted-foreground">loop delay</span>
           <ScrubInput
-            label="loop delay"
+            aria-label="loop delay"
             suffix="ms"
             min={0}
             max={10000}
