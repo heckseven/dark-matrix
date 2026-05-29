@@ -11,7 +11,7 @@ import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
 import { sendToDaemon } from '../lib/daemon-client.js';
-import { loadConfig, DEFAULT_CONFIG, resolveConfigPath } from '../lib/config.js';
+import { loadConfig, DEFAULT_CONFIG, resolveConfigPath, writeConfigAtomic } from '../lib/config.js';
 import { enumerateMatrixModules } from '../lib/modules.js';
 
 function staticAnim(frame: Frame) {
@@ -476,10 +476,11 @@ async function cmdCalibrate() {
   config['modules'] = { left: leftDev, right: rightDev };
   config['uncalibrated'] = false;
 
-  await fs.mkdir(path.dirname(configPath), { recursive: true });
-  await fs.writeFile(configPath, JSON.stringify(config, null, 2), { mode: 0o600 });
+  await writeConfigAtomic(configPath, config);
 
-  await run('systemctl', ['--user', 'restart', 'dark-matrix']).catch(() => {});
+  // reload (SIGHUP) re-reads the new module paths and restarts the idle loop —
+  // no full systemctl restart needed.
+  await sendToDaemon({ cmd: 'reload' }).catch(() => {});
 
   process.stdout.write(`Left: ${leftDev}\nRight: ${rightDev}\nConfig updated. Daemon reloaded.\n`);
 }
@@ -733,7 +734,18 @@ switch (cmd) {
       try {
         const res = await sendToDaemon({ cmd: 'hud-preset', name });
         if (res['ok']) {
-          process.stdout.write(`Switched to "${name}".\n`);
+          // The daemon validated the preset and returns its canonical name.
+          const activeName = typeof res['name'] === 'string' ? res['name'] : name;
+          // Persist active_hud_preset so the activation survives a daemon restart
+          // (matches the Deck). Raw read/write — never round-trip through loadConfig,
+          // which would bake in-memory coercions into the user's file. Best-effort.
+          try {
+            const configPath = resolveConfigPath();
+            const raw = JSON.parse(await fs.readFile(configPath, 'utf-8')) as Record<string, unknown>;
+            raw['active_hud_preset'] = activeName;
+            await writeConfigAtomic(configPath, raw);
+          } catch { /* persistence is best-effort */ }
+          process.stdout.write(`Switched to "${activeName}".\n`);
         } else {
           process.stderr.write(`Error: ${res['error'] ?? JSON.stringify(res)}\n`);
           process.exit(1);
