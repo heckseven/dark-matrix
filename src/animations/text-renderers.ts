@@ -31,11 +31,10 @@ export function textRendererCacheKey(w: TextWidgetConfig, side: 'left' | 'right'
   return `${side}|${w.span ? 1 : 0}|${w.style ?? ''}|${w.size ?? ''}|${w.speed ?? ''}|${w.flicker ?? ''}|${w.text}`;
 }
 
-// neon flicker frequency = how often the dark/lit state re-rolls. Larger period
-// = slower, lazier flicker. The flicker decision holds for the whole period, so
-// 'low' produces sparse, occasional blinks rather than rapid twinkling.
-const FLICKER_PERIOD_MS: Record<TextFlicker, number> = { low: 900, medium: 300, high: 90 };
-const FLICKER_DARK_PCT = 16; // fraction of characters dark within an active period
+// neon flicker frequency = how OFTEN a character blinks dark, not how fast the
+// blink is. Each blink is a quick one-tick (~100ms) flick; the setting is the
+// per-tick probability that a given character is dark — low = rare, high = often.
+const FLICKER_PCT: Record<TextFlicker, number> = { low: 2, medium: 8, high: 20 };
 
 // Matches the daemon's WidgetRenderer shape (object with render(now)/stop()).
 export interface TextRenderer {
@@ -157,15 +156,15 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
     const shown = glyphs.slice(0, maxRows);
     const top0 = Math.floor((ROWS - shown.length * slot + (slot - dims.h)) / 2);
     const flicker = (widget.flicker && (TEXT_FLICKERS as readonly string[]).includes(widget.flicker)) ? widget.flicker : 'medium';
-    const periodMs = FLICKER_PERIOD_MS[flicker];
+    const pct = FLICKER_PCT[flicker];
     return {
       render(now) {
-        // Re-roll the dark/lit decision once per period (not every tick) so the
-        // flicker rate tracks the setting; the choice holds for the whole period.
-        const flickerTick = Math.floor(now.getTime() / periodMs);
+        // Re-roll every tick → quick ~100ms blinks; `pct` sets how often a char
+        // is dark (the frequency of flickering), not the blink's duration.
+        const tick = Math.floor(now.getTime() / TICK_MS);
         const buf = new Uint8Array(canvasW * ROWS);
         for (let i = 0; i < shown.length; i++) {
-          if (hash01(flickerTick, i) < FLICKER_DARK_PCT) continue; // dark this period
+          if (hash01(tick, i) < pct) continue; // dark this tick
           blitGlyph(buf, canvasW, shown[i]!, left, top0 + i * slot);
         }
         return extractFrame(buf, canvasW, rightShift);
@@ -192,8 +191,10 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
       }
     }
     // Center the rotated band horizontally in the canvas (the glyph band sits
-    // around the vertical centerline of the original 34-tall buffer).
-    const left = Math.floor((canvasW - rotW) / 2);
+    // around the vertical centerline of the original 34-tall buffer). The glyph
+    // height differs by size, so nudge right to visually center per size.
+    const nudge = size === 'tiny' ? 2 : size === 'small' ? 1 : 0;
+    const left = Math.floor((canvasW - rotW) / 2) + nudge;
     const wrap = rotH + ROWS;
     return {
       render(now) {
