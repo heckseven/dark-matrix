@@ -278,14 +278,10 @@ async function cmdShow(args: string[]) {
   const devicePath = device ?? config.modules.left;
 
   const frame = await convertImage(imagePath, { mode, fit });
-  const anim = staticAnim(frame);
-  await releaseDaemonPort();
-  const transport = new SerialTransport();
-
-  const stop = runAnimation(anim, { transport, devicePath, mode });
-  process.stdout.write(`Displaying ${imagePath} on ${devicePath} (Ctrl+C to stop)\n`);
-
-  process.once('SIGINT', () => { stop(); process.exit(0); });
+  const label = `Displaying ${imagePath} on ${devicePath}`;
+  const side = deviceSide(config, devicePath);
+  if (side && await showViaDaemon({ cmd: 'frame', [side]: frameB64(frame), mode }, label)) return;
+  await directDrawHeld(frame, devicePath, mode, label);
 }
 
 async function cmdShowSplit(args: string[]) {
@@ -300,25 +296,17 @@ async function cmdShowSplit(args: string[]) {
   const { mode, fit } = parseShowFlags([...flags, positional[0]!]);
   const [leftPath, rightPath] = positional as [string, string];
 
-  const config = await loadConfig();
-  const leftDev = config.modules.left;
-  const rightDev = config.modules.right;
-
   const [leftFrame, rightFrame] = await Promise.all([
     convertImage(leftPath, { mode, fit }),
     convertImage(rightPath, { mode, fit }),
   ]);
 
-  const leftAnim = staticAnim(leftFrame);
-  const rightAnim = staticAnim(rightFrame);
-  await releaseDaemonPort();
-  const transport = new SerialTransport();
-
-  const stopLeft = runAnimation(leftAnim, { transport, devicePath: leftDev, mode });
-  const stopRight = runAnimation(rightAnim, { transport, devicePath: rightDev, mode });
-
-  process.stdout.write(`Displaying split: ${leftPath} | ${rightPath} (Ctrl+C to stop)\n`);
-  process.once('SIGINT', () => { stopLeft(); stopRight(); process.exit(0); });
+  // Both halves target the configured modules, so this always routes through
+  // the daemon; there is no arbitrary-device path to fall back to.
+  const label = `Displaying split: ${leftPath} | ${rightPath}`;
+  if (!await showViaDaemon({ cmd: 'frame', left: frameB64(leftFrame), right: frameB64(rightFrame), mode }, label)) {
+    daemonDownExit();
+  }
 }
 
 // Empirical settle time after the daemon releases its port handles, before a
@@ -339,60 +327,94 @@ async function releaseDaemonPort(): Promise<void> {
 
 const ASSET_DIR = path.resolve(__dirname, '../../images');
 
-async function showOnDevice(imagePath: string, devicePath: string, mode: 'bw' | 'gray') {
-  const frame = await convertImage(imagePath, { mode, fit: 'contain' });
-  const anim = staticAnim(frame);
+function frameB64(frame: Frame): string {
+  return Buffer.from(frame).toString('base64');
+}
+
+// Which daemon `frame` side a device path maps to, or null if it isn't a
+// configured module (the daemon can only address the configured left/right).
+function deviceSide(config: { modules: { left: string; right: string } }, devicePath: string): 'left' | 'right' | null {
+  if (devicePath === config.modules.left) return 'left';
+  if (devicePath === config.modules.right) return 'right';
+  return null;
+}
+
+// Hand a held frame to the daemon, which owns the serial port. Returns true once
+// the daemon applied it, false if the daemon is unreachable (so the caller can
+// fall back to a direct draw). Exits on an explicit daemon error.
+async function showViaDaemon(frameCmd: Record<string, unknown>, label: string): Promise<boolean> {
+  let res: Record<string, unknown>;
+  try {
+    res = await sendToDaemon(frameCmd);
+  } catch {
+    return false;
+  }
+  if (!res['ok']) {
+    process.stderr.write(`Error: ${res['error'] ?? JSON.stringify(res)}\n`);
+    process.exit(1);
+  }
+  process.stdout.write(`${label} (run "release" to stop).\n`);
+  return true;
+}
+
+function daemonDownExit(): never {
+  process.stderr.write('Error: daemon not reachable — start it with: systemctl --user start dark-matrix\n');
+  process.exit(1);
+}
+
+// Fallback when the daemon can't address the target (an explicit --device that
+// isn't a configured module, or the daemon is down): draw directly, holding the
+// port until Ctrl+C.
+async function directDrawHeld(frame: Frame, devicePath: string, mode: 'bw' | 'gray', label: string): Promise<void> {
+  await releaseDaemonPort();
   const transport = new SerialTransport();
-  return runAnimation(anim, { transport, devicePath, mode });
+  const stop = runAnimation(staticAnim(frame), { transport, devicePath, mode });
+  process.stdout.write(`${label} (Ctrl+C to stop)\n`);
+  process.once('SIGINT', () => { stop(); process.exit(0); });
 }
 
 async function cmdDisplay(args: string[]) {
   const name = args[0];
-  const mode = 'bw';
   if (!name || !['yeah', 'runes', '0x07', 'panic'].includes(name)) {
     process.stderr.write(`Unknown preset "${name ?? ''}". Options: yeah, runes, 0x07, panic\n`);
     process.exit(1);
   }
-  const config = await loadConfig();
-  const leftDev = config.modules.left;
-  const rightDev = config.modules.right;
 
-  await releaseDaemonPort();
-
+  let frameCmd: Record<string, unknown>;
+  let label: string;
   switch (name) {
     case 'yeah': {
-      const [stopL, stopR] = await Promise.all([
-        showOnDevice(path.join(ASSET_DIR, 'heck.png'), leftDev, mode),
-        showOnDevice(path.join(ASSET_DIR, 'yeah.png'), rightDev, mode),
+      const [heck, yeah] = await Promise.all([
+        convertImage(path.join(ASSET_DIR, 'heck.png'), { mode: 'bw', fit: 'contain' }),
+        convertImage(path.join(ASSET_DIR, 'yeah.png'), { mode: 'bw', fit: 'contain' }),
       ]);
-      process.stdout.write('Displaying: heck | yeah (Ctrl+C to stop)\n');
-      process.once('SIGINT', () => { stopL(); stopR(); process.exit(0); });
+      frameCmd = { cmd: 'frame', left: frameB64(heck), right: frameB64(yeah), mode: 'bw' };
+      label = 'Displaying: heck | yeah';
       break;
     }
     case 'runes': {
-      const stop = await showOnDevice(path.join(ASSET_DIR, 'runes.png'), leftDev, mode);
-      process.stdout.write('Displaying: runes (Ctrl+C to stop)\n');
-      process.once('SIGINT', () => { stop(); process.exit(0); });
+      const frame = await convertImage(path.join(ASSET_DIR, 'runes.png'), { mode: 'bw', fit: 'contain' });
+      frameCmd = { cmd: 'frame', left: frameB64(frame), mode: 'bw' };
+      label = 'Displaying: runes';
       break;
     }
     case '0x07': {
-      const stop = await showOnDevice(path.join(ASSET_DIR, '0X07.png'), leftDev, mode);
-      process.stdout.write('Displaying: 0x07 (Ctrl+C to stop)\n');
-      process.once('SIGINT', () => { stop(); process.exit(0); });
+      const frame = await convertImage(path.join(ASSET_DIR, '0X07.png'), { mode: 'bw', fit: 'contain' });
+      frameCmd = { cmd: 'frame', left: frameB64(frame), mode: 'bw' };
+      label = 'Displaying: 0x07';
       break;
     }
     case 'panic': {
       const frame = createFrame();
       frame.fill(255);
-      const anim = staticAnim(frame);
-      const transport = new SerialTransport();
-      const stopL = runAnimation(anim, { transport, devicePath: leftDev, mode });
-      const stopR = runAnimation(staticAnim(frame), { transport, devicePath: rightDev, mode });
-      process.stdout.write('PANIC MODE (Ctrl+C to stop)\n');
-      process.once('SIGINT', () => { stopL(); stopR(); process.exit(0); });
+      frameCmd = { cmd: 'frame', left: frameB64(frame), right: frameB64(frame), mode: 'bw' };
+      label = 'PANIC MODE';
       break;
     }
+    default: throw new Error(`unhandled preset: ${name}`); // name is validated above
   }
+
+  if (!await showViaDaemon(frameCmd, label)) daemonDownExit();
 }
 
 async function cmdImage(args: string[]) {
@@ -413,12 +435,10 @@ async function cmdImage(args: string[]) {
     const config = await loadConfig();
     const devIdx = args.indexOf('--device');
     const devicePath = (devIdx !== -1 ? args[devIdx + 1] : undefined) ?? config.modules.left;
-    const anim = staticAnim(frame);
-    await releaseDaemonPort();
-    const transport = new SerialTransport();
-    const stop = runAnimation(anim, { transport, devicePath, mode });
-    process.stdout.write(`Displaying ${imagePath} (Ctrl+C to stop)\n`);
-    process.once('SIGINT', () => { stop(); process.exit(0); });
+    const label = `Displaying ${imagePath}`;
+    const side = deviceSide(config, devicePath);
+    if (side && await showViaDaemon({ cmd: 'frame', [side]: frameB64(frame), mode }, label)) return;
+    await directDrawHeld(frame, devicePath, mode, label);
   }
 }
 
