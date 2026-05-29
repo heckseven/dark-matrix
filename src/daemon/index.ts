@@ -1843,7 +1843,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               break;
             }
             case 'hud-config': {
-              const m = msg as { cmd: string; leftFace?: string; leftWidget?: string; leftDataStyle?: string; leftAudioStyle?: string; leftClaudeStyle?: string; leftFile?: string; leftBiomeName?: string; leftRandomIntervalMs?: number; leftTimerStyle?: string; leftTimerDurationMs?: number; leftTimerRepeat?: boolean; leftText?: string; leftTextStyle?: string; leftTextSize?: string; leftTextSpeed?: string; leftTextSpan?: boolean; leftTextFlicker?: string; leftTextTransition?: string; rightFace?: string; rightWidget?: string; rightDataStyle?: string; rightAudioStyle?: string; rightClaudeStyle?: string; rightFile?: string; rightBiomeName?: string; rightRandomIntervalMs?: number; rightTimerStyle?: string; rightTimerDurationMs?: number; rightTimerRepeat?: boolean; rightText?: string; rightTextStyle?: string; rightTextSize?: string; rightTextSpeed?: string; rightTextSpan?: boolean; rightTextFlicker?: string; rightTextTransition?: string };
+              const m = msg as { cmd: string; leftFace?: string; leftWidget?: string; leftDataStyle?: string; leftAudioStyle?: string; leftClaudeStyle?: string; leftFile?: string; leftBiomeName?: string; leftRandomIntervalMs?: number; leftTimerStyle?: string; leftTimerDurationMs?: number; leftTimerRepeat?: boolean; leftText?: string; leftTextStyle?: string; leftTextSize?: string; leftTextSpeed?: string; leftTextSpan?: boolean; leftTextFlicker?: string; leftTextTransition?: string; leftTextLoopDelayMs?: number; rightFace?: string; rightWidget?: string; rightDataStyle?: string; rightAudioStyle?: string; rightClaudeStyle?: string; rightFile?: string; rightBiomeName?: string; rightRandomIntervalMs?: number; rightTimerStyle?: string; rightTimerDurationMs?: number; rightTimerRepeat?: boolean; rightText?: string; rightTextStyle?: string; rightTextSize?: string; rightTextSpeed?: string; rightTextSpan?: boolean; rightTextFlicker?: string; rightTextTransition?: string; rightTextLoopDelayMs?: number };
               const biomeNames = new Set((currentConfig.biome_presets ?? []).map(b => b.name));
               const validBiome = (name: string) => name === 'random' || biomeNames.has(name);
               const asTextStyle = (v?: string): TextStyle | undefined => v && (TEXT_STYLES as readonly string[]).includes(v) ? v as TextStyle : undefined;
@@ -1851,9 +1851,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               const asTextSpeed = (v?: string): TextSpeed | undefined => v && (TEXT_SPEEDS as readonly string[]).includes(v) ? v as TextSpeed : undefined;
               const asTextFlicker = (v?: string): TextFlicker | undefined => v && (TEXT_FLICKERS as readonly string[]).includes(v) ? v as TextFlicker : undefined;
               const asTextTransition = (v?: string): TextTransition | undefined => v && (TEXT_TRANSITIONS as readonly string[]).includes(v) ? v as TextTransition : undefined;
-              const buildText = (text: string, st?: string, sz?: string, sp?: string, span?: boolean, fl?: string, tr?: string): NonNullable<NonNullable<Config['hud']>['left']> => {
+              const buildText = (text: string, st?: string, sz?: string, sp?: string, span?: boolean, fl?: string, tr?: string, loopDelayMs?: number): NonNullable<NonNullable<Config['hud']>['left']> => {
                 const style = asTextStyle(st); const size = asTextSize(sz); const speed = asTextSpeed(sp); const flicker = asTextFlicker(fl); const transition = asTextTransition(tr);
-                return { widget: 'text', text: text.slice(0, 128), ...(style ? { style } : {}), ...(size ? { size } : {}), ...(speed ? { speed } : {}), ...(span ? { span: true } : {}), ...(flicker ? { flicker } : {}), ...(transition ? { transition } : {}) };
+                const delay = typeof loopDelayMs === 'number' && Number.isFinite(loopDelayMs) && loopDelayMs > 0 ? Math.min(60000, Math.floor(loopDelayMs)) : undefined;
+                return { widget: 'text', text: text.slice(0, 128), ...(style ? { style } : {}), ...(size ? { size } : {}), ...(speed ? { speed } : {}), ...(span ? { span: true } : {}), ...(flicker ? { flicker } : {}), ...(transition ? { transition } : {}), ...(delay !== undefined ? { loopDelayMs: delay } : {}) };
               };
               if (m.leftWidget === 'life' && typeof m.leftBiomeName === 'string' && !validBiome(m.leftBiomeName)) {
                 socket.write(JSON.stringify({ ok: false, error: `unknown biome: "${m.leftBiomeName}"` }) + '\n');
@@ -1883,7 +1884,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 const repeat = typeof m.leftTimerRepeat === 'boolean' ? m.leftTimerRepeat : undefined;
                 newHud.left = { widget: 'timer', style, ...(durationMs !== undefined ? { durationMs } : {}), ...(repeat !== undefined ? { repeat } : {}) };
               } else if (m.leftWidget === 'text' && typeof m.leftText === 'string') {
-                newHud.left = buildText(m.leftText, m.leftTextStyle, m.leftTextSize, m.leftTextSpeed, m.leftTextSpan, m.leftTextFlicker, m.leftTextTransition);
+                newHud.left = buildText(m.leftText, m.leftTextStyle, m.leftTextSize, m.leftTextSpeed, m.leftTextSpan, m.leftTextFlicker, m.leftTextTransition, m.leftTextLoopDelayMs);
               } else if (typeof m.leftFace === 'string') {
                 const face = isClockFace(m.leftFace) ? m.leftFace : 'elegant';
                 newHud.left = { widget: 'clock', face };
@@ -1907,7 +1908,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 const repeat = typeof m.rightTimerRepeat === 'boolean' ? m.rightTimerRepeat : undefined;
                 newHud.right = { widget: 'timer', style, ...(durationMs !== undefined ? { durationMs } : {}), ...(repeat !== undefined ? { repeat } : {}) };
               } else if (m.rightWidget === 'text' && typeof m.rightText === 'string') {
-                newHud.right = buildText(m.rightText, m.rightTextStyle, m.rightTextSize, m.rightTextSpeed, m.rightTextSpan, m.rightTextFlicker, m.rightTextTransition);
+                newHud.right = buildText(m.rightText, m.rightTextStyle, m.rightTextSize, m.rightTextSpeed, m.rightTextSpan, m.rightTextFlicker, m.rightTextTransition, m.rightTextLoopDelayMs);
               } else if (typeof m.rightFace === 'string') {
                 const face = isClockFace(m.rightFace) ? m.rightFace : 'elegant';
                 newHud.right = { widget: 'clock', face };

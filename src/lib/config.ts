@@ -19,7 +19,7 @@ const HudWidgetSchema = z.discriminatedUnion('widget', [
   z.object({ widget: z.literal('life'), biomeName: z.string().min(1).max(100), randomIntervalMs: z.number().int().min(5000).max(3_600_000).optional() }),
   z.object({ widget: z.literal('claude'), style: z.enum(['snow', 'quota', 'sand', 'tetris']).optional().catch(undefined) }),
   z.object({ widget: z.literal('timer'), style: z.enum(['elegant', 'hourglass', 'twinz']).optional().catch(undefined), durationMs: z.number().int().min(1000).optional(), repeat: z.boolean().optional() }),
-  z.object({ widget: z.literal('text'), text: z.string().max(128), style: z.enum(TEXT_STYLES).optional().catch(undefined), size: z.enum(TEXT_SIZES).optional().catch(undefined), speed: z.enum(TEXT_SPEEDS).optional().catch(undefined), span: z.boolean().optional(), flicker: z.enum(TEXT_FLICKERS).optional().catch(undefined), transition: z.enum(TEXT_TRANSITIONS).optional().catch(undefined) }),
+  z.object({ widget: z.literal('text'), text: z.string().max(128), style: z.enum(TEXT_STYLES).optional().catch(undefined), size: z.enum(TEXT_SIZES).optional().catch(undefined), speed: z.enum(TEXT_SPEEDS).optional().catch(undefined), span: z.boolean().optional(), flicker: z.enum(TEXT_FLICKERS).optional().catch(undefined), transition: z.enum(TEXT_TRANSITIONS).optional().catch(undefined), loopDelayMs: z.number().int().min(0).max(60000).optional() }),
 ]);
 
 // A preset slot referencing a removed widget *type* (e.g. a deleted widget)

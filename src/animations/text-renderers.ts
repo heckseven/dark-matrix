@@ -31,6 +31,7 @@ export interface TextWidgetConfig {
   span?: boolean | undefined;
   flicker?: TextFlicker | undefined;
   transition?: TextTransition | undefined;
+  loopDelayMs?: number | undefined;
 }
 
 // Stable cache key for memoizing a per-side renderer. Browser preview
@@ -38,7 +39,7 @@ export interface TextWidgetConfig {
 // a rendering-relevant field actually changes (not on every keystroke's new
 // widget object). Single source so the differentiating-field set can't drift.
 export function textRendererCacheKey(w: TextWidgetConfig, side: 'left' | 'right'): string {
-  return `${side}|${w.span ? 1 : 0}|${w.style ?? ''}|${w.size ?? ''}|${w.speed ?? ''}|${w.flicker ?? ''}|${w.transition ?? ''}|${w.text}`;
+  return `${side}|${w.span ? 1 : 0}|${w.style ?? ''}|${w.size ?? ''}|${w.speed ?? ''}|${w.flicker ?? ''}|${w.transition ?? ''}|${w.loopDelayMs ?? 0}|${w.text}`;
 }
 
 // neon flicker frequency = how OFTEN a flicker burst begins (per-tick chance).
@@ -116,8 +117,16 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
   const span = !!widget.span;
   const canvasW = span ? COLS * 2 : COLS;
   const rightShift = span && side === 'right' ? COLS : 0;
-  // Pixels scrolled by `now`, continuous in wall-clock time → smooth at any FPS.
-  const scrolled = (now: Date) => Math.floor((SPEED_PXPS[speed] * now.getTime()) / 1000);
+  const pxps = SPEED_PXPS[speed];
+  const loopDelayMs = typeof widget.loopDelayMs === 'number' && widget.loopDelayMs > 0 ? Math.min(60_000, widget.loopDelayMs) : 0;
+  // Position within one loop in [0, loopPx], continuous in wall-clock time (smooth
+  // at any FPS). Holds at 0 (blank/start) for loopDelayMs between loops.
+  const loopScroll = (now: Date, loopPx: number): number => {
+    const scrollMs = (loopPx / pxps) * 1000;
+    const cycleMs = scrollMs + loopDelayMs;
+    const phase = ((now.getTime() % cycleMs) + cycleMs) % cycleMs;
+    return phase < scrollMs ? Math.floor((pxps * phase) / 1000) : 0;
+  };
 
   // ── marquee: static wide text buffer, horizontal scroll ──────────────────
   if (style === 'marquee') {
@@ -126,7 +135,7 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
     const total = width + LEAD;
     return {
       render(now) {
-        const base = (((scrolled(now)) % total) + total) % total - LEAD;
+        const base = loopScroll(now, total) - LEAD;
         return extractFrame(buf, width, base + rightShift);
       },
       stop() { /* stateless */ },
@@ -149,7 +158,7 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
       const wrap = stackH + ROWS; // scroll fully off the top, then repeat
       return {
         render(now) {
-          const yoff = ((scrolled(now)) % wrap + wrap) % wrap;
+          const yoff = loopScroll(now, wrap);
           const buf = new Uint8Array(canvasW * ROWS);
           // first glyph starts just below the bottom, rises as yoff grows
           for (let i = 0; i < glyphs.length; i++) {
@@ -226,7 +235,7 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
     const wrap = rotH + ROWS;
     return {
       render(now) {
-        const yoff = ((scrolled(now)) % wrap + wrap) % wrap;
+        const yoff = loopScroll(now, wrap);
         const buf = new Uint8Array(canvasW * ROWS);
         for (let rx = 0; rx < rotW; rx++) {
           const dx = left + rx;
@@ -251,12 +260,15 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
   const transMs = transition === 'none' ? 0 : Math.min(200, Math.floor(dwell / 3));
   const top = Math.floor((ROWS - dims.h) / 2);
   const leftOf = (g: boolean[][]) => Math.floor((canvasW - (g[0]?.length ?? 0)) / 2);
+  const loopMs = glyphs.length * dwell;
+  const cycleMs = loopMs + loopDelayMs;
   return {
     render(now) {
-      const t = now.getTime();
-      const idx = Math.floor(t / dwell) % glyphs.length;
-      const within = t % dwell;
       const buf = new Uint8Array(canvasW * ROWS);
+      const phase = ((now.getTime() % cycleMs) + cycleMs) % cycleMs;
+      if (phase >= loopMs) return extractFrame(buf, canvasW, rightShift); // inter-loop delay: blank
+      const idx = Math.floor(phase / dwell);
+      const within = phase % dwell;
       const cur = glyphs[idx]!;
       const inTransition = transMs > 0 && within < transMs && glyphs.length > 1;
       if (inTransition && transition === 'dissolve') {
