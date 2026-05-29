@@ -7,18 +7,18 @@ import { getDataRenderer } from '../data-renderer-pool.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
-import { createTextRenderer, type TextRenderer } from '../../../animations/text-renderers.js';
+import { createTextRenderer, textRendererCacheKey, type TextRenderer } from '../../../animations/text-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
+import { deckStore } from '../store.js';
 
 // Text renderers cached by content signature + side (not widget identity) so an
 // edit keystroke rebuilds only when something actually changed.
 const _textCache: Record<string, TextRenderer> = {};
 function getTextRenderer(w: Extract<HudWidget, { widget: 'text' }>, side: 'left' | 'right'): TextRenderer {
-  const key = `${side}|${w.span ? 1 : 0}|${w.style ?? ''}|${w.size ?? ''}|${w.speed ?? ''}|${w.text}`;
+  const key = textRendererCacheKey(w, side);
   if (!_textCache[key]) _textCache[key] = createTextRenderer(w, side);
   return _textCache[key]!;
 }
-import { deckStore } from '../store.js';
 
 // ── layout constants — match PixelCanvas at zoom=1 ────────────────────────
 

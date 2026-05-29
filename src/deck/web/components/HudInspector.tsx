@@ -1009,9 +1009,10 @@ function StringsSettings({ widget, uid, onChange, onChangeBoth }: {
       <div className="grid grid-cols-3 gap-2">
         {selects.map(({ key, label, value, options }) => (
           <div key={key} className="flex flex-col gap-1">
-            <label htmlFor={`${uid}-${key}`} className="font-mono text-xs text-muted-foreground">{label}</label>
+            <label id={`${uid}-${key}-label`} htmlFor={`${uid}-${key}`} className="font-mono text-xs text-muted-foreground">{label}</label>
             <Select
               id={`${uid}-${key}`}
+              aria-labelledby={`${uid}-${key}-label`}
               value={value}
               options={options.map(o => ({ value: o, label: o }))}
               onValueChange={raw => {
@@ -1029,9 +1030,10 @@ function StringsSettings({ widget, uid, onChange, onChangeBoth }: {
           checked={widget.span ?? false}
           onChange={e => {
             const span = (e.target as HTMLInputElement).checked;
-            const next: HudWidget & { widget: 'text' } = { ...widget, span };
-            if (span && onChangeBoth) onChangeBoth(next);
-            else onChange(next);
+            // Sync BOTH slots on toggle (on and off): leaving the opposite side
+            // with a stale span flag would mismatch canvas widths and break the
+            // display. Falls back to single-side when no both-setter is wired.
+            (onChangeBoth ?? onChange)({ ...widget, span });
           }}
         />
         <span className="font-mono text-xs">span both modules</span>

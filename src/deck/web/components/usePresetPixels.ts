@@ -7,7 +7,7 @@ import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../an
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { renderElegantTimer, renderHourglassFrame, renderTwinzTimer, renderTwinzUsagePercent } from '../../../animations/timer-renderers.js';
 import { createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
-import { createTextRenderer, type TextRenderer } from '../../../animations/text-renderers.js';
+import { createTextRenderer, textRendererCacheKey, type TextRenderer } from '../../../animations/text-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { HudPresetClient } from '../types/hud-preset.js';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
@@ -213,7 +213,7 @@ function renderWidgetToB64(
            :                       _claudeSnowThumb;
     }
     if (widget.widget === 'text') {
-      const key = `${side}|${widget.span ? 1 : 0}|${widget.style ?? ''}|${widget.size ?? ''}|${widget.speed ?? ''}|${widget.text}`;
+      const key = textRendererCacheKey(widget, side);
       if (!_textThumbCache[key]) _textThumbCache[key] = createTextRenderer(widget, side);
       const frame = _textThumbCache[key]!.render(new Date());
       const out = new Uint8Array(COLS * ROWS);

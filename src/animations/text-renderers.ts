@@ -19,6 +19,14 @@ export interface TextWidgetConfig {
   span?: boolean | undefined;
 }
 
+// Stable cache key for memoizing a per-side renderer. Browser preview
+// dispatchers key their renderer caches on this so an edit rebuilds only when
+// a rendering-relevant field actually changes (not on every keystroke's new
+// widget object). Single source so the differentiating-field set can't drift.
+export function textRendererCacheKey(w: TextWidgetConfig, side: 'left' | 'right'): string {
+  return `${side}|${w.span ? 1 : 0}|${w.style ?? ''}|${w.size ?? ''}|${w.speed ?? ''}|${w.text}`;
+}
+
 // Matches the daemon's WidgetRenderer shape (object with render(now)/stop()).
 export interface TextRenderer {
   render(now: Date): Frame;
@@ -183,9 +191,9 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
         rot[nx * rotH + ny] = 255; // column-major in rotated space (width rotW)
       }
     }
-    // Place horizontally centered (rotated text band is ~dims.h wide around the
-    // vertical centerline of the original 34-tall buffer).
-    const left = Math.floor((canvasW - 1) / 2) - Math.floor(rotW / 2) + (span ? 0 : 0);
+    // Center the rotated band horizontally in the canvas (the glyph band sits
+    // around the vertical centerline of the original 34-tall buffer).
+    const left = Math.floor((canvasW - rotW) / 2);
     const wrap = rotH + ROWS;
     return {
       render(now) {
