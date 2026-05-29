@@ -16,8 +16,8 @@ import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../an
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { CLAUDE_STYLES, createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import type { ClaudeStyle } from '../../../animations/claude-renderers.js';
-import { TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS } from '../../../animations/text-renderers.js';
-import type { TextStyle, TextSize, TextSpeed } from '../../../animations/text-renderers.js';
+import { TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS, TEXT_FLICKERS, createTextRenderer } from '../../../animations/text-renderers.js';
+import type { TextStyle, TextSize, TextSpeed, TextFlicker } from '../../../animations/text-renderers.js';
 import { Input } from './ui/input.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
@@ -945,32 +945,45 @@ function DataSettings({ widget, uid, onChange }: {
 }
 
 const STRINGS_STYLE_LABELS: Record<TextStyle, string> = {
-  marquee: 'marquee', label: 'label', columnar: 'columnar', spine: 'spine', bigglyph: 'big glyph', neon: 'neon',
+  marquee: 'marquee', columnar: 'columnar', spine: 'spine', bigglyph: 'big glyph', neon: 'neon',
 };
 
 function defaultTextWidget(style: TextStyle): HudWidget & { widget: 'text' } {
   return { widget: 'text', text: 'HELLO', style, size: 'small', speed: 'normal' };
 }
 
+// One preview renderer per style, each rendering its OWN name as the text so a
+// tile shows what its style looks like. Recreated once (module-level).
+const _stringPreviewRenderers = TEXT_STYLES.map(style =>
+  createTextRenderer({ text: STRINGS_STYLE_LABELS[style].toUpperCase().replace(/\s/g, ''), style, size: 'tiny', speed: 'normal' }, 'left'),
+);
+
 function StringsGrid({ currentWidget, onSettings }: {
   currentWidget: HudWidget | null;
   onSettings: (w: HudWidget) => void;
 }) {
+  const [pixels, setPixels] = useState<string[]>(() => _stringPreviewRenderers.map(r => bwToB64(r.render(new Date()))));
+  useEffect(() => {
+    const iid = setInterval(() => {
+      const now = new Date();
+      setPixels(_stringPreviewRenderers.map(r => bwToB64(r.render(now))));
+    }, 100);
+    return () => clearInterval(iid);
+  }, []);
   return (
-    <div className="grid grid-cols-2 gap-2" role="group" aria-label="String widgets">
-      {TEXT_STYLES.map(style => {
+    <div role="group" aria-label="String widgets" className="flex flex-wrap gap-6">
+      {TEXT_STYLES.map((style, i) => {
         const selected = currentWidget?.widget === 'text' && (currentWidget.style ?? 'marquee') === style;
         return (
-          <Button
+          <MatrixItem
             key={style}
-            variant={selected ? 'default' : 'ghost'}
-            className="font-mono text-xs h-12"
+            name={STRINGS_STYLE_LABELS[style]}
             aria-label={`${STRINGS_STYLE_LABELS[style]} text widget`}
-            aria-pressed={selected}
-            onClick={() => onSettings(currentWidget?.widget === 'text' ? { ...currentWidget, style } : defaultTextWidget(style))}
-          >
-            {STRINGS_STYLE_LABELS[style]}
-          </Button>
+            width={9}
+            pixels={pixels[i] ?? EMPTY_PIXELS}
+            isSelected={selected}
+            onSelect={() => onSettings(currentWidget?.widget === 'text' ? { ...currentWidget, style } : defaultTextWidget(style))}
+          />
         );
       })}
     </div>
@@ -983,18 +996,28 @@ function StringsSettings({ widget, uid, onChange, onChangeBoth }: {
   onChange: (w: HudWidget) => void;
   onChangeBoth?: (w: HudWidget) => void;
 }) {
-  // When spanning, edits must update both module slots so the two halves stay
-  // in sync; otherwise only the selected side.
+  const style = widget.style ?? 'marquee';
+  // Route to both module slots whenever span is involved on either the current
+  // or next state, so entering/leaving span never leaves a stale opposite side.
   const apply = (next: HudWidget & { widget: 'text' }) => {
-    (next.span && onChangeBoth ? onChangeBoth : onChange)(next);
+    ((widget.span || next.span) && onChangeBoth ? onChangeBoth : onChange)(next);
   };
-  const selects: { key: 'style' | 'size' | 'speed'; label: string; value: string; options: readonly string[] }[] = [
-    { key: 'style', label: 'style', value: widget.style ?? 'marquee', options: TEXT_STYLES },
-    { key: 'size',  label: 'size',  value: widget.size  ?? 'small',   options: TEXT_SIZES },
-    { key: 'speed', label: 'speed', value: widget.speed ?? 'normal',  options: TEXT_SPEEDS },
+  // Only marquee spans both modules.
+  const setStyle = (s: TextStyle) => {
+    const next: HudWidget & { widget: 'text' } = { ...widget, style: s };
+    if (s !== 'marquee') delete next.span;
+    apply(next);
+  };
+  const selects: { key: string; label: string; value: string; options: readonly string[]; set: (v: string) => void }[] = [
+    { key: 'style', label: 'style', value: style,                  options: TEXT_STYLES, set: v => setStyle(v as TextStyle) },
+    { key: 'size',  label: 'size',  value: widget.size  ?? 'small', options: TEXT_SIZES,  set: v => apply({ ...widget, size: v as TextSize }) },
+    { key: 'speed', label: 'speed', value: widget.speed ?? 'normal', options: TEXT_SPEEDS, set: v => apply({ ...widget, speed: v as TextSpeed }) },
+    ...(style === 'neon'
+      ? [{ key: 'flicker', label: 'flicker', value: widget.flicker ?? 'medium', options: TEXT_FLICKERS, set: (v: string) => apply({ ...widget, flicker: v as TextFlicker }) }]
+      : []),
   ];
   return (
-    <div role="group" aria-label="Text widget settings" className="flex flex-col gap-4">
+    <div role="group" aria-label="Text widget settings" className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
         <label htmlFor={`${uid}-text`} className="font-mono text-xs text-muted-foreground">text</label>
         <Input
@@ -1006,38 +1029,28 @@ function StringsSettings({ widget, uid, onChange, onChangeBoth }: {
           onChange={e => apply({ ...widget, text: e.currentTarget.value })}
         />
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        {selects.map(({ key, label, value, options }) => (
-          <div key={key} className="flex flex-col gap-1">
-            <label id={`${uid}-${key}-label`} htmlFor={`${uid}-${key}`} className="font-mono text-xs text-muted-foreground">{label}</label>
-            <Select
-              id={`${uid}-${key}`}
-              aria-labelledby={`${uid}-${key}-label`}
-              value={value}
-              options={options.map(o => ({ value: o, label: o }))}
-              onValueChange={raw => {
-                if (key === 'style') apply({ ...widget, style: raw as TextStyle });
-                else if (key === 'size') apply({ ...widget, size: raw as TextSize });
-                else apply({ ...widget, speed: raw as TextSpeed });
-              }}
-            />
-          </div>
-        ))}
-      </div>
-      <label htmlFor={`${uid}-span`} className="flex items-center gap-2 cursor-pointer select-none">
-        <Checkbox
-          id={`${uid}-span`}
-          checked={widget.span ?? false}
-          onChange={e => {
-            const span = (e.target as HTMLInputElement).checked;
-            // Sync BOTH slots on toggle (on and off): leaving the opposite side
-            // with a stale span flag would mismatch canvas widths and break the
-            // display. Falls back to single-side when no both-setter is wired.
-            (onChangeBoth ?? onChange)({ ...widget, span });
-          }}
-        />
-        <span className="font-mono text-xs">span both modules</span>
-      </label>
+      {selects.map(({ key, label, value, options, set }) => (
+        <div key={key} className="flex flex-col gap-1">
+          <label id={`${uid}-${key}-label`} htmlFor={`${uid}-${key}`} className="font-mono text-xs text-muted-foreground">{label}</label>
+          <Select
+            id={`${uid}-${key}`}
+            aria-labelledby={`${uid}-${key}-label`}
+            value={value}
+            options={options.map(o => ({ value: o, label: o }))}
+            onValueChange={set}
+          />
+        </div>
+      ))}
+      {style === 'marquee' && (
+        <label htmlFor={`${uid}-span`} className="flex items-center gap-2 cursor-pointer select-none">
+          <Checkbox
+            id={`${uid}-span`}
+            checked={widget.span ?? false}
+            onChange={e => apply({ ...widget, span: (e.target as HTMLInputElement).checked })}
+          />
+          <span className="font-mono text-xs">span both modules</span>
+        </label>
+      )}
     </div>
   );
 }
@@ -1144,6 +1157,11 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
   const backLabel = `‹ ${activeCategory}`;
   const backAriaLabel = `Back to ${activeCategory}`;
   const showImportHeader = showImport && activeCategory === 'media';
+  // Settings heading names the specific widget (e.g. "spine settings") for
+  // string widgets, otherwise the category (e.g. "data settings").
+  const settingsTitle = widget?.widget === 'text'
+    ? `${STRINGS_STYLE_LABELS[widget.style ?? 'marquee']} settings`
+    : `${activeCategory} settings`;
 
   // ── Layer 2 + Layer 3 header
   const header = (
@@ -1165,7 +1183,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
         />
       )}
       <span aria-hidden="true" className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
-        {showImportHeader ? 'import image' : (view === 'settings' ? `${activeCategory} settings` : '')}
+        {showImportHeader ? 'import image' : (view === 'settings' ? settingsTitle : '')}
       </span>
       <div aria-live="polite" aria-atomic="true" className="ml-auto">
         {showImportHeader && importHasFile && (
@@ -1180,7 +1198,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
         )}
       </div>
       <span aria-live="polite" aria-atomic="true" className="sr-only">
-        {showImportHeader ? 'Import image' : view === 'settings' ? `${activeCategory} settings` : ''}
+        {showImportHeader ? 'Import image' : view === 'settings' ? settingsTitle : ''}
       </span>
     </div>
   );

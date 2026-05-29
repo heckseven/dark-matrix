@@ -2036,12 +2036,14 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
         const leftTextSize           = typeof msg['leftTextSize']           === 'string' ? msg['leftTextSize']           : undefined;
         const leftTextSpeed          = typeof msg['leftTextSpeed']          === 'string' ? msg['leftTextSpeed']          : undefined;
         const leftTextSpan           = typeof msg['leftTextSpan']           === 'boolean' ? msg['leftTextSpan']          : undefined;
+        const leftTextFlicker        = typeof msg['leftTextFlicker']        === 'string' ? msg['leftTextFlicker']        : undefined;
         const rightText              = typeof msg['rightText']              === 'string' ? msg['rightText']              : undefined;
         const rightTextStyle         = typeof msg['rightTextStyle']         === 'string' ? msg['rightTextStyle']         : undefined;
         const rightTextSize          = typeof msg['rightTextSize']          === 'string' ? msg['rightTextSize']          : undefined;
         const rightTextSpeed         = typeof msg['rightTextSpeed']         === 'string' ? msg['rightTextSpeed']         : undefined;
         const rightTextSpan          = typeof msg['rightTextSpan']          === 'boolean' ? msg['rightTextSpan']         : undefined;
-        sendToDaemon({ cmd: 'hud-config', leftFace, leftWidget, leftDataStyle, leftAudioStyle, leftClaudeStyle, leftFile, leftBiomeName, leftRandomIntervalMs, leftTimerStyle, leftTimerDurationMs, leftTimerRepeat, leftText, leftTextStyle, leftTextSize, leftTextSpeed, leftTextSpan, rightFace, rightWidget, rightDataStyle, rightAudioStyle, rightClaudeStyle, rightFile, rightBiomeName, rightRandomIntervalMs, rightTimerStyle, rightTimerDurationMs, rightTimerRepeat, rightText, rightTextStyle, rightTextSize, rightTextSpeed, rightTextSpan }).catch(() => {});
+        const rightTextFlicker       = typeof msg['rightTextFlicker']       === 'string' ? msg['rightTextFlicker']       : undefined;
+        sendToDaemon({ cmd: 'hud-config', leftFace, leftWidget, leftDataStyle, leftAudioStyle, leftClaudeStyle, leftFile, leftBiomeName, leftRandomIntervalMs, leftTimerStyle, leftTimerDurationMs, leftTimerRepeat, leftText, leftTextStyle, leftTextSize, leftTextSpeed, leftTextSpan, leftTextFlicker, rightFace, rightWidget, rightDataStyle, rightAudioStyle, rightClaudeStyle, rightFile, rightBiomeName, rightRandomIntervalMs, rightTimerStyle, rightTimerDurationMs, rightTimerRepeat, rightText, rightTextStyle, rightTextSize, rightTextSpeed, rightTextSpan, rightTextFlicker }).catch(() => {});
       } else if (type === 'hud-presets-get') {
         void (async () => {
           try {
