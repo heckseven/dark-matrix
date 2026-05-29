@@ -16,8 +16,8 @@ import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../an
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { CLAUDE_STYLES, createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import type { ClaudeStyle } from '../../../animations/claude-renderers.js';
-import { TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS, TEXT_FLICKERS, createTextRenderer } from '../../../animations/text-renderers.js';
-import type { TextStyle, TextSize, TextSpeed, TextFlicker } from '../../../animations/text-renderers.js';
+import { TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS, TEXT_FLICKERS, TEXT_TRANSITIONS, createTextRenderer } from '../../../animations/text-renderers.js';
+import type { TextStyle, TextSize, TextSpeed, TextFlicker, TextTransition } from '../../../animations/text-renderers.js';
 import { Input } from './ui/input.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
@@ -1020,6 +1020,9 @@ function StringsSettings({ widget, uid, onChange, onChangeBoth }: {
     { key: 'speed', label: 'speed', value: widget.speed ?? 'normal', options: TEXT_SPEEDS, set: v => apply({ ...widget, speed: v as TextSpeed }) },
     ...(style === 'neon'
       ? [{ key: 'flicker', label: 'flicker', value: widget.flicker ?? 'medium', options: TEXT_FLICKERS, set: (v: string) => apply({ ...widget, flicker: v as TextFlicker }) }]
+      : []),
+    ...(style === 'bigglyph'
+      ? [{ key: 'transition', label: 'transition', value: widget.transition ?? 'slide', options: TEXT_TRANSITIONS, set: (v: string) => apply({ ...widget, transition: v as TextTransition }) }]
       : []),
   ];
   return (
