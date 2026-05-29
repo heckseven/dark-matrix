@@ -213,6 +213,15 @@ export function resolveConfigPath(p?: string): string {
   );
 }
 
+// Write config via a temp file + rename so a crash or a concurrent writer never
+// leaves a truncated config.json. rename() is atomic on the same filesystem.
+export async function writeConfigAtomic(configPath: string, config: unknown): Promise<void> {
+  await fs.mkdir(path.dirname(configPath), { recursive: true });
+  const tmp = configPath + '.tmp';
+  await fs.writeFile(tmp, JSON.stringify(config, null, 2) + '\n', { mode: 0o600 });
+  await fs.rename(tmp, configPath);
+}
+
 export function resolveSocketPath(): string {
   return (
     process.env['DARK_MATRIX_SOCKET'] ??
