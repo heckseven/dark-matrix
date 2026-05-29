@@ -786,6 +786,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     }
   }
 
+  // HUD render rate. Higher = smoother scrolling (text/marquee position is
+  // wall-clock-continuous), at the cost of more serial writes per second.
+  // Experimental knob — 30 FPS; drop back to ~33→100 if the modules can't keep up.
+  const HUD_FRAME_MS = 33;
+
   function runHudOnModules(): () => void {
     currentAnimName = 'hud';
     const { left, right } = currentConfig.modules;
@@ -836,7 +841,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         const [hcl2, hcr2] = composeFrames([lf, rf], activeOverlay);
         try { if (left  && !frameHeldLeft)  await transport.frameBw(packBW(hcl2), left);  } catch { /* non-fatal */ }
         try { if (right && !frameHeldRight) await transport.frameBw(packBW(hcr2), right); } catch { /* non-fatal */ }
-        await new Promise<void>(r => setTimeout(r, 100));
+        await new Promise<void>(r => setTimeout(r, HUD_FRAME_MS));
       }
     };
 

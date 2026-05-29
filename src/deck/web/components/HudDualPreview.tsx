@@ -421,7 +421,9 @@ export function HudDualPreview({
 
   useEffect(() => {
     paint();
-    const id = setInterval(paint, 100);
+    // ~30 FPS to match the daemon's HUD render rate so scrolling preview feels
+    // like the hardware.
+    const id = setInterval(paint, 33);
     return () => clearInterval(id);
   }, [paint]);
 
