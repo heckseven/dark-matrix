@@ -16,6 +16,9 @@ import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../an
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { CLAUDE_STYLES, createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import type { ClaudeStyle } from '../../../animations/claude-renderers.js';
+import { TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS } from '../../../animations/text-renderers.js';
+import type { TextStyle, TextSize, TextSpeed } from '../../../animations/text-renderers.js';
+import { Input } from './ui/input.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
 import type { BiomePreset } from '../types/life-types.js';
@@ -72,6 +75,7 @@ function categoryOfWidget(w: HudWidget): string {
   if (w.widget === 'audio')   return 'audio';
   if (w.widget === 'image')   return 'media';
   if (w.widget === 'life')    return 'life';
+  if (w.widget === 'text')    return 'strings';
   return 'data';
 }
 
@@ -79,6 +83,7 @@ function widgetHasSettings(w: HudWidget): boolean {
   if (w.widget === 'data') return w.style === 'line' || w.style === 'fill' || w.style === 'scroll' || w.style === undefined;
   if (w.widget === 'life') return w.biomeName === 'random';
   if (w.widget === 'timer') return true;
+  if (w.widget === 'text') return true;
   return false;
 }
 
@@ -94,6 +99,7 @@ const CATEGORIES = [
   { id: 'audio', label: 'audio' },
   { id: 'life',  label: 'life'  },
   { id: 'agent', label: 'agent' },
+  { id: 'strings', label: 'strings' },
 ] as const;
 
 // ── Layer 2: Clock grid ───────────────────────────────────────────────────
@@ -938,6 +944,102 @@ function DataSettings({ widget, uid, onChange }: {
   );
 }
 
+const STRINGS_STYLE_LABELS: Record<TextStyle, string> = {
+  marquee: 'marquee', label: 'label', columnar: 'columnar', spine: 'spine', bigglyph: 'big glyph', neon: 'neon',
+};
+
+function defaultTextWidget(style: TextStyle): HudWidget & { widget: 'text' } {
+  return { widget: 'text', text: 'HELLO', style, size: 'small', speed: 'normal' };
+}
+
+function StringsGrid({ currentWidget, onSettings }: {
+  currentWidget: HudWidget | null;
+  onSettings: (w: HudWidget) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2" role="group" aria-label="String widgets">
+      {TEXT_STYLES.map(style => {
+        const selected = currentWidget?.widget === 'text' && (currentWidget.style ?? 'marquee') === style;
+        return (
+          <Button
+            key={style}
+            variant={selected ? 'default' : 'ghost'}
+            className="font-mono text-xs h-12"
+            aria-label={`${STRINGS_STYLE_LABELS[style]} text widget`}
+            aria-pressed={selected}
+            onClick={() => onSettings(currentWidget?.widget === 'text' ? { ...currentWidget, style } : defaultTextWidget(style))}
+          >
+            {STRINGS_STYLE_LABELS[style]}
+          </Button>
+        );
+      })}
+    </div>
+  );
+}
+
+function StringsSettings({ widget, uid, onChange, onChangeBoth }: {
+  widget: HudWidget & { widget: 'text' };
+  uid: string;
+  onChange: (w: HudWidget) => void;
+  onChangeBoth?: (w: HudWidget) => void;
+}) {
+  // When spanning, edits must update both module slots so the two halves stay
+  // in sync; otherwise only the selected side.
+  const apply = (next: HudWidget & { widget: 'text' }) => {
+    (next.span && onChangeBoth ? onChangeBoth : onChange)(next);
+  };
+  const selects: { key: 'style' | 'size' | 'speed'; label: string; value: string; options: readonly string[] }[] = [
+    { key: 'style', label: 'style', value: widget.style ?? 'marquee', options: TEXT_STYLES },
+    { key: 'size',  label: 'size',  value: widget.size  ?? 'small',   options: TEXT_SIZES },
+    { key: 'speed', label: 'speed', value: widget.speed ?? 'normal',  options: TEXT_SPEEDS },
+  ];
+  return (
+    <div role="group" aria-label="Text widget settings" className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`${uid}-text`} className="font-mono text-xs text-muted-foreground">text</label>
+        <Input
+          id={`${uid}-text`}
+          fluid
+          maxLength={128}
+          value={widget.text}
+          placeholder="enter text…"
+          onChange={e => apply({ ...widget, text: e.currentTarget.value })}
+        />
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {selects.map(({ key, label, value, options }) => (
+          <div key={key} className="flex flex-col gap-1">
+            <label htmlFor={`${uid}-${key}`} className="font-mono text-xs text-muted-foreground">{label}</label>
+            <Select
+              id={`${uid}-${key}`}
+              value={value}
+              options={options.map(o => ({ value: o, label: o }))}
+              onValueChange={raw => {
+                if (key === 'style') apply({ ...widget, style: raw as TextStyle });
+                else if (key === 'size') apply({ ...widget, size: raw as TextSize });
+                else apply({ ...widget, speed: raw as TextSpeed });
+              }}
+            />
+          </div>
+        ))}
+      </div>
+      <label htmlFor={`${uid}-span`} className="flex items-center gap-2 cursor-pointer select-none">
+        <Checkbox
+          id={`${uid}-span`}
+          checked={widget.span ?? false}
+          onChange={e => {
+            const span = (e.target as HTMLInputElement).checked;
+            const next: HudWidget & { widget: 'text' } = { ...widget, span };
+            if (span && onChangeBoth) onChangeBoth(next);
+            else onChange(next);
+          }}
+        />
+        <span className="font-mono text-xs">span both modules</span>
+      </label>
+    </div>
+  );
+}
+
 // ── HudInspector ──────────────────────────────────────────────────────────
 
 export type HudInspectorProps = {
@@ -947,6 +1049,7 @@ export type HudInspectorProps = {
   onNeedsAudio?: (needs: boolean) => void;
   onClocksVisible?: (visible: boolean) => void;
   onChange: (widget: HudWidget) => void;
+  onChangeBoth?: (widget: HudWidget) => void;
   oppositeWidget?: HudWidget;
   onDeleteBiome?: (name: string) => void;
   onEditBiome?: (name: string) => void;
@@ -955,7 +1058,7 @@ export type HudInspectorProps = {
 
 type View = 'grid' | 'settings';
 
-export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX, onNeedsAudio, onClocksVisible, onChange, oppositeWidget, onDeleteBiome, onEditBiome, dualModule = false }: HudInspectorProps) {
+export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX, onNeedsAudio, onClocksVisible, onChange, onChangeBoth, oppositeWidget, onDeleteBiome, onEditBiome, dualModule = false }: HudInspectorProps) {
   const uid = useId();
 
   const [view, setView] = useState<View>(() => {
@@ -1105,6 +1208,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
               {activeCategory === 'timer'  && <TimerGrid currentWidget={widget} onSettings={handleSettings} />}
               {activeCategory === 'data'   && <DataGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} />}
               {activeCategory === 'agent'   && <AgentGrid  currentWidget={widget} onPick={handlePick} />}
+              {activeCategory === 'strings' && <StringsGrid currentWidget={widget} onSettings={handleSettings} />}
               {activeCategory === 'audio'  && <AudioGrid currentWidget={widget} audioCtx={audioCtx} side={side} onPick={handlePick} onMount={handleAudioMount} onUnmount={handleAudioUnmount} />}
               {activeCategory === 'life'   && <LifeGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} dualModule={dualModule} {...(onDeleteBiome ? { onDeleteBiome } : {})} {...(onEditBiome ? { onEditBiome } : {})} />}
               {activeCategory === 'media'  && (
@@ -1146,6 +1250,19 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
         <div className="flex-1 overflow-y-auto">
           <div className="py-4 px-2">
             <LifeRandomSettings widget={widget} onChange={onChange} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (widget?.widget === 'text') {
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        {header}
+        <div className="flex-1 overflow-y-auto">
+          <div className="py-4 px-2">
+            <StringsSettings widget={widget} uid={uid} onChange={onChange} {...(onChangeBoth ? { onChangeBoth } : {})} />
           </div>
         </div>
       </div>

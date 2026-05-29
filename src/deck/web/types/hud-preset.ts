@@ -2,6 +2,7 @@ import type { ClockFace } from '../../../animations/clock-renderers.js';
 import type { DataStyle, DataMetric } from '../../../animations/data-renderers.js';
 import type { AudioStyle } from '../../../animations/audio-renderers.js';
 import type { ClaudeStyle } from '../../../animations/claude-renderers.js';
+import type { TextStyle, TextSize, TextSpeed } from '../../../animations/text-renderers.js';
 
 export type HudWidget =
   | { widget: 'clock'; face?: ClockFace }
@@ -10,7 +11,8 @@ export type HudWidget =
   | { widget: 'audio'; style?: AudioStyle }
   | { widget: 'image'; file: string; speed?: number; loop?: boolean }
   | { widget: 'life'; biomeName: string; randomIntervalMs?: number }
-  | { widget: 'claude'; style?: ClaudeStyle };
+  | { widget: 'claude'; style?: ClaudeStyle }
+  | { widget: 'text'; text: string; style?: TextStyle; size?: TextSize; speed?: TextSpeed; span?: boolean };
 
 export type HudTrigger =
   | { type: 'time'; from: string; to: string }
