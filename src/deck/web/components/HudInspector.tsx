@@ -948,8 +948,20 @@ const STRINGS_STYLE_LABELS: Record<TextStyle, string> = {
   marquee: 'marquee', columnar: 'columnar', spine: 'spine', bigglyph: 'big glyph', neon: 'neon',
 };
 
-function defaultTextWidget(style: TextStyle): HudWidget & { widget: 'text' } {
-  return { widget: 'text', text: 'HELLO', style, size: 'small', speed: 'normal' };
+// spine/neon/bigglyph only read well at the two smallest sizes on the 9-wide panel.
+const SIZE_RESTRICTED: readonly TextStyle[] = ['spine', 'neon', 'bigglyph'];
+const sizeOptionsFor = (style: TextStyle): readonly TextSize[] =>
+  SIZE_RESTRICTED.includes(style) ? (['tiny', 'small'] as const) : TEXT_SIZES;
+
+// Build the text widget for a chosen style, enforcing per-style constraints:
+// only marquee spans, and restricted styles cap at 'small'.
+function widgetForStyle(base: (HudWidget & { widget: 'text' }) | null, style: TextStyle): HudWidget & { widget: 'text' } {
+  const next: HudWidget & { widget: 'text' } = base
+    ? { ...base, style }
+    : { widget: 'text', text: 'HELLO', style, size: 'small', speed: 'normal' };
+  if (style !== 'marquee') delete next.span;
+  if (SIZE_RESTRICTED.includes(style) && (next.size === 'medium' || next.size === 'large')) next.size = 'small';
+  return next;
 }
 
 // One preview renderer per style, each rendering its OWN name as the text so a
@@ -982,7 +994,7 @@ function StringsGrid({ currentWidget, onSettings }: {
             width={9}
             pixels={pixels[i] ?? EMPTY_PIXELS}
             isSelected={selected}
-            onSelect={() => onSettings(currentWidget?.widget === 'text' ? { ...currentWidget, style } : defaultTextWidget(style))}
+            onSelect={() => onSettings(widgetForStyle(currentWidget?.widget === 'text' ? currentWidget : null, style))}
           />
         );
       })}
@@ -1002,15 +1014,9 @@ function StringsSettings({ widget, uid, onChange, onChangeBoth }: {
   const apply = (next: HudWidget & { widget: 'text' }) => {
     ((widget.span || next.span) && onChangeBoth ? onChangeBoth : onChange)(next);
   };
-  // Only marquee spans both modules.
-  const setStyle = (s: TextStyle) => {
-    const next: HudWidget & { widget: 'text' } = { ...widget, style: s };
-    if (s !== 'marquee') delete next.span;
-    apply(next);
-  };
+  // Style isn't a setting here — it's chosen by picking a widget tile in the grid.
   const selects: { key: string; label: string; value: string; options: readonly string[]; set: (v: string) => void }[] = [
-    { key: 'style', label: 'style', value: style,                  options: TEXT_STYLES, set: v => setStyle(v as TextStyle) },
-    { key: 'size',  label: 'size',  value: widget.size  ?? 'small', options: TEXT_SIZES,  set: v => apply({ ...widget, size: v as TextSize }) },
+    { key: 'size',  label: 'size',  value: widget.size  ?? 'small', options: sizeOptionsFor(style), set: v => apply({ ...widget, size: v as TextSize }) },
     { key: 'speed', label: 'speed', value: widget.speed ?? 'normal', options: TEXT_SPEEDS, set: v => apply({ ...widget, speed: v as TextSpeed }) },
     ...(style === 'neon'
       ? [{ key: 'flicker', label: 'flicker', value: widget.flicker ?? 'medium', options: TEXT_FLICKERS, set: (v: string) => apply({ ...widget, flicker: v as TextFlicker }) }]

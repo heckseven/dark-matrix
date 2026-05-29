@@ -31,8 +31,11 @@ export function textRendererCacheKey(w: TextWidgetConfig, side: 'left' | 'right'
   return `${side}|${w.span ? 1 : 0}|${w.style ?? ''}|${w.size ?? ''}|${w.speed ?? ''}|${w.flicker ?? ''}|${w.text}`;
 }
 
-// neon flicker frequency → fraction of characters dark on a given tick.
-const FLICKER_PCT: Record<TextFlicker, number> = { low: 6, medium: 14, high: 28 };
+// neon flicker frequency = how often the dark/lit state re-rolls. Larger period
+// = slower, lazier flicker. The flicker decision holds for the whole period, so
+// 'low' produces sparse, occasional blinks rather than rapid twinkling.
+const FLICKER_PERIOD_MS: Record<TextFlicker, number> = { low: 900, medium: 300, high: 90 };
+const FLICKER_DARK_PCT = 16; // fraction of characters dark within an active period
 
 // Matches the daemon's WidgetRenderer shape (object with render(now)/stop()).
 export interface TextRenderer {
@@ -153,13 +156,16 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
     const maxRows = Math.max(1, Math.floor(ROWS / slot));
     const shown = glyphs.slice(0, maxRows);
     const top0 = Math.floor((ROWS - shown.length * slot + (slot - dims.h)) / 2);
-    const flickerPct = FLICKER_PCT[(widget.flicker && (TEXT_FLICKERS as readonly string[]).includes(widget.flicker)) ? widget.flicker : 'medium'];
+    const flicker = (widget.flicker && (TEXT_FLICKERS as readonly string[]).includes(widget.flicker)) ? widget.flicker : 'medium';
+    const periodMs = FLICKER_PERIOD_MS[flicker];
     return {
       render(now) {
-        const tick = Math.floor(now.getTime() / TICK_MS);
+        // Re-roll the dark/lit decision once per period (not every tick) so the
+        // flicker rate tracks the setting; the choice holds for the whole period.
+        const flickerTick = Math.floor(now.getTime() / periodMs);
         const buf = new Uint8Array(canvasW * ROWS);
         for (let i = 0; i < shown.length; i++) {
-          if (hash01(tick, i) < flickerPct) continue; // some chars dark this tick
+          if (hash01(flickerTick, i) < FLICKER_DARK_PCT) continue; // dark this period
           blitGlyph(buf, canvasW, shown[i]!, left, top0 + i * slot);
         }
         return extractFrame(buf, canvasW, rightShift);
