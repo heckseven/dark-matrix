@@ -14,7 +14,7 @@ import type { DmxProject } from './format.js';
 import type { AssetMeta } from '../lib/asset-meta.js';
 import { convertGifToDmx, applyPixelValue } from '../lib/image-convert.js';
 import { sendToDaemon, PersistentDaemonClient, daemonSocketPath } from '../lib/daemon-client.js';
-import { loadConfig, ConfigSchema } from '../lib/config.js';
+import { loadConfig, ConfigSchema, writeJsonAtomic } from '../lib/config.js';
 import { enumerateMatrixModules } from '../lib/modules.js';
 import { AUDIO_STYLES } from '../animations/audio-renderers.js';
 import { watchProcStats } from '../lib/proc-source.js';
@@ -151,11 +151,7 @@ async function loadPrefs(configDir?: string): Promise<DeckPrefs> {
 }
 
 async function savePrefs(prefs: DeckPrefs, configDir?: string): Promise<void> {
-  const p = prefsPath(configDir);
-  await fs.mkdir(path.dirname(p), { recursive: true });
-  const tmp = p + '.tmp';
-  await fs.writeFile(tmp, JSON.stringify(prefs, null, 2) + '\n', { mode: 0o600 });
-  await fs.rename(tmp, p);
+  await writeJsonAtomic(prefsPath(configDir), prefs);
 }
 
 const MAX_JSON_BODY = 1 * 1024 * 1024; // 1 MB
@@ -660,10 +656,7 @@ async function handleAssetsImport(
     const sourceBuf = Buffer.from(p['sourceBase64'] as string, 'base64');
     const project = await convertSourceToProject(sourceBuf, width, mode, fit, brightness, contrast, invert);
 
-    await fs.mkdir(aDir, { recursive: true });
-    const tmp = outputPath + '.tmp';
-    await fs.writeFile(tmp, JSON.stringify(project, null, 2) + '\n', { mode: 0o600 });
-    await fs.rename(tmp, outputPath);
+    await writeJsonAtomic(outputPath, project);
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true, filename: filename + '.dmx.json' }));
@@ -871,21 +864,16 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
 
         // Write access_token to separate credentials file (not config)
         const credsPath = credentialsFilePath(configDir);
-        await fs.mkdir(path.dirname(credsPath), { recursive: true });
-        const credsTmp = credsPath + '.tmp';
-        await fs.writeFile(credsTmp, JSON.stringify({ access_token }, null, 2) + '\n', { mode: 0o600 });
-        await fs.rename(credsTmp, credsPath);
+        await writeJsonAtomic(credsPath, { access_token });
 
-        // Atomic config write: broadcaster_id + client_id only (no access_token)
+        // Config write: broadcaster_id + client_id only (no access_token)
         const cfgPath = configFilePath(configDir);
         const config = await loadConfig(cfgPath);
         const updated = {
           ...config,
           twitch: { ...(config.twitch ?? {}), client_id: clientId, broadcaster_id: broadcasterId },
         };
-        const tmp = cfgPath + '.tmp';
-        await fs.writeFile(tmp, JSON.stringify(updated, null, 2) + '\n', { mode: 0o600 });
-        await fs.rename(tmp, cfgPath);
+        await writeJsonAtomic(cfgPath, updated);
         sendToDaemon({ cmd: 'reload' }).catch(() => {});
         // (Re)start EventSub with the freshly saved credentials
         stopEventSub?.();
@@ -907,15 +895,13 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
       try {
         // Clear credentials file
         const credsPath = credentialsFilePath(configDir);
-        await fs.writeFile(credsPath, JSON.stringify({}) + '\n', { mode: 0o600 });
+        await writeJsonAtomic(credsPath, {});
         // Remove access_token and broadcaster_id from config
         const cfgPath = configFilePath(configDir);
         const config = await loadConfig(cfgPath);
         const { broadcaster_id: _bid, ...twitchRest } = config.twitch ?? {};
         const updated = { ...config, twitch: { ...twitchRest } };
-        const tmp = cfgPath + '.tmp';
-        await fs.writeFile(tmp, JSON.stringify(updated, null, 2) + '\n', { mode: 0o600 });
-        await fs.rename(tmp, cfgPath);
+        await writeJsonAtomic(cfgPath, updated);
         stopEventSub?.();
         stopEventSub = null;
         sendToDaemon({ cmd: 'reload' }).catch(() => {});
@@ -1167,10 +1153,7 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
           return;
         }
         const cfgPath = configFilePath(configDir);
-        await fs.mkdir(path.dirname(cfgPath), { recursive: true });
-        const tmp = cfgPath + '.tmp';
-        await fs.writeFile(tmp, JSON.stringify(result.data, null, 2) + '\n', { mode: 0o600 });
-        await fs.rename(tmp, cfgPath);
+        await writeJsonAtomic(cfgPath, result.data);
         sendToDaemon({ cmd: 'reload' }).catch(() => {});
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
@@ -1189,6 +1172,117 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
         await sendToDaemon({ cmd: 'startup-preview', ...startup });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
+      } catch {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'daemon unavailable' }));
+      }
+      return;
+    }
+
+    // Test notification
+    if (url === '/api/test-notification' && method === 'POST') {
+      try {
+        const body = await readBody(req);
+        const parsed = JSON.parse(body) as {
+          appName?: string;
+          summary?: string;
+          bodyText?: string;
+          style?: string;
+          textSize?: string;
+          textPosition?: string;
+          overlayMode?: string;
+          transition?: string;
+          assetPath?: string;
+          composite?: string;
+          durationMsOverride?: number;
+          loopCount?: number;
+          mirror?: boolean;
+          side?: string;
+        };
+        const VALID_STYLES = ['text', 'dmx'];
+        const VALID_COMPOSITES = ['replace', 'overlay'];
+        const VALID_TEXT_SIZES = ['tiny', 'small', 'medium', 'large'];
+        const VALID_TEXT_POSITIONS = ['top', 'middle', 'bottom'];
+        const VALID_OVERLAY_MODES = ['or', 'replace', 'xor', 'halo'];
+        const VALID_TRANSITIONS = ['wipe', 'scan', 'slide', 'dissolve', 'flash'];
+        const MAX_LOOP_COUNT = 100; // cap to prevent runaway animation loops
+        if (parsed.style !== undefined && !VALID_STYLES.includes(parsed.style)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid style' }));
+          return;
+        }
+        if (parsed.textSize !== undefined && !VALID_TEXT_SIZES.includes(parsed.textSize)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid textSize' }));
+          return;
+        }
+        if (parsed.textPosition !== undefined && !VALID_TEXT_POSITIONS.includes(parsed.textPosition)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid textPosition' }));
+          return;
+        }
+        if (parsed.overlayMode !== undefined && !VALID_OVERLAY_MODES.includes(parsed.overlayMode)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid overlayMode' }));
+          return;
+        }
+        if (parsed.transition !== undefined && !VALID_TRANSITIONS.includes(parsed.transition)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid transition' }));
+          return;
+        }
+        if (parsed.composite !== undefined && !VALID_COMPOSITES.includes(parsed.composite)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid composite' }));
+          return;
+        }
+        if (parsed.assetPath !== undefined && !/^[\w.\-]+$/.test(parsed.assetPath)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid asset path' }));
+          return;
+        }
+        if (parsed.durationMsOverride !== undefined &&
+            (typeof parsed.durationMsOverride !== 'number' || parsed.durationMsOverride <= 0 || !isFinite(parsed.durationMsOverride))) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid duration' }));
+          return;
+        }
+        if (parsed.loopCount !== undefined &&
+            (typeof parsed.loopCount !== 'number' || !Number.isInteger(parsed.loopCount) || parsed.loopCount < 1 || parsed.loopCount > MAX_LOOP_COUNT)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: `loopCount must be 1–${MAX_LOOP_COUNT}` }));
+          return;
+        }
+        if (parsed.mirror !== undefined && typeof parsed.mirror !== 'boolean') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid mirror' }));
+          return;
+        }
+        if (parsed.side !== undefined && parsed.side !== 'left' && parsed.side !== 'right') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid side' }));
+          return;
+        }
+        const cmd: Record<string, unknown> = {
+          cmd: 'notify-test',
+          appName: parsed.appName,
+          summary: parsed.summary,
+          body: parsed.bodyText,
+        };
+        if (parsed.style !== undefined) cmd['style'] = parsed.style;
+        if (parsed.textSize !== undefined) cmd['textSize'] = parsed.textSize;
+        if (parsed.textPosition !== undefined) cmd['textPosition'] = parsed.textPosition;
+        if (parsed.overlayMode !== undefined) cmd['overlayMode'] = parsed.overlayMode;
+        if (parsed.transition !== undefined) cmd['transition'] = parsed.transition;
+        if (parsed.assetPath !== undefined) cmd['assetPath'] = parsed.assetPath;
+        if (parsed.composite !== undefined) cmd['composite'] = parsed.composite;
+        if (parsed.durationMsOverride !== undefined) cmd['durationMsOverride'] = parsed.durationMsOverride;
+        if (parsed.loopCount !== undefined) cmd['loopCount'] = parsed.loopCount;
+        if (parsed.mirror !== undefined) cmd['mirror'] = parsed.mirror;
+        if (parsed.side !== undefined) cmd['side'] = parsed.side;
+        const reply = await sendToDaemon(cmd) as { ok: boolean; action?: string };
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, action: reply.action }));
       } catch {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: false, error: 'daemon unavailable' }));
@@ -1253,9 +1347,7 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
           res.end(JSON.stringify({ ok: false, error: result.error.message }));
           return;
         }
-        const tmp = targetPath + '.tmp';
-        await fs.writeFile(tmp, JSON.stringify(result.data, null, 2) + '\n', { mode: 0o600 });
-        await fs.rename(tmp, targetPath);
+        await writeJsonAtomic(targetPath, result.data);
         const savedName = path.basename(targetPath).replace(/\.dmx\.json$/i, '');
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, name: savedName }));
@@ -1961,9 +2053,7 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
             const cfgPath = configFilePath(configDir);
             const config = await loadConfig(cfgPath);
             const updated = { ...config, hud_presets: presets };
-            const tmp = cfgPath + '.tmp';
-            await fs.writeFile(tmp, JSON.stringify(updated, null, 2) + '\n', { mode: 0o600 });
-            await fs.rename(tmp, cfgPath);
+            await writeJsonAtomic(cfgPath, updated);
             sendToDaemon({ cmd: 'reload' }).catch(() => {});
             ws.send(JSON.stringify({ type: 'hud-presets-saved' }));
           } catch (err) {
@@ -1988,9 +2078,7 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
                   return;
                 }
                 ws.send(JSON.stringify({ type: 'hud-preset-activated', name: activeHudPresetName }));
-                const tmp = cfgPath + '.tmp';
-                await fs.writeFile(tmp, JSON.stringify({ ...cfg, active_hud_preset: activeHudPresetName }, null, 2) + '\n', { mode: 0o600 });
-                await fs.rename(tmp, cfgPath);
+                await writeJsonAtomic(cfgPath, { ...cfg, active_hud_preset: activeHudPresetName });
               } else {
                 ws.send(JSON.stringify({ type: 'error', error: reply.error ?? 'activation failed' }));
               }
@@ -2020,9 +2108,7 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
             const cfgPath = configFilePath(configDir);
             const config = await loadConfig(cfgPath);
             const updated = { ...config, biome_presets: presets };
-            const tmp = cfgPath + '.tmp';
-            await fs.writeFile(tmp, JSON.stringify(updated, null, 2) + '\n', { mode: 0o600 });
-            await fs.rename(tmp, cfgPath);
+            await writeJsonAtomic(cfgPath, updated);
             ws.send(JSON.stringify({ type: 'biome-presets-saved' }));
           } catch (err) {
             ws.send(JSON.stringify({ type: 'error', error: String(err) }));

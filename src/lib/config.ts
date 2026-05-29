@@ -213,13 +213,13 @@ export function resolveConfigPath(p?: string): string {
   );
 }
 
-// Write config via a temp file + rename so a crash or a concurrent writer never
-// leaves a truncated config.json. rename() is atomic on the same filesystem.
-export async function writeConfigAtomic(configPath: string, config: unknown): Promise<void> {
-  await fs.mkdir(path.dirname(configPath), { recursive: true });
-  const tmp = configPath + '.tmp';
-  await fs.writeFile(tmp, JSON.stringify(config, null, 2) + '\n', { mode: 0o600 });
-  await fs.rename(tmp, configPath);
+// Write JSON via a temp file + rename so a crash or a concurrent writer never
+// leaves a truncated file. rename() is atomic on the same filesystem.
+export async function writeJsonAtomic(filePath: string, value: unknown): Promise<void> {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  const tmp = filePath + '.tmp';
+  await fs.writeFile(tmp, JSON.stringify(value, null, 2) + '\n', { mode: 0o600 });
+  await fs.rename(tmp, filePath);
 }
 
 export function resolveSocketPath(): string {

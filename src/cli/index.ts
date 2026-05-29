@@ -11,7 +11,7 @@ import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
 import { sendToDaemon } from '../lib/daemon-client.js';
-import { loadConfig, DEFAULT_CONFIG, resolveConfigPath, writeConfigAtomic } from '../lib/config.js';
+import { loadConfig, DEFAULT_CONFIG, resolveConfigPath, writeJsonAtomic } from '../lib/config.js';
 import { enumerateMatrixModules } from '../lib/modules.js';
 
 function staticAnim(frame: Frame) {
@@ -203,7 +203,11 @@ async function cmdInstallClaudeHooks() {
   const socketPath = process.env['DARK_MATRIX_SOCKET']
     ?? `/run/user/${process.getuid!()}/dark-matrix.sock`;
 
-  if (!/^\/[a-zA-Z0-9_\-.\/]+\.sock$/.test(socketPath)) {
+  // Absolute path, first segment char alphanumeric/underscore (never a leading
+  // '-' that could read as a curl flag), no shell metacharacters. The command
+  // below also single-quotes the path; the regex forbids quotes so that holds.
+  // JS `$` also matches before a trailing newline, so reject newlines outright.
+  if (/[\r\n]/.test(socketPath) || !/^\/[a-zA-Z0-9_][a-zA-Z0-9_/.-]{0,98}\.sock$/.test(socketPath)) {
     process.stderr.write(`Error: DARK_MATRIX_SOCKET path contains unsafe characters: ${socketPath}\n`);
     process.exit(1);
   }
@@ -219,7 +223,7 @@ async function cmdInstallClaudeHooks() {
     matcher: '*',
     hooks: [{
       type: 'command',
-      command: `curl -sf --unix-socket ${socketPath} -X POST http://localhost/hook -H 'Content-Type: application/json' -d @-`,
+      command: `curl -sf --unix-socket '${socketPath}' -X POST http://localhost/hook -H 'Content-Type: application/json' -d @-`,
     }],
   };
 
@@ -245,7 +249,7 @@ async function cmdInstallClaudeHooks() {
   }
 
   settings['hooks'] = hooksObj;
-  await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf8');
+  await writeJsonAtomic(settingsPath, settings);
   process.stdout.write(`Installed ${installed} hook(s) (PostToolUse, Stop, Notification) in ${settingsPath}\n`);
   process.stdout.write(`Restart Claude Code to activate.\n`);
 }
@@ -496,7 +500,7 @@ async function cmdCalibrate() {
   config['modules'] = { left: leftDev, right: rightDev };
   config['uncalibrated'] = false;
 
-  await writeConfigAtomic(configPath, config);
+  await writeJsonAtomic(configPath, config);
 
   // reload (SIGHUP) re-reads the new module paths and restarts the idle loop —
   // no full systemctl restart needed.
@@ -763,7 +767,7 @@ switch (cmd) {
             const configPath = resolveConfigPath();
             const raw = JSON.parse(await fs.readFile(configPath, 'utf-8')) as Record<string, unknown>;
             raw['active_hud_preset'] = activeName;
-            await writeConfigAtomic(configPath, raw);
+            await writeJsonAtomic(configPath, raw);
           } catch { /* persistence is best-effort */ }
           process.stdout.write(`Switched to "${activeName}".\n`);
         } else {
