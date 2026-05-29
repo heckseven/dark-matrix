@@ -10,8 +10,8 @@ export const TEXT_SIZES = ['tiny', 'small', 'medium', 'large'] as const;
 export type TextSize = (typeof TEXT_SIZES)[number];
 export const TEXT_SPEEDS = ['slow', 'normal', 'fast'] as const;
 export type TextSpeed = (typeof TEXT_SPEEDS)[number];
-// neon flicker frequency — how often a character blinks dark per tick.
-export const TEXT_FLICKERS = ['low', 'medium', 'high'] as const;
+// neon flicker frequency — how often a flicker event fires. 'none' disables it.
+export const TEXT_FLICKERS = ['none', 'low', 'medium', 'high'] as const;
 export type TextFlicker = (typeof TEXT_FLICKERS)[number];
 
 export interface TextWidgetConfig {
@@ -34,7 +34,7 @@ export function textRendererCacheKey(w: TextWidgetConfig, side: 'left' | 'right'
 // neon flicker frequency = how OFTEN a flicker event happens (each a quick
 // ~100ms flick that darkens up to 3 random letters at once). The setting is the
 // per-tick chance that an event fires — kept low so flickers stay occasional.
-const FLICKER_EVENT_PCT: Record<TextFlicker, number> = { low: 4, medium: 10, high: 20 };
+const FLICKER_EVENT_PCT: Record<TextFlicker, number> = { none: 0, low: 4, medium: 10, high: 20 };
 
 // Matches the daemon's WidgetRenderer shape (object with render(now)/stop()).
 export interface TextRenderer {
@@ -44,10 +44,11 @@ export interface TextRenderer {
 
 const ROWS = FRAME_ROWS; // 34
 const COLS = FRAME_COLS; // 9
-const TICK_MS = 100;     // HUD loop cadence (10 FPS); also the preview paint interval
+const TICK_MS = 100;     // neon flicker re-roll cadence (independent of render FPS)
 
-// Pixels advanced per 100ms tick for scrolling styles.
-const SPEED_PX: Record<TextSpeed, number> = { slow: 1, normal: 2, fast: 4 };
+// Scroll speed in pixels per SECOND (wall-clock-continuous, so motion is smooth
+// at any render frame rate). 10/20/40 px/s ≡ the old 1/2/4 px per 100ms tick.
+const SPEED_PXPS: Record<TextSpeed, number> = { slow: 10, normal: 20, fast: 40 };
 // Per-glyph dwell (ms) for bigglyph.
 const SPEED_DWELL_MS: Record<TextSpeed, number> = { slow: 1200, normal: 700, fast: 350 };
 
@@ -103,7 +104,8 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
   const span = !!widget.span;
   const canvasW = span ? COLS * 2 : COLS;
   const rightShift = span && side === 'right' ? COLS : 0;
-  const px = SPEED_PX[speed];
+  // Pixels scrolled by `now`, continuous in wall-clock time → smooth at any FPS.
+  const scrolled = (now: Date) => Math.floor((SPEED_PXPS[speed] * now.getTime()) / 1000);
 
   // ── marquee: static wide text buffer, horizontal scroll ──────────────────
   if (style === 'marquee') {
@@ -112,8 +114,7 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
     const total = width + LEAD;
     return {
       render(now) {
-        const tick = Math.floor(now.getTime() / TICK_MS);
-        const base = (((px * tick) % total) + total) % total - LEAD;
+        const base = (((scrolled(now)) % total) + total) % total - LEAD;
         return extractFrame(buf, width, base + rightShift);
       },
       stop() { /* stateless */ },
@@ -136,8 +137,7 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
       const wrap = stackH + ROWS; // scroll fully off the top, then repeat
       return {
         render(now) {
-          const tick = Math.floor(now.getTime() / TICK_MS);
-          const yoff = ((px * tick) % wrap + wrap) % wrap;
+          const yoff = ((scrolled(now)) % wrap + wrap) % wrap;
           const buf = new Uint8Array(canvasW * ROWS);
           // first glyph starts just below the bottom, rises as yoff grows
           for (let i = 0; i < glyphs.length; i++) {
@@ -206,8 +206,7 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
     const wrap = rotH + ROWS;
     return {
       render(now) {
-        const tick = Math.floor(now.getTime() / TICK_MS);
-        const yoff = ((px * tick) % wrap + wrap) % wrap;
+        const yoff = ((scrolled(now)) % wrap + wrap) % wrap;
         const buf = new Uint8Array(canvasW * ROWS);
         for (let rx = 0; rx < rotW; rx++) {
           const dx = left + rx;
