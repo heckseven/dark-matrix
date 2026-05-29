@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { enumerateMatrixModules } from './modules.js';
+import { TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS } from '../animations/text-renderers.js';
 
 const BY_PATH_RE = /^\/dev\/(serial\/by-path\/[a-zA-Z0-9:._-]+|ttyACM\d+|ttyUSB\d+)$/;
 const SENSOR_PATH_RE = /^\/sys\/bus\/iio\/devices\/iio:device\d+\/in_illuminance_raw$/;
@@ -18,6 +19,7 @@ const HudWidgetSchema = z.discriminatedUnion('widget', [
   z.object({ widget: z.literal('life'), biomeName: z.string().min(1).max(100), randomIntervalMs: z.number().int().min(5000).max(3_600_000).optional() }),
   z.object({ widget: z.literal('claude'), style: z.enum(['snow', 'quota', 'sand', 'tetris']).optional().catch(undefined) }),
   z.object({ widget: z.literal('timer'), style: z.enum(['elegant', 'hourglass', 'twinz']).optional().catch(undefined), durationMs: z.number().int().min(1000).optional(), repeat: z.boolean().optional() }),
+  z.object({ widget: z.literal('text'), text: z.string().max(128), style: z.enum(TEXT_STYLES).optional().catch(undefined), size: z.enum(TEXT_SIZES).optional().catch(undefined), speed: z.enum(TEXT_SPEEDS).optional().catch(undefined), span: z.boolean().optional() }),
 ]);
 
 // A preset slot referencing a removed widget *type* (e.g. a deleted widget)

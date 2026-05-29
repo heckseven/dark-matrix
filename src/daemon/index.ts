@@ -34,6 +34,8 @@ import { DATA_STYLES } from '../animations/data-renderers.js';
 import type { DataStyle, DataWidgetConfig, DataRenderer } from '../animations/data-renderers.js';
 import { createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer, CLAUDE_STYLES } from '../animations/claude-renderers.js';
 import { createElegantTimerRenderer, createHourglassTimerRenderer, createTwinzTimerRenderer, renderTwinzTimer, renderTwinzUsagePercent, renderTwinzUsageUnknown } from '../animations/timer-renderers.js';
+import { createTextRenderer, TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS } from '../animations/text-renderers.js';
+import type { TextStyle, TextSize, TextSpeed } from '../animations/text-renderers.js';
 import type { ClaudeStyle, ClaudeRendererApi } from '../animations/claude-renderers.js';
 import { watchProcStats } from '../lib/proc-source.js';
 import { createPresetTriggerEngine } from '../lib/preset-triggers.js';
@@ -767,6 +769,13 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         return {
           render(_now, _audioCtx) { return claudeRenderer.render(); },
           stop() { claudeRenderer.stop(); claudeRenderers.delete(claudeRenderer); },
+        };
+      }
+      case 'text': {
+        const textRenderer = createTextRenderer(widget, side);
+        return {
+          render(now, _audioCtx) { return textRenderer.render(now); },
+          stop() { textRenderer.stop(); },
         };
       }
       default: {
@@ -1829,9 +1838,16 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               break;
             }
             case 'hud-config': {
-              const m = msg as { cmd: string; leftFace?: string; leftWidget?: string; leftDataStyle?: string; leftAudioStyle?: string; leftClaudeStyle?: string; leftFile?: string; leftBiomeName?: string; leftRandomIntervalMs?: number; leftTimerStyle?: string; leftTimerDurationMs?: number; leftTimerRepeat?: boolean; rightFace?: string; rightWidget?: string; rightDataStyle?: string; rightAudioStyle?: string; rightClaudeStyle?: string; rightFile?: string; rightBiomeName?: string; rightRandomIntervalMs?: number; rightTimerStyle?: string; rightTimerDurationMs?: number; rightTimerRepeat?: boolean };
+              const m = msg as { cmd: string; leftFace?: string; leftWidget?: string; leftDataStyle?: string; leftAudioStyle?: string; leftClaudeStyle?: string; leftFile?: string; leftBiomeName?: string; leftRandomIntervalMs?: number; leftTimerStyle?: string; leftTimerDurationMs?: number; leftTimerRepeat?: boolean; leftText?: string; leftTextStyle?: string; leftTextSize?: string; leftTextSpeed?: string; leftTextSpan?: boolean; rightFace?: string; rightWidget?: string; rightDataStyle?: string; rightAudioStyle?: string; rightClaudeStyle?: string; rightFile?: string; rightBiomeName?: string; rightRandomIntervalMs?: number; rightTimerStyle?: string; rightTimerDurationMs?: number; rightTimerRepeat?: boolean; rightText?: string; rightTextStyle?: string; rightTextSize?: string; rightTextSpeed?: string; rightTextSpan?: boolean };
               const biomeNames = new Set((currentConfig.biome_presets ?? []).map(b => b.name));
               const validBiome = (name: string) => name === 'random' || biomeNames.has(name);
+              const asTextStyle = (v?: string): TextStyle | undefined => v && (TEXT_STYLES as readonly string[]).includes(v) ? v as TextStyle : undefined;
+              const asTextSize  = (v?: string): TextSize  | undefined => v && (TEXT_SIZES  as readonly string[]).includes(v) ? v as TextSize  : undefined;
+              const asTextSpeed = (v?: string): TextSpeed | undefined => v && (TEXT_SPEEDS as readonly string[]).includes(v) ? v as TextSpeed : undefined;
+              const buildText = (text: string, st?: string, sz?: string, sp?: string, span?: boolean): NonNullable<NonNullable<Config['hud']>['left']> => {
+                const style = asTextStyle(st); const size = asTextSize(sz); const speed = asTextSpeed(sp);
+                return { widget: 'text', text: text.slice(0, 128), ...(style ? { style } : {}), ...(size ? { size } : {}), ...(speed ? { speed } : {}), ...(span ? { span: true } : {}) };
+              };
               if (m.leftWidget === 'life' && typeof m.leftBiomeName === 'string' && !validBiome(m.leftBiomeName)) {
                 socket.write(JSON.stringify({ ok: false, error: `unknown biome: "${m.leftBiomeName}"` }) + '\n');
                 break;
@@ -1859,6 +1875,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 const durationMs = typeof m.leftTimerDurationMs === 'number' && Number.isFinite(m.leftTimerDurationMs) && m.leftTimerDurationMs > 0 ? m.leftTimerDurationMs : undefined;
                 const repeat = typeof m.leftTimerRepeat === 'boolean' ? m.leftTimerRepeat : undefined;
                 newHud.left = { widget: 'timer', style, ...(durationMs !== undefined ? { durationMs } : {}), ...(repeat !== undefined ? { repeat } : {}) };
+              } else if (m.leftWidget === 'text' && typeof m.leftText === 'string') {
+                newHud.left = buildText(m.leftText, m.leftTextStyle, m.leftTextSize, m.leftTextSpeed, m.leftTextSpan);
               } else if (typeof m.leftFace === 'string') {
                 const face = isClockFace(m.leftFace) ? m.leftFace : 'elegant';
                 newHud.left = { widget: 'clock', face };
@@ -1881,6 +1899,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 const durationMs = typeof m.rightTimerDurationMs === 'number' && Number.isFinite(m.rightTimerDurationMs) && m.rightTimerDurationMs > 0 ? m.rightTimerDurationMs : undefined;
                 const repeat = typeof m.rightTimerRepeat === 'boolean' ? m.rightTimerRepeat : undefined;
                 newHud.right = { widget: 'timer', style, ...(durationMs !== undefined ? { durationMs } : {}), ...(repeat !== undefined ? { repeat } : {}) };
+              } else if (m.rightWidget === 'text' && typeof m.rightText === 'string') {
+                newHud.right = buildText(m.rightText, m.rightTextStyle, m.rightTextSize, m.rightTextSpeed, m.rightTextSpan);
               } else if (typeof m.rightFace === 'string') {
                 const face = isClockFace(m.rightFace) ? m.rightFace : 'elegant';
                 newHud.right = { widget: 'clock', face };

@@ -282,12 +282,12 @@ for (let i = 97; i <= 122; i++) {
   }
 }
 
-const LOGICAL_ROWS = 34;
-const MODULE_COLS = 9;
+export const LOGICAL_ROWS = 34;
+export const MODULE_COLS = 9;
 
-const SCALE_MAP: Record<Exclude<ScrollSize, 'tiny'>, number> = { small: 1, medium: 2, large: 3 };
+export const SCALE_MAP: Record<Exclude<ScrollSize, 'tiny'>, number> = { small: 1, medium: 2, large: 3 };
 
-function decodeGlyph(code: number, tiny: boolean): boolean[][] {
+export function decodeGlyph(code: number, tiny: boolean): boolean[][] {
   if (tiny) {
     const bits = TINY_FONT.get(code) ?? TINY_FONT.get(32)!;
     return bits.map(b => [(b >> 2 & 1) === 1, (b >> 1 & 1) === 1, (b & 1) === 1]);
@@ -299,7 +299,7 @@ function decodeGlyph(code: number, tiny: boolean): boolean[][] {
   });
 }
 
-function scaleGlyph(px: boolean[][], scale: number): boolean[][] {
+export function scaleGlyph(px: boolean[][], scale: number): boolean[][] {
   if (scale === 1) return px;
   const out: boolean[][] = [];
   for (const row of px) {
@@ -309,7 +309,7 @@ function scaleGlyph(px: boolean[][], scale: number): boolean[][] {
   return out;
 }
 
-function renderText(text: string, size: ScrollSize, stripRows?: number, stripStart?: number): { buf: Uint8Array; width: number } {
+export function renderText(text: string, size: ScrollSize, stripRows?: number, stripStart?: number): { buf: Uint8Array; width: number } {
   const tiny = size === 'tiny';
   const scale = tiny ? 1 : SCALE_MAP[size];
   const baseH = tiny ? 5 : 7;
@@ -349,7 +349,7 @@ function renderText(text: string, size: ScrollSize, stripRows?: number, stripSta
 
 // Extract a 9-column frame from the logical text buffer at the given x offset.
 // Columns outside [0, width) are blank (already zero).
-function extractFrame(buf: Uint8Array, bufWidth: number, xOffset: number): Frame {
+export function extractFrame(buf: Uint8Array, bufWidth: number, xOffset: number): Frame {
   const frame = createFrame();
   for (let fc = 0; fc < MODULE_COLS; fc++) {
     const srcCol = xOffset + fc;
