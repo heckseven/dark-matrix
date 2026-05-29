@@ -814,13 +814,14 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
 
     // Twitch OAuth — callback page (token arrives in URL fragment, handled client-side)
     if (url === '/auth/twitch/callback' && method === 'GET') {
-      const html = `<!DOCTYPE html><html><head><title>Twitch Auth</title></head><body><script>
+      const nonce = randomBytes(16).toString('base64');
+      const html = `<!DOCTYPE html><html><head><title>Twitch Auth</title></head><body><script nonce="${nonce}">
 var p=new URLSearchParams(location.hash.slice(1));
 var token=p.get('access_token'),state=p.get('state');
 if(token&&state){fetch('/api/twitch/save-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:token,state:state})}).then(function(r){r.ok?location.href='/':document.body.textContent='Save failed'});}
 else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error');}
 </script></body></html>`;
-      res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'" });
+      res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Security-Policy': `default-src 'none'; script-src 'nonce-${nonce}'` });
       res.end(html);
       return;
     }
