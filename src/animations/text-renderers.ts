@@ -8,7 +8,9 @@ export const TEXT_STYLES = ['marquee', 'columnar', 'spine', 'bigglyph', 'neon'] 
 export type TextStyle = (typeof TEXT_STYLES)[number];
 export const TEXT_SIZES = ['tiny', 'small', 'medium', 'large'] as const;
 export type TextSize = (typeof TEXT_SIZES)[number];
-export const TEXT_SPEEDS = ['slow', 'normal', 'fast'] as const;
+// Ordered slowest→fastest. Keys are internal only — the UI shows the value
+// (px/s or ms/letter), so add/rename tiers freely without touching labels.
+export const TEXT_SPEEDS = ['slowest', 'slow', 'normal', 'fast'] as const;
 export type TextSpeed = (typeof TEXT_SPEEDS)[number];
 // neon flicker frequency — how often a flicker event fires. 'none' disables it.
 export const TEXT_FLICKERS = ['none', 'low', 'medium', 'high'] as const;
@@ -51,9 +53,9 @@ const TICK_MS = 100;     // neon flicker re-roll cadence (independent of render 
 
 // Scroll speed in pixels per SECOND (wall-clock-continuous, so motion is smooth
 // at any render frame rate). 10/20/40 px/s ≡ the old 1/2/4 px per 100ms tick.
-export const SPEED_PXPS: Record<TextSpeed, number> = { slow: 10, normal: 20, fast: 40 };
-// Per-glyph dwell (ms) for bigglyph.
-export const SPEED_DWELL_MS: Record<TextSpeed, number> = { slow: 1200, normal: 700, fast: 350 };
+export const SPEED_PXPS: Record<TextSpeed, number> = { slowest: 5, slow: 10, normal: 20, fast: 40 };
+// Per-glyph dwell (ms) for bigglyph. Slower = longer dwell, so 'slowest' doubles it.
+export const SPEED_DWELL_MS: Record<TextSpeed, number> = { slowest: 2400, slow: 1200, normal: 700, fast: 350 };
 
 function sanitizeText(text: string): string {
   return text.replace(/[^\x20-\x7e]/g, '').slice(0, 128);

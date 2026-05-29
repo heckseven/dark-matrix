@@ -1015,13 +1015,14 @@ function StringsSettings({ widget, uid, onChange, onChangeBoth }: {
   const apply = (next: HudWidget & { widget: 'text' }) => {
     ((widget.span || next.span) && onChangeBoth ? onChangeBoth : onChange)(next);
   };
-  // bigglyph speed = per-letter dwell; everything else that moves = scroll px/s.
+  // Label shows only the value (no tier name) — bigglyph speed = per-letter
+  // dwell; everything else that moves = scroll px/s.
   const speedLabel = (s: TextSpeed): string => {
     if (style === 'bigglyph') {
       const ms = SPEED_DWELL_MS[s];
-      return `${s} – ${ms >= 1000 ? `${ms / 1000}s` : `${ms}ms`}/letter`;
+      return `${ms >= 1000 ? `${ms / 1000}s` : `${ms}ms`}/letter`;
     }
-    return `${s} – ${SPEED_PXPS[s]}px/s`;
+    return `${SPEED_PXPS[s]}px/s`;
   };
   // Style isn't a setting here — it's chosen by picking a widget tile in the grid.
   const fields: { key: string; label: string; value: string; options: { value: string; label: string }[]; set: (v: string) => void }[] = [
