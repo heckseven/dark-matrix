@@ -463,8 +463,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
         // Over 99%: countdown to reset in the twinz timer style.
         if (util > 0.99 && resetAt !== null) {
-          const secsLeft = Math.max(0, resetAt - Math.floor(Date.now() / 1000));
-          return renderTwinzTimer(secsLeft * 1000);
+          // resetAt is a Unix timestamp in seconds; keep millisecond precision
+          // so the twinz centiseconds pair actually ticks.
+          const remainingMs = Math.max(0, resetAt * 1000 - Date.now());
+          return renderTwinzTimer(remainingMs);
         }
 
         // Otherwise show the integer percentage (0–99).
