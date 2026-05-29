@@ -12,7 +12,7 @@ export type HudWidget =
   | { widget: 'image'; file: string; speed?: number; loop?: boolean }
   | { widget: 'life'; biomeName: string; randomIntervalMs?: number }
   | { widget: 'claude'; style?: ClaudeStyle }
-  | { widget: 'text'; text: string; style?: TextStyle; size?: TextSize; speed?: TextSpeed; span?: boolean; flicker?: TextFlicker; transition?: TextTransition };
+  | { widget: 'text'; text: string; style?: TextStyle; size?: TextSize; speed?: TextSpeed; span?: boolean; flicker?: TextFlicker; transition?: TextTransition; loopDelayMs?: number };
 
 export type HudTrigger =
   | { type: 'time'; from: string; to: string }

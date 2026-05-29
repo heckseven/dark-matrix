@@ -20,6 +20,7 @@ import { TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS, TEXT_FLICKERS, TEXT_TRANSITIONS, 
 import type { TextStyle, TextSize, TextSpeed, TextFlicker, TextTransition } from '../../../animations/text-renderers.js';
 import { Input } from './ui/input.js';
 import { Radio } from './ui/radio.js';
+import { ScrubInput } from './ui/scrub-input.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
 import type { BiomePreset } from '../types/life-types.js';
@@ -1067,6 +1068,19 @@ function StringsSettings({ widget, uid, onChange, onChangeBoth }: {
           </div>
         </div>
       ))}
+      {style !== 'neon' && (
+        <div className="flex flex-col gap-1.5">
+          <ScrubInput
+            label="loop delay"
+            suffix="ms"
+            min={0}
+            max={10000}
+            pixelsPerUnit={0.1}
+            value={widget.loopDelayMs ?? 0}
+            onChange={v => apply({ ...widget, loopDelayMs: v })}
+          />
+        </div>
+      )}
       {style === 'marquee' && (
         <label htmlFor={`${uid}-span`} className="flex items-center gap-2 cursor-pointer select-none">
           <Checkbox
