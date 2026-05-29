@@ -53,6 +53,11 @@ function buildPresetConfigPayload(preset: HudPresetClient) {
     leftFile: l.widget === 'image' ? l.file : undefined,
     leftBiomeName: l.widget === 'life' ? l.biomeName : undefined,
     leftRandomIntervalMs: l.widget === 'life' && l.biomeName === 'random' ? (l.randomIntervalMs ?? 30000) : undefined,
+    leftText: l.widget === 'text' ? l.text : undefined,
+    leftTextStyle: l.widget === 'text' ? l.style : undefined,
+    leftTextSize: l.widget === 'text' ? l.size : undefined,
+    leftTextSpeed: l.widget === 'text' ? l.speed : undefined,
+    leftTextSpan: l.widget === 'text' ? l.span : undefined,
     rightWidget: r.widget,
     rightFace: r.widget === 'clock' ? r.face : undefined,
     rightTimerStyle: r.widget === 'timer' ? (r.style ?? 'elegant') : undefined,
@@ -64,6 +69,11 @@ function buildPresetConfigPayload(preset: HudPresetClient) {
     rightFile: r.widget === 'image' ? r.file : undefined,
     rightBiomeName: r.widget === 'life' ? r.biomeName : undefined,
     rightRandomIntervalMs: r.widget === 'life' && r.biomeName === 'random' ? (r.randomIntervalMs ?? 30000) : undefined,
+    rightText: r.widget === 'text' ? r.text : undefined,
+    rightTextStyle: r.widget === 'text' ? r.style : undefined,
+    rightTextSize: r.widget === 'text' ? r.size : undefined,
+    rightTextSpeed: r.widget === 'text' ? r.speed : undefined,
+    rightTextSpan: r.widget === 'text' ? r.span : undefined,
   };
 }
 
@@ -374,6 +384,13 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
             onChange={(widget) => {
               if (!selectedPreset) return;
               deckStore.getState().updatePresetWidget(selectedPreset.name, hudSelectedSide, widget);
+              sendHudConfig();
+              debouncedSave();
+            }}
+            onChangeBoth={(widget) => {
+              if (!selectedPreset) return;
+              deckStore.getState().updatePresetWidget(selectedPreset.name, 'left', widget);
+              deckStore.getState().updatePresetWidget(selectedPreset.name, 'right', widget);
               sendHudConfig();
               debouncedSave();
             }}

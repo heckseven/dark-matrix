@@ -814,13 +814,14 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
 
     // Twitch OAuth — callback page (token arrives in URL fragment, handled client-side)
     if (url === '/auth/twitch/callback' && method === 'GET') {
-      const html = `<!DOCTYPE html><html><head><title>Twitch Auth</title></head><body><script>
+      const nonce = randomBytes(16).toString('base64');
+      const html = `<!DOCTYPE html><html><head><title>Twitch Auth</title></head><body><script nonce="${nonce}">
 var p=new URLSearchParams(location.hash.slice(1));
 var token=p.get('access_token'),state=p.get('state');
 if(token&&state){fetch('/api/twitch/save-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:token,state:state})}).then(function(r){r.ok?location.href='/':document.body.textContent='Save failed'});}
 else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error');}
 </script></body></html>`;
-      res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'" });
+      res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Security-Policy': `default-src 'none'; script-src 'nonce-${nonce}'` });
       res.end(html);
       return;
     }
@@ -2030,7 +2031,17 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
         const rightTimerStyle        = typeof msg['rightTimerStyle']        === 'string' ? msg['rightTimerStyle']        : undefined;
         const rightTimerDurationMs   = typeof msg['rightTimerDurationMs']   === 'number' && Number.isFinite(msg['rightTimerDurationMs']) && (msg['rightTimerDurationMs'] as number) > 0 ? msg['rightTimerDurationMs'] : undefined;
         const rightTimerRepeat       = typeof msg['rightTimerRepeat']       === 'boolean' ? msg['rightTimerRepeat']       : undefined;
-        sendToDaemon({ cmd: 'hud-config', leftFace, leftWidget, leftDataStyle, leftAudioStyle, leftClaudeStyle, leftFile, leftBiomeName, leftRandomIntervalMs, leftTimerStyle, leftTimerDurationMs, leftTimerRepeat, rightFace, rightWidget, rightDataStyle, rightAudioStyle, rightClaudeStyle, rightFile, rightBiomeName, rightRandomIntervalMs, rightTimerStyle, rightTimerDurationMs, rightTimerRepeat }).catch(() => {});
+        const leftText               = typeof msg['leftText']               === 'string' ? msg['leftText']               : undefined;
+        const leftTextStyle          = typeof msg['leftTextStyle']          === 'string' ? msg['leftTextStyle']          : undefined;
+        const leftTextSize           = typeof msg['leftTextSize']           === 'string' ? msg['leftTextSize']           : undefined;
+        const leftTextSpeed          = typeof msg['leftTextSpeed']          === 'string' ? msg['leftTextSpeed']          : undefined;
+        const leftTextSpan           = typeof msg['leftTextSpan']           === 'boolean' ? msg['leftTextSpan']          : undefined;
+        const rightText              = typeof msg['rightText']              === 'string' ? msg['rightText']              : undefined;
+        const rightTextStyle         = typeof msg['rightTextStyle']         === 'string' ? msg['rightTextStyle']         : undefined;
+        const rightTextSize          = typeof msg['rightTextSize']          === 'string' ? msg['rightTextSize']          : undefined;
+        const rightTextSpeed         = typeof msg['rightTextSpeed']         === 'string' ? msg['rightTextSpeed']         : undefined;
+        const rightTextSpan          = typeof msg['rightTextSpan']          === 'boolean' ? msg['rightTextSpan']         : undefined;
+        sendToDaemon({ cmd: 'hud-config', leftFace, leftWidget, leftDataStyle, leftAudioStyle, leftClaudeStyle, leftFile, leftBiomeName, leftRandomIntervalMs, leftTimerStyle, leftTimerDurationMs, leftTimerRepeat, leftText, leftTextStyle, leftTextSize, leftTextSpeed, leftTextSpan, rightFace, rightWidget, rightDataStyle, rightAudioStyle, rightClaudeStyle, rightFile, rightBiomeName, rightRandomIntervalMs, rightTimerStyle, rightTimerDurationMs, rightTimerRepeat, rightText, rightTextStyle, rightTextSize, rightTextSpeed, rightTextSpan }).catch(() => {});
       } else if (type === 'hud-presets-get') {
         void (async () => {
           try {
