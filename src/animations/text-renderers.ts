@@ -31,10 +31,10 @@ export function textRendererCacheKey(w: TextWidgetConfig, side: 'left' | 'right'
   return `${side}|${w.span ? 1 : 0}|${w.style ?? ''}|${w.size ?? ''}|${w.speed ?? ''}|${w.flicker ?? ''}|${w.text}`;
 }
 
-// neon flicker frequency = how OFTEN a character blinks dark, not how fast the
-// blink is. Each blink is a quick one-tick (~100ms) flick; the setting is the
-// per-tick probability that a given character is dark — low = rare, high = often.
-const FLICKER_PCT: Record<TextFlicker, number> = { low: 2, medium: 8, high: 20 };
+// neon flicker frequency = how OFTEN a flicker event happens (each a quick
+// ~100ms flick that darkens up to 3 random letters at once). The setting is the
+// per-tick chance that an event fires — kept low so flickers stay occasional.
+const FLICKER_EVENT_PCT: Record<TextFlicker, number> = { low: 4, medium: 10, high: 20 };
 
 // Matches the daemon's WidgetRenderer shape (object with render(now)/stop()).
 export interface TextRenderer {
@@ -81,12 +81,12 @@ function getGlyph(code: number, size: TextSize): boolean[][] {
   return scaleGlyph(decodeGlyph(code, tiny), scale);
 }
 
-// Deterministic per-(tick,index) pseudo-random in [0,100) — same on both side
-// renderers so a spanning neon flickers identically across the seam.
-function hash01(tick: number, i: number): number {
-  let x = (Math.imul(tick + 1, 2654435761) ^ Math.imul(i + 1, 40503)) >>> 0;
+// Deterministic per-(a,b) pseudo-random uint32 — stable across renderers so the
+// same tick yields the same flicker everywhere (preview matches hardware).
+function hashInt(a: number, b: number): number {
+  let x = (Math.imul(a + 1, 2654435761) ^ Math.imul(b + 1, 40503)) >>> 0;
   x ^= x >>> 13; x = Math.imul(x, 0x5bd1e995) >>> 0; x ^= x >>> 15;
-  return (x >>> 0) % 100;
+  return x >>> 0;
 }
 
 /**
@@ -151,20 +151,28 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
       };
     }
 
-    // neon: static stack (cap to what fits), mono on/off flicker of random chars
+    // neon: static stack (cap to what fits), vertically centered.
     const maxRows = Math.max(1, Math.floor(ROWS / slot));
     const shown = glyphs.slice(0, maxRows);
-    const top0 = Math.floor((ROWS - shown.length * slot + (slot - dims.h)) / 2);
+    const contentH = shown.length * dims.h + (shown.length - 1) * gap;
+    const top0 = Math.max(0, Math.floor((ROWS - contentH) / 2));
     const flicker = (widget.flicker && (TEXT_FLICKERS as readonly string[]).includes(widget.flicker)) ? widget.flicker : 'medium';
-    const pct = FLICKER_PCT[flicker];
+    const eventPct = FLICKER_EVENT_PCT[flicker];
     return {
       render(now) {
-        // Re-roll every tick → quick ~100ms blinks; `pct` sets how often a char
-        // is dark (the frequency of flickering), not the blink's duration.
         const tick = Math.floor(now.getTime() / TICK_MS);
         const buf = new Uint8Array(canvasW * ROWS);
+        // Occasionally (per the frequency setting) a quick flicker darkens up to
+        // 3 random letters at once for this tick; otherwise all letters are lit.
+        const dark = new Set<number>();
+        if (hashInt(tick, 0) % 100 < eventPct) {
+          const count = Math.min(shown.length, 1 + (hashInt(tick, 1) % 3));
+          for (let salt = 2; dark.size < count && salt < 64; salt++) {
+            dark.add(hashInt(tick, salt) % shown.length);
+          }
+        }
         for (let i = 0; i < shown.length; i++) {
-          if (hash01(tick, i) < pct) continue; // dark this tick
+          if (dark.has(i)) continue;
           blitGlyph(buf, canvasW, shown[i]!, left, top0 + i * slot);
         }
         return extractFrame(buf, canvasW, rightShift);
