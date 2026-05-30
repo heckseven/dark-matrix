@@ -71,7 +71,7 @@ const meta = {
   argTypes: {
     activeMode: {
       control: 'select',
-      options: ['design', 'hud', 'config', 'audio', 'video', 'life', 'data', 'runes'],
+      options: ['design', 'hud', 'config', 'audio', 'video', 'life', 'data', 'cast'],
       description: 'Active app mode — use to verify chip placement across modes.',
     },
   },
@@ -153,8 +153,8 @@ export const DaemonOfflineData: Story = {
   beforeEach() { return mockModules('daemon-offline'); },
 };
 
-/** Runes mode. */
-export const DaemonOfflineRunes: Story = {
-  args: { activeMode: 'runes' },
+/** Cast mode. */
+export const DaemonOfflineCast: Story = {
+  args: { activeMode: 'cast' },
   beforeEach() { return mockModules('daemon-offline'); },
 };
