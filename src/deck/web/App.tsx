@@ -566,6 +566,7 @@ export function App() {
               onChange={handleTwitchChange}
               onDisconnect={() => void handleTwitchDisconnect()}
               disconnecting={twitchDisconnecting}
+              showHeading={false}
             />
           )}
         </DialogContent>
