@@ -12,8 +12,11 @@ const meta = {
     layout: 'fullscreen',
   },
   args: {
+    index: 0,
+    count: 3,
     onCollapse: () => {},
     onRemove: () => {},
+    onReorder: () => {},
   },
   decorators: [
     (Story) => (

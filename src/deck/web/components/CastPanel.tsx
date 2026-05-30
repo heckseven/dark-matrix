@@ -1,10 +1,11 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useDeckStore } from '../store.js';
 import type { CastColumn as CastColumnType } from '../types/config-types.js';
 import { Button } from './ui/button.js';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog.js';
 import { Input } from './ui/input.js';
 import { CastColumn } from './CastColumn.js';
+import { syncCastChannels } from '../twitch-chat.js';
 
 const MAX_COLUMNS = 5;
 
@@ -65,7 +66,16 @@ export function CastPanel() {
 
   const columns: CastColumnType[] = configData?.cast_columns ?? [];
 
+  // Drive the chat connection manager from the configured columns. Runs on
+  // mount and whenever the channel set changes — never on unmount — so feeds
+  // keep accumulating in the background while the user is in another mode.
+  const channelsKey = columns.filter(c => c.provider === 'twitch').map(c => c.channel).join('\n');
+  useEffect(() => {
+    syncCastChannels(channelsKey ? channelsKey.split('\n') : []);
+  }, [channelsKey]);
+
   const [addDialog, setAddDialog] = useState<{ open: boolean; insertAt: number }>({ open: false, insertAt: 0 });
+  const [reorderStatus, setReorderStatus] = useState('');
 
   function openAdd(insertAt: number) {
     setAddDialog({ open: true, insertAt });
@@ -97,10 +107,22 @@ export function CastPanel() {
     void saveConfig();
   }
 
+  function handleReorder(from: number, to: number) {
+    if (from === to || from < 0 || to < 0 || from >= columns.length || to >= columns.length) return;
+    const next = [...columns];
+    const [moved] = next.splice(from, 1);
+    if (!moved) return;
+    next.splice(to, 0, moved);
+    patchConfig({ cast_columns: next });
+    void saveConfig();
+    setReorderStatus(`${moved.channel} moved to position ${to + 1} of ${next.length}`);
+  }
+
   const atMax = columns.length >= MAX_COLUMNS;
 
   return (
     <div className="flex-1 flex flex-col font-mono min-h-0">
+      <div role="status" aria-live="polite" className="sr-only">{reorderStatus}</div>
       {/* Columns area */}
       <div className="flex-1 flex items-stretch overflow-x-auto overflow-y-hidden min-h-0">
         <ColumnInsertButton
@@ -113,8 +135,11 @@ export function CastPanel() {
           <Fragment key={`${col.provider}:${col.channel}`}>
             <CastColumn
               column={col}
+              index={idx}
+              count={columns.length}
               onCollapse={() => handleCollapse(idx)}
               onRemove={() => handleRemove(idx)}
+              onReorder={handleReorder}
             />
             <ColumnInsertButton
               hidden={atMax}
