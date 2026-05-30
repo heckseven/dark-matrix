@@ -10,7 +10,7 @@ import { Menu, MenuTrigger, MenuContent, MenuItem } from './ui/menu.js';
 
 // ── constants ──────────────────────────────────────────────────────────────
 
-const TRIGGER_TYPES = ['time', 'idle', 'active', 'day', 'date', 'threshold', 'interface', 'vm'] as const;
+const TRIGGER_TYPES = ['time', 'day', 'date', 'threshold', 'interface', 'vm'] as const;
 type TriggerType = typeof TRIGGER_TYPES[number];
 
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
@@ -27,8 +27,6 @@ const METRIC_CONFIG = {
 
 const TRIGGER_DESCRIPTIONS: Record<TriggerType, string> = {
   time:      'Active between two clock times each day. Wraps midnight when "from" is later than "to".',
-  idle:      'Active when no keyboard or mouse input has been detected for the configured idle timeout (daemon → idle_after_ms).',
-  active:    'Active while the user is present — any input within the idle timeout window.',
   day:       'Active on selected days of the week.',
   date:      'Active on a specific month and day each year.',
   threshold: 'Active when a system metric (CPU, RAM, network) crosses a numeric boundary.',
@@ -41,8 +39,6 @@ const FW = 'w-24';
 function defaultTrigger(type: TriggerType): HudTrigger {
   switch (type) {
     case 'time':      return { type: 'time', from: '00:00', to: '00:00' };
-    case 'idle':      return { type: 'idle' };
-    case 'active':    return { type: 'active' };
     case 'day':       return { type: 'day', days: ['mon'] as Weekday[] };
     case 'date':      return { type: 'date', month: 1, day: 1 };
     case 'threshold': return { type: 'threshold', metric: 'cpu' };
@@ -299,9 +295,6 @@ function TriggerRow({ trigger, onUpdate, onDelete }: {
         {trigger.type === 'threshold' && <ThresholdFields trigger={trigger} onChange={onUpdate} />}
         {trigger.type === 'interface' && <InterfaceFields trigger={trigger} onChange={onUpdate} />}
         {trigger.type === 'vm'        && <VmFields        trigger={trigger} onChange={onUpdate} />}
-        {(trigger.type === 'idle' || trigger.type === 'active') && (
-          <p className="font-mono text-xs text-muted-foreground">{TRIGGER_DESCRIPTIONS[trigger.type]}</p>
-        )}
       </div>
       <Button
         variant="ghost"

@@ -115,6 +115,34 @@ describe('stale widget coercion (graceful degradation)', () => {
     expect(cfg.hud_presets![0]!.left).toEqual({ widget: 'claude' });
   });
 
+  it('round-trips a text widget preset', async () => {
+    await write({
+      ...DEFAULT_CONFIG,
+      hud_presets: [{ name: 'p', left: { widget: 'text', text: 'HELLO', style: 'marquee', size: 'small', speed: 'fast', span: true }, right: { widget: 'clock', face: 'elegant' } }],
+    });
+    const cfg = await loadConfig();
+    expect(cfg.hud_presets![0]!.left).toEqual({ widget: 'text', text: 'HELLO', style: 'marquee', size: 'small', speed: 'fast', span: true });
+  });
+
+  it('coerces a removed text style to the renderer default, keeping the widget', async () => {
+    await write({
+      ...DEFAULT_CONFIG,
+      hud_presets: [{ name: 'p', left: { widget: 'text', text: 'HI', style: 'nope' }, right: { widget: 'clock', face: 'elegant' } }],
+    });
+    const cfg = await loadConfig();
+    expect(cfg.hud_presets![0]!.left).toEqual({ widget: 'text', text: 'HI' });
+  });
+
+  it('rejects a text widget whose text exceeds 128 chars (coerced to fallback clock)', async () => {
+    await write({
+      ...DEFAULT_CONFIG,
+      hud_presets: [{ name: 'p', left: { widget: 'text', text: 'x'.repeat(129) }, right: { widget: 'clock', face: 'elegant' } }],
+    });
+    const cfg = await loadConfig();
+    // over-long text fails the slot schema → healed to the fallback clock
+    expect(cfg.hud_presets![0]!.left).toEqual({ widget: 'clock', face: 'elegant' });
+  });
+
   it('resets a stale clock face to elegant', async () => {
     await write({
       ...DEFAULT_CONFIG,

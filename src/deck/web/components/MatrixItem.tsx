@@ -166,7 +166,8 @@ export function MatrixItem({
             <input
               ref={inputRef}
               aria-label={`Rename ${name}`}
-              className="font-mono text-xs bg-transparent border-b border-foreground text-foreground outline-none w-full"
+              className="font-mono text-xs bg-transparent border-b border-foreground text-foreground outline-none w-full min-w-0"
+              size={1}
               value={draft}
               maxLength={128}
               onChange={e => setDraft(e.target.value)}

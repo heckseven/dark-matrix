@@ -16,6 +16,11 @@ import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../an
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { CLAUDE_STYLES, createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import type { ClaudeStyle } from '../../../animations/claude-renderers.js';
+import { TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS, TEXT_FLICKERS, TEXT_TRANSITIONS, TEXT_SIZE_PX, SPEED_PXPS, SPEED_DWELL_MS, createTextRenderer } from '../../../animations/text-renderers.js';
+import type { TextStyle, TextSize, TextSpeed, TextFlicker, TextTransition } from '../../../animations/text-renderers.js';
+import { Input } from './ui/input.js';
+import { Radio } from './ui/radio.js';
+import { ScrubInput } from './ui/scrub-input.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
 import type { BiomePreset } from '../types/life-types.js';
@@ -72,6 +77,7 @@ function categoryOfWidget(w: HudWidget): string {
   if (w.widget === 'audio')   return 'audio';
   if (w.widget === 'image')   return 'media';
   if (w.widget === 'life')    return 'life';
+  if (w.widget === 'text')    return 'strings';
   return 'data';
 }
 
@@ -79,6 +85,7 @@ function widgetHasSettings(w: HudWidget): boolean {
   if (w.widget === 'data') return w.style === 'line' || w.style === 'fill' || w.style === 'scroll' || w.style === undefined;
   if (w.widget === 'life') return w.biomeName === 'random';
   if (w.widget === 'timer') return true;
+  if (w.widget === 'text') return true;
   return false;
 }
 
@@ -94,6 +101,7 @@ const CATEGORIES = [
   { id: 'audio', label: 'audio' },
   { id: 'life',  label: 'life'  },
   { id: 'agent', label: 'agent' },
+  { id: 'strings', label: 'strings' },
 ] as const;
 
 // ── Layer 2: Clock grid ───────────────────────────────────────────────────
@@ -938,6 +946,158 @@ function DataSettings({ widget, uid, onChange }: {
   );
 }
 
+// Display names only — the internal style keys (columnar/bigglyph) stay the same
+// so existing saved presets keep working.
+const STRINGS_STYLE_LABELS: Record<TextStyle, string> = {
+  marquee: 'marquee', columnar: 'tokyo', spine: 'spine', bigglyph: 'byte', neon: 'neon',
+};
+
+// spine/neon/bigglyph only read well at the two smallest sizes on the 9-wide panel.
+const SIZE_RESTRICTED: readonly TextStyle[] = ['spine', 'neon', 'bigglyph'];
+const sizeOptionsFor = (style: TextStyle): readonly TextSize[] =>
+  SIZE_RESTRICTED.includes(style) ? (['tiny', 'small'] as const) : TEXT_SIZES;
+// The two fastest tiers (fast2/fast3) are bigglyph-only; scrolling stops at 'fast'.
+const speedOptionsFor = (style: TextStyle): readonly TextSpeed[] =>
+  style === 'bigglyph' ? TEXT_SPEEDS : TEXT_SPEEDS.filter(s => s !== 'fast2' && s !== 'fast3');
+
+// Build the text widget for a chosen style, enforcing per-style constraints:
+// only marquee spans, and restricted styles cap at 'small'.
+function widgetForStyle(base: (HudWidget & { widget: 'text' }) | null, style: TextStyle): HudWidget & { widget: 'text' } {
+  const next: HudWidget & { widget: 'text' } = base
+    ? { ...base, style }
+    : { widget: 'text', text: 'HELLO', style, size: 'small', speed: 'normal' };
+  if (style !== 'marquee') delete next.span;
+  if (SIZE_RESTRICTED.includes(style) && (next.size === 'medium' || next.size === 'large')) next.size = 'small';
+  return next;
+}
+
+// One preview renderer per style, each rendering its OWN name as the text so a
+// tile shows what its style looks like. Recreated once (module-level).
+const _stringPreviewRenderers = TEXT_STYLES.map(style =>
+  createTextRenderer({ text: STRINGS_STYLE_LABELS[style].toUpperCase().replace(/\s/g, ''), style, size: 'tiny', speed: 'normal' }, 'left'),
+);
+
+function StringsGrid({ currentWidget, onSettings }: {
+  currentWidget: HudWidget | null;
+  onSettings: (w: HudWidget) => void;
+}) {
+  const [pixels, setPixels] = useState<string[]>(() => _stringPreviewRenderers.map(r => bwToB64(r.render(new Date()))));
+  useEffect(() => {
+    const iid = setInterval(() => {
+      const now = new Date();
+      setPixels(_stringPreviewRenderers.map(r => bwToB64(r.render(now))));
+    }, 100);
+    return () => clearInterval(iid);
+  }, []);
+  return (
+    <div role="group" aria-label="String widgets" className="flex flex-wrap gap-6">
+      {TEXT_STYLES.map((style, i) => {
+        const selected = currentWidget?.widget === 'text' && (currentWidget.style ?? 'marquee') === style;
+        return (
+          <MatrixItem
+            key={style}
+            name={STRINGS_STYLE_LABELS[style]}
+            aria-label={`${STRINGS_STYLE_LABELS[style]} text widget`}
+            width={9}
+            pixels={pixels[i] ?? EMPTY_PIXELS}
+            isSelected={selected}
+            onSelect={() => onSettings(widgetForStyle(currentWidget?.widget === 'text' ? currentWidget : null, style))}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function StringsSettings({ widget, uid, onChange, onChangeBoth }: {
+  widget: HudWidget & { widget: 'text' };
+  uid: string;
+  onChange: (w: HudWidget) => void;
+  onChangeBoth?: (w: HudWidget) => void;
+}) {
+  const style = widget.style ?? 'marquee';
+  // Route to both module slots whenever span is involved on either the current
+  // or next state, so entering/leaving span never leaves a stale opposite side.
+  const apply = (next: HudWidget & { widget: 'text' }) => {
+    ((widget.span || next.span) && onChangeBoth ? onChangeBoth : onChange)(next);
+  };
+  // Label shows only the value (no tier name) — bigglyph speed = per-letter
+  // dwell; everything else that moves = scroll px/s.
+  const speedLabel = (s: TextSpeed): string => {
+    if (style === 'bigglyph') {
+      const ms = SPEED_DWELL_MS[s];
+      return `${ms >= 1000 ? `${ms / 1000}s` : `${ms}ms`}/letter`;
+    }
+    return `${SPEED_PXPS[s]}px/s`;
+  };
+  // Style isn't a setting here — it's chosen by picking a widget tile in the grid.
+  const fields: { key: string; label: string; value: string; options: { value: string; label: string }[]; set: (v: string) => void }[] = [
+    { key: 'size',  label: 'size',  value: widget.size  ?? 'small',  options: sizeOptionsFor(style).map(o => ({ value: o, label: `${TEXT_SIZE_PX[o]}px` })), set: v => apply({ ...widget, size: v as TextSize }) },
+    // neon is static — speed doesn't apply, so it has no speed group.
+    ...(style !== 'neon'
+      ? [{ key: 'speed', label: 'speed', value: widget.speed ?? 'normal', options: speedOptionsFor(style).map(o => ({ value: o, label: speedLabel(o) })), set: (v: string) => apply({ ...widget, speed: v as TextSpeed }) }]
+      : []),
+    ...(style === 'neon'
+      ? [{ key: 'flicker', label: 'flicker', value: widget.flicker ?? 'medium', options: TEXT_FLICKERS.map(o => ({ value: o, label: o })), set: (v: string) => apply({ ...widget, flicker: v as TextFlicker }) }]
+      : []),
+    ...(style === 'bigglyph'
+      ? [{ key: 'transition', label: 'transition', value: widget.transition ?? 'slide', options: TEXT_TRANSITIONS.map(o => ({ value: o, label: o })), set: (v: string) => apply({ ...widget, transition: v as TextTransition }) }]
+      : []),
+  ];
+  return (
+    <div role="group" aria-label="Text widget settings" className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`${uid}-text`} className="font-mono text-xs text-muted-foreground">text</label>
+        <Input
+          id={`${uid}-text`}
+          fluid
+          maxLength={128}
+          value={widget.text}
+          placeholder="enter text…"
+          onChange={e => apply({ ...widget, text: e.currentTarget.value })}
+        />
+      </div>
+      {fields.map(({ key, label, value, options, set }) => (
+        <div key={key} className="flex flex-col gap-1.5">
+          <span id={`${uid}-${key}-label`} className="font-mono text-xs text-muted-foreground">{label}</span>
+          <div role="radiogroup" aria-labelledby={`${uid}-${key}-label`} className="flex flex-col gap-1">
+            {options.map(opt => (
+              <label key={opt.value} className="flex items-center gap-2 cursor-pointer select-none">
+                <Radio name={`${uid}-${key}`} value={opt.value} checked={value === opt.value} onChange={() => set(opt.value)} />
+                <span className="font-mono text-xs">{opt.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      ))}
+      {style !== 'neon' && (
+        <div className="flex flex-col gap-1.5">
+          <span className="font-mono text-xs text-muted-foreground">loop delay</span>
+          <ScrubInput
+            aria-label="loop delay"
+            suffix="ms"
+            min={0}
+            max={10000}
+            pixelsPerUnit={0.1}
+            value={widget.loopDelayMs ?? 0}
+            onChange={v => apply({ ...widget, loopDelayMs: v })}
+          />
+        </div>
+      )}
+      {style === 'marquee' && (
+        <label htmlFor={`${uid}-span`} className="flex items-center gap-2 cursor-pointer select-none">
+          <Checkbox
+            id={`${uid}-span`}
+            checked={widget.span ?? false}
+            onChange={e => apply({ ...widget, span: (e.target as HTMLInputElement).checked })}
+          />
+          <span className="font-mono text-xs">span both modules</span>
+        </label>
+      )}
+    </div>
+  );
+}
+
 // ── HudInspector ──────────────────────────────────────────────────────────
 
 export type HudInspectorProps = {
@@ -947,6 +1107,7 @@ export type HudInspectorProps = {
   onNeedsAudio?: (needs: boolean) => void;
   onClocksVisible?: (visible: boolean) => void;
   onChange: (widget: HudWidget) => void;
+  onChangeBoth?: (widget: HudWidget) => void;
   oppositeWidget?: HudWidget;
   onDeleteBiome?: (name: string) => void;
   onEditBiome?: (name: string) => void;
@@ -955,7 +1116,7 @@ export type HudInspectorProps = {
 
 type View = 'grid' | 'settings';
 
-export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX, onNeedsAudio, onClocksVisible, onChange, oppositeWidget, onDeleteBiome, onEditBiome, dualModule = false }: HudInspectorProps) {
+export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX, onNeedsAudio, onClocksVisible, onChange, onChangeBoth, oppositeWidget, onDeleteBiome, onEditBiome, dualModule = false }: HudInspectorProps) {
   const uid = useId();
 
   const [view, setView] = useState<View>(() => {
@@ -1039,6 +1200,11 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
   const backLabel = `‹ ${activeCategory}`;
   const backAriaLabel = `Back to ${activeCategory}`;
   const showImportHeader = showImport && activeCategory === 'media';
+  // Settings heading names the specific widget (e.g. "spine settings") for
+  // string widgets, otherwise the category (e.g. "data settings").
+  const settingsTitle = widget?.widget === 'text'
+    ? `${STRINGS_STYLE_LABELS[widget.style ?? 'marquee']} settings`
+    : `${activeCategory} settings`;
 
   // ── Layer 2 + Layer 3 header
   const header = (
@@ -1060,7 +1226,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
         />
       )}
       <span aria-hidden="true" className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
-        {showImportHeader ? 'import image' : (view === 'settings' ? `${activeCategory} settings` : '')}
+        {showImportHeader ? 'import image' : (view === 'settings' ? settingsTitle : '')}
       </span>
       <div aria-live="polite" aria-atomic="true" className="ml-auto">
         {showImportHeader && importHasFile && (
@@ -1075,7 +1241,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
         )}
       </div>
       <span aria-live="polite" aria-atomic="true" className="sr-only">
-        {showImportHeader ? 'Import image' : view === 'settings' ? `${activeCategory} settings` : ''}
+        {showImportHeader ? 'Import image' : view === 'settings' ? settingsTitle : ''}
       </span>
     </div>
   );
@@ -1105,6 +1271,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
               {activeCategory === 'timer'  && <TimerGrid currentWidget={widget} onSettings={handleSettings} />}
               {activeCategory === 'data'   && <DataGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} />}
               {activeCategory === 'agent'   && <AgentGrid  currentWidget={widget} onPick={handlePick} />}
+              {activeCategory === 'strings' && <StringsGrid currentWidget={widget} onSettings={handleSettings} />}
               {activeCategory === 'audio'  && <AudioGrid currentWidget={widget} audioCtx={audioCtx} side={side} onPick={handlePick} onMount={handleAudioMount} onUnmount={handleAudioUnmount} />}
               {activeCategory === 'life'   && <LifeGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} dualModule={dualModule} {...(onDeleteBiome ? { onDeleteBiome } : {})} {...(onEditBiome ? { onEditBiome } : {})} />}
               {activeCategory === 'media'  && (
@@ -1146,6 +1313,19 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
         <div className="flex-1 overflow-y-auto">
           <div className="py-4 px-2">
             <LifeRandomSettings widget={widget} onChange={onChange} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (widget?.widget === 'text') {
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        {header}
+        <div className="flex-1 overflow-y-auto">
+          <div className="py-4 px-2">
+            <StringsSettings widget={widget} uid={uid} onChange={onChange} {...(onChangeBoth ? { onChangeBoth } : {})} />
           </div>
         </div>
       </div>

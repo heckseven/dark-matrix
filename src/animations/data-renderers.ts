@@ -42,6 +42,10 @@ const RIGHT_BASE = 5;
 // Cores layout
 const CORES_FULL_THRESHOLD = 9;   // ≤9 cores → full-height (center-out) bars
 const CORES_TOTAL_CAP      = 18;  // group cores into 18 buckets when >18
+// Per-frame easing toward the latest targets. At ~30 FPS with ~500 ms data
+// updates (~15 frames), 0.2 reaches ~96% of target before the next update —
+// smooth glide instead of a once-per-update snap.
+const CORES_EASE           = 0.2;
 
 export type DataRenderer = {
   update(stats: DataStats): void;
@@ -61,8 +65,10 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
   const histBL = new Float32Array(HIST_LEN);
   const histBR = new Float32Array(HIST_LEN);
 
-  // cores: per-core (or per-bucket) values normalized 0..1
-  let coreValues: number[] = [];
+  // cores: per-core (or per-bucket) values normalized 0..1.
+  // coreValues = displayed (eased) values; coreTargets = latest data.
+  let coreValues:  number[] = [];
+  let coreTargets: number[] = [];
 
   let netRxCeil = 1 * 1024 * 1024;
   let netTxCeil = 1 * 1024 * 1024;
@@ -172,9 +178,12 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
     update(stats: DataStats) {
       if (style === 'cores') {
         const cores = stats.cpuCores ?? [];
-        coreValues = cores.length > CORES_TOTAL_CAP
+        coreTargets = cores.length > CORES_TOTAL_CAP
           ? cpuGroups(cores, CORES_TOTAL_CAP)
           : cores.map(c => Math.max(0, Math.min(1, c / 100)));
+        // Snap on first data or when the core/bucket count changes; otherwise
+        // render() eases coreValues toward coreTargets each frame.
+        if (coreValues.length !== coreTargets.length) coreValues = [...coreTargets];
       } else {
         // line, fill, and scroll — use configurable metrics with full history
         updateCeilings(stats);
@@ -197,6 +206,13 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
         drawScrollBars(f, histBL, LEFT_BASE,  false, true);
         drawScrollBars(f, histBR, RIGHT_BASE, false, false);
       } else if (style === 'cores') {
+        // Ease displayed values toward the latest targets every frame so bars
+        // glide rather than snapping once per data update.
+        for (let i = 0; i < coreValues.length; i++) {
+          const cur = coreValues[i] ?? 0;
+          const tgt = coreTargets[i] ?? 0;
+          coreValues[i] = cur + (tgt - cur) * CORES_EASE;
+        }
         const n = coreValues.length;
         if (n === 0) {
           // No core data — render empty frame.

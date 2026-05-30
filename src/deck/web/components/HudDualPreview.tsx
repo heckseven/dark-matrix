@@ -7,8 +7,18 @@ import { getDataRenderer } from '../data-renderer-pool.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
+import { createTextRenderer, textRendererCacheKey, type TextRenderer } from '../../../animations/text-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import { deckStore } from '../store.js';
+
+// Text renderers cached by content signature + side (not widget identity) so an
+// edit keystroke rebuilds only when something actually changed.
+const _textCache: Record<string, TextRenderer> = {};
+function getTextRenderer(w: Extract<HudWidget, { widget: 'text' }>, side: 'left' | 'right'): TextRenderer {
+  const key = textRendererCacheKey(w, side);
+  if (!_textCache[key]) _textCache[key] = createTextRenderer(w, side);
+  return _textCache[key]!;
+}
 
 // ── layout constants — match PixelCanvas at zoom=1 ────────────────────────
 
@@ -231,6 +241,11 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, 
                 : style === 'tetris'  ? _previewClaudeTetris.render()
                 :                       _previewClaudeSnow.render();
       return bayerDither(raw);
+    } else if (widget.widget === 'text') {
+      const frame = getTextRenderer(widget, side).render(now);
+      const out = new Uint8Array(COLS * ROWS);
+      for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
+      return out;
     } else {
       return empty;
     }
@@ -406,7 +421,9 @@ export function HudDualPreview({
 
   useEffect(() => {
     paint();
-    const id = setInterval(paint, 100);
+    // ~30 FPS to match the daemon's HUD render rate so scrolling preview feels
+    // like the hardware.
+    const id = setInterval(paint, 33);
     return () => clearInterval(id);
   }, [paint]);
 

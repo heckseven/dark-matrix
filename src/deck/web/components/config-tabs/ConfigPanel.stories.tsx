@@ -27,8 +27,6 @@ const MOCK_CONFIG: Config = {
   },
   daemon: {
     poll_interval_ms: 500,
-    idle_animation: 'none',
-    idle_after_ms: 300000,
   },
 };
 
@@ -99,11 +97,6 @@ export const DirtyWithAllTabs: Story = {
           ...MOCK_CONFIG,
           daemon: {
             poll_interval_ms: 1000,
-            idle_animation: 'gif',
-            idle_after_ms: 60000,
-            idle_gif_path: '/home/user/anim.gif',
-            idle_gif_mode: 'gray',
-            idle_gif_dual: true,
           },
           startup: {
             animation: 'dmx',

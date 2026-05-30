@@ -8,8 +8,6 @@ export type HudWidget =
 
 export type HudTrigger =
   | { type: 'time'; from: string; to: string }
-  | { type: 'idle' }
-  | { type: 'active' }
   | { type: 'threshold'; metric: 'cpu' | 'ram' | 'net_rx' | 'net_tx'; above?: number; below?: number }
   | { type: 'interface'; name: string; state: 'up' | 'down' }
   | { type: 'vm'; name: string; state?: 'running' | 'stopped' };
@@ -85,12 +83,6 @@ export type Config = {
   };
   daemon: {
     poll_interval_ms: number;
-    idle_animation: 'audio-eq' | 'gol-random' | 'scroll' | 'gif' | 'hud' | 'none';
-    idle_after_ms: number;
-    idle_gif_path?: string;
-    idle_gif_mode?: 'bw' | 'gray';
-    idle_gif_dual?: boolean;
-    idle_eq_source?: 'monitor' | 'mic';
   };
   hud?: {
     left?: HudWidget;

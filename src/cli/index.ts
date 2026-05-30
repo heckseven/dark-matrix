@@ -18,7 +18,7 @@ function staticAnim(frame: Frame) {
   let stopped = false;
   return {
     [Symbol.asyncIterator]() {
-      return { async next() { return stopped ? { value: frame, done: true as const } : { value: frame, done: false as const }; } };
+      return { async next() { return stopped ? { value: undefined, done: true as const } : { value: frame, done: false as const }; } };
     },
     stop() { stopped = true; },
   };
@@ -231,8 +231,17 @@ async function cmdInstallClaudeHooks() {
     ? settings['hooks'] as Record<string, unknown[]>
     : {};
 
-  const isDarkMatrix = (h: unknown) =>
-    typeof h === 'object' && h !== null && JSON.stringify(h).includes('dark-matrix');
+  // Match the dark-matrix hook by its distinctive command shape, not an
+  // incidental 'dark-matrix' substring (which could appear in unrelated hooks).
+  const isDarkMatrix = (h: unknown): boolean => {
+    if (typeof h !== 'object' || h === null) return false;
+    const hooks = (h as { hooks?: unknown }).hooks;
+    if (!Array.isArray(hooks)) return false;
+    return hooks.some(entry => {
+      const cmd = (entry as { command?: unknown }).command;
+      return typeof cmd === 'string' && cmd.includes('--unix-socket') && cmd.includes('http://localhost/hook');
+    });
+  };
 
   const hookTypes = ['PostToolUse', 'Stop', 'Notification'] as const;
   let installed = 0;
