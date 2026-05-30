@@ -6,6 +6,7 @@ import { MatrixPreview } from '../MatrixPreview.js';
 import { Select } from '../ui/select.js';
 import { Input } from '../ui/input.js';
 import { Button } from '../ui/button.js';
+import { Checkbox } from '../ui/checkbox.js';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.js';
 import { AssetPickerModal } from '../AssetPickerModal.js';
 import { DmxPreview } from '../DmxPreview.js';
@@ -43,6 +44,12 @@ type RowProps = {
   onDelete: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
+  onDragStart: () => void;
+  onDragEnter: () => void;
+  onDragEnd: () => void;
+  onDrop: () => void;
+  dragging: boolean;
+  dragOver: boolean;
   editOpen: boolean;
   onEditOpenChange: (open: boolean) => void;
   onHoverEnter: () => void;
@@ -197,7 +204,7 @@ function mergeFrames(left: Uint8Array, right: Uint8Array): Uint8Array {
   return out;
 }
 
-function ScrollPrev({ text = 'test notification', size = 'small', dual = false }: { text?: string; size?: ScrollSize; dual?: boolean }) {
+function ScrollPrev({ text = 'dark matrix', size = 'small', dual = false }: { text?: string; size?: ScrollSize; dual?: boolean }) {
   const [px, setPx] = useState(() => blankB64(dual));
   useEffect(() => {
     setPx(blankB64(dual));
@@ -343,7 +350,7 @@ function FormRow({ label, children }: { label: string; children: React.ReactNode
 
 // ── rule row ──────────────────────────────────────────────────────────────────
 
-function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, editOpen, onEditOpenChange, onHoverEnter, onHoverLeave, rowRef, history, refreshHistory }: RowProps) {
+function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, onDragStart, onDragEnter, onDragEnd, onDrop, dragging, dragOver, editOpen, onEditOpenChange, onHoverEnter, onHoverLeave, rowRef, history, refreshHistory }: RowProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerOpenRef = useRef(false);
   useEffect(() => { pickerOpenRef.current = pickerOpen; }, [pickerOpen]);
@@ -386,7 +393,7 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
         if (rule.duration_ms_override !== undefined) body['durationMsOverride'] = rule.duration_ms_override;
       } else {
         body['style'] = 'text';
-        body['summary'] = rule.scroll_text || 'test notification';
+        body['summary'] = rule.scroll_text || 'dark matrix';
         if (rule.composite) body['composite'] = rule.composite;
         if (rule.duration_ms_override !== undefined) body['durationMsOverride'] = rule.duration_ms_override;
       }
@@ -428,10 +435,26 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
       ref={rowRef}
       role="group"
       aria-label={`Rule ${idx + 1}`}
-      className="group flex items-center gap-2 py-1.5 border-b border-foreground/10 last:border-b-0"
+      className={`group flex items-center gap-2 py-1.5 border-b border-foreground/10 last:border-b-0 transition-opacity${dragging ? ' opacity-40' : ''}${dragOver ? ' -mt-px border-t-2 border-t-primary' : ''}`}
       onMouseEnter={onHoverEnter}
       onMouseLeave={onHoverLeave}
+      onDragEnter={e => { e.preventDefault(); onDragEnter(); }}
+      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+      onDrop={e => { e.preventDefault(); onDrop(); }}
     >
+      {/* drag handle — pointer-only affordance; keyboard reorder is via the up/down buttons */}
+      <button
+        type="button"
+        draggable
+        tabIndex={-1}
+        aria-hidden="true"
+        onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
+        onDragEnd={onDragEnd}
+        title="Drag to reorder"
+        className="cursor-grab active:cursor-grabbing font-mono text-foreground/30 hover:text-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 leading-none"
+      >
+        ⠿
+      </button>
       <span className="font-mono text-xs text-foreground/25 tabular-nums w-4 shrink-0">{idx + 1}</span>
 
       {/* chip summary */}
@@ -696,11 +719,12 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, e
             {rule.animation === 'dmx' && (
               <FormRow label="mirror">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={rule.mirror === true}
-                    onChange={e => onUpdate(buildRule(rule, { mirror: e.target.checked || undefined, ...(e.target.checked ? { side: undefined } : {}) }))}
-                    className="w-3.5 h-3.5 accent-foreground"
+                    onChange={e => onUpdate(buildRule(rule, {
+                      mirror: e.target.checked ? true : undefined,
+                      ...(e.target.checked ? {} : { side: undefined }),
+                    }))}
                   />
                   <span className="font-mono text-xs text-muted-foreground">mirror on second panel</span>
                 </label>
@@ -895,6 +919,10 @@ export function NotificationsTab({ value, onChange, dualModule = false }: Notifi
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [hoverY, setHoverY] = useState<number | null>(null);
   const [editOpenIdx, setEditOpenIdx] = useState<number | null>(null);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const dragIdxRef = useRef<number | null>(null);
+  const [reorderMsg, setReorderMsg] = useState('');
   const { history, refresh: refreshHistory } = useNotificationHistory();
 
   function addRule() {
@@ -924,6 +952,24 @@ export function NotificationsTab({ value, onChange, dualModule = false }: Notifi
     ids.splice(to, 0, id!);
     idsRef.current = ids;
     onChange(next);
+    setReorderMsg(`Rule moved to position ${to + 1} of ${value.length}`);
+  }
+
+  function startDrag(idx: number) {
+    dragIdxRef.current = idx;
+    setDragIdx(idx);
+  }
+
+  function endDrag() {
+    dragIdxRef.current = null;
+    setDragIdx(null);
+    setDragOverIdx(null);
+  }
+
+  function handleDrop(to: number) {
+    const from = dragIdxRef.current;
+    if (from !== null && from !== to) moveRule(from, to);
+    endDrag();
   }
 
   return (
@@ -946,6 +992,8 @@ export function NotificationsTab({ value, onChange, dualModule = false }: Notifi
           </div>
         )}
 
+        <span role="status" aria-live="polite" className="sr-only">{reorderMsg}</span>
+
         <div className="flex flex-col">
           {value.map((rule, idx) => (
             <RuleRow
@@ -959,6 +1007,12 @@ export function NotificationsTab({ value, onChange, dualModule = false }: Notifi
               onDelete={() => deleteRule(idx)}
               onMoveUp={() => moveRule(idx, idx - 1)}
               onMoveDown={() => moveRule(idx, idx + 1)}
+              onDragStart={() => startDrag(idx)}
+              onDragEnter={() => { if (dragIdxRef.current !== null) setDragOverIdx(idx); }}
+              onDragEnd={endDrag}
+              onDrop={() => handleDrop(idx)}
+              dragging={dragIdx === idx}
+              dragOver={dragOverIdx === idx && dragIdx !== idx}
               editOpen={editOpenIdx === idx}
               onEditOpenChange={v => setEditOpenIdx(v ? idx : null)}
               onHoverEnter={() => {
@@ -978,81 +1032,6 @@ export function NotificationsTab({ value, onChange, dualModule = false }: Notifi
           <div aria-hidden="true" className="flex-1 h-px bg-border" />
         </div>
       </div>
-
-      <div className="font-mono text-xs text-muted-foreground flex flex-col gap-1 border-t border-foreground/10 mt-4 pt-4">
-        <p className="text-foreground/60 mb-1">assets</p>
-        <p>assets live in <span className="text-foreground/70">~/.config/dark-matrix/assets/</span> — use the picker to browse or import images/GIFs as DMX</p>
-
-        <p className="text-foreground/60 mt-3 mb-1">finding a desktop app name</p>
-        <p>sniff the next real notification from any app:</p>
-        <pre className="bg-foreground/5 px-2 py-1 rounded-sm mt-1 whitespace-pre-wrap">{'dbus-monitor --session "interface=\'org.freedesktop.Notifications\',member=\'Notify\'"'}</pre>
-        <p className="mt-1">or fire a synthetic one to test a specific name:</p>
-        <pre className="bg-foreground/5 px-2 py-1 rounded-sm mt-1">{'notify-send --app-name="Slack" "hello"'}</pre>
-      </div>
-
-      <TestNotification rules={value} />
-    </div>
-  );
-}
-
-function TestNotification({ rules }: { rules: NotificationRule[] }) {
-  const [appName, setAppName] = useState('');
-  const [firing, setFiring] = useState(false);
-  const [result, setResult] = useState<{ action: string } | { error: string } | null>(null);
-
-  async function fire() {
-    setFiring(true);
-    setResult(null);
-    try {
-      const res = await fetch('/api/test-notification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appName: appName || '*', summary: 'test notification' }),
-      });
-      const data = await res.json() as { ok: boolean; action?: string; error?: string };
-      setResult(data.ok ? { action: data.action ?? 'scroll' } : { error: data.error ?? 'request failed' });
-    } catch {
-      setResult({ error: 'request failed' });
-    } finally {
-      setFiring(false);
-    }
-  }
-
-  const matchedRule = rules.find(r => {
-    const glob = r.app_name_glob ?? '*';
-    const name = appName || '*';
-    if (glob === '*') return true;
-    if (glob === name) return true;
-    return false;
-  });
-
-  return (
-    <div className="mt-4 pt-4 border-t border-foreground/10 flex flex-col gap-2">
-      <span className="font-mono text-xs text-muted-foreground">test notification</span>
-      <div className="flex items-center gap-2">
-        <Input
-          aria-label="Test app name"
-          placeholder="app name (or * for default)"
-          value={appName}
-          onChange={e => { setAppName(e.target.value); setResult(null); }}
-          spellCheck={false}
-        />
-        <Button aria-label="Fire test notification" variant="ghost" disabled={firing} onClick={() => void fire()}>
-          {firing ? 'firing…' : 'fire'}
-        </Button>
-        <span aria-live="polite" className="font-mono text-xs">
-          {result && (
-            'error' in result
-              ? <span className="text-red-400">{result.error}</span>
-              : <span className="text-foreground/60">→ {result.action}{result.action === 'none' ? ' (suppressed)' : ''}</span>
-          )}
-        </span>
-      </div>
-      <span aria-live="polite" className="font-mono text-xs text-muted-foreground">
-        {appName && matchedRule && !result && (
-          <>matches rule: {matchedRule.app_name_glob ?? matchedRule.content_glob ?? '*'} → {matchedRule.animation}</>
-        )}
-      </span>
     </div>
   );
 }
