@@ -44,8 +44,6 @@ export const Playground: Story = {
       ...BASE_PRESET,
       triggers: [
         { type: 'time',      from: '09:00', to: '18:00' },
-        { type: 'idle' },
-        { type: 'active' },
         { type: 'day',       days: ['mon', 'tue', 'wed', 'thu', 'fri'] },
         { type: 'date',      month: 12, day: 25 },
         { type: 'threshold', metric: 'cpu', above: 80 },

@@ -261,9 +261,7 @@ These are design constraints, not afterthoughts:
     "scroll_text": "DARK MATRIX"
   },
   "daemon": {
-    "poll_interval_ms": 500,
-    "idle_animation": "gol-random",
-    "idle_after_ms": 300000
+    "poll_interval_ms": 500
   }
 }
 ```

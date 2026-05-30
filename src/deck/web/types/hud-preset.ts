@@ -16,8 +16,6 @@ export type HudWidget =
 
 export type HudTrigger =
   | { type: 'time'; from: string; to: string }
-  | { type: 'idle' }
-  | { type: 'active' }
   | { type: 'threshold'; metric: 'cpu' | 'ram' | 'net_rx' | 'net_tx'; above?: number; below?: number }
   | { type: 'interface'; name: string; state: 'up' | 'down' }
   | { type: 'vm'; name: string; state?: 'running' | 'stopped' }

@@ -30,8 +30,6 @@ const HudWidgetSlot = HudWidgetSchema.catch(HUD_WIDGET_FALLBACK);
 
 const HudTriggerSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('time'), from: z.string().regex(/^\d{2}:\d{2}$/), to: z.string().regex(/^\d{2}:\d{2}$/) }),
-  z.object({ type: z.literal('idle') }),
-  z.object({ type: z.literal('active') }),
   z.object({ type: z.literal('threshold'), metric: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']), above: z.number().min(0).optional(), below: z.number().min(0).optional() }),
   z.object({ type: z.literal('interface'), name: z.string(), state: z.enum(['up', 'down']) }),
   z.object({ type: z.literal('vm'), name: z.string(), state: z.enum(['running', 'stopped']).optional() }),
@@ -39,11 +37,20 @@ const HudTriggerSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('date'), month: z.number().int().min(1).max(12), day: z.number().int().min(1).max(31) }),
 ]);
 
+// Known trigger discriminants. A preset on disk may still reference a removed
+// trigger type — idle/active were dropped when the HUD became the unconditional
+// resting state — so such entries are filtered out on load rather than failing
+// the whole config (healed in memory only; the file on disk is left untouched).
+const KNOWN_TRIGGER_TYPES = new Set(['time', 'threshold', 'interface', 'vm', 'day', 'date']);
+
 const HudPresetSchema = z.object({
   name: z.string().min(1),
   left: HudWidgetSlot,
   right: HudWidgetSlot,
-  triggers: z.array(HudTriggerSchema).optional(),
+  triggers: z.preprocess(
+    (v) => Array.isArray(v) ? v.filter(t => t && typeof t === 'object' && KNOWN_TRIGGER_TYPES.has((t as { type?: unknown }).type as string)) : v,
+    z.array(HudTriggerSchema).optional(),
+  ),
   match: z.enum(['all', 'any']).optional(),
 });
 
@@ -118,12 +125,6 @@ export const ConfigSchema = z.object({
   }),
   daemon: z.object({
     poll_interval_ms: z.number().int().min(100).max(60000),
-    idle_animation: z.enum(['audio-eq', 'gol-random', 'scroll', 'gif', 'hud', 'none']),
-    idle_after_ms: z.number().int().min(0),
-    idle_gif_path: z.string().regex(/\.gif$/i).optional(),
-    idle_gif_mode: z.enum(['bw', 'gray']).optional(),
-    idle_gif_dual: z.boolean().optional(),
-    idle_eq_source: z.enum(['monitor', 'mic']).optional(),
   }),
   hud: z.object({
     left:  HudWidgetSlot.optional(),
@@ -193,8 +194,6 @@ export const DEFAULT_CONFIG: Config = {
   },
   daemon: {
     poll_interval_ms: 500,
-    idle_animation: 'none',
-    idle_after_ms: 300000,
   },
 };
 

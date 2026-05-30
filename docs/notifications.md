@@ -27,7 +27,7 @@ dark-matrix displays notifications from multiple sources (desktop apps, EC switc
 | Mode | Description |
 |---|---|
 | `replace` | Stop current animation, show notification, then resume. Default. |
-| `overlay` | Blend notification pixels over the running animation (HUD, idle, etc.) |
+| `overlay` | Blend notification pixels over the running animation (HUD, etc.) |
 
 Blend function: additive clamp — `min(255, base + overlay)`. BW and grayscale both use the same function.
 
