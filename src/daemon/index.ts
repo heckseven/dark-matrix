@@ -1678,7 +1678,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 // to composite and push frames, otherwise hardware times out and goes black.
                 const rawPath = sp.dmx_path ?? currentConfig.startup.dmx_path;
                 if (rawPath) {
-                  const durationMs = sp.dmx_duration_ms ?? 2000;
+                  // Play through once (loopCount: 1, ignoring durationMs) unless
+                  // dmx_duration_ms is set — same as the boot path.
+                  const customDuration = sp.dmx_duration_ms;
+                  const durationMs = customDuration ?? 2000;
                   const composite = stopCurrentAnim !== null ? 'overlay' : 'replace';
                   const intent: DisplayIntent = {
                     id: 'startup-preview',
@@ -1690,6 +1693,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                     style: 'dmx',
                     assetPath: rawPath,
                     composite,
+                    ...(customDuration === undefined ? { loopCount: 1 } : {}),
                     ...(sp.overlay_mode !== undefined ? { overlayMode: sp.overlay_mode } : {}),
                     ...(sp.transition !== undefined ? { transition: sp.transition } : {}),
                   };
@@ -2026,7 +2030,12 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     } else if (currentConfig.startup.animation === 'dmx') {
       const rawPath = currentConfig.startup.dmx_path;
       if (rawPath) {
-        const durationMs = currentConfig.startup.dmx_duration_ms ?? 2000;
+        // Default: play the DMX through exactly once (loopCount: 1, which plays
+        // every frame and ignores durationMs). A configured dmx_duration_ms
+        // instead time-bounds playback to a fixed window — which may truncate a
+        // long animation or repeat a short one.
+        const customDuration = currentConfig.startup.dmx_duration_ms;
+        const durationMs = customDuration ?? 2000;
         const bootIntent: DisplayIntent = {
           id: 'startup',
           source: 'manual',
@@ -2037,6 +2046,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
           style: 'dmx',
           assetPath: rawPath,
           composite: 'replace',
+          ...(customDuration === undefined ? { loopCount: 1 } : {}),
           ...(currentConfig.startup.overlay_mode !== undefined ? { overlayMode: currentConfig.startup.overlay_mode } : {}),
           ...(currentConfig.startup.transition !== undefined ? { transition: currentConfig.startup.transition } : {}),
         };
