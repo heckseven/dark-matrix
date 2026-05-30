@@ -545,6 +545,7 @@ export function App() {
           onOpenChange={setCastAudioOpen}
           dualModule={!!dualModule}
           hasMic={hasMic}
+          headerHeight={headerHeight}
         />
       )}
       <Dialog open={castTwitchOpen} onOpenChange={setCastTwitchOpen}>
@@ -873,7 +874,7 @@ export function App() {
             <LifePanel topPad={headerHeight} bottomPad={bottomPad} dualModule={dualModule} onCursorMove={setLifeCursor} />
           </div>
         ) : activeMode === 'cast' ? (
-          <div className="absolute inset-x-0 bottom-0 flex" style={{ top: headerHeight }}>
+          <div className="absolute inset-x-0 bottom-0 flex z-10" style={{ top: headerHeight }}>
             <CastPanel />
           </div>
         ) : (

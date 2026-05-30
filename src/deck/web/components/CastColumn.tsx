@@ -13,7 +13,7 @@ export function CastColumn({ column, onCollapse, onRemove }: {
       <div
         role="region"
         className="flex flex-col items-center py-2"
-        style={{ width: '2rem', minWidth: '2rem' }}
+        style={{ width: '2rem', minWidth: '2rem', backdropFilter: 'blur(2px)', backgroundColor: 'color-mix(in srgb, var(--color-background) 65%, transparent)' }}
         aria-label={`${column.channel} (collapsed)`}
       >
         <div className="flex-1 w-px bg-foreground" />
@@ -36,11 +36,15 @@ export function CastColumn({ column, onCollapse, onRemove }: {
   return (
     <div
       className="group flex flex-col min-h-0 flex-1"
+      // Frosted card over the cast background visualizer — matches the toolbar
+      // treatment so chat stays readable. The blur lives here; the sticky header
+      // below uses a more opaque solid tint (no nested backdrop-filter).
+      style={{ backdropFilter: 'blur(2px)', backgroundColor: 'color-mix(in srgb, var(--color-background) 65%, transparent)' }}
     >
       {/* Column header */}
       <div
         className="flex items-center justify-between px-2 py-1"
-        style={{ position: 'sticky', top: 0, zIndex: 1, backdropFilter: 'blur(2px)', backgroundColor: 'color-mix(in srgb, var(--color-background) 65%, transparent)' }}
+        style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: 'color-mix(in srgb, var(--color-background) 82%, transparent)' }}
       >
         <Link href={`https://twitch.tv/${column.channel}`} className="font-mono text-xs truncate">
           {column.channel}
