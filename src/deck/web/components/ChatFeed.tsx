@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CastColumn } from '../types/config-types.js';
 import { subscribeCastChat, type ChatMessage, type Token } from '../twitch-chat.js';
+import { Button } from './ui/button.js';
+
+// How close to the bottom (px) still counts as "pinned" — within this slack the
+// feed auto-scrolls; beyond it the user is considered to have scrolled up.
+const BOTTOM_SLACK = 32;
 
 // Re-exported for consumers (e.g. stories) that import these from ChatFeed.
 export type { ChatMessage, Token } from '../twitch-chat.js';
@@ -57,24 +62,75 @@ function Tokens({ tokens }: { tokens: Token[] }) {
 
 function TwitchFeed({ channel }: { channel: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const [hasNew, setHasNew] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Mirror of "pinned to bottom" read inside the message effect without re-running
+  // it on every scroll. Starts pinned so the feed opens at the latest message.
+  const atBottomRef = useRef(true);
+  // Track the last message by id, not array length: the buffer is a fixed-size
+  // ring, so length stays flat once full even as new messages arrive.
+  const prevLastIdRef = useRef<string | null>(null);
 
   // Subscribe to the module-level manager. The buffer and IRC connection live
   // outside this component, so they survive unmount/remount across mode flips.
   useEffect(() => subscribeCastChat(channel, setMessages), [channel]);
 
+  // On new messages: stick to the bottom if pinned, otherwise flag that there
+  // are unseen messages below so the jump-to-latest button appears.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = scrollRef.current;
+    if (!el) return;
+    const lastId = messages.length ? messages[messages.length - 1]!.id : null;
+    const grew = lastId !== null && lastId !== prevLastIdRef.current;
+    prevLastIdRef.current = lastId;
+    if (atBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+    } else if (grew) {
+      setHasNew(true);
+    }
   }, [messages]);
 
+  function onScroll() {
+    const el = scrollRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < BOTTOM_SLACK;
+    atBottomRef.current = atBottom;
+    if (atBottom) setHasNew(false);
+  }
+
+  function jumpToLatest() {
+    const el = scrollRef.current;
+    if (!el) return;
+    // Instant snap (not smooth) so the scroll listener can't observe an
+    // intermediate position and momentarily re-show the button mid-animation.
+    el.scrollTop = el.scrollHeight;
+    atBottomRef.current = true;
+    setHasNew(false);
+    el.focus(); // keep focus in the revealed log rather than dropping to <body>
+  }
+
   return (
-    <div
-      role="log"
-      aria-label={`${channel} chat`}
-      className="flex-1 overflow-y-auto font-mono text-xs px-4 py-2 flex flex-col gap-0.5 min-h-0"
-    >
-      <ChatMessageList messages={messages} />
-      <div ref={bottomRef} />
+    <div className="relative flex-1 flex flex-col min-h-0">
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        tabIndex={-1}
+        role="log"
+        aria-label={`${channel} chat`}
+        className="flex-1 overflow-y-auto font-mono text-xs px-4 py-2 flex flex-col gap-0.5 min-h-0 focus-visible:outline-none"
+      >
+        <ChatMessageList messages={messages} />
+      </div>
+      {hasNew && (
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={jumpToLatest}
+          className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 shadow"
+        >
+          <span aria-hidden="true">↓</span> new messages
+        </Button>
+      )}
     </div>
   );
 }
