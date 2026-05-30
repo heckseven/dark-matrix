@@ -4,7 +4,7 @@ import { renderText, extractFrame, decodeGlyph, scaleGlyph, SCALE_MAP, type Scro
 
 // Single source of truth for the "strings" widget category. Reused by the Zod
 // schema (config.ts), the daemon hud-config validation, and the deck inspector.
-export const TEXT_STYLES = ['marquee', 'columnar', 'spine', 'bigglyph', 'neon'] as const;
+export const TEXT_STYLES = ['marquee', 'columnar', 'spine', 'bigglyph', 'neon', 'vegas'] as const;
 export type TextStyle = (typeof TEXT_STYLES)[number];
 export const TEXT_SIZES = ['tiny', 'small', 'medium', 'large'] as const;
 export type TextSize = (typeof TEXT_SIZES)[number];
@@ -146,7 +146,7 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
   // side's 9-col window is extracted.
   const dims = glyphDims(size);
 
-  if (style === 'columnar' || style === 'neon') {
+  if (style === 'columnar' || style === 'neon' || style === 'vegas') {
     // Upright chars stacked vertically, centered in the column.
     const gap = Math.max(1, dims.scale);
     const slot = dims.h + gap;
@@ -172,11 +172,38 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
       };
     }
 
-    // neon: static stack (cap to what fits), vertically centered.
+    // neon/vegas: static stack (cap to what fits), vertically centered.
     const maxRows = Math.max(1, Math.floor(ROWS / slot));
     const shown = glyphs.slice(0, maxRows);
     const contentH = shown.length * dims.h + (shown.length - 1) * gap;
     const top0 = Math.max(0, Math.floor((ROWS - contentH) / 2));
+
+    if (style === 'vegas') {
+      // Old-Vegas marquee: letters hold still while the lit LEDs run a chase
+      // down their strokes. A 3-row repeating mask (2 lit, 1 dark) descends at
+      // `speed` rows/sec. Applied across the panel — only letter pixels show it
+      // since the background is already dark.
+      const PERIOD = 3;   // rows per chase cycle
+      const LIT = 2;      // lit rows per cycle (so 2 on, 1 off)
+      return {
+        render(now) {
+          const buf = new Uint8Array(canvasW * ROWS);
+          for (let i = 0; i < shown.length; i++) blitGlyph(buf, canvasW, shown[i]!, left, top0 + i * slot);
+          // Downward sweep: subtract phase from y so the dark gap descends.
+          // Wall-clock-derived so both span halves chase in lockstep.
+          const phase = Math.floor((pxps * now.getTime()) / 1000);
+          for (let x = 0; x < canvasW; x++) {
+            for (let y = 0; y < ROWS; y++) {
+              if (((((y - phase) % PERIOD) + PERIOD) % PERIOD) >= LIT) buf[x * ROWS + y] = 0;
+            }
+          }
+          return extractFrame(buf, canvasW, rightShift);
+        },
+        stop() { /* stateless */ },
+      };
+    }
+
+    // neon: static stack, random letters flicker like a failing tube.
     const flicker = (widget.flicker && (TEXT_FLICKERS as readonly string[]).includes(widget.flicker)) ? widget.flicker : 'medium';
     const eventPct = FLICKER_EVENT_PCT[flicker];
     return {
