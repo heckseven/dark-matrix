@@ -95,15 +95,10 @@ export type Config = {
   biome_presets?: BiomePresetConfig[];
   twitch?: TwitchConfig;
   cast_columns?: CastColumn[];
-<<<<<<< HEAD
+  cast_chat_font_size?: number;
   visualizer_style?: AudioStyle;
   audio_visualizer_on?: boolean;
   cast_visualizer_on?: boolean;
   audio_source?: 'monitor' | 'mic';
-=======
-  cast_chat_font_size?: number;
-  cast_visualizer?: AudioStyle | 'off';
-  cast_audio_source?: 'monitor' | 'mic';
->>>>>>> worktree-cast-font-size
   appearance?: Appearance;
 };

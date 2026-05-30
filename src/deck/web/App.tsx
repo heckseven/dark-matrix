@@ -34,11 +34,8 @@ import { PanelBar } from './components/PanelBar.js';
 import { WelcomeScreen } from './components/WelcomeScreen.js';
 import { CastPanel } from './components/CastPanel.js';
 import { CastVisualizerPanel } from './components/CastVisualizerPanel.js';
-<<<<<<< HEAD
 import { VisualizerAudioControls } from './components/VisualizerAudioControls.js';
-=======
 import { CAST_CHAT_FONT_SIZE_DEFAULT, CAST_CHAT_FONT_SIZE_MIN, CAST_CHAT_FONT_SIZE_MAX } from './components/ChatFeed.js';
->>>>>>> worktree-cast-font-size
 import { TwitchConnectForm } from './components/config-tabs/TwitchConnectForm.js';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogClose } from './components/ui/dialog.js';
 
@@ -862,20 +859,7 @@ export function App() {
                 <VideoSettingsToggle ref={settingsToggleRef} />
               </div>
             ) : activeMode === 'cast' ? (
-<<<<<<< HEAD
               <div className="flex items-center gap-2">
-                {/* Mic + levels: shown only while the visualizer is running. While
-                    the picker is open, these live inside the picker overlay instead
-                    (the overlay covers this toolbar). */}
-                {castVizOn && (
-                  <>
-                    <VisualizerAudioControls hasMic={hasMic} gainMultiplierRef={gainMultiplierRef} />
-                    {/* Gap separating the audio controls from the visualizer controls. */}
-                    <span className="w-4 shrink-0" aria-hidden="true" />
-                  </>
-                )}
-=======
-              <div className="flex items-center gap-3">
                 <span role="status" className="sr-only">{castFontSizeAnnounce}</span>
                 <div role="group" aria-label="Chat font size">
                   {([[-2, 'A−', 'Decrease chat font size'], [2, 'A+', 'Increase chat font size']] as const).map(([delta, label, ariaLabel]) => {
@@ -902,7 +886,15 @@ export function App() {
                     );
                   })}
                 </div>
->>>>>>> worktree-cast-font-size
+                {/* Mic + levels: shown only while the visualizer is running. While
+                    the picker is open, these live inside the picker overlay instead
+                    (the overlay covers this toolbar). */}
+                {castVizOn && (
+                  <>
+                    <span className="w-2 shrink-0" aria-hidden="true" />
+                    <VisualizerAudioControls hasMic={hasMic} gainMultiplierRef={gainMultiplierRef} />
+                  </>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
