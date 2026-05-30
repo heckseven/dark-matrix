@@ -14,6 +14,13 @@ const CELL = 20;
 const TARGET_FPS = 30;
 const FRAME_INTERVAL_MS = 1000 / TARGET_FPS;
 
+// When the visualization has been blank for a while (audio paused/silent), drop
+// to a low poll rate to save power — snaps back to TARGET_FPS the moment any
+// cell lights up. Detected from the rendered output, so it's scale-independent.
+const IDLE_FPS = 5;
+const IDLE_INTERVAL_MS = 1000 / IDLE_FPS;
+const IDLE_AFTER_FRAMES = TARGET_FPS * 2; // ~2s of blank output
+
 function makeSvgDot(color: string): string {
   return `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${CELL}" height="${CELL}"><circle cx="${CELL / 2}" cy="${CELL / 2}" r="2" fill="${color}"/></svg>`)}")`;
 }
@@ -156,12 +163,15 @@ export function AudioVizGrid({
 
     let running = true;
     let last = 0;
+    let emptyStreak = 0;
 
     function tick(now: number) {
       if (!running) return;
       rafRef.current = requestAnimationFrame(tick);
-      if (now - last < FRAME_INTERVAL_MS) return; // throttle to TARGET_FPS
-      last = now - ((now - last) % FRAME_INTERVAL_MS);
+      if (document.hidden) return; // no work while the page isn't visible
+      const interval = emptyStreak >= IDLE_AFTER_FRAMES ? IDLE_INTERVAL_MS : FRAME_INTERVAL_MS;
+      if (now - last < interval) return;
+      last = now - ((now - last) % interval);
 
       const { cols, rows, halfCols } = gridRef.current;
       const bands = fullBandsRef.current;
@@ -180,16 +190,19 @@ export function AudioVizGrid({
         const frame = rendererRef.current(rctx);
 
         g.clearRect(0, 0, cols * CELL, rows * CELL);
+        let lit = 0;
         for (let row = 0; row < rows; row++) {
           for (let lCol = 0; lCol < halfCols; lCol++) {
             const v = frame[lCol * rows + row] ?? 0;
             if (v > BAYER_THRESHOLD[row % 4]![lCol % 4]!) {
+              lit++;
               g.drawImage(tile, lCol * CELL, row * CELL, CELL, CELL);
               const rCol = cols - 1 - lCol; // mirrored right cell
               if (rCol !== lCol) g.drawImage(tile, rCol * CELL, row * CELL, CELL, CELL);
             }
           }
         }
+        emptyStreak = lit === 0 ? emptyStreak + 1 : 0;
       }
     }
 
