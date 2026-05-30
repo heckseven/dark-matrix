@@ -6,7 +6,6 @@ import { ColorPalette } from './components/ColorPalette.js';
 import { usePreviewBridge } from './components/LivePreview.js';
 import { Toggle } from './components/ui/toggle.js';
 import { Button } from './components/ui/button.js';
-import { Slider } from './components/ui/slider.js';
 import { Input } from './components/ui/input.js';
 import { TimeInput } from './components/ui/time-input.js';
 import { Text } from './components/ui/text.js';
@@ -35,13 +34,13 @@ import { PanelBar } from './components/PanelBar.js';
 import { WelcomeScreen } from './components/WelcomeScreen.js';
 import { CastPanel } from './components/CastPanel.js';
 import { CastVisualizerPanel } from './components/CastVisualizerPanel.js';
+import { VisualizerAudioControls } from './components/VisualizerAudioControls.js';
 import { TwitchConnectForm } from './components/config-tabs/TwitchConnectForm.js';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogClose } from './components/ui/dialog.js';
 
 const MODE_LABEL = Object.fromEntries(MODES.map(m => [m.id, m.label])) as Record<AppMode, string>;
 const FULLSCREEN_MODES: ReadonlySet<AppMode> = new Set(['hud', 'audio', 'config', 'video', 'life', 'cast']);
 const isFullscreenMode = (m: AppMode | null) => m !== null && FULLSCREEN_MODES.has(m);
-const MAX_GAIN_BOOST = 7; // 0% → 1×, 100% → 8×
 
 function idleFadeStyle(idle: boolean): CSSProperties {
   return {
@@ -210,9 +209,6 @@ export function App() {
   const audioSource        = useDeckStore(s => s.audioSource);
   const audioVizOn         = useDeckStore(s => s.audioVizOn);
   const castVizOn          = useDeckStore(s => s.castVizOn);
-  const micSensitivity     = useDeckStore(s => s.micSensitivity);
-  const monitorSensitivity = useDeckStore(s => s.monitorSensitivity);
-  const sensitivity        = audioSource === 'mic' ? micSensitivity : monitorSensitivity;
   const libraryPath = useDeckStore(s => s.libraryPath);
   const recentFiles = useDeckStore(s => s.recentFiles);
   const hudPresets         = useDeckStore(s => s.hudPresets);
@@ -270,7 +266,9 @@ export function App() {
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [audioFullscreenStyle, setAudioFullscreenStyle] = useState<AudioStyle | null>(null);
   const [audioIdle, setAudioIdle] = useState(false);
-  const gainMultiplierRef = useRef<number>(1 + (sensitivity / 100) * MAX_GAIN_BOOST);
+  // Neutral until VisualizerAudioControls mounts and syncs it from the store's
+  // persisted sensitivity (avoids reading a possibly-stale value at mount).
+  const gainMultiplierRef = useRef<number>(1);
 
   useEffect(() => {
     const el = headerRef.current;
@@ -592,6 +590,8 @@ export function App() {
           open={castAudioOpen}
           onOpenChange={setCastAudioOpen}
           dualModule={!!dualModule}
+          hasMic={hasMic}
+          gainMultiplierRef={gainMultiplierRef}
           bgSlot={castBgSlot}
         />
       )}
@@ -818,44 +818,15 @@ export function App() {
               <Button variant="ghost" disabled={!configDirty} onClick={() => void saveConfig()}>save</Button>
             ) : activeMode === 'audio' ? (
               <div className="flex items-center gap-2">
-                <Tooltip content={`${audioSource === 'mic' ? 'Mic' : 'Monitor'} sensitivity`} side="bottom">
-                  <span>
-                    <Slider
-                      aria-label={`${audioSource === 'mic' ? 'Mic' : 'Monitor'} sensitivity`}
-                      aria-valuetext={`${sensitivity}%`}
-                      value={sensitivity}
-                      min={0}
-                      max={100}
-                      step={1}
-                      className="w-32"
-                      valueLabel={`${sensitivity}%`}
-                      onChange={e => {
-                        const v = Number(e.target.value);
-                        gainMultiplierRef.current = 1 + (v / 100) * MAX_GAIN_BOOST;
-                        if (audioSource === 'mic') {
-                          deckStore.getState().setMicSensitivity(v);
-                        } else {
-                          deckStore.getState().setMonitorSensitivity(v);
-                        }
-                      }}
-                    />
-                  </span>
-                </Tooltip>
-                {hasMic && (
-                  <Toggle
-                    pressed={audioSource === 'mic'}
-                    onPressedChange={(on) => {
-                      deckStore.getState().setAudioSource(on ? 'mic' : 'monitor');
-                      gainMultiplierRef.current = 1 + ((on ? micSensitivity : monitorSensitivity) / 100) * MAX_GAIN_BOOST;
-                    }}
-                    title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
-                    aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
-                  >
-                    <span aria-hidden="true">mic</span>
-                  </Toggle>
+                {/* Mic + levels: shown while the visualizer runs or the picker grid
+                    is open (audio always has one or the other). */}
+                {(audioVizOn || audioFullscreenStyle === null) && (
+                  <>
+                    <VisualizerAudioControls hasMic={hasMic} gainMultiplierRef={gainMultiplierRef} />
+                    {/* Gap separating the audio controls from the visualizer controls. */}
+                    <span className="w-4 shrink-0" aria-hidden="true" />
+                  </>
                 )}
-                {/* Gap separating the audio controls from the visualizer controls. */}
-                <span className="w-4 shrink-0" aria-hidden="true" />
                 <Button
                   variant="ghost"
                   size="sm"
@@ -887,16 +858,12 @@ export function App() {
               </div>
             ) : activeMode === 'cast' ? (
               <div className="flex items-center gap-2">
-                {hasMic && (
+                {/* Mic + levels: shown only while the visualizer is running. While
+                    the picker is open, these live inside the picker overlay instead
+                    (the overlay covers this toolbar). */}
+                {castVizOn && (
                   <>
-                    <Toggle
-                      pressed={audioSource === 'mic'}
-                      onPressedChange={(on) => deckStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
-                      title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
-                      aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
-                    >
-                      <span aria-hidden="true">mic</span>
-                    </Toggle>
+                    <VisualizerAudioControls hasMic={hasMic} gainMultiplierRef={gainMultiplierRef} />
                     {/* Gap separating the audio controls from the visualizer controls. */}
                     <span className="w-4 shrink-0" aria-hidden="true" />
                   </>

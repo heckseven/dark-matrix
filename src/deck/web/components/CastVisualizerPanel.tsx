@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import type { RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useDeckStore } from '../store.js';
@@ -7,6 +8,7 @@ import { AUDIO_STYLES, createRenderer } from '../../../animations/audio-renderer
 import type { RenderCtx } from '../../../animations/audio-renderers.js';
 import { MatrixItem } from './MatrixItem.js';
 import { Button } from './ui/button.js';
+import { VisualizerAudioControls } from './VisualizerAudioControls.js';
 import { PLACEHOLDER, frameToB64, mirrorFrame } from './audio-viz-frames.js';
 import { AudioVizGrid } from './AudioVizGrid.js';
 
@@ -27,10 +29,13 @@ import { AudioVizGrid } from './AudioVizGrid.js';
  * immediately and closes back to the chat view. Radix gives us the focus trap,
  * focus-on-open / focus-restore, Escape, and scroll lock for free.
  */
-export function CastVisualizerPanel({ open, onOpenChange, dualModule, bgSlot }: {
+export function CastVisualizerPanel({ open, onOpenChange, dualModule, hasMic, gainMultiplierRef, bgSlot }: {
   open: boolean;
   onOpenChange(open: boolean): void;
   dualModule: boolean;
+  hasMic: boolean;
+  /** Shared live preview gain, driven by the levels slider. */
+  gainMultiplierRef: RefObject<number>;
   /** DOM node (inside the cast content area) to portal the background into. */
   bgSlot: HTMLElement | null;
 }) {
@@ -118,7 +123,7 @@ export function CastVisualizerPanel({ open, onOpenChange, dualModule, bgSlot }: 
           if (Array.isArray(msg.fullBands)) fullBandsRef.current = msg.fullBands;
           // Only render the picker grid previews while the picker is visible.
           if (openRef.current) {
-            const ctx: RenderCtx = { bands: msg.bands, fftSize, gain };
+            const ctx: RenderCtx = { bands: msg.bands, fftSize, gain: gain * gainMultiplierRef.current };
             const renderers = renderersRef.current!;
             const next: Partial<Record<AudioStyle, string>> = {};
             for (const { id } of AUDIO_STYLES) {
@@ -159,6 +164,7 @@ export function CastVisualizerPanel({ open, onOpenChange, dualModule, bgSlot }: 
           fullBandsRef={fullBandsRef}
           fftSizeRef={fftSizeRef}
           gainRef={gainRef}
+          gainMultiplierRef={gainMultiplierRef}
           onBandCountChange={handleBandCountChange}
           className="w-full h-full flex items-center justify-center overflow-hidden"
           respectReducedMotion
@@ -178,9 +184,12 @@ export function CastVisualizerPanel({ open, onOpenChange, dualModule, bgSlot }: 
             <DialogPrimitive.Description className="sr-only">
               Selecting a style activates it on the display modules immediately.
             </DialogPrimitive.Description>
-            <div className="flex items-center justify-end px-4 py-2">
+            {/* The picker covers the mode toolbar, so the shared mic + levels
+                controls live here while it is open. */}
+            <div className="flex items-center justify-between px-4 py-2">
+              <VisualizerAudioControls hasMic={hasMic} gainMultiplierRef={gainMultiplierRef} />
               <DialogPrimitive.Close asChild>
-                <Button variant="ghost" size="sm" tooltip="Close" aria-label="Close cast visualizer picker">×</Button>
+                <Button variant="ghost" size="sm" tooltip="Close" aria-label="Close cast visualizer picker"><span aria-hidden="true">×</span></Button>
               </DialogPrimitive.Close>
             </div>
             <div className="flex-1 overflow-y-auto overflow-x-hidden px-8 py-8 flex justify-center">
