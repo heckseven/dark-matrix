@@ -3,10 +3,10 @@ import { Button } from './ui/button.js';
 import { ChatFeed } from './ChatFeed.js';
 import { Link } from './ui/link.js';
 
-/** Muted L-shaped brackets at the four corners of a column card. */
+/** L-shaped brackets at the four corners of a column card (foreground color). */
 function CornerBrackets() {
-  const base = 'pointer-events-none absolute w-3 h-3 z-[2]';
-  const color = { borderColor: 'var(--color-border)' };
+  const base = 'pointer-events-none absolute w-6 h-6 z-[2]';
+  const color = { borderColor: 'var(--color-foreground)' };
   return (
     <>
       <span aria-hidden="true" className={`${base} top-0 left-0 border-t border-l`} style={color} />
