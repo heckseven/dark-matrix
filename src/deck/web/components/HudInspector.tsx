@@ -949,11 +949,11 @@ function DataSettings({ widget, uid, onChange }: {
 // Display names only — the internal style keys (columnar/bigglyph) stay the same
 // so existing saved presets keep working.
 const STRINGS_STYLE_LABELS: Record<TextStyle, string> = {
-  marquee: 'marquee', columnar: 'tokyo', spine: 'spine', bigglyph: 'byte', neon: 'neon',
+  marquee: 'marquee', columnar: 'tokyo', spine: 'spine', bigglyph: 'byte', neon: 'neon', vegas: 'vegas',
 };
 
-// spine/neon/bigglyph only read well at the two smallest sizes on the 9-wide panel.
-const SIZE_RESTRICTED: readonly TextStyle[] = ['spine', 'neon', 'bigglyph'];
+// spine/neon/bigglyph/vegas only read well at the two smallest sizes on the 9-wide panel.
+const SIZE_RESTRICTED: readonly TextStyle[] = ['spine', 'neon', 'bigglyph', 'vegas'];
 const sizeOptionsFor = (style: TextStyle): readonly TextSize[] =>
   SIZE_RESTRICTED.includes(style) ? (['tiny', 'small'] as const) : TEXT_SIZES;
 // The two fastest tiers (fast2/fast3) are bigglyph-only; scrolling stops at 'fast'.
@@ -1070,7 +1070,7 @@ function StringsSettings({ widget, uid, onChange, onChangeBoth }: {
           </div>
         </div>
       ))}
-      {style !== 'neon' && (
+      {style !== 'neon' && style !== 'vegas' && (
         <div className="flex flex-col gap-1.5">
           <span className="font-mono text-xs text-muted-foreground">loop delay</span>
           <ScrubInput
