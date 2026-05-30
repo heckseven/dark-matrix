@@ -6,6 +6,20 @@ import { Link } from './ui/link.js';
 
 const DRAG_MIME = 'application/x-cast-col';
 
+/** L-shaped brackets at the four corners of a column card (foreground color). */
+function CornerBrackets() {
+  const base = 'pointer-events-none absolute w-6 h-6 z-[2]';
+  const color = { borderColor: 'var(--color-foreground)' };
+  return (
+    <>
+      <span aria-hidden="true" className={`${base} top-0 left-0 border-t border-l`} style={color} />
+      <span aria-hidden="true" className={`${base} top-0 right-0 border-t border-r`} style={color} />
+      <span aria-hidden="true" className={`${base} bottom-0 left-0 border-b border-l`} style={color} />
+      <span aria-hidden="true" className={`${base} bottom-0 right-0 border-b border-r`} style={color} />
+    </>
+  );
+}
+
 export function CastColumn({ column, index, count, onCollapse, onRemove, onReorder }: {
   column: CastColumnType;
   index: number;
@@ -75,7 +89,7 @@ export function CastColumn({ column, index, count, onCollapse, onRemove, onReord
         onDragStart={onDragStart}
         aria-roledescription="Draggable column"
         {...dropProps}
-        className="group flex flex-col items-center py-2 cursor-grab"
+        className="group flex flex-col items-center py-2 my-10 cursor-grab"
         style={{ width: '2rem', minWidth: '2rem', backdropFilter: 'blur(2px)', backgroundColor: 'color-mix(in srgb, var(--color-background) 65%, transparent)', ...dragOverStyle }}
         aria-label={`${column.channel} (collapsed)`}
       >
@@ -103,12 +117,14 @@ export function CastColumn({ column, index, count, onCollapse, onRemove, onReord
   return (
     <div
       {...dropProps}
-      className="group flex flex-col min-h-0 flex-1"
+      className="group relative flex flex-col min-h-0 flex-1 my-10"
       // Frosted card over the cast background visualizer — matches the toolbar
       // treatment so chat stays readable. The blur lives here; the sticky header
-      // below uses a more opaque solid tint (no nested backdrop-filter).
+      // below uses a more opaque solid tint (no nested backdrop-filter). The
+      // vertical margin matches the inter-column gap so cards float evenly.
       style={{ backdropFilter: 'blur(2px)', backgroundColor: 'color-mix(in srgb, var(--color-background) 65%, transparent)', ...dragOverStyle }}
     >
+      <CornerBrackets />
       {/* Column header — grab here to drag-reorder */}
       <div
         role="group"
@@ -116,7 +132,7 @@ export function CastColumn({ column, index, count, onCollapse, onRemove, onReord
         aria-roledescription="Draggable column header"
         draggable
         onDragStart={onDragStart}
-        className="flex items-center justify-between px-2 py-1 cursor-grab"
+        className="flex items-center justify-between px-4 py-1.5 cursor-grab"
         style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: 'color-mix(in srgb, var(--color-background) 82%, transparent)' }}
       >
         <Link href={`https://twitch.tv/${column.channel}`} draggable={false} className="font-mono text-xs truncate">

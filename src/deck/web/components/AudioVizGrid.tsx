@@ -8,8 +8,41 @@ import { BAYER_THRESHOLD } from '../../../animations/bayer.js';
 
 const CELL = 20;
 
+// The renderers advance their motion once per render call (frame-count based, not
+// wall-clock), so the render rate sets the animation speed. Throttle to a fixed
+// rate for a steady pace independent of the display's refresh rate.
+const TARGET_FPS = 30;
+const FRAME_INTERVAL_MS = 1000 / TARGET_FPS;
+
+// When the visualization has been blank for a while (audio paused/silent), drop
+// to a low poll rate to save power — snaps back to TARGET_FPS the moment any
+// cell lights up. Detected from the rendered output, so it's scale-independent.
+const IDLE_FPS = 5;
+const IDLE_INTERVAL_MS = 1000 / IDLE_FPS;
+const IDLE_AFTER_FRAMES = TARGET_FPS * 2; // ~2s of blank output
+
 function makeSvgDot(color: string): string {
   return `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${CELL}" height="${CELL}"><circle cx="${CELL / 2}" cy="${CELL / 2}" r="2" fill="${color}"/></svg>`)}")`;
+}
+
+// Pre-rasterize the lit cell (black square + white ∗) once per device-pixel
+// ratio, then blit it per lit cell with drawImage. Rendering the glyph a single
+// time keeps it crisp on HiDPI and avoids per-frame canvas text (no AA mismatch
+// with the surrounding DOM text).
+function makeLitTile(dpr: number): HTMLCanvasElement {
+  const t = document.createElement('canvas');
+  t.width = Math.round(CELL * dpr);
+  t.height = Math.round(CELL * dpr);
+  const tx = t.getContext('2d')!;
+  tx.scale(dpr, dpr);
+  tx.fillStyle = '#000';
+  tx.fillRect(0, 0, CELL, CELL);
+  tx.fillStyle = '#fff';
+  tx.font = '14px monospace';
+  tx.textAlign = 'center';
+  tx.textBaseline = 'middle';
+  tx.fillText('∗', CELL / 2, CELL / 2 + 1);
+  return t;
 }
 
 interface Props {
@@ -34,42 +67,38 @@ interface Props {
 }
 
 /**
- * The mirrored, Bayer-dithered dot-grid renderer shared by the audio-mode
- * fullscreen view and the cast-mode background. Purely presentational: it owns
- * grid sizing, the rAF render loop, and requests a width-sized band count via
- * `onBandCountChange`. All interactive behaviour (cursor hiding, Escape to exit)
- * lives in the wrappers, not here.
+ * The mirrored, Bayer-dithered dot-grid visualizer shared by the audio-mode
+ * fullscreen view and the cast-mode background. Renders to a single <canvas>
+ * (DPR-scaled for crisp HiDPI output) rather than thousands of DOM nodes, so the
+ * per-frame cost is one composited paint. All interactive behaviour (cursor
+ * hiding, Escape to exit) lives in the wrappers, not here.
  */
 export function AudioVizGrid({
   style, fullBandsRef, fftSizeRef, gainRef, gainMultiplierRef, onBandCountChange,
   className, role, 'aria-label': ariaLabel, tabIndex,
   autoFocus, respectReducedMotion,
 }: Props) {
-  // Track prefers-reduced-motion reactively so an ambient background stops/starts
-  // when the user toggles the OS setting mid-session (not just at mount).
-  const [reducedMotion, setReducedMotion] = React.useState(() =>
-    !!respectReducedMotion && typeof window !== 'undefined'
-      && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const appearance = useDeckStore(s => s.configData?.appearance);
   const svgDot = useMemo(() => makeSvgDot(
     getComputedStyle(document.documentElement).getPropertyValue('--color-border').trim() || '#2a2a2a'
   ), [appearance]);
 
+  const [reducedMotion, setReducedMotion] = React.useState(() =>
+    !!respectReducedMotion && typeof window !== 'undefined'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
   const containerRef = React.useRef<HTMLDivElement>(null);
-  const displayRef  = React.useRef<HTMLDivElement>(null);
-  const cellsRef    = React.useRef<HTMLSpanElement[]>([]);
-  const cellStates  = React.useRef<boolean[]>([]);
+  const wrapperRef   = React.useRef<HTMLDivElement>(null);
+  const canvasRef    = React.useRef<HTMLCanvasElement>(null);
+  const ctxRef       = React.useRef<CanvasRenderingContext2D | null>(null);
+  const tileRef      = React.useRef<HTMLCanvasElement | null>(null);
   // cols/rows are the full display dimensions; halfCols is what we request from the server
-  const gridRef     = React.useRef({ cols: 0, rows: 0, halfCols: 0 });
-  const rafRef      = React.useRef<number>(0);
-  const rendererRef = React.useRef(createFullRenderer(style));
+  const gridRef      = React.useRef({ cols: 0, rows: 0, halfCols: 0 });
+  const rafRef       = React.useRef<number>(0);
+  const rendererRef  = React.useRef(createFullRenderer(style));
 
-  // Reset renderer when style changes
-  React.useEffect(() => {
-    rendererRef.current = createFullRenderer(style);
-  }, [style]);
+  React.useEffect(() => { rendererRef.current = createFullRenderer(style); }, [style]);
 
-  // Focus container on mount so AT announces the (focused) fullscreen view
   React.useEffect(() => {
     if (autoFocus) containerRef.current?.focus();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- focus once on mount
@@ -85,42 +114,32 @@ export function AudioVizGrid({
     return () => mql.removeEventListener('change', onChange);
   }, [respectReducedMotion]);
 
-  // Grid allocation — request only halfCols bands; the right half mirrors the left
+  // Size the canvas (DPR-scaled backing store) + rebuild the lit-cell tile.
   const recomputeGrid = React.useCallback(() => {
     const container = containerRef.current;
-    const display   = displayRef.current;
-    if (!container || !display) return;
+    const wrapper   = wrapperRef.current;
+    const canvas    = canvasRef.current;
+    if (!container || !wrapper || !canvas) return;
     const { width: w, height: h } = container.getBoundingClientRect();
     const cols = Math.max(2, Math.floor(w / CELL));
     const rows = Math.max(1, Math.floor(h / CELL));
     const halfCols = Math.ceil(cols / 2);
     gridRef.current = { cols, rows, halfCols };
 
-    display.style.gridTemplateColumns = `repeat(${cols}, ${CELL}px)`;
-    display.style.width  = `${cols * CELL}px`;
-    display.style.height = `${rows * CELL}px`;
+    const cssW = cols * CELL;
+    const cssH = rows * CELL;
+    const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
 
-    const total = cols * rows;
-    const cells = cellsRef.current;
-    while (cells.length < total) {
-      const span = document.createElement('span');
-      span.textContent = '∗';
-      span.setAttribute('aria-hidden', 'true');
-      span.style.cssText = 'display:flex;align-items:center;justify-content:center;overflow:hidden;';
-      span.style.color = 'transparent';
-      span.style.background = 'transparent';
-      display.appendChild(span);
-      cells.push(span);
-    }
-    while (cells.length > total) {
-      const span = cells.pop();
-      if (span && span.parentNode === display) display.removeChild(span);
-    }
-    cellStates.current = new Array(total).fill(false);
-    for (const span of cells) {
-      span.style.color = 'transparent';
-      span.style.background = 'transparent';
-    }
+    wrapper.style.width  = `${cssW}px`;
+    wrapper.style.height = `${cssH}px`;
+    canvas.style.width  = `${cssW}px`;
+    canvas.style.height = `${cssH}px`;
+    canvas.width  = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+
+    const g = canvas.getContext('2d');
+    if (g) { g.setTransform(dpr, 0, 0, dpr, 0, 0); ctxRef.current = g; }
+    tileRef.current = makeLitTile(dpr);
 
     onBandCountChange(halfCols);
   }, [onBandCountChange]);
@@ -137,19 +156,30 @@ export function AudioVizGrid({
 
   // RAF render loop — renders left half from bands, mirrors to right half, Bayer dithering
   React.useEffect(() => {
-    if (reducedMotion) return; // ambient/background use: stay static for reduced-motion users
+    if (reducedMotion) {
+      ctxRef.current?.clearRect(0, 0, gridRef.current.cols * CELL, gridRef.current.rows * CELL);
+      return; // ambient/background use: stay static for reduced-motion users
+    }
 
     let running = true;
+    let last = 0;
+    let emptyStreak = 0;
 
-    function tick() {
+    function tick(now: number) {
       if (!running) return;
+      rafRef.current = requestAnimationFrame(tick);
+      if (document.hidden) return; // no work while the page isn't visible
+      const interval = emptyStreak >= IDLE_AFTER_FRAMES ? IDLE_INTERVAL_MS : FRAME_INTERVAL_MS;
+      if (now - last < interval) return;
+      last = now - ((now - last) % interval);
+
       const { cols, rows, halfCols } = gridRef.current;
       const bands = fullBandsRef.current;
-      const cells = cellsRef.current;
-      const states = cellStates.current;
+      const g = ctxRef.current;
+      const tile = tileRef.current;
 
-      if (cols > 0 && rows > 0 && halfCols > 0 && bands && bands.length === halfCols) {
-        const ctx: FullCtx = {
+      if (g && tile && cols > 0 && rows > 0 && halfCols > 0 && bands && bands.length === halfCols) {
+        const rctx: FullCtx = {
           bands,
           cols: halfCols,
           rows,
@@ -157,36 +187,23 @@ export function AudioVizGrid({
           gain: gainRef.current * (gainMultiplierRef?.current ?? 1),
         };
         // frame is column-major with halfCols columns: frame[lCol * rows + row]
-        const frame = rendererRef.current(ctx);
+        const frame = rendererRef.current(rctx);
 
+        g.clearRect(0, 0, cols * CELL, rows * CELL);
+        let lit = 0;
         for (let row = 0; row < rows; row++) {
           for (let lCol = 0; lCol < halfCols; lCol++) {
             const v = frame[lCol * rows + row] ?? 0;
-            const lit = v > BAYER_THRESHOLD[row % 4]![lCol % 4]!;
-
-            // left cell
-            const lci = row * cols + lCol;
-            if (states[lci] !== lit) {
-              states[lci] = lit;
-              const span = cells[lci];
-              if (span) { span.style.color = lit ? '#fff' : 'transparent'; span.style.background = lit ? '#000' : 'transparent'; }
-            }
-
-            // mirrored right cell (same Bayer position as left for perfect symmetry)
-            const rCol = cols - 1 - lCol;
-            if (rCol !== lCol) {
-              const rci = row * cols + rCol;
-              if (states[rci] !== lit) {
-                states[rci] = lit;
-                const span = cells[rci];
-                if (span) { span.style.color = lit ? '#fff' : 'transparent'; span.style.background = lit ? '#000' : 'transparent'; }
-              }
+            if (v > BAYER_THRESHOLD[row % 4]![lCol % 4]!) {
+              lit++;
+              g.drawImage(tile, lCol * CELL, row * CELL, CELL, CELL);
+              const rCol = cols - 1 - lCol; // mirrored right cell
+              if (rCol !== lCol) g.drawImage(tile, rCol * CELL, row * CELL, CELL, CELL);
             }
           }
         }
+        emptyStreak = lit === 0 ? emptyStreak + 1 : 0;
       }
-
-      rafRef.current = requestAnimationFrame(tick);
     }
 
     rafRef.current = requestAnimationFrame(tick);
@@ -205,18 +222,20 @@ export function AudioVizGrid({
       aria-label={ariaLabel}
       tabIndex={tabIndex}
     >
-      <div
-        ref={displayRef}
-        style={{
-          display: 'grid',
-          backgroundImage: svgDot,
-          backgroundSize: `${CELL}px ${CELL}px`,
-          backgroundRepeat: 'repeat',
-          fontSize: '14px',
-          fontFamily: 'monospace',
-          userSelect: 'none',
-        }}
-      />
+      <div ref={wrapperRef} style={{ position: 'relative', userSelect: 'none' }}>
+        {/* Faint dot grid — shows through transparent (unlit) canvas cells */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            backgroundImage: svgDot,
+            backgroundSize: `${CELL}px ${CELL}px`,
+            backgroundRepeat: 'repeat',
+          }}
+        />
+        <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0 }} />
+      </div>
     </div>
   );
 }

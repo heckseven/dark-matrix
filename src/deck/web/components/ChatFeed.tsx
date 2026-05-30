@@ -71,7 +71,7 @@ function TwitchFeed({ channel }: { channel: string }) {
     <div
       role="log"
       aria-label={`${channel} chat`}
-      className="flex-1 overflow-y-auto font-mono text-xs p-2 flex flex-col gap-0.5 min-h-0"
+      className="flex-1 overflow-y-auto font-mono text-xs px-4 py-2 flex flex-col gap-0.5 min-h-0"
     >
       <ChatMessageList messages={messages} />
       <div ref={bottomRef} />
