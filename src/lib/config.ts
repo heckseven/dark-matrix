@@ -144,6 +144,7 @@ export const ConfigSchema = z.object({
   }),
   twitch: TwitchConfigSchema.optional(),
   cast_columns: z.array(CastColumnSchema).max(5).optional(),
+  cast_chat_font_size: z.number().int().min(10).max(40).optional(),
   // Visualizer style is shared across audio mode and cast mode for continuity;
   // each mode has its own on/off gate. Source (monitor/mic) is shared too.
   visualizer_style: z.enum(AUDIO_STYLE_VALUES).optional(),

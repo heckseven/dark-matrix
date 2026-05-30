@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { CastColumn } from '../types/config-types.js';
 import { subscribeCastChat, type ChatMessage, type Token } from '../twitch-chat.js';
 import { Button } from './ui/button.js';
+import { useDeckStore } from '../store.js';
 
 // How close to the bottom (px) still counts as "pinned" — within this slack the
 // feed auto-scrolls; beyond it the user is considered to have scrolled up.
@@ -60,7 +61,12 @@ function Tokens({ tokens }: { tokens: Token[] }) {
   );
 }
 
+export const CAST_CHAT_FONT_SIZE_DEFAULT = 12;
+export const CAST_CHAT_FONT_SIZE_MIN = 10;
+export const CAST_CHAT_FONT_SIZE_MAX = 40;
+
 function TwitchFeed({ channel }: { channel: string }) {
+  const fontSize = useDeckStore(s => s.configData?.cast_chat_font_size ?? CAST_CHAT_FONT_SIZE_DEFAULT);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [hasNew, setHasNew] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -117,7 +123,8 @@ function TwitchFeed({ channel }: { channel: string }) {
         tabIndex={-1}
         role="log"
         aria-label={`${channel} chat`}
-        className="flex-1 overflow-y-auto font-mono text-xs px-4 py-2 flex flex-col gap-0.5 min-h-0 focus-visible:outline-none"
+        className="flex-1 overflow-y-auto font-mono px-4 py-2 flex flex-col gap-0.5 min-h-0 focus-visible:outline-none"
+        style={{ fontSize: `${fontSize}px` }}
       >
         <ChatMessageList messages={messages} />
       </div>
