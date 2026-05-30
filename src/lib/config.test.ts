@@ -35,7 +35,7 @@ describe('loadConfig', () => {
     const cfg = await loadConfig();
     expect(cfg.modules.left).toBe(DEFAULT_CONFIG.modules.left);
     expect(cfg.brightness.mode).toBe('manual');
-    expect(cfg.startup.animation).toBe('gol-random');
+    expect(cfg.startup.animation).toBe('dmx');
   });
 
   it('throws ConfigError for malformed JSON', async () => {
@@ -88,7 +88,7 @@ describe('loadConfig', () => {
   });
 
   it('accepts startup.animation: dmx without dmx_path (optional field)', async () => {
-    await write({ ...DEFAULT_CONFIG, startup: { ...DEFAULT_CONFIG.startup, animation: 'dmx' } });
+    await write({ ...DEFAULT_CONFIG, startup: { animation: 'dmx', scroll_text: DEFAULT_CONFIG.startup.scroll_text } });
     const cfg = await loadConfig();
     expect(cfg.startup.animation).toBe('dmx');
     expect(cfg.startup.dmx_path).toBeUndefined();

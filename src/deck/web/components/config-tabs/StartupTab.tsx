@@ -28,6 +28,17 @@ interface StartupTabProps {
   dualModule?: boolean;
 }
 
+// Mirrors DEFAULT_CONFIG.startup in src/lib/config.ts — the shipped default
+// startup animation (the bundled dark-matrix design). The "reset to default"
+// button applies this, dropping any per-field overrides.
+// Keep in sync: if DEFAULT_CONFIG.startup changes, update this object to match
+// (the web bundle can't import the node-only config module).
+const DEFAULT_STARTUP: StartupValue = {
+  animation: 'dmx',
+  scroll_text: 'DARK MATRIX',
+  dmx_path: 'dark-matrix.dmx.json',
+};
+
 const ANIMATION_OPTIONS: { value: StartupAnimation; label: string }[] = [
   { value: 'gol-random', label: 'gol-random' },
   { value: 'scroll',     label: 'scroll' },
@@ -258,6 +269,14 @@ export function StartupTab({ value, onChange, dualModule = false }: StartupTabPr
           </Button>
           {previewState === 'ok' && <span className="font-mono text-xs text-green-400">● sent</span>}
           {previewState === 'error' && <span className="font-mono text-xs text-amber-400">◐ daemon unavailable</span>}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto shrink-0"
+            onClick={() => onChange({ ...DEFAULT_STARTUP })}
+          >
+            Reset to default
+          </Button>
         </div>
 
       </div>

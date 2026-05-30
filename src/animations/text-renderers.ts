@@ -4,7 +4,7 @@ import { renderText, extractFrame, decodeGlyph, scaleGlyph, SCALE_MAP, type Scro
 
 // Single source of truth for the "strings" widget category. Reused by the Zod
 // schema (config.ts), the daemon hud-config validation, and the deck inspector.
-export const TEXT_STYLES = ['marquee', 'columnar', 'spine', 'bigglyph', 'neon'] as const;
+export const TEXT_STYLES = ['marquee', 'columnar', 'spine', 'bigglyph', 'neon', 'vegas'] as const;
 export type TextStyle = (typeof TEXT_STYLES)[number];
 export const TEXT_SIZES = ['tiny', 'small', 'medium', 'large'] as const;
 export type TextSize = (typeof TEXT_SIZES)[number];
@@ -113,7 +113,8 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
   const text = sanitizeText(widget.text) || ' ';
   const style: TextStyle = (widget.style && (TEXT_STYLES as readonly string[]).includes(widget.style)) ? widget.style : 'marquee';
   const size: TextSize = (widget.size && (TEXT_SIZES as readonly string[]).includes(widget.size)) ? widget.size : 'small';
-  const speed: TextSpeed = (widget.speed && (TEXT_SPEEDS as readonly string[]).includes(widget.speed)) ? widget.speed : 'normal';
+  // vegas chase reads best slow (10px/s); other styles default to 20px/s.
+  const speed: TextSpeed = (widget.speed && (TEXT_SPEEDS as readonly string[]).includes(widget.speed)) ? widget.speed : (style === 'vegas' ? 'slow' : 'normal');
   const span = !!widget.span;
   const canvasW = span ? COLS * 2 : COLS;
   const rightShift = span && side === 'right' ? COLS : 0;
@@ -146,7 +147,7 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
   // side's 9-col window is extracted.
   const dims = glyphDims(size);
 
-  if (style === 'columnar' || style === 'neon') {
+  if (style === 'columnar' || style === 'neon' || style === 'vegas') {
     // Upright chars stacked vertically, centered in the column.
     const gap = Math.max(1, dims.scale);
     const slot = dims.h + gap;
@@ -172,11 +173,58 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
       };
     }
 
-    // neon: static stack (cap to what fits), vertically centered.
+    // neon/vegas: static stack (cap to what fits), vertically centered.
     const maxRows = Math.max(1, Math.floor(ROWS / slot));
     const shown = glyphs.slice(0, maxRows);
     const contentH = shown.length * dims.h + (shown.length - 1) * gap;
     const top0 = Math.max(0, Math.floor((ROWS - contentH) / 2));
+
+    if (style === 'vegas') {
+      // Old-Vegas marquee: letters hold still while the lit LEDs run a chase
+      // along their strokes. Each lit cell gets a path index from a serpentine
+      // per-glyph scan (rows alternate L→R / R→L), numbered by one running
+      // counter across the whole stack — so a single 2-on/1-off "river" of bulbs
+      // flows through every cell in order, verticals and horizontal bars alike,
+      // with no full-row flashing.
+      const PERIOD = 3;   // cells per chase cycle
+      const LIT = 2;      // lit cells per cycle (so 2 on, 1 off)
+      // Precompute once (layout is static): each lit cell's buffer coords + path
+      // index. blitGlyph's bounds checks are inlined here.
+      const cells: { x: number; y: number; idx: number }[] = [];
+      let seq = 0;
+      for (let i = 0; i < shown.length; i++) {
+        const glyph = shown[i]!;
+        const gtop = top0 + i * slot;
+        for (let r = 0; r < glyph.length; r++) {
+          const y = gtop + r;
+          if (y < 0 || y >= ROWS) continue;
+          const row = glyph[r]!;
+          const litX: number[] = [];
+          for (let c = 0; c < row.length; c++) {
+            if (!row[c]) continue;
+            const x = left + c;
+            if (x >= 0 && x < canvasW) litX.push(x);
+          }
+          if (r % 2 === 1) litX.reverse(); // serpentine: odd rows run R→L
+          for (const x of litX) cells.push({ x, y, idx: seq++ });
+        }
+      }
+      return {
+        render(now) {
+          const buf = new Uint8Array(canvasW * ROWS);
+          // The dark gap advances one cell along the path per (1000/pxps) ms,
+          // in lockstep across span halves (wall-clock-derived).
+          const phase = Math.floor((pxps * now.getTime()) / 1000);
+          for (const { x, y, idx } of cells) {
+            if (((((idx - phase) % PERIOD) + PERIOD) % PERIOD) < LIT) buf[x * ROWS + y] = 255;
+          }
+          return extractFrame(buf, canvasW, rightShift);
+        },
+        stop() { /* stateless */ },
+      };
+    }
+
+    // neon: static stack, random letters flicker like a failing tube.
     const flicker = (widget.flicker && (TEXT_FLICKERS as readonly string[]).includes(widget.flicker)) ? widget.flicker : 'medium';
     const eventPct = FLICKER_EVENT_PCT[flicker];
     return {

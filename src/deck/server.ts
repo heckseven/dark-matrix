@@ -15,6 +15,7 @@ import type { AssetMeta } from '../lib/asset-meta.js';
 import { convertGifToDmx, applyPixelValue } from '../lib/image-convert.js';
 import { sendToDaemon, PersistentDaemonClient, daemonSocketPath } from '../lib/daemon-client.js';
 import { loadConfig, ConfigSchema, writeJsonAtomic } from '../lib/config.js';
+import { safeBuiltinPath } from '../lib/builtins.js';
 import { enumerateMatrixModules } from '../lib/modules.js';
 import { AUDIO_STYLES } from '../animations/audio-renderers.js';
 import { watchProcStats } from '../lib/proc-source.js';
@@ -99,15 +100,6 @@ async function listBuiltinFiles(dir: string): Promise<string[]> {
   } catch {
     return []; // directory absent (dev/test) — no built-ins
   }
-}
-
-function safeBuiltinPath(name: string, dir: string): string | null {
-  const stem = path.basename(name).replace(/\.dmx\.json$/i, '');
-  if (!stem) return null; // e.g. a ".dmx.json"-only name leaves an empty stem
-  if (!/^[a-zA-Z0-9_ \-]{1,100}$/.test(stem)) return null;
-  const candidate = path.join(dir, `${stem}.dmx.json`);
-  if (!candidate.startsWith(dir + path.sep)) return null;
-  return candidate;
 }
 
 // Read a design's raw JSON from the user library, falling back to a bundled
@@ -755,7 +747,10 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
   const ytStreamErrors = new Map<string, string>();
 
   // Twitch OAuth state — populated by /api/twitch/connect, consumed by /api/twitch/save-token.
-  let boundOrigin = `http://127.0.0.1:${opts?.port ?? 7340}`;
+  // Use the `localhost` hostname (not the 127.0.0.1 loopback IP): Twitch's HTTP-redirect
+  // exemption only applies to the literal hostname `localhost`; an IP redirect URI is rejected
+  // with "redirect URLs must use HTTPS protocol".
+  let boundOrigin = `http://localhost:${opts?.port ?? 7340}`;
   let serverReady = false;
   const pendingOAuthStates = new Map<string, { clientId: string; expiresAt: number }>();
 
@@ -794,7 +789,8 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
         }
         const state = randomBytes(32).toString('hex');
         pendingOAuthStates.set(state, { clientId: client_id, expiresAt: Date.now() + 5 * 60 * 1000 });
-        const scopes = 'channel:read:subscriptions bits:read moderator:read:followers channel:read:raids';
+        // channel.raid EventSub needs no scope (raids are public), so none is requested here.
+        const scopes = 'channel:read:subscriptions bits:read moderator:read:followers';
         const authUrl = 'https://id.twitch.tv/oauth2/authorize?' + new URLSearchParams({
           client_id,
           redirect_uri: `${boundOrigin}/auth/twitch/callback`,
@@ -814,14 +810,16 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
 
     // Twitch OAuth — callback page (token arrives in URL fragment, handled client-side)
     if (url === '/auth/twitch/callback' && method === 'GET') {
-      const nonce = randomBytes(16).toString('base64');
-      const html = `<!DOCTYPE html><html><head><title>Twitch Auth</title></head><body><script nonce="${nonce}">
+      // hex (not base64) nonce — avoids '/' '+' '=' which trip up CSP nonce matching in some browsers
+      const nonce = randomBytes(16).toString('hex');
+      const html = `<!DOCTYPE html><html><head><title>Twitch Auth</title><link rel="icon" href="data:,"></head><body><script nonce="${nonce}">
 var p=new URLSearchParams(location.hash.slice(1));
 var token=p.get('access_token'),state=p.get('state');
 if(token&&state){fetch('/api/twitch/save-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:token,state:state})}).then(function(r){r.ok?location.href='/':document.body.textContent='Save failed'});}
 else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error');}
 </script></body></html>`;
-      res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Security-Policy': `default-src 'none'; script-src 'nonce-${nonce}'` });
+      // connect-src 'self' lets the inline script POST the token back to /api/twitch/save-token
+      res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Security-Policy': `default-src 'none'; script-src 'nonce-${nonce}'; connect-src 'self'` });
       res.end(html);
       return;
     }
@@ -2141,7 +2139,8 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
     const p = opts?.port ?? 7340;
     server.listen(p, host, () => {
       const port = (server.address() as { port: number }).port;
-      boundOrigin = `http://127.0.0.1:${port}`;
+      // localhost, not 127.0.0.1 — see the redirect_uri rationale at the declaration above.
+      boundOrigin = `http://localhost:${port}`;
       serverReady = true;
       resolve(port);
     });

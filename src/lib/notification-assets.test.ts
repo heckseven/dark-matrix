@@ -13,8 +13,14 @@ function mockFileExists() {
   vi.mocked(fs.stat).mockResolvedValue({ isFile: () => true } as never);
 }
 
+function enoent(): NodeJS.ErrnoException {
+  const e = new Error('ENOENT') as NodeJS.ErrnoException;
+  e.code = 'ENOENT';
+  return e;
+}
+
 function mockFileMissing() {
-  vi.mocked(fs.stat).mockRejectedValue(new Error('ENOENT'));
+  vi.mocked(fs.stat).mockRejectedValue(enoent());
 }
 
 describe('loadNotificationAsset — sandbox enforcement', () => {
@@ -29,6 +35,27 @@ describe('loadNotificationAsset — sandbox enforcement', () => {
   it('rejects missing file', async () => {
     mockFileMissing();
     await expect(loadNotificationAsset('test.dmx.json')).rejects.toThrow('asset not found');
+  });
+
+  it('falls back to a bundled built-in when the user file is absent', async () => {
+    // User library file is missing; a built-in of the same name exists.
+    vi.mocked(fs.stat).mockImplementation(async (p) => {
+      if (String(p).includes(`${path.sep}builtins${path.sep}`)) {
+        return { isFile: () => true } as never;
+      }
+      throw enoent();
+    });
+    const handle = await loadNotificationAsset('claude_jump.dmx.json');
+    expect(handle.kind).toBe('dmx');
+    expect(handle.path).toContain(`${path.sep}builtins${path.sep}`);
+    expect(handle.path.endsWith('claude_jump.dmx.json')).toBe(true);
+  });
+
+  it('propagates a non-ENOENT stat error instead of masking it with the builtin', async () => {
+    const eacces = new Error('EACCES') as NodeJS.ErrnoException;
+    eacces.code = 'EACCES';
+    vi.mocked(fs.stat).mockRejectedValue(eacces);
+    await expect(loadNotificationAsset('claude_jump.dmx.json')).rejects.toThrow('EACCES');
   });
 });
 

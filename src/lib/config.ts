@@ -186,20 +186,45 @@ export const DEFAULT_CONFIG: Config = {
   },
   brightness: {
     mode: 'manual',
-    multiplier: 0.14,
-    offset: 7,
-    min: 7,
+    multiplier: 0.7,
+    offset: 14,
+    min: 14,
     max: 255,
     hysteresis: 10,
-    manual_value: 100,
+    manual_value: 150,
   },
   startup: {
-    animation: 'gol-random',
+    animation: 'dmx',
     scroll_text: 'DARK MATRIX',
+    dmx_path: 'dark-matrix.dmx.json',
   },
   daemon: {
     poll_interval_ms: 500,
   },
+  active_hud_preset: 'time_core',
+  hud_presets: [
+    {
+      name: 'time_core',
+      left: { widget: 'clock', face: 'stretch' },
+      right: { widget: 'data', style: 'cores' },
+    },
+    {
+      name: 'audio_dark',
+      left: { widget: 'audio', style: 'dark-matter' },
+      right: { widget: 'audio', style: 'dark-matter' },
+    },
+    {
+      name: 'lulz',
+      left: { widget: 'image', file: 'lulz.dmx.json' },
+      right: { widget: 'image', file: 'lulz.dmx.json' },
+    },
+  ],
+  notification_rules: [
+    { source: 'desktop-notification', animation: 'scroll', scroll_size: 'small' },
+    { source: 'ec-switch', animation: 'scroll', scroll_size: 'medium' },
+    { source: 'claude', content_glob: 'INPUT', animation: 'dmx', asset_path: 'claude_jump.dmx.json', loop_count: 3 },
+    { source: 'vm', animation: 'scroll', scroll_size: 'small' },
+  ],
 };
 
 export class ConfigError extends Error {

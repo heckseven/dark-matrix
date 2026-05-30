@@ -8,6 +8,7 @@ import os from 'node:os';
 import process from 'node:process';
 import { spawn } from 'node:child_process';
 import { loadConfig, bootstrapConfig, watchConfig, resolveSocketPath } from '../lib/config.js';
+import { safeBuiltinPath } from '../lib/builtins.js';
 import type { Config } from '../lib/config.js';
 import { startBrightnessLoop } from '../lib/brightness.js';
 import { watchSwitches, type SwitchSource, type SwitchState } from '../lib/ec-switches.js';
@@ -52,6 +53,9 @@ import { loadNotificationAsset } from '../lib/notification-assets.js';
 
 const SCROLL_MAX_LEN = 120;
 const MAX_NOTIFY_DURATION_MS = 30_000;
+
+// Built-in designs dir (dist/deck/builtins); resolution via ../lib/builtins.ts.
+const BUILTINS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../deck/builtins');
 const DAEMON_VERSION: string = (() => {
   try {
     const pkgPath = fileURLToPath(new URL('../../package.json', import.meta.url));
@@ -530,7 +534,20 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         }
         let project: DmxProject;
         try {
-          project = parseProject(readFileSync(resolved, 'utf-8'));
+          // Prefer the user library; fall back to a bundled built-in of the
+          // same name only when the user file is genuinely absent (built-ins
+          // are never copied in). Any other read error propagates to the catch
+          // below so it is logged rather than silently masked by the fallback.
+          let raw: string;
+          try {
+            raw = readFileSync(resolved, 'utf-8');
+          } catch (e) {
+            if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+            const builtin = safeBuiltinPath(widget.file, BUILTINS_DIR);
+            if (!builtin) throw e;
+            raw = readFileSync(builtin, 'utf-8');
+          }
+          project = parseProject(raw);
         } catch (err) {
           console.error(`[image renderer] failed to load ${widget.file}:`, err);
           const empty = new Uint8Array(FRAME_COLS * FRAME_ROWS) as unknown as Frame;
@@ -1661,7 +1678,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 // to composite and push frames, otherwise hardware times out and goes black.
                 const rawPath = sp.dmx_path ?? currentConfig.startup.dmx_path;
                 if (rawPath) {
-                  const durationMs = sp.dmx_duration_ms ?? 2000;
+                  // Play through once (loopCount: 1, ignoring durationMs) unless
+                  // dmx_duration_ms is set — same as the boot path.
+                  const customDuration = sp.dmx_duration_ms;
+                  const durationMs = customDuration ?? 2000;
                   const composite = stopCurrentAnim !== null ? 'overlay' : 'replace';
                   const intent: DisplayIntent = {
                     id: 'startup-preview',
@@ -1673,6 +1693,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                     style: 'dmx',
                     assetPath: rawPath,
                     composite,
+                    ...(customDuration === undefined ? { loopCount: 1 } : {}),
                     ...(sp.overlay_mode !== undefined ? { overlayMode: sp.overlay_mode } : {}),
                     ...(sp.transition !== undefined ? { transition: sp.transition } : {}),
                   };
@@ -2009,7 +2030,12 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     } else if (currentConfig.startup.animation === 'dmx') {
       const rawPath = currentConfig.startup.dmx_path;
       if (rawPath) {
-        const durationMs = currentConfig.startup.dmx_duration_ms ?? 2000;
+        // Default: play the DMX through exactly once (loopCount: 1, which plays
+        // every frame and ignores durationMs). A configured dmx_duration_ms
+        // instead time-bounds playback to a fixed window — which may truncate a
+        // long animation or repeat a short one.
+        const customDuration = currentConfig.startup.dmx_duration_ms;
+        const durationMs = customDuration ?? 2000;
         const bootIntent: DisplayIntent = {
           id: 'startup',
           source: 'manual',
@@ -2020,6 +2046,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
           style: 'dmx',
           assetPath: rawPath,
           composite: 'replace',
+          ...(customDuration === undefined ? { loopCount: 1 } : {}),
           ...(currentConfig.startup.overlay_mode !== undefined ? { overlayMode: currentConfig.startup.overlay_mode } : {}),
           ...(currentConfig.startup.transition !== undefined ? { transition: currentConfig.startup.transition } : {}),
         };
