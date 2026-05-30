@@ -53,6 +53,9 @@ export function TwitchConnectForm({ config, onChange, onDisconnect, disconnectin
       if (!data.ok || !data.auth_url) { setError(data.error ?? 'failed to start auth'); return; }
       // Save client_id to config before opening browser
       onChange({ twitch: { ...(twitch?.broadcaster_id ? { broadcaster_id: twitch.broadcaster_id } : {}), client_id: id } });
+      // Remember where to send the OAuth tab back to (shared localStorage, same origin).
+      // The 'dm:authReturn' key is read by the callback page's inline script in server.ts.
+      try { localStorage.setItem('dm:authReturn', window.location.pathname); } catch { /* private mode */ }
       window.open(data.auth_url, '_blank', 'noopener,noreferrer');
     } catch {
       setError('network error');

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useDeckStore, deckStore } from '../store.js';
 import type { Config } from '../types/config-types.js';
+import { CONFIG_TABS, type ConfigTab, routeConfigTab, pathForMode } from '../router.js';
 import { Tabs } from './ui/tabs.js';
 import { HardwareTab } from './config-tabs/HardwareTab.js';
 import { BrightnessTab } from './config-tabs/BrightnessTab.js';
@@ -9,9 +10,6 @@ import { DaemonTab } from './config-tabs/DaemonTab.js';
 import { NotificationsTab } from './config-tabs/NotificationsTab.js';
 import { AppearanceTab } from './config-tabs/AppearanceTab.js';
 import { IntegrationsTab } from './config-tabs/IntegrationsTab.js';
-
-const CONFIG_TABS = ['hardware', 'brightness', 'startup', 'daemon', 'notifications', 'appearance', 'integrations'] as const;
-type ConfigTab = typeof CONFIG_TABS[number];
 
 async function reloadConfig() {
   const r = await fetch('/api/config');
@@ -23,10 +21,24 @@ async function reloadConfig() {
 export function ConfigPanel({ dualModule, topPad }: { dualModule: boolean; topPad: number }) {
   const configData = useDeckStore(s => s.configData);
   const patchConfig = useDeckStore(s => s.patchConfig);
-  const [activeTab, setActiveTab] = useState<ConfigTab>('hardware');
+  const [activeTab, setActiveTab] = useState<ConfigTab>(() => routeConfigTab(window.location.pathname) ?? 'hardware');
 
   useEffect(() => {
     reloadConfig().catch(console.error);
+  }, []);
+
+  // Reflect the active tab in the URL (/config/<tab>) so it is deep-linkable,
+  // and follow back/forward navigation between tabs.
+  useEffect(() => {
+    window.history.replaceState(null, '', pathForMode('config', activeTab) + window.location.search);
+  }, [activeTab]);
+  useEffect(() => {
+    const onPop = () => {
+      const t = routeConfigTab(window.location.pathname);
+      if (t) setActiveTab(t);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
   }, []);
 
   const [disconnecting, setDisconnecting] = useState(false);
