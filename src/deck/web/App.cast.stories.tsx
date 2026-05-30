@@ -2,19 +2,19 @@ import { useEffect } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { App } from './App.js';
 import { deckStore } from './store.js';
-import type { Config } from './types/config-types.js';
+import type { Config, CastColumn } from './types/config-types.js';
 
 const MOCK_CONFIG: Config = {
   modules: {
     left: '/dev/serial/by-path/usb-left',
     right: '/dev/serial/by-path/usb-right',
   },
-  brightness: { mode: 'manual', multiplier: 0.14, offset: 7, min: 7, max: 255, hysteresis: 10, manual_value: 100 },
+  brightness: { mode: 'manual', sensor_path: '', multiplier: 0.14, offset: 7, min: 7, max: 255, hysteresis: 10, manual_value: 100 },
   startup: { animation: 'gol-random', scroll_text: 'DARK MATRIX' },
   daemon: { poll_interval_ms: 500 },
 };
 
-function CastStory({ columns }: { columns: Config['cast_columns'] }) {
+function CastStory({ columns }: { columns: CastColumn[] }) {
   useEffect(() => {
     deckStore.getState().loadConfigData({ ...MOCK_CONFIG, cast_columns: columns });
     deckStore.getState().setActiveMode('cast');
