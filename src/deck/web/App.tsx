@@ -893,6 +893,7 @@ export function App() {
                   <>
                     <span className="w-2 shrink-0" aria-hidden="true" />
                     <VisualizerAudioControls hasMic={hasMic} gainMultiplierRef={gainMultiplierRef} />
+                    <span className="w-8 shrink-0" aria-hidden="true" />
                   </>
                 )}
                 <Button
