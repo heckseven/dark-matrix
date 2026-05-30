@@ -16,6 +16,16 @@ async function get(url: string): Promise<{ status: number; body: string }> {
   });
 }
 
+async function getWithHeaders(url: string): Promise<{ status: number; body: string; headers: Record<string, string | string[] | undefined> }> {
+  return new Promise((resolve, reject) => {
+    http.get(url, (res) => {
+      let body = '';
+      res.on('data', (c: Buffer) => { body += c.toString(); });
+      res.on('end', () => resolve({ status: res.statusCode ?? 0, body, headers: res.headers }));
+    }).on('error', reject);
+  });
+}
+
 async function post(url: string, body: string): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
@@ -113,6 +123,20 @@ describe('deck server', () => {
   it('GET unknown path returns 404 when no index.html', async () => {
     const { status } = await get(`${server.url}/no-such-file.js`);
     expect(status).toBe(404);
+  });
+
+  it('GET /auth/twitch/callback CSP allows the token POST and uses a hex nonce', async () => {
+    const { status, body, headers } = await getWithHeaders(`${server.url}/auth/twitch/callback`);
+    expect(status).toBe(200);
+    const csp = String(headers['content-security-policy']);
+    // Lock down the restrictive base policy against accidental future widening.
+    expect(csp).toContain("default-src 'none'");
+    // The inline script POSTs the token to /api/twitch/save-token — connect-src must permit it.
+    expect(csp).toContain("connect-src 'self'");
+    // Nonce must be hex (no '/', '+', '=') so it matches the script tag across browsers.
+    const nonce = /'nonce-([^']+)'/.exec(csp)?.[1] ?? '';
+    expect(nonce).toMatch(/^[0-9a-f]{32}$/);
+    expect(body).toContain(`<script nonce="${nonce}">`);
   });
 });
 
