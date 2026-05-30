@@ -21,7 +21,7 @@ export function IntegrationsTab({ config, onChange, onDisconnect, disconnecting 
       />
 
       {/* Claude section */}
-      <div className="flex flex-col gap-3 pt-4 border-t border-border">
+      <div className="flex flex-col gap-3 mt-10">
         <div className="flex items-center gap-2">
           <span className="font-bold text-foreground">Claude</span>
         </div>
