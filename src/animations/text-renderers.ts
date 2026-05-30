@@ -113,7 +113,8 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
   const text = sanitizeText(widget.text) || ' ';
   const style: TextStyle = (widget.style && (TEXT_STYLES as readonly string[]).includes(widget.style)) ? widget.style : 'marquee';
   const size: TextSize = (widget.size && (TEXT_SIZES as readonly string[]).includes(widget.size)) ? widget.size : 'small';
-  const speed: TextSpeed = (widget.speed && (TEXT_SPEEDS as readonly string[]).includes(widget.speed)) ? widget.speed : 'normal';
+  // vegas chase reads best slow (10px/s); other styles default to 20px/s.
+  const speed: TextSpeed = (widget.speed && (TEXT_SPEEDS as readonly string[]).includes(widget.speed)) ? widget.speed : (style === 'vegas' ? 'slow' : 'normal');
   const span = !!widget.span;
   const canvasW = span ? COLS * 2 : COLS;
   const rightShift = span && side === 'right' ? COLS : 0;
