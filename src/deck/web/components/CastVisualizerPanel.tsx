@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useDeckStore } from '../store.js';
 import type { AudioStyle, AudioSource } from '../store.js';
 import { AUDIO_STYLES, createRenderer } from '../../../animations/audio-renderers.js';
@@ -23,12 +24,13 @@ type CastSelection = AudioStyle | 'off';
  * The selection lives in user config (`cast_visualizer` / `cast_audio_source`) so
  * it is restored the next time the user enters cast.
  */
-export function CastVisualizerPanel({ open, onOpenChange, dualModule, hasMic, headerHeight }: {
+export function CastVisualizerPanel({ open, onOpenChange, dualModule, hasMic, bgSlot }: {
   open: boolean;
   onOpenChange(open: boolean): void;
   dualModule: boolean;
   hasMic: boolean;
-  headerHeight: number;
+  /** DOM node (inside the cast content area) to portal the background into. */
+  bgSlot: HTMLElement | null;
 }) {
   const selection: CastSelection = useDeckStore(s => (s.configData?.cast_visualizer ?? 'off'));
   const source: AudioSource = useDeckStore(s => s.configData?.cast_audio_source ?? 'monitor');
@@ -161,24 +163,19 @@ export function CastVisualizerPanel({ open, onOpenChange, dualModule, hasMic, he
 
   return (
     <>
-      {/* Full-bleed background visualizer behind the chat columns. Mirrors the
-          module selection; nothing renders when the selection is Off. */}
-      {selection !== 'off' && (
-        <div
-          className="fixed inset-x-0 bottom-0 z-0 overflow-hidden pointer-events-none"
-          style={{ top: headerHeight }}
-          aria-hidden="true"
-        >
-          <AudioVizGrid
-            style={selection}
-            fullBandsRef={fullBandsRef}
-            fftSizeRef={fftSizeRef}
-            gainRef={gainRef}
-            onBandCountChange={handleBandCountChange}
-            className="w-full h-full flex items-center justify-center overflow-hidden"
-            respectReducedMotion
-          />
-        </div>
+      {/* Background visualizer, portaled into the cast content area behind the
+          chat columns. Mirrors the module selection; nothing when Off. */}
+      {selection !== 'off' && bgSlot && createPortal(
+        <AudioVizGrid
+          style={selection}
+          fullBandsRef={fullBandsRef}
+          fftSizeRef={fftSizeRef}
+          gainRef={gainRef}
+          onBandCountChange={handleBandCountChange}
+          className="w-full h-full flex items-center justify-center overflow-hidden"
+          respectReducedMotion
+        />,
+        bgSlot,
       )}
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="w-[calc(100vw-80px)] h-[calc(100vh-80px)] flex flex-col gap-0 p-0 overflow-hidden">

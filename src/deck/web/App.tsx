@@ -283,6 +283,9 @@ export function App() {
   const [hudClocksVisible, setHudClocksVisible] = useState(false);
   const [castAudioOpen, setCastAudioOpen] = useState(false);
   const [castTwitchOpen, setCastTwitchOpen] = useState(false);
+  // Slot the cast background visualizer portals into — kept inside the cast
+  // content area so it layers above the opaque app background but below the columns.
+  const [castBgSlot, setCastBgSlot] = useState<HTMLDivElement | null>(null);
   const [twitchDisconnecting, setTwitchDisconnecting] = useState(false);
   const [livePreviewOn, setLivePreviewOn] = useState(false);
   const bridge = usePreviewBridge();
@@ -580,7 +583,7 @@ export function App() {
           onOpenChange={setCastAudioOpen}
           dualModule={!!dualModule}
           hasMic={hasMic}
-          headerHeight={headerHeight}
+          bgSlot={castBgSlot}
         />
       )}
       <Dialog open={castTwitchOpen} onOpenChange={setCastTwitchOpen}>
@@ -910,8 +913,12 @@ export function App() {
             <LifePanel topPad={headerHeight} bottomPad={bottomPad} dualModule={dualModule} onCursorMove={setLifeCursor} />
           </div>
         ) : activeMode === 'cast' ? (
-          <div className="absolute inset-x-0 bottom-0 flex z-10" style={{ top: headerHeight }}>
-            <CastPanel />
+          <div className="absolute inset-x-0 bottom-0" style={{ top: headerHeight }}>
+            {/* Background visualizer portals into this slot (behind the columns). */}
+            <div ref={setCastBgSlot} className="absolute inset-0 z-0 overflow-hidden pointer-events-none" aria-hidden="true" />
+            <div className="absolute inset-0 flex z-10">
+              <CastPanel />
+            </div>
           </div>
         ) : (
           <ThreePanelLayout
