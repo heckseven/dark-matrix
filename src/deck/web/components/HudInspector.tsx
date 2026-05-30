@@ -971,7 +971,7 @@ const speedOptionsFor = (style: TextStyle): readonly TextSpeed[] =>
 function widgetForStyle(base: (HudWidget & { widget: 'text' }) | null, style: TextStyle): HudWidget & { widget: 'text' } {
   const next: HudWidget & { widget: 'text' } = base
     ? { ...base, style }
-    : { widget: 'text', text: 'HELLO', style, size: 'small', speed: style === 'vegas' ? 'slow' : 'normal' };
+    : { widget: 'text', text: 'HACK', style, size: 'small', speed: style === 'vegas' ? 'slow' : 'normal' };
   if (style !== 'marquee') delete next.span;
   if (SIZE_RESTRICTED.includes(style) && (next.size === 'medium' || next.size === 'large')) next.size = 'small';
   // vegas tops out at 20px/s — clamp a faster tier (e.g. 'fast') carried over
