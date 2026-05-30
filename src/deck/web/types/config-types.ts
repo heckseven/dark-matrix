@@ -95,6 +95,7 @@ export type Config = {
   biome_presets?: BiomePresetConfig[];
   twitch?: TwitchConfig;
   cast_columns?: CastColumn[];
+  cast_chat_font_size?: number;
   cast_visualizer?: AudioStyle | 'off';
   cast_audio_source?: 'monitor' | 'mic';
   appearance?: Appearance;

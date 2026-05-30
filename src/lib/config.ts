@@ -144,6 +144,7 @@ export const ConfigSchema = z.object({
   }),
   twitch: TwitchConfigSchema.optional(),
   cast_columns: z.array(CastColumnSchema).max(5).optional(),
+  cast_chat_font_size: z.number().int().min(10).max(40).optional(),
   cast_visualizer: z.enum(CAST_VISUALIZER_VALUES).optional(),
   cast_audio_source: z.enum(['monitor', 'mic']).optional(),
   appearance: AppearanceSchema.optional(),
