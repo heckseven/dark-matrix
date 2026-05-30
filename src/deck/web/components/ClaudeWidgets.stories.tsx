@@ -98,7 +98,7 @@ function SandBurst() {
     100,
     (r, tick) => {
       // Burst of agent_spawn events to fill quickly and show drain
-      if (tick % 2 === 0) r.onEvent({ type: 'agent_spawn', tool: undefined, sessionId: 'story' });
+      if (tick % 2 === 0) r.onEvent({ type: 'agent_spawn', sessionId: 'story' });
     },
   );
   return <MatrixPreview pixels={pixels} width={9} />;
