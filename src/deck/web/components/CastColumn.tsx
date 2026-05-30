@@ -59,7 +59,7 @@ export function CastColumn({ column, onCollapse, onRemove }: {
       <CornerBrackets />
       {/* Column header */}
       <div
-        className="flex items-center justify-between px-3 py-1.5"
+        className="flex items-center justify-between px-4 py-1.5"
         style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: 'color-mix(in srgb, var(--color-background) 82%, transparent)' }}
       >
         <Link href={`https://twitch.tv/${column.channel}`} className="font-mono text-xs truncate">
