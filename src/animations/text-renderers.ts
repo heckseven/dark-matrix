@@ -180,22 +180,42 @@ export function createTextRenderer(widget: TextWidgetConfig, side: 'left' | 'rig
 
     if (style === 'vegas') {
       // Old-Vegas marquee: letters hold still while the lit LEDs run a chase
-      // down their strokes. A 3-row repeating mask (2 lit, 1 dark) descends at
-      // `speed` rows/sec. Applied across the panel — only letter pixels show it
-      // since the background is already dark.
-      const PERIOD = 3;   // rows per chase cycle
-      const LIT = 2;      // lit rows per cycle (so 2 on, 1 off)
+      // along their strokes. Each lit cell gets a path index from a serpentine
+      // per-glyph scan (rows alternate L→R / R→L), numbered by one running
+      // counter across the whole stack — so a single 2-on/1-off "river" of bulbs
+      // flows through every cell in order, verticals and horizontal bars alike,
+      // with no full-row flashing.
+      const PERIOD = 3;   // cells per chase cycle
+      const LIT = 2;      // lit cells per cycle (so 2 on, 1 off)
+      // Precompute once (layout is static): each lit cell's buffer coords + path
+      // index. blitGlyph's bounds checks are inlined here.
+      const cells: { x: number; y: number; idx: number }[] = [];
+      let seq = 0;
+      for (let i = 0; i < shown.length; i++) {
+        const glyph = shown[i]!;
+        const gtop = top0 + i * slot;
+        for (let r = 0; r < glyph.length; r++) {
+          const y = gtop + r;
+          if (y < 0 || y >= ROWS) continue;
+          const row = glyph[r]!;
+          const litX: number[] = [];
+          for (let c = 0; c < row.length; c++) {
+            if (!row[c]) continue;
+            const x = left + c;
+            if (x >= 0 && x < canvasW) litX.push(x);
+          }
+          if (r % 2 === 1) litX.reverse(); // serpentine: odd rows run R→L
+          for (const x of litX) cells.push({ x, y, idx: seq++ });
+        }
+      }
       return {
         render(now) {
           const buf = new Uint8Array(canvasW * ROWS);
-          for (let i = 0; i < shown.length; i++) blitGlyph(buf, canvasW, shown[i]!, left, top0 + i * slot);
-          // Downward sweep: subtract phase from y so the dark gap descends.
-          // Wall-clock-derived so both span halves chase in lockstep.
+          // The dark gap advances one cell along the path per (1000/pxps) ms,
+          // in lockstep across span halves (wall-clock-derived).
           const phase = Math.floor((pxps * now.getTime()) / 1000);
-          for (let x = 0; x < canvasW; x++) {
-            for (let y = 0; y < ROWS; y++) {
-              if (((((y - phase) % PERIOD) + PERIOD) % PERIOD) >= LIT) buf[x * ROWS + y] = 0;
-            }
+          for (const { x, y, idx } of cells) {
+            if (((((idx - phase) % PERIOD) + PERIOD) % PERIOD) < LIT) buf[x * ROWS + y] = 255;
           }
           return extractFrame(buf, canvasW, rightShift);
         },
