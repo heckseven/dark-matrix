@@ -124,7 +124,7 @@ export function TwitchConnectForm({ config, onChange, onDisconnect, disconnectin
         <p role="alert" className="text-xs text-destructive">{error}</p>
       )}
 
-      <ol className="text-xs text-muted-foreground flex flex-col gap-1.5 list-decimal pl-4">
+      <ol className="mt-3 text-xs text-muted-foreground flex flex-col gap-1.5 list-decimal pl-4">
         <li>
           Register an app at{' '}
           <Link href="https://dev.twitch.tv/console/apps" className="text-foreground">dev.twitch.tv</Link>.
