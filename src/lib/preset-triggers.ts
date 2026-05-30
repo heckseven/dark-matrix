@@ -10,8 +10,6 @@ type TriggerEngineOpts = {
 type TriggerEngine = {
   updatePresets(presets: HudPreset[]): void;
   updateStats(stats: { cpuPct: number; ramPct: number; netRxBps: number; netTxBps: number }): void;
-  notifyIdle(): void;
-  notifyActive(): void;
   stop(): void;
 };
 
@@ -27,9 +25,6 @@ type Stats = { cpuPct: number; ramPct: number; netRxBps: number; netTxBps: numbe
 
 export function createPresetTriggerEngine(opts: TriggerEngineOpts): TriggerEngine {
   let presets = opts.presets;
-
-  // Idle/active state
-  let isIdle = false;
 
   // Latest stats
   let latestStats: Stats | null = null;
@@ -82,10 +77,6 @@ export function createPresetTriggerEngine(opts: TriggerEngineOpts): TriggerEngin
 
         if (trigger.type === 'time') {
           triggerMatch = timeInRange(trigger.from, trigger.to, currentHhmm());
-        } else if (trigger.type === 'idle') {
-          triggerMatch = isIdle;
-        } else if (trigger.type === 'active') {
-          triggerMatch = !isIdle;
         } else if (trigger.type === 'threshold') {
           if (latestStats) {
             const statsKey = METRIC_MAP[trigger.metric];
@@ -254,16 +245,6 @@ export function createPresetTriggerEngine(opts: TriggerEngineOpts): TriggerEngin
 
     updateStats(stats: Stats): void {
       latestStats = stats;
-      evaluate();
-    },
-
-    notifyIdle(): void {
-      isIdle = true;
-      evaluate();
-    },
-
-    notifyActive(): void {
-      isIdle = false;
       evaluate();
     },
 

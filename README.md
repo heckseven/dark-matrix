@@ -201,7 +201,7 @@ dark-matrix <command>
 | `animate gif --dual <path>` | Play a GIF spanning both modules (18×34 source) |
 | `animate gif --mode bw\|gray <path>` | Rendering mode |
 | `animate gif --hold <path>` | Loop until `release` |
-| `play <path>` | Play a `.dmx.json` project once, then return to idle |
+| `play <path>` | Play a `.dmx.json` project once, then return to the HUD |
 | `play --loop <path>` | Loop a `.dmx.json` project until `release` |
 
 ---
@@ -230,14 +230,7 @@ Generated on first run. Send `SIGHUP` to daemon to hot-reload without restart.
     "dmx_path": "~/.config/dark-matrix/library/intro.dmx.json"  // required when animation = "dmx"
   },
   "daemon": {
-    "poll_interval_ms": 500,
-    "idle_animation": "gol-random",  // "gol-random" | "audio-eq" | "heatmap" | "scroll" | "gif" | "hud" | "none"
-    "idle_after_ms": 300000,
-    "idle_eq_source": "monitor",     // "monitor" | "mic" — audio source for audio-eq idle animation
-    // required when idle_animation = "gif":
-    "idle_gif_path": "/home/user/path/to/idle.gif",
-    "idle_gif_mode": "gray",         // "bw" | "gray" (default: gray)
-    "idle_gif_dual": false,          // true to span both modules
+    "poll_interval_ms": 500
   }
 }
 ```
@@ -261,7 +254,7 @@ The daemon runs as a systemd user service. It:
 2. Runs the configured startup animation
 3. Watches notification sources (privacy switches, VMs, Claude activity)
 4. Drives a priority-ordered notification queue — higher-priority events preempt lower ones
-5. Falls back to the idle animation when no notifications are active
+5. Falls back to the HUD (the resting state) when no notifications are active
 6. Polls for hot-plugged modules every 500ms, runs startup animation on reconnect
 7. Adjusts brightness from the ambient light sensor with hysteresis smoothing
 
@@ -274,17 +267,16 @@ The daemon runs as a systemd user service. It:
 | VM activity | VM started or stopped via libvirt | Medium |
 | Claude activity | PostToolUse hook fires (tool use within last 30s) | Low |
 
-### Idle animations
+### Resting state
 
-| Value | Description |
-|---|---|
-| `gol-random` | Conway's Game of Life with random seeds |
-| `audio-eq` | 9-band EQ bars from system audio |
-| `heatmap` | Simulated thermal heatmap spanning both modules |
-| `scroll` | Scrolling text (uses `startup.scroll_text`) |
-| `gif` | GIF loop — requires `idle_gif_path`, `idle_gif_mode`, `idle_gif_dual` |
-| `hud` | Active HUD preset |
-| `none` | Blank display |
+When no notification is active, the daemon shows the **HUD** — the active preset, or a
+plain clock if none is configured. It returns to the HUD after every notification,
+startup animation, or hardware takeover (audio/HUD/life).
+
+There is no separate idle animation or idle timeout. To get an ambient look while idle,
+compose it from HUD widgets (`life` for Game of Life, `audio` for EQ bars, `image` for a
+GIF/DMX loop, `text` for a marquee) and switch presets automatically with preset
+triggers (`time`, `threshold`, `vm`, `interface`, `day`, `date`).
 
 ---
 

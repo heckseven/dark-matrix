@@ -98,12 +98,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
   const daemonStartedAt = Date.now();
   let currentBrightness = 0;
-  let currentAnimName = 'idle';
+  let currentAnimName = 'hud';
   const transport = new SerialTransport();
   const dispatcher = new Dispatcher();
   let stopCurrentAnim: (() => void) | null = null;
   let stopCurrentOverlay: (() => void) | null = null;
-  let idleTimer: ReturnType<typeof setTimeout> | null = null;
   let hudHardwareActive = false;
   let hudAudioStreaming = false;
   let hudAudioSource: 'monitor' | 'mic' = 'monitor';
@@ -189,22 +188,17 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     if (stopCurrentAnim) { stopCurrentAnim(); stopCurrentAnim = null; }
   }
 
-  function startIdleTimer() {
-    if (idleTimer) clearTimeout(idleTimer);
-    triggerEngine.notifyActive();
-    const idleMs = currentConfig.daemon.idle_after_ms;
-    idleTimer = setTimeout(() => startIdleAnimation(), idleMs);
+  // The HUD is the unconditional resting state. runHudOnModules() defaults to a
+  // clock when no widgets are configured, so this is always safe to call.
+  function startRestingState() {
+    stopAnim();
+    stopCurrentAnim = runHudOnModules();
   }
 
   function resumeAfterInterrupt() {
     frameHeldLeft = false;
     frameHeldRight = false;
-    if (hudHardwareActive || currentConfig.hud) {
-      stopAnim();
-      stopCurrentAnim = runHudOnModules();
-    } else {
-      startIdleAnimation();
-    }
+    startRestingState();
   }
 
   function stopOverlay(): void {
@@ -303,13 +297,14 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   }
 
   function runAudioEqOnModules(sourceOverride?: AudioSource, style: AudioStyle = 'dark-matter'): () => void {
+    currentAnimName = 'audio-eq';
     const { left, right } = currentConfig.modules;
     let stopped = false;
     let anim: ReturnType<typeof createAudioEqAnimation> | null = null;
 
     const loop = async () => {
       const { packBW, FRAME_COLS, FRAME_ROWS, createFrame } = await import('../lib/frame.js');
-      const eqSource = sourceOverride ?? currentConfig.daemon.idle_eq_source ?? 'monitor';
+      const eqSource = sourceOverride ?? 'monitor';
       const target = await resolveDefaultDeviceId(
         eqSource === 'monitor' ? '@DEFAULT_AUDIO_SINK@' : '@DEFAULT_AUDIO_SOURCE@',
       );
@@ -340,7 +335,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
   function applyPreset(preset: import('../lib/config.js').HudPreset): void {
     currentConfig = { ...currentConfig, hud: { left: preset.left, right: preset.right } };
-    if (hudHardwareActive || currentConfig.daemon.idle_animation === 'hud') {
+    if (hudHardwareActive || (currentAnimName === 'hud' && !dispatcher.current())) {
       stopCurrentAnim?.();
       stopCurrentAnim = runHudOnModules();
     }
@@ -906,7 +901,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
   function startGifAnimation(gifPath: string, hold: boolean, dual: boolean, mode: 'bw' | 'gray' = 'gray'): void {
     stopAnim();
-    if (idleTimer) clearTimeout(idleTimer);
 
     let stopped = false;
     stopCurrentAnim = () => { stopped = true; };
@@ -1038,55 +1032,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     })();
   }
 
-  function startIdleAnimation() {
-    hudHardwareActive = false;
-    triggerEngine.notifyIdle();
-    stopAnim();
-    const idleName = currentConfig.daemon.idle_animation;
-    currentAnimName = idleName;
-    if (idleName === 'none') return;
-
-    if (idleName === 'audio-eq') {
-      stopCurrentAnim = runAudioEqOnModules();
-      return;
-    }
-
-    if (idleName === 'hud') {
-      stopCurrentAnim = runHudOnModules();
-      return;
-    }
-
-    if (idleName === 'scroll') {
-      const text = currentConfig.startup.scroll_text;
-      runOnModules(createScrollAnimation({ text, loop: true }));
-      return;
-    }
-
-    if (idleName === 'gif') {
-      const gifPath = currentConfig.daemon.idle_gif_path;
-      if (!gifPath) {
-        process.stderr.write('dark-matrix: idle_animation=gif but idle_gif_path not set\n');
-        return;
-      }
-      const home = os.homedir();
-      void fs.realpath(gifPath).then((resolved) => {
-        if (!resolved.startsWith(home + '/') && resolved !== home) {
-          process.stderr.write('dark-matrix: idle_gif_path outside home directory\n');
-          return;
-        }
-        const mode = currentConfig.daemon.idle_gif_mode ?? 'gray';
-        const dual = currentConfig.daemon.idle_gif_dual ?? false;
-        startGifAnimation(resolved, true, dual, mode);
-      }).catch(() => {
-        process.stderr.write(`dark-matrix: idle_gif_path not found: ${gifPath}\n`);
-      });
-      return;
-    }
-
-    // gol-random
-    runOnModules(null, () => createGolAnimation());
-  }
-
   function startTextNotification(intent: DisplayIntent, composite: 'replace' | 'overlay'): void {
     const safe = intent.content.replace(/[^\x20-\x7e]/g, '').slice(0, SCROLL_MAX_LEN);
     const text = safe.length > 0 ? safe : '???';
@@ -1105,7 +1050,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     if (composite === 'replace') {
       stopAnim();
-      if (idleTimer) clearTimeout(idleTimer);
       runOnModules(anim, undefined, () => {
         const curr = dispatcher.current();
         if (!curr || curr.id === intent.id) resumeAfterInterrupt();
@@ -1189,7 +1133,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     if (composite === 'replace') {
       stopAnim();
-      if (idleTimer) clearTimeout(idleTimer);
       stopCurrentAnim = () => { stopped = true; };
     } else {
       stopCurrentOverlay = () => { stopped = true; setActiveOverlay(null); };
@@ -1405,13 +1348,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       startNotificationAnimation(intent);
     } else {
       currentIntentId = null;
-      if (currentConfig.hud) {
-        if (!stopCurrentAnim) stopCurrentAnim = runHudOnModules();
-        // else HUD loop already running — leave it alone, don't bounce the audio stream
-      } else {
-        stopAnim();
-        startIdleAnimation();
-      }
+      // HUD is the resting state — resume it unless it's already running underneath
+      // (e.g. an overlay notification just cleared and the HUD loop never stopped).
+      if (!stopCurrentAnim) stopCurrentAnim = runHudOnModules();
     }
   });
 
@@ -1478,7 +1417,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       } else {
         micAnimActive = true;
         stopAnim();
-        if (idleTimer) clearTimeout(idleTimer);
         stopCurrentAnim = runAudioEqOnModules('mic');
       }
     } else if (!e.active) {
@@ -1615,7 +1553,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               };
               const { fps: scrollFps, pixelsPerTick } = speedPresets[m.speed ?? 'normal'] ?? speedPresets['normal']!;
               stopAnim();
-              if (idleTimer) clearTimeout(idleTimer);
               const scrollAnim = createScrollAnimation({ text: safe, loop: !!m.hold, size: scrollSize, pixelsPerTick });
               stopCurrentAnim = runScrollOnModules(scrollAnim, scrollFps);
               if (!m.hold) {
@@ -1674,11 +1611,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               if (m.left  !== undefined) frameHeldLeft  = true;
               if (m.right !== undefined) frameHeldRight = true;
               if (!hudHardwareActive && currentAnimName !== 'hud') {
-                // Stop non-HUD idle animations — they don't check frameHeld* flags and would
-                // overwrite the preview. The HUD loop checks those flags before each write, so
-                // leave it running so the un-held side continues animating.
+                // Stop non-HUD takeovers (audio-eq/gif/scroll) — they don't check frameHeld*
+                // flags and would overwrite the preview. The HUD loop checks those flags before
+                // each write, so leave it running so the un-held side continues animating.
                 stopAnim();
-                if (idleTimer) clearTimeout(idleTimer);
               }
               const pairs: Array<[string | undefined, string | undefined]> = [
                 [m.left, currentConfig.modules.left],
@@ -1744,7 +1680,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 }
               } else {
                 stopAnim();
-                if (idleTimer) clearTimeout(idleTimer);
                 const onDone = () => { if (!dispatcher.current()) resumeAfterInterrupt(); };
                 if (spAnim === 'gol-random') {
                   runOnModules(null, () => createGolAnimation({ frames: 420, loop: false }), onDone);
@@ -1759,7 +1694,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
             case 'frame-stop':
               frameHeldLeft = false;
               frameHeldRight = false;
-              if (!currentConfig.hud) startIdleTimer();
+              // If the preview stopped the resting HUD, restart it; if the HUD loop kept
+              // running (it honors frameHeld* flags), leave it alone.
+              if (!stopCurrentAnim) stopCurrentAnim = runHudOnModules();
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             case 'audio-viz': {
@@ -1810,20 +1747,17 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               const style: AudioStyle = m.style && isAudioStyle(m.style) ? m.style : 'dark-matter';
               const source: AudioSource = m.source === 'mic' ? 'mic' : 'monitor';
               stopAnim();
-              if (idleTimer) clearTimeout(idleTimer);
               stopCurrentAnim = runAudioEqOnModules(source, style);
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             }
             case 'audio-hardware-stop': {
-              stopAnim();
-              startIdleTimer();
+              startRestingState();
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             }
             case 'hud-hardware-start': {
               stopAnim();
-              if (idleTimer) clearTimeout(idleTimer);
               hudHardwareActive = true;
               stopCurrentAnim = runHudOnModules();
               socket.write(JSON.stringify({ ok: true }) + '\n');
@@ -1832,15 +1766,15 @@ export async function startDaemon(): Promise<() => Promise<void>> {
             case 'hud-hardware-stop': {
               hudHardwareActive = false;
               hudAudioSource = 'monitor';
-              if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
-              if (!currentConfig.hud) startIdleAnimation();
+              // Drop back to the resting HUD. The hardware HUD loop is already the resting
+              // animation, so keep it running if it never stopped.
+              if (!stopCurrentAnim) stopCurrentAnim = runHudOnModules();
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             }
             case 'life-hardware-stop': {
               hudHardwareActive = false;
-              stopAnim();
-              startIdleTimer();
+              startRestingState();
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             }
@@ -1916,7 +1850,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 newHud.right = { widget: 'clock', face };
               }
               currentConfig = { ...currentConfig, hud: newHud };
-              if ((hudHardwareActive || currentConfig.daemon.idle_animation === 'hud') && !dispatcher.current()) {
+              if ((hudHardwareActive || currentAnimName === 'hud') && !dispatcher.current()) {
                 frameHeldLeft = false;
                 frameHeldRight = false;
                 stopAnim();
@@ -2057,25 +1991,21 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     });
     disposeEcSwitches();
     disposeEcSwitches = startEcSwitches();
-    // Restart the idle animation if it is currently running so it picks up
-    // any changed idle_animation / idle_gif_path / hud settings.
+    // Restart the resting HUD if it's currently showing so it picks up any
+    // changed hud / module settings.
     if (!hudHardwareActive && !frameHeldLeft && !frameHeldRight && !dispatcher.current()) {
-      stopAnim();
-      if (currentConfig.hud) {
-        stopCurrentAnim = runHudOnModules();
-      } else {
-        startIdleAnimation();
-      }
+      startRestingState();
     }
   });
 
-  // Startup animation
+  // Startup animation, then settle on the resting HUD.
+  const restAfterStartup = () => { if (!dispatcher.current()) startRestingState(); };
   if (currentConfig.startup.animation !== 'none') {
     if (currentConfig.startup.animation === 'gol-random') {
-      runOnModules(null, () => createGolAnimation({ frames: 420, loop: false }));
+      runOnModules(null, () => createGolAnimation({ frames: 420, loop: false }), restAfterStartup);
     } else if (currentConfig.startup.animation === 'scroll') {
       const text = currentConfig.startup.scroll_text;
-      runOnModules(createScrollAnimation({ text, loop: false }));
+      runOnModules(createScrollAnimation({ text, loop: false }), undefined, restAfterStartup);
     } else if (currentConfig.startup.animation === 'dmx') {
       const rawPath = currentConfig.startup.dmx_path;
       if (rawPath) {
@@ -2094,19 +2024,18 @@ export async function startDaemon(): Promise<() => Promise<void>> {
           ...(currentConfig.startup.transition !== undefined ? { transition: currentConfig.startup.transition } : {}),
         };
         void startDmxNotification(bootIntent, 'replace');
-      } else process.stderr.write('dark-matrix: startup.animation is dmx but dmx_path is not set\n');
+      } else { process.stderr.write('dark-matrix: startup.animation is dmx but dmx_path is not set\n'); restAfterStartup(); }
     } else {
-      runOnModules(null, () => createStartupAnimation({ style: 'wipe' }));
+      runOnModules(null, () => createStartupAnimation({ style: 'wipe' }), restAfterStartup);
     }
+  } else {
+    startRestingState();
   }
-
-  startIdleTimer();
 
   process.stderr.write(`dark-matrix daemon started, socket: ${sockPath}\n`);
 
   const cleanup = async () => {
     stopAnim();
-    if (idleTimer) clearTimeout(idleTimer);
     clearInterval(hotPlugInterval);
     clearInterval(gcInterval);
     disposeDispatcher();

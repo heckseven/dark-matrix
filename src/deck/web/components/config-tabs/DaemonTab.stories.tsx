@@ -10,8 +10,6 @@ const meta = {
   args: {
     value: {
       poll_interval_ms: 500,
-      idle_animation: 'none' as const,
-      idle_after_ms: 300000,
     },
     onChange: fn(),
   },
@@ -36,11 +34,6 @@ export const GifMode: Story = {
   args: {
     value: {
       poll_interval_ms: 500,
-      idle_animation: 'gif' as const,
-      idle_after_ms: 300000,
-      idle_gif_path: 'matrix.gif',
-      idle_gif_mode: 'bw' as const,
-      idle_gif_dual: true,
     },
   },
   render: (args) => {
@@ -58,9 +51,6 @@ export const AudioEqMode: Story = {
   args: {
     value: {
       poll_interval_ms: 500,
-      idle_animation: 'audio-eq' as const,
-      idle_after_ms: 300000,
-      idle_eq_source: 'monitor' as const,
     },
   },
   render: (args) => {
