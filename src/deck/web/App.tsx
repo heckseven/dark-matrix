@@ -18,6 +18,7 @@ import { ShortcutDialog } from './components/ui/shortcut-dialog.js';
 import { ModePicker } from './components/ModePicker.js';
 import { MODES } from './app-modes.js';
 import type { AppMode } from './app-modes.js';
+import { parseLocation, pathForMode } from './router.js';
 import { AudioPanel } from './components/AudioPanel.js';
 import type { AudioStyle } from './store.js';
 import type { Config } from './types/config-types.js';
@@ -303,6 +304,40 @@ export function App() {
   const dualModuleRef = useRef(true);
   dualModuleRef.current = dualModule;
   const dualDefaultApplied = useRef(false);
+
+  // --- Path router: keep the URL and the active mode in sync ---
+  // suppressRouteSync skips the URL-write effect for mode changes that originated
+  // from the URL itself (initial load / back-forward), preventing feedback loops.
+  const suppressRouteSync = useRef(false);
+  useEffect(() => {
+    const route = parseLocation(window.location.pathname);
+    if (route.known) {
+      // URL names a mode — it wins over any persisted/rehydrated mode. Only suppress the
+      // URL-write effect when this actually changes the mode (a no-op setActiveMode would
+      // otherwise leave the flag set and swallow the next navigation).
+      if (deckStore.getState().activeMode !== route.mode) suppressRouteSync.current = true;
+      deckStore.getState().setActiveMode(route.mode);
+    } else {
+      // '/' or an unknown path — reflect the current/persisted mode in the URL.
+      const m = deckStore.getState().activeMode;
+      window.history.replaceState(null, '', pathForMode(m) + window.location.search);
+    }
+    const onPop = () => {
+      suppressRouteSync.current = true;
+      deckStore.getState().setActiveMode(parseLocation(window.location.pathname).mode);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  useEffect(() => {
+    if (suppressRouteSync.current) { suppressRouteSync.current = false; return; }
+    // Compare by mode only (ConfigPanel owns the /config/<tab> sub-path), so switching
+    // tabs never triggers a push here and entering a mode pushes its canonical path.
+    if (parseLocation(window.location.pathname).mode !== activeMode) {
+      window.history.pushState(null, '', pathForMode(activeMode) + window.location.search);
+    }
+  }, [activeMode]);
 
   useEffect(() => {
     let alive = true;
