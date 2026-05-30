@@ -1,10 +1,22 @@
-import { useState, type DragEvent } from 'react';
+import { useRef, type DragEvent } from 'react';
 import type { CastColumn as CastColumnType } from '../types/config-types.js';
 import { Button } from './ui/button.js';
 import { ChatFeed } from './ChatFeed.js';
 import { Link } from './ui/link.js';
 
-const DRAG_MIME = 'application/x-cast-col';
+export const CAST_DRAG_MIME = 'application/x-cast-col';
+
+/**
+ * Read a cast-column drag payload and resolve the final array index it should
+ * move to, given the boundary (insertAt) the pointer is over. Returns null when
+ * the drag is not a cast column. Shared by the column-body and gap drop targets.
+ */
+export function resolveColumnDrop(e: DragEvent, insertAt: number): { from: number; to: number } | null {
+  if (!e.dataTransfer.types.includes(CAST_DRAG_MIME)) return null;
+  const from = Number(e.dataTransfer.getData(CAST_DRAG_MIME));
+  if (Number.isNaN(from)) return null;
+  return { from, to: from < insertAt ? insertAt - 1 : insertAt };
+}
 
 /** L-shaped brackets at the four corners of a column card (foreground color). */
 function CornerBrackets() {
@@ -20,41 +32,48 @@ function CornerBrackets() {
   );
 }
 
-export function CastColumn({ column, index, count, onCollapse, onRemove, onReorder }: {
+export function CastColumn({ column, index, count, onCollapse, onRemove, onReorder, onDragIndicator }: {
   column: CastColumnType;
   index: number;
   count: number;
   onCollapse(): void;
   onRemove(): void;
   onReorder(from: number, to: number): void;
+  /** Report the insert position (column boundary) the pointer is over, or null. */
+  onDragIndicator(insertAt: number | null): void;
 }) {
-  const [dragOver, setDragOver] = useState(false);
+  const insertAtRef = useRef<number | null>(null);
 
   function onDragStart(e: DragEvent) {
-    e.dataTransfer.setData(DRAG_MIME, String(index));
+    e.dataTransfer.setData(CAST_DRAG_MIME, String(index));
     e.dataTransfer.effectAllowed = 'move';
   }
+  function onDragEnd() {
+    insertAtRef.current = null;
+    onDragIndicator(null);
+  }
   function onDragOver(e: DragEvent) {
-    if (!e.dataTransfer.types.includes(DRAG_MIME)) return;
+    if (!e.dataTransfer.types.includes(CAST_DRAG_MIME)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    setDragOver(true);
+    // Left half → insert before this column, right half → after it.
+    const rect = e.currentTarget.getBoundingClientRect();
+    const insertAt = e.clientX < rect.left + rect.width / 2 ? index : index + 1;
+    insertAtRef.current = insertAt;
+    onDragIndicator(insertAt);
   }
   function onDrop(e: DragEvent) {
-    if (!e.dataTransfer.types.includes(DRAG_MIME)) return;
+    const insertAt = insertAtRef.current;
+    insertAtRef.current = null;
+    onDragIndicator(null);
+    if (insertAt === null) return;
+    const r = resolveColumnDrop(e, insertAt);
+    if (!r) return;
     e.preventDefault();
-    setDragOver(false);
-    const from = Number(e.dataTransfer.getData(DRAG_MIME));
-    if (!Number.isNaN(from)) onReorder(from, index);
+    onReorder(r.from, r.to);
   }
 
-  const dropProps = {
-    onDragOver,
-    onDragLeave: () => setDragOver(false),
-    onDrop,
-    'data-drag-over': dragOver || undefined,
-  };
-  const dragOverStyle = dragOver ? { outline: '2px dashed var(--color-primary)', outlineOffset: '-2px' } : undefined;
+  const dropProps = { onDragOver, onDrop };
 
   const moveButtons = (
     <>
@@ -87,10 +106,11 @@ export function CastColumn({ column, index, count, onCollapse, onRemove, onReord
         role="region"
         draggable
         onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
         aria-roledescription="Draggable column"
         {...dropProps}
         className="group flex flex-col items-center py-2 my-10 cursor-grab"
-        style={{ width: '2rem', minWidth: '2rem', backdropFilter: 'blur(2px)', backgroundColor: 'color-mix(in srgb, var(--color-background) 65%, transparent)', ...dragOverStyle }}
+        style={{ width: '2rem', minWidth: '2rem', backdropFilter: 'blur(2px)', backgroundColor: 'color-mix(in srgb, var(--color-background) 65%, transparent)' }}
         aria-label={`${column.channel} (collapsed)`}
       >
         <div className="flex-1 w-px bg-foreground" />
@@ -122,7 +142,7 @@ export function CastColumn({ column, index, count, onCollapse, onRemove, onReord
       // treatment so chat stays readable. The blur lives here; the sticky header
       // below uses a more opaque solid tint (no nested backdrop-filter). The
       // vertical margin matches the inter-column gap so cards float evenly.
-      style={{ backdropFilter: 'blur(2px)', backgroundColor: 'color-mix(in srgb, var(--color-background) 65%, transparent)', ...dragOverStyle }}
+      style={{ backdropFilter: 'blur(2px)', backgroundColor: 'color-mix(in srgb, var(--color-background) 65%, transparent)' }}
     >
       <CornerBrackets />
       {/* Column header — grab here to drag-reorder */}
@@ -132,6 +152,7 @@ export function CastColumn({ column, index, count, onCollapse, onRemove, onReord
         aria-roledescription="Draggable column header"
         draggable
         onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
         className="flex items-center justify-between px-4 py-1.5 cursor-grab"
         style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: 'color-mix(in srgb, var(--color-background) 82%, transparent)' }}
       >

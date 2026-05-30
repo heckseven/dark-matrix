@@ -1,21 +1,50 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useState, type DragEvent } from 'react';
 import { useDeckStore } from '../store.js';
 import type { CastColumn as CastColumnType } from '../types/config-types.js';
 import { Button } from './ui/button.js';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog.js';
 import { Input } from './ui/input.js';
-import { CastColumn } from './CastColumn.js';
+import { CastColumn, CAST_DRAG_MIME, resolveColumnDrop } from './CastColumn.js';
 import { syncCastChannels } from '../twitch-chat.js';
 
 const MAX_COLUMNS = 5;
 
-function ColumnInsertButton({ onClick, label, hidden }: { onClick(): void; label: string; hidden: boolean }) {
-  if (hidden) return null;
+/**
+ * The gap between columns. During a drag it shows a vertical insert line (the
+ * green drop indicator, matching the frame strip / HUD preset reorder UI);
+ * otherwise it hosts the hover-revealed "+" insert button. Renders nothing when
+ * at the column cap and not the active drop target, so idle layout is unchanged.
+ */
+function ColumnGap({ insertAt, showDrop, atMax, label, onInsert, onDragOver, onDrop }: {
+  insertAt: number;
+  showDrop: boolean;
+  atMax: boolean;
+  label: string;
+  onInsert(): void;
+  onDragOver(insertAt: number | null): void;
+  onDrop(e: DragEvent, insertAt: number): void;
+}) {
+  if (!showDrop && atMax) return null;
   return (
-    <div className="flex flex-col items-center w-10 flex-shrink-0 opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity">
-      <div className="flex-1 w-px bg-border" />
-      <Button variant="ghost" size="sm" aria-label={label} tooltip={label} onClick={onClick}>+</Button>
-      <div className="flex-1 w-px bg-border" />
+    <div
+      className="flex flex-col items-center w-10 flex-shrink-0"
+      onDragOver={e => {
+        if (!e.dataTransfer.types.includes(CAST_DRAG_MIME)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        onDragOver(insertAt);
+      }}
+      onDrop={e => onDrop(e, insertAt)}
+    >
+      {showDrop ? (
+        <div aria-hidden="true" className="w-0.5 flex-1 bg-green-500 rounded-full pointer-events-none" />
+      ) : (
+        <div className="flex flex-col items-center flex-1 opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity">
+          <div className="flex-1 w-px bg-border" />
+          <Button variant="ghost" size="sm" aria-label={label} tooltip={label} onClick={onInsert}>+</Button>
+          <div className="flex-1 w-px bg-border" />
+        </div>
+      )}
     </div>
   );
 }
@@ -76,6 +105,8 @@ export function CastPanel() {
 
   const [addDialog, setAddDialog] = useState<{ open: boolean; insertAt: number }>({ open: false, insertAt: 0 });
   const [reorderStatus, setReorderStatus] = useState('');
+  // Insert position (0..columns.length) the dragged column would land at, or null.
+  const [dropTarget, setDropTarget] = useState<number | null>(null);
 
   function openAdd(insertAt: number) {
     setAddDialog({ open: true, insertAt });
@@ -118,18 +149,39 @@ export function CastPanel() {
     setReorderStatus(`${moved.channel} moved to position ${to + 1} of ${next.length}`);
   }
 
+  // Drop onto a column boundary (insertAt in 0..columns.length).
+  function handleColumnDrop(e: DragEvent, insertAt: number) {
+    setDropTarget(null);
+    const r = resolveColumnDrop(e, insertAt);
+    if (!r) return;
+    e.preventDefault();
+    handleReorder(r.from, r.to);
+  }
+
   const atMax = columns.length >= MAX_COLUMNS;
 
   return (
     <div className="flex-1 flex flex-col font-mono min-h-0">
       <div role="status" aria-live="polite" className="sr-only">{reorderStatus}</div>
       {/* Columns area */}
-      <div className="flex-1 flex items-stretch overflow-x-auto overflow-y-hidden min-h-0">
-        <ColumnInsertButton
-          hidden={atMax || columns.length === 0}
-          label="Add column at start"
-          onClick={() => openAdd(0)}
-        />
+      <div
+        className="flex-1 flex items-stretch overflow-x-auto overflow-y-hidden min-h-0"
+        onDragLeave={(e: DragEvent) => {
+          const related = e.relatedTarget instanceof Node ? e.relatedTarget : null;
+          if (!e.currentTarget.contains(related)) setDropTarget(null);
+        }}
+      >
+        {columns.length > 0 && (
+          <ColumnGap
+            insertAt={0}
+            showDrop={dropTarget === 0}
+            atMax={atMax}
+            label="Add column at start"
+            onInsert={() => openAdd(0)}
+            onDragOver={setDropTarget}
+            onDrop={handleColumnDrop}
+          />
+        )}
 
         {columns.map((col, idx) => (
           <Fragment key={`${col.provider}:${col.channel}`}>
@@ -140,11 +192,16 @@ export function CastPanel() {
               onCollapse={() => handleCollapse(idx)}
               onRemove={() => handleRemove(idx)}
               onReorder={handleReorder}
+              onDragIndicator={setDropTarget}
             />
-            <ColumnInsertButton
-              hidden={atMax}
+            <ColumnGap
+              insertAt={idx + 1}
+              showDrop={dropTarget === idx + 1}
+              atMax={atMax}
               label={`Insert column after ${col.channel}`}
-              onClick={() => openAdd(idx + 1)}
+              onInsert={() => openAdd(idx + 1)}
+              onDragOver={setDropTarget}
+              onDrop={handleColumnDrop}
             />
           </Fragment>
         ))}
