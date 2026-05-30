@@ -33,8 +33,8 @@ import { ThreePanelLayout } from './components/ThreePanelLayout.js';
 import { PanelBar } from './components/PanelBar.js';
 import { WelcomeScreen } from './components/WelcomeScreen.js';
 import { CastPanel } from './components/CastPanel.js';
-import { Dialog, DialogContent, DialogTitle, DialogClose } from './components/ui/dialog.js';
-import { Popover, PopoverTrigger, PopoverContent } from './components/ui/popover.js';
+import { TwitchConnectForm } from './components/config-tabs/TwitchConnectForm.js';
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogClose } from './components/ui/dialog.js';
 
 const MODE_LABEL = Object.fromEntries(MODES.map(m => [m.id, m.label])) as Record<AppMode, string>;
 const FULLSCREEN_MODES: ReadonlySet<AppMode> = new Set(['hud', 'audio', 'config', 'video', 'life', 'cast']);
@@ -221,6 +221,8 @@ export function App() {
   const configDirty        = useDeckStore(s => s.configDirty);
   const saveConfig         = useDeckStore(s => s.saveConfig);
   const isTwitchConnected  = useDeckStore(s => !!(s.configData?.twitch?.broadcaster_id));
+  const configData         = useDeckStore(s => s.configData);
+  const patchConfig        = useDeckStore(s => s.patchConfig);
   const videoIdle          = useVStore(s => s.idle);
   const appearance         = useDeckStore(s => s.configData?.appearance);
 
@@ -277,6 +279,8 @@ export function App() {
   const [clockFastForward, setClockFastForward] = useState(false);
   const [hudClocksVisible, setHudClocksVisible] = useState(false);
   const [castAudioOpen, setCastAudioOpen] = useState(false);
+  const [castTwitchOpen, setCastTwitchOpen] = useState(false);
+  const [twitchDisconnecting, setTwitchDisconnecting] = useState(false);
   const [livePreviewOn, setLivePreviewOn] = useState(false);
   const bridge = usePreviewBridge();
   const hudSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -509,6 +513,27 @@ export function App() {
     </div>
   );
 
+  const handleTwitchChange: typeof patchConfig = (patch) => {
+    patchConfig(patch);
+    void saveConfig();
+  };
+
+  async function handleTwitchDisconnect() {
+    setTwitchDisconnecting(true);
+    try {
+      const r = await fetch('/api/twitch/disconnect', { method: 'POST' });
+      if (r.ok) {
+        const cfg = await fetch('/api/config');
+        if (cfg.ok) {
+          const { config } = await cfg.json() as { config: Config };
+          deckStore.getState().loadConfigData(config);
+        }
+      }
+    } finally {
+      setTwitchDisconnecting(false);
+    }
+  }
+
   return (
     <TooltipProvider>
       <ShortcutDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} dualModule={dualModule} mode={activeMode === 'life' ? 'life' : 'design'} />
@@ -527,6 +552,22 @@ export function App() {
             </Button>
           </DialogClose>
           <AudioPanel dualModule={dualModule} />
+        </DialogContent>
+      </Dialog>
+      <Dialog open={castTwitchOpen} onOpenChange={setCastTwitchOpen}>
+        <DialogContent className="flex flex-col gap-4 p-6" style={{ minWidth: '360px' }}>
+          <DialogTitle>Connect to Twitch</DialogTitle>
+          <DialogDescription className="sr-only">
+            Enter your Twitch app client ID. Clicking connect opens Twitch authorization in a new tab.
+          </DialogDescription>
+          {configData && (
+            <TwitchConnectForm
+              config={configData}
+              onChange={handleTwitchChange}
+              onDisconnect={() => void handleTwitchDisconnect()}
+              disconnecting={twitchDisconnecting}
+            />
+          )}
         </DialogContent>
       </Dialog>
       <AssetManagerModal
@@ -792,29 +833,15 @@ export function App() {
                 >
                   visualizer
                 </Button>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-label={isTwitchConnected ? 'Twitch connected' : 'Twitch not connected'}
-                    >
-                      twitch
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent side="bottom" className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${isTwitchConnected ? 'bg-green-500' : 'bg-muted-foreground'}`}
-                        aria-hidden="true"
-                      />
-                      <span>{isTwitchConnected ? 'connected' : 'not connected'}</span>
-                    </div>
-                    {!isTwitchConnected && (
-                      <span className="text-muted-foreground">configure in Settings → Integrations</span>
-                    )}
-                  </PopoverContent>
-                </Popover>
+                <Button
+                  variant="default"
+                  size="sm"
+                  tooltip="Connect to see Twitch events in chat"
+                  aria-label={isTwitchConnected ? 'connect to twitch, connected' : undefined}
+                  onClick={() => setCastTwitchOpen(true)}
+                >
+                  connect to twitch
+                </Button>
               </div>
             ) : activeMode === 'life' ? (
               <div className="flex items-center gap-2">
