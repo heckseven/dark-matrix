@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import type { RefObject } from 'react';
 import { useDeckStore, deckStore } from '../store.js';
 import { MatrixItem } from './MatrixItem.js';
-import type { AudioStyle, AudioSource } from '../store.js';
+import type { AudioStyle } from '../store.js';
 import { AUDIO_STYLES, createRenderer } from '../../../animations/audio-renderers.js';
 import type { RenderCtx } from '../../../animations/audio-renderers.js';
 import { AudioFullscreen } from './AudioFullscreen.js';
@@ -23,6 +23,7 @@ export function AudioPanel({
 }) {
   const audioStyle = useDeckStore(s => s.audioStyle);
   const audioSource = useDeckStore(s => s.audioSource);
+  const audioVizOn = useDeckStore(s => s.audioVizOn);
   const [livePixels, setLivePixels] = useState<Partial<Record<AudioStyle, string>>>({});
   const defaultGainRef = useRef(1.0);
   const activeGainRef = gainMultiplierRef ?? defaultGainRef;
@@ -35,6 +36,11 @@ export function AudioPanel({
   const prevStyleRef = useRef<AudioStyle | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
+  // Latest values for the WS-driving callback without re-opening the socket.
+  const styleRef = useRef(audioStyle); styleRef.current = audioStyle;
+  const sourceRef = useRef(audioSource); sourceRef.current = audioSource;
+  const vizOnRef = useRef(audioVizOn); vizOnRef.current = audioVizOn;
+
   const renderersRef = useRef<Record<AudioStyle, ReturnType<typeof createRenderer>> | null>(null);
   if (!renderersRef.current) {
     renderersRef.current = Object.fromEntries(
@@ -42,10 +48,19 @@ export function AudioPanel({
     ) as Record<AudioStyle, ReturnType<typeof createRenderer>>;
   }
 
-  const sendViz = useCallback((source: AudioSource, style: AudioStyle) => {
+  // Drive the modules + preview stream to match the current state:
+  //   on  → `audio-viz` runs the style on the modules and streams bands back
+  //   off → modules return to resting; a bands-only subscription keeps the grid
+  //         previews live so the user can still pick a style.
+  const apply = useCallback(() => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: 'audio-viz', style, source }));
+    if (vizOnRef.current) {
+      ws.send(JSON.stringify({ type: 'audio-viz', style: styleRef.current, source: sourceRef.current }));
+    } else {
+      ws.send(JSON.stringify({ type: 'audio-viz-stop' }));
+      ws.send(JSON.stringify({ type: 'hud-audio-bands-subscribe', source: sourceRef.current }));
+    }
   }, []);
 
   const sendSetBands = useCallback((n: number) => {
@@ -82,10 +97,7 @@ export function AudioPanel({
     const ws = new WebSocket(`ws://${location.host}/ws`);
     wsRef.current = ws;
 
-    ws.onopen = () => {
-      const { audioStyle: style, audioSource: source } = deckStore.getState();
-      ws.send(JSON.stringify({ type: 'audio-viz', style, source }));
-    };
+    ws.onopen = () => apply();
 
     ws.onmessage = (e) => {
       try {
@@ -116,11 +128,10 @@ export function AudioPanel({
       }
       w?.close();
     };
-  }, []);
+  }, [apply]);
 
-  useEffect(() => {
-    sendViz(audioSource, audioStyle);
-  }, [audioStyle, audioSource, sendViz]);
+  // Re-drive whenever the style, source, or on/off state changes.
+  useEffect(() => { apply(); }, [audioStyle, audioSource, audioVizOn, apply]);
 
   return (
     <div className="flex-1 relative flex flex-col items-center justify-center gap-10 px-8 py-8 overflow-y-auto overflow-x-hidden">
@@ -140,6 +151,7 @@ export function AudioPanel({
               onSelect={() => {
                 if (document.activeElement instanceof HTMLElement) triggerRef.current = document.activeElement;
                 deckStore.getState().setAudioStyle(id as AudioStyle);
+                deckStore.getState().setAudioVizOn(true);
                 onFullscreenChange(id as AudioStyle);
               }}
             />

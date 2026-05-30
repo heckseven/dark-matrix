@@ -206,7 +206,10 @@ export function App() {
   const previewTarget = useDeckStore(s => s.previewTarget);
   const projectTitle = useDeckStore(s => s.projectTitle);
   const activeMode = useDeckStore(s => s.activeMode);
+  const audioStyle         = useDeckStore(s => s.audioStyle);
   const audioSource        = useDeckStore(s => s.audioSource);
+  const audioVizOn         = useDeckStore(s => s.audioVizOn);
+  const castVizOn          = useDeckStore(s => s.castVizOn);
   const micSensitivity     = useDeckStore(s => s.micSensitivity);
   const monitorSensitivity = useDeckStore(s => s.monitorSensitivity);
   const sensitivity        = audioSource === 'mic' ? micSensitivity : monitorSensitivity;
@@ -252,7 +255,14 @@ export function App() {
 
   useEffect(() => {
     document.title = activeMode ? `dark-matrix - ${MODE_LABEL[activeMode]}` : 'dark-matrix';
-    if (activeMode !== 'audio') setAudioFullscreenStyle(null);
+    // Entering audio mode resumes the running visualizer (fullscreen) if it was
+    // left on, else lands on the picker grid. Leaving audio drops to the grid.
+    if (activeMode === 'audio') {
+      const { audioVizOn: on, audioStyle: style } = deckStore.getState();
+      setAudioFullscreenStyle(on ? style : null);
+    } else {
+      setAudioFullscreenStyle(null);
+    }
     if (activeMode !== 'cast') setCastAudioOpen(false);
   }, [activeMode]);
 
@@ -582,7 +592,6 @@ export function App() {
           open={castAudioOpen}
           onOpenChange={setCastAudioOpen}
           dualModule={!!dualModule}
-          hasMic={hasMic}
           bgSlot={castBgSlot}
         />
       )}
@@ -809,9 +818,6 @@ export function App() {
               <Button variant="ghost" disabled={!configDirty} onClick={() => void saveConfig()}>save</Button>
             ) : activeMode === 'audio' ? (
               <div className="flex items-center gap-2">
-                {audioFullscreenStyle !== null && (
-                  <Button variant="ghost" size="sm" aria-label="Switch visualizer" onClick={() => setAudioFullscreenStyle(null)}>switch</Button>
-                )}
                 <Tooltip content={`${audioSource === 'mic' ? 'Mic' : 'Monitor'} sensitivity`} side="bottom">
                   <span>
                     <Slider
@@ -848,6 +854,30 @@ export function App() {
                     <span aria-hidden="true">mic</span>
                   </Toggle>
                 )}
+                {/* Gap separating the audio controls from the visualizer controls. */}
+                <span className="w-4 shrink-0" aria-hidden="true" />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  tooltip="Visualizer fullscreen"
+                  aria-label="Visualizer fullscreen"
+                  aria-expanded={audioFullscreenStyle !== null}
+                  disabled={!audioVizOn}
+                  onClick={() => setAudioFullscreenStyle(cur => cur === null ? audioStyle : null)}
+                >
+                  visualizer
+                </Button>
+                <Toggle
+                  pressed={audioVizOn}
+                  onPressedChange={(on) => {
+                    deckStore.getState().setAudioVizOn(on);
+                    setAudioFullscreenStyle(on ? deckStore.getState().audioStyle : null);
+                  }}
+                  title={audioVizOn ? 'Disable visualizer' : 'Enable visualizer'}
+                  aria-label={audioVizOn ? 'Disable visualizer' : 'Enable visualizer'}
+                >
+                  <span aria-hidden="true">{audioVizOn ? 'on' : 'off'}</span>
+                </Toggle>
               </div>
             ) : activeMode === 'video' ? (
               <div className="flex items-center gap-1">
@@ -856,16 +886,41 @@ export function App() {
                 <VideoSettingsToggle ref={settingsToggleRef} />
               </div>
             ) : activeMode === 'cast' ? (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                {hasMic && (
+                  <>
+                    <Toggle
+                      pressed={audioSource === 'mic'}
+                      onPressedChange={(on) => deckStore.getState().setAudioSource(on ? 'mic' : 'monitor')}
+                      title={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                      aria-label={audioSource === 'mic' ? 'Disable mic' : 'Enable mic'}
+                    >
+                      <span aria-hidden="true">mic</span>
+                    </Toggle>
+                    {/* Gap separating the audio controls from the visualizer controls. */}
+                    <span className="w-4 shrink-0" aria-hidden="true" />
+                  </>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
-                  tooltip="Audio visualizer"
-                  aria-label="Audio visualizer"
+                  tooltip="Choose visualizer"
+                  aria-label="Choose visualizer"
+                  aria-haspopup="dialog"
+                  aria-expanded={castAudioOpen}
                   onClick={() => setCastAudioOpen(true)}
                 >
                   visualizer
                 </Button>
+                <Toggle
+                  pressed={castVizOn}
+                  onPressedChange={(on) => deckStore.getState().setCastVizOn(on)}
+                  title={castVizOn ? 'Disable visualizer' : 'Enable visualizer'}
+                  aria-label={castVizOn ? 'Disable visualizer' : 'Enable visualizer'}
+                >
+                  <span aria-hidden="true">{castVizOn ? 'on' : 'off'}</span>
+                </Toggle>
+                <span className="w-2 shrink-0" aria-hidden="true" />
                 {!isTwitchConnected && (
                   <Button
                     variant="default"

@@ -95,7 +95,9 @@ export type Config = {
   biome_presets?: BiomePresetConfig[];
   twitch?: TwitchConfig;
   cast_columns?: CastColumn[];
-  cast_visualizer?: AudioStyle | 'off';
-  cast_audio_source?: 'monitor' | 'mic';
+  visualizer_style?: AudioStyle;
+  audio_visualizer_on?: boolean;
+  cast_visualizer_on?: boolean;
+  audio_source?: 'monitor' | 'mic';
   appearance?: Appearance;
 };

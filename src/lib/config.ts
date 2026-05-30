@@ -6,7 +6,7 @@ import { enumerateMatrixModules } from './modules.js';
 import { TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS, TEXT_FLICKERS, TEXT_TRANSITIONS } from '../animations/text-renderers.js';
 import { AUDIO_STYLES } from '../animations/audio-renderers.js';
 
-const CAST_VISUALIZER_VALUES = ['off', ...AUDIO_STYLES.map(s => s.id)] as [string, ...string[]];
+const AUDIO_STYLE_VALUES = AUDIO_STYLES.map(s => s.id) as [string, ...string[]];
 
 const BY_PATH_RE = /^\/dev\/(serial\/by-path\/[a-zA-Z0-9:._-]+|ttyACM\d+|ttyUSB\d+)$/;
 const SENSOR_PATH_RE = /^\/sys\/bus\/iio\/devices\/iio:device\d+\/in_illuminance_raw$/;
@@ -144,8 +144,12 @@ export const ConfigSchema = z.object({
   }),
   twitch: TwitchConfigSchema.optional(),
   cast_columns: z.array(CastColumnSchema).max(5).optional(),
-  cast_visualizer: z.enum(CAST_VISUALIZER_VALUES).optional(),
-  cast_audio_source: z.enum(['monitor', 'mic']).optional(),
+  // Visualizer style is shared across audio mode and cast mode for continuity;
+  // each mode has its own on/off gate. Source (monitor/mic) is shared too.
+  visualizer_style: z.enum(AUDIO_STYLE_VALUES).optional(),
+  audio_visualizer_on: z.boolean().optional(),
+  cast_visualizer_on: z.boolean().optional(),
+  audio_source: z.enum(['monitor', 'mic']).optional(),
   appearance: AppearanceSchema.optional(),
   biome_presets: z.array(z.object({
     name: z.string().min(1),
@@ -260,6 +264,34 @@ export function resolveSocketPath(): string {
   );
 }
 
+/**
+ * In-place migration of the legacy cast-only visualizer fields onto the shared
+ * shape. `cast_visualizer: 'off' | <style>` becomes the shared `visualizer_style`
+ * plus a `cast_visualizer_on` gate; `cast_audio_source` becomes the shared
+ * `audio_source`. Runs before validation so old configs keep their choice.
+ *
+ * Healed in memory only — the file on disk retains the legacy fields until the
+ * next explicit `PUT /api/config`. The `=== undefined` guards make it idempotent.
+ */
+function migrateVisualizerFields(raw: Record<string, unknown>): void {
+  if ('cast_visualizer' in raw) {
+    const legacy = raw['cast_visualizer'];
+    if (legacy === 'off') {
+      if (raw['cast_visualizer_on'] === undefined) raw['cast_visualizer_on'] = false;
+    } else if (typeof legacy === 'string') {
+      if (raw['visualizer_style'] === undefined) raw['visualizer_style'] = legacy;
+      if (raw['cast_visualizer_on'] === undefined) raw['cast_visualizer_on'] = true;
+    }
+    delete raw['cast_visualizer'];
+  }
+  if ('cast_audio_source' in raw) {
+    if (raw['audio_source'] === undefined && typeof raw['cast_audio_source'] === 'string') {
+      raw['audio_source'] = raw['cast_audio_source'];
+    }
+    delete raw['cast_audio_source'];
+  }
+}
+
 export async function loadConfig(p?: string): Promise<Config> {
   const filePath = resolveConfigPath(p);
   const raw = await fs.readFile(filePath, 'utf-8');
@@ -272,6 +304,7 @@ export async function loadConfig(p?: string): Promise<Config> {
   if (typeof rawParsed !== 'object' || rawParsed === null || Array.isArray(rawParsed)) {
     throw new ConfigError([{ code: 'custom', message: 'Config must be a JSON object', path: [] }]);
   }
+  migrateVisualizerFields(rawParsed as Record<string, unknown>);
   const result = ConfigSchema.safeParse(rawParsed);
   if (!result.success) throw new ConfigError(result.error.issues);
   return result.data;

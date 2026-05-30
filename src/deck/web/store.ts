@@ -40,6 +40,8 @@ export interface DeckState {
   activeMode: AppMode | null;
   audioStyle: AudioStyle;
   audioSource: AudioSource;
+  audioVizOn: boolean;
+  castVizOn: boolean;
   micSensitivity: number;
   monitorSensitivity: number;
   hudLeftFace: ClockFace;
@@ -93,6 +95,8 @@ export interface DeckActions {
   setActiveMode(mode: AppMode | null): void;
   setAudioStyle(style: AudioStyle): void;
   setAudioSource(source: AudioSource): void;
+  setAudioVizOn(on: boolean): void;
+  setCastVizOn(on: boolean): void;
   setMicSensitivity(value: number): void;
   setMonitorSensitivity(value: number): void;
   setHudLeftFace(face: ClockFace): void;
@@ -223,6 +227,8 @@ export function createDeckStore() {
     activeMode: null,
     audioStyle: 'dark-matter',
     audioSource: 'monitor',
+    audioVizOn: false,
+    castVizOn: false,
     micSensitivity: 50,
     monitorSensitivity: 0,
     hudLeftFace: 'elegant',
@@ -420,8 +426,25 @@ export function createDeckStore() {
 
     setProjectTitle(title) { set({ projectTitle: title.trim() || 'untitled_animation' }); },
     setActiveMode(mode) { set({ activeMode: mode }); },
-    setAudioStyle(style) { set({ audioStyle: style }); },
-    setAudioSource(source) { set({ audioSource: source }); },
+    // Visualizer style + source + the two on-gates are persisted to user config
+    // (shared across audio and cast modes), so a choice survives across sessions
+    // and is mirrored between the two modes. Hydrated back in loadConfigData.
+    setAudioStyle(style) {
+      set({ audioStyle: style });
+      if (get().configData) { get().patchConfig({ visualizer_style: style }); get().saveConfig().catch(e => console.error('config save failed', e)); }
+    },
+    setAudioSource(source) {
+      set({ audioSource: source });
+      if (get().configData) { get().patchConfig({ audio_source: source }); get().saveConfig().catch(e => console.error('config save failed', e)); }
+    },
+    setAudioVizOn(on) {
+      set({ audioVizOn: on });
+      if (get().configData) { get().patchConfig({ audio_visualizer_on: on }); get().saveConfig().catch(e => console.error('config save failed', e)); }
+    },
+    setCastVizOn(on) {
+      set({ castVizOn: on });
+      if (get().configData) { get().patchConfig({ cast_visualizer_on: on }); get().saveConfig().catch(e => console.error('config save failed', e)); }
+    },
     setMicSensitivity(value) { set({ micSensitivity: Math.min(100, Math.max(0, Math.round(value))) }); },
     setMonitorSensitivity(value) { set({ monitorSensitivity: Math.min(100, Math.max(0, Math.round(value))) }); },
     setHudLeftFace(face)   { set({ hudLeftFace: face }); },
@@ -499,7 +522,16 @@ export function createDeckStore() {
     },
 
     loadConfigData(config) {
-      set({ configData: config, configDirty: false });
+      set({
+        configData: config,
+        configDirty: false,
+        // Hydrate the shared visualizer state from config so audio + cast resume
+        // the last choice. Absent fields fall back to the store defaults.
+        ...(config.visualizer_style !== undefined ? { audioStyle: config.visualizer_style } : {}),
+        ...(config.audio_source !== undefined ? { audioSource: config.audio_source } : {}),
+        ...(config.audio_visualizer_on !== undefined ? { audioVizOn: config.audio_visualizer_on } : {}),
+        ...(config.cast_visualizer_on !== undefined ? { castVizOn: config.cast_visualizer_on } : {}),
+      });
     },
 
     patchConfig(patch) {
@@ -628,7 +660,7 @@ const SESSION_KEY = 'dark-matrix';
 type SessionSnapshot = Pick<DeckState,
   'frames' | 'width' | 'mode' | 'loop' | 'activeFrameIdx' |
   'zoom' | 'activeColor' | 'previewTarget' | 'projectTitle' |
-  'audioStyle' | 'audioSource' | 'micSensitivity' | 'monitorSensitivity' |
+  'micSensitivity' | 'monitorSensitivity' |
   'hudLeftFace' | 'hudRightFace' |
   'hudLeftWidget' | 'hudRightWidget' | 'hudLeftDataStyle' | 'hudRightDataStyle' |
   'libraryPath' | 'recentFiles' |
@@ -653,8 +685,6 @@ if (typeof localStorage !== 'undefined') {
           ...(s.activeColor !== undefined ? { activeColor: s.activeColor } : {}),
           ...(s.previewTarget !== undefined ? { previewTarget: s.previewTarget } : {}),
           ...(s.activeMode !== undefined && MODES.some(m => m.id === s.activeMode) ? { activeMode: s.activeMode as AppMode } : {}),
-          ...(s.audioStyle !== undefined ? { audioStyle: s.audioStyle } : {}),
-          ...(s.audioSource !== undefined ? { audioSource: s.audioSource } : {}),
           ...(s.micSensitivity !== undefined ? { micSensitivity: Math.min(100, Math.max(0, Math.round(Number(s.micSensitivity)))) } : {}),
           ...(s.monitorSensitivity !== undefined ? { monitorSensitivity: Math.min(100, Math.max(0, Math.round(Number(s.monitorSensitivity)))) } : {}),
           ...(s.hudLeftFace !== undefined ? { hudLeftFace: s.hudLeftFace } : {}),
@@ -678,8 +708,8 @@ if (typeof localStorage !== 'undefined') {
     if (_saveTimer) clearTimeout(_saveTimer);
     _saveTimer = setTimeout(() => {
       try {
-        const { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, audioStyle, audioSource, micSensitivity, monitorSensitivity, hudLeftFace, hudRightFace, hudLeftWidget, hudRightWidget, hudLeftDataStyle, hudRightDataStyle, libraryPath, recentFiles, selectedPresetName, hudSelectedSide } = state;
-        const snapshot: SessionSnapshot = { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, audioStyle, audioSource, micSensitivity, monitorSensitivity, hudLeftFace, hudRightFace, hudLeftWidget, hudRightWidget, hudLeftDataStyle, hudRightDataStyle, libraryPath, recentFiles, selectedPresetName, hudSelectedSide };
+        const { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, activeMode, micSensitivity, monitorSensitivity, hudLeftFace, hudRightFace, hudLeftWidget, hudRightWidget, hudLeftDataStyle, hudRightDataStyle, libraryPath, recentFiles, selectedPresetName, hudSelectedSide } = state;
+        const snapshot: SessionSnapshot = { frames, width, mode, loop, activeFrameIdx, zoom, activeColor, previewTarget, projectTitle, micSensitivity, monitorSensitivity, hudLeftFace, hudRightFace, hudLeftWidget, hudRightWidget, hudLeftDataStyle, hudRightDataStyle, libraryPath, recentFiles, selectedPresetName, hudSelectedSide };
         if (activeMode !== null) snapshot.activeMode = activeMode;
         localStorage.setItem(SESSION_KEY, JSON.stringify(snapshot));
       } catch { /* storage full or unavailable */ }
