@@ -827,15 +827,16 @@ export function App() {
                 >
                   visualizer
                 </Button>
-                <Button
-                  variant="default"
-                  size="sm"
-                  tooltip="Connect to see Twitch events in chat"
-                  aria-label={isTwitchConnected ? 'connect to twitch, connected' : undefined}
-                  onClick={() => setCastTwitchOpen(true)}
-                >
-                  connect to twitch
-                </Button>
+                {!isTwitchConnected && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    tooltip="Connect to see Twitch events in chat"
+                    onClick={() => setCastTwitchOpen(true)}
+                  >
+                    connect to twitch
+                  </Button>
+                )}
               </div>
             ) : activeMode === 'life' ? (
               <div className="flex items-center gap-2">
