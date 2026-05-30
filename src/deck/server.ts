@@ -789,7 +789,8 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
         }
         const state = randomBytes(32).toString('hex');
         pendingOAuthStates.set(state, { clientId: client_id, expiresAt: Date.now() + 5 * 60 * 1000 });
-        const scopes = 'channel:read:subscriptions bits:read moderator:read:followers channel:read:raids';
+        // channel.raid EventSub needs no scope (raids are public), so none is requested here.
+        const scopes = 'channel:read:subscriptions bits:read moderator:read:followers';
         const authUrl = 'https://id.twitch.tv/oauth2/authorize?' + new URLSearchParams({
           client_id,
           redirect_uri: `${boundOrigin}/auth/twitch/callback`,
