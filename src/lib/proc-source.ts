@@ -69,7 +69,7 @@ export function watchProcStats(
   onStats: (s: ProcStats) => void,
   opts?: { intervalMs?: number },
 ): () => void {
-  const intervalMs = opts?.intervalMs ?? 1000;
+  const intervalMs = opts?.intervalMs ?? 500;
   let prevAgg:   CpuRaw | null = null;
   let prevCores: CpuRaw[]      = [];
   let prevNet:   NetRaw | null = null;
