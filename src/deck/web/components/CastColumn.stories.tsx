@@ -17,6 +17,7 @@ const meta = {
     onCollapse: () => {},
     onRemove: () => {},
     onReorder: () => {},
+    onDragIndicator: () => {},
   },
   decorators: [
     (Story) => (
