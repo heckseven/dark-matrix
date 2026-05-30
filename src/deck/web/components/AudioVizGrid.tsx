@@ -8,6 +8,12 @@ import { BAYER_THRESHOLD } from '../../../animations/bayer.js';
 
 const CELL = 20;
 
+// The renderers advance their motion once per render call (frame-count based, not
+// wall-clock), so the render rate sets the animation speed. Throttle to a fixed
+// rate for a steady pace independent of the display's refresh rate.
+const TARGET_FPS = 30;
+const FRAME_INTERVAL_MS = 1000 / TARGET_FPS;
+
 function makeSvgDot(color: string): string {
   return `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${CELL}" height="${CELL}"><circle cx="${CELL / 2}" cy="${CELL / 2}" r="2" fill="${color}"/></svg>`)}")`;
 }
@@ -149,9 +155,14 @@ export function AudioVizGrid({
     }
 
     let running = true;
+    let last = 0;
 
-    function tick() {
+    function tick(now: number) {
       if (!running) return;
+      rafRef.current = requestAnimationFrame(tick);
+      if (now - last < FRAME_INTERVAL_MS) return; // throttle to TARGET_FPS
+      last = now - ((now - last) % FRAME_INTERVAL_MS);
+
       const { cols, rows, halfCols } = gridRef.current;
       const bands = fullBandsRef.current;
       const g = ctxRef.current;
@@ -180,8 +191,6 @@ export function AudioVizGrid({
           }
         }
       }
-
-      rafRef.current = requestAnimationFrame(tick);
     }
 
     rafRef.current = requestAnimationFrame(tick);
