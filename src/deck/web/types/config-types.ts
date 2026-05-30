@@ -1,6 +1,8 @@
 // Browser-safe mirror of Config types from src/lib/config.ts.
 // Do NOT import from src/lib/config.ts — that file uses node:fs.
 
+import type { AudioStyle } from '../../../animations/audio-renderers.js';
+
 export type HudWidget =
   | { widget: 'clock'; face: 'binary-audio' | 'elegant' | 'stretch' | 'analog' | 'binary-blocks' | 'binary-tall' | 'binary-diamond' | 'twinz' | 'razor' | 'blade' }
   | { widget: 'timer'; style?: 'elegant' | 'hourglass' | 'twinz'; durationMs?: number; repeat?: boolean }
@@ -93,5 +95,7 @@ export type Config = {
   biome_presets?: BiomePresetConfig[];
   twitch?: TwitchConfig;
   cast_columns?: CastColumn[];
+  cast_visualizer?: AudioStyle | 'off';
+  cast_audio_source?: 'monitor' | 'mic';
   appearance?: Appearance;
 };

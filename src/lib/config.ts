@@ -4,6 +4,9 @@ import path from 'node:path';
 import os from 'node:os';
 import { enumerateMatrixModules } from './modules.js';
 import { TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS, TEXT_FLICKERS, TEXT_TRANSITIONS } from '../animations/text-renderers.js';
+import { AUDIO_STYLES } from '../animations/audio-renderers.js';
+
+const CAST_VISUALIZER_VALUES = ['off', ...AUDIO_STYLES.map(s => s.id)] as [string, ...string[]];
 
 const BY_PATH_RE = /^\/dev\/(serial\/by-path\/[a-zA-Z0-9:._-]+|ttyACM\d+|ttyUSB\d+)$/;
 const SENSOR_PATH_RE = /^\/sys\/bus\/iio\/devices\/iio:device\d+\/in_illuminance_raw$/;
@@ -141,6 +144,8 @@ export const ConfigSchema = z.object({
   }),
   twitch: TwitchConfigSchema.optional(),
   cast_columns: z.array(CastColumnSchema).max(5).optional(),
+  cast_visualizer: z.enum(CAST_VISUALIZER_VALUES).optional(),
+  cast_audio_source: z.enum(['monitor', 'mic']).optional(),
   appearance: AppearanceSchema.optional(),
   biome_presets: z.array(z.object({
     name: z.string().min(1),

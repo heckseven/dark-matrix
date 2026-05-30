@@ -33,6 +33,7 @@ import { ThreePanelLayout } from './components/ThreePanelLayout.js';
 import { PanelBar } from './components/PanelBar.js';
 import { WelcomeScreen } from './components/WelcomeScreen.js';
 import { CastPanel } from './components/CastPanel.js';
+import { CastVisualizerPanel } from './components/CastVisualizerPanel.js';
 import { Dialog, DialogContent, DialogTitle, DialogClose } from './components/ui/dialog.js';
 import { Popover, PopoverTrigger, PopoverContent } from './components/ui/popover.js';
 
@@ -249,6 +250,7 @@ export function App() {
   useEffect(() => {
     document.title = activeMode ? `dark-matrix - ${MODE_LABEL[activeMode]}` : 'dark-matrix';
     if (activeMode !== 'audio') setAudioFullscreenStyle(null);
+    if (activeMode !== 'cast') setCastAudioOpen(false);
   }, [activeMode]);
 
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -512,23 +514,14 @@ export function App() {
   return (
     <TooltipProvider>
       <ShortcutDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} dualModule={dualModule} mode={activeMode === 'life' ? 'life' : 'design'} />
-      <Dialog open={castAudioOpen} onOpenChange={setCastAudioOpen}>
-        <DialogContent className="w-[calc(100vw-80px)] h-[calc(100vh-80px)] flex flex-col gap-0 p-0 overflow-hidden">
-          <DialogTitle className="sr-only">Audio visualizer</DialogTitle>
-          <DialogClose asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              tooltip="Close"
-              aria-label="Close audio visualizer"
-              className="absolute top-2 right-2 z-10"
-            >
-              ×
-            </Button>
-          </DialogClose>
-          <AudioPanel dualModule={dualModule} />
-        </DialogContent>
-      </Dialog>
+      {activeMode === 'cast' && (
+        <CastVisualizerPanel
+          open={castAudioOpen}
+          onOpenChange={setCastAudioOpen}
+          dualModule={!!dualModule}
+          hasMic={hasMic}
+        />
+      )}
       <AssetManagerModal
         open={assetManagerOpen}
         onOpenChange={setAssetManagerOpen}
