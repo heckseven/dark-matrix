@@ -85,7 +85,7 @@ export function CastColumn({ column, index, count, onCollapse, onRemove, onReord
         disabled={index === 0}
         onClick={() => onReorder(index, index - 1)}
       >
-        ◀
+        &lt;
       </Button>
       <Button
         variant="ghost"
@@ -95,7 +95,7 @@ export function CastColumn({ column, index, count, onCollapse, onRemove, onReord
         disabled={index === count - 1}
         onClick={() => onReorder(index, index + 1)}
       >
-        ▶
+        &gt;
       </Button>
     </>
   );
