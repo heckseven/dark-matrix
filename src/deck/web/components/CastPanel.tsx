@@ -100,7 +100,7 @@ export function CastPanel() {
   const atMax = columns.length >= MAX_COLUMNS;
 
   return (
-    <div className="flex-1 flex flex-col bg-background font-mono min-h-0">
+    <div className="flex-1 flex flex-col font-mono min-h-0">
       {/* Columns area */}
       <div className="flex-1 flex items-stretch overflow-x-auto overflow-y-hidden min-h-0">
         <ColumnInsertButton
