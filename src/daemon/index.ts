@@ -2013,8 +2013,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     disposeEcSwitches();
     disposeEcSwitches = startEcSwitches();
     // Restart the resting HUD if it's currently showing so it picks up any
-    // changed hud / module settings.
-    if (!hudHardwareActive && !frameHeldLeft && !frameHeldRight && !dispatcher.current()) {
+    // changed hud / module settings. Don't clobber a running audio EQ — the cast
+    // visualizer writes its selection to config, and that save must not knock the
+    // modules back to HUD while the EQ is the active driver.
+    if (!hudHardwareActive && !frameHeldLeft && !frameHeldRight && !dispatcher.current() && currentAnimName !== 'audio-eq') {
       startRestingState();
     }
   });
