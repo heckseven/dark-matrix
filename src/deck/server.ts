@@ -747,7 +747,10 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
   const ytStreamErrors = new Map<string, string>();
 
   // Twitch OAuth state — populated by /api/twitch/connect, consumed by /api/twitch/save-token.
-  let boundOrigin = `http://127.0.0.1:${opts?.port ?? 7340}`;
+  // Use the `localhost` hostname (not the 127.0.0.1 loopback IP): Twitch's HTTP-redirect
+  // exemption only applies to the literal hostname `localhost`; an IP redirect URI is rejected
+  // with "redirect URLs must use HTTPS protocol".
+  let boundOrigin = `http://localhost:${opts?.port ?? 7340}`;
   let serverReady = false;
   const pendingOAuthStates = new Map<string, { clientId: string; expiresAt: number }>();
 
@@ -2133,7 +2136,8 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
     const p = opts?.port ?? 7340;
     server.listen(p, host, () => {
       const port = (server.address() as { port: number }).port;
-      boundOrigin = `http://127.0.0.1:${port}`;
+      // localhost, not 127.0.0.1 — see the redirect_uri rationale at the declaration above.
+      boundOrigin = `http://localhost:${port}`;
       serverReady = true;
       resolve(port);
     });

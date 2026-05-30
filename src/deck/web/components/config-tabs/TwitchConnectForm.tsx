@@ -7,7 +7,7 @@ import type { Config } from '../../types/config-types.js';
 
 type DeepPartial<T> = T extends object ? { [K in keyof T]?: DeepPartial<T[K]> } : T;
 
-const REDIRECT_URI = 'http://127.0.0.1:7340/auth/twitch/callback';
+const REDIRECT_URI = 'http://localhost:7340/auth/twitch/callback';
 
 export function TwitchConnectForm({ config, onChange, onDisconnect, disconnecting, showHeading = true }: {
   config: Config;
