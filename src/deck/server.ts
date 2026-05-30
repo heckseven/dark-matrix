@@ -15,6 +15,7 @@ import type { AssetMeta } from '../lib/asset-meta.js';
 import { convertGifToDmx, applyPixelValue } from '../lib/image-convert.js';
 import { sendToDaemon, PersistentDaemonClient, daemonSocketPath } from '../lib/daemon-client.js';
 import { loadConfig, ConfigSchema, writeJsonAtomic } from '../lib/config.js';
+import { safeBuiltinPath } from '../lib/builtins.js';
 import { enumerateMatrixModules } from '../lib/modules.js';
 import { AUDIO_STYLES } from '../animations/audio-renderers.js';
 import { watchProcStats } from '../lib/proc-source.js';
@@ -99,15 +100,6 @@ async function listBuiltinFiles(dir: string): Promise<string[]> {
   } catch {
     return []; // directory absent (dev/test) — no built-ins
   }
-}
-
-function safeBuiltinPath(name: string, dir: string): string | null {
-  const stem = path.basename(name).replace(/\.dmx\.json$/i, '');
-  if (!stem) return null; // e.g. a ".dmx.json"-only name leaves an empty stem
-  if (!/^[a-zA-Z0-9_ \-]{1,100}$/.test(stem)) return null;
-  const candidate = path.join(dir, `${stem}.dmx.json`);
-  if (!candidate.startsWith(dir + path.sep)) return null;
-  return candidate;
 }
 
 // Read a design's raw JSON from the user library, falling back to a bundled

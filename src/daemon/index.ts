@@ -8,6 +8,7 @@ import os from 'node:os';
 import process from 'node:process';
 import { spawn } from 'node:child_process';
 import { loadConfig, bootstrapConfig, watchConfig, resolveSocketPath } from '../lib/config.js';
+import { safeBuiltinPath } from '../lib/builtins.js';
 import type { Config } from '../lib/config.js';
 import { startBrightnessLoop } from '../lib/brightness.js';
 import { watchSwitches, type SwitchSource, type SwitchState } from '../lib/ec-switches.js';
@@ -50,6 +51,9 @@ import { loadNotificationAsset } from '../lib/notification-assets.js';
 
 const SCROLL_MAX_LEN = 120;
 const MAX_NOTIFY_DURATION_MS = 30_000;
+
+// Built-in designs dir (dist/deck/builtins); resolution via ../lib/builtins.ts.
+const BUILTINS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../deck/builtins');
 const DAEMON_VERSION: string = (() => {
   try {
     const pkgPath = fileURLToPath(new URL('../../package.json', import.meta.url));
@@ -531,7 +535,20 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         }
         let project: DmxProject;
         try {
-          project = parseProject(readFileSync(resolved, 'utf-8'));
+          // Prefer the user library; fall back to a bundled built-in of the
+          // same name only when the user file is genuinely absent (built-ins
+          // are never copied in). Any other read error propagates to the catch
+          // below so it is logged rather than silently masked by the fallback.
+          let raw: string;
+          try {
+            raw = readFileSync(resolved, 'utf-8');
+          } catch (e) {
+            if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+            const builtin = safeBuiltinPath(widget.file, BUILTINS_DIR);
+            if (!builtin) throw e;
+            raw = readFileSync(builtin, 'utf-8');
+          }
+          project = parseProject(raw);
         } catch (err) {
           console.error(`[image renderer] failed to load ${widget.file}:`, err);
           const empty = new Uint8Array(FRAME_COLS * FRAME_ROWS) as unknown as Frame;
