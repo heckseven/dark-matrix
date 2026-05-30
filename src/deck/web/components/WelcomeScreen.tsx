@@ -85,12 +85,12 @@ export function WelcomeScreen({ daemonOnline, hardwareOnline, onDismiss }: Props
           <StatusRow
             ok={daemonOnline}
             label="Daemon reachable"
-            detail={daemonOnline ? undefined : 'Start with: systemctl --user start dark-matrix'}
+            {...(daemonOnline ? {} : { detail: 'Start with: systemctl --user start dark-matrix' })}
           />
           <StatusRow
             ok={hardwareOnline}
             label="Hardware detected"
-            detail={hardwareOnline ? undefined : 'Check USB connections and dialout group membership'}
+            {...(hardwareOnline ? {} : { detail: 'Check USB connections and dialout group membership' })}
           />
           <StatusRow
             ok={false}
@@ -103,7 +103,11 @@ export function WelcomeScreen({ daemonOnline, hardwareOnline, onDismiss }: Props
           <div>
             <p className="font-mono text-xs text-muted-foreground mb-2">Optional packages</p>
             <div className="flex flex-col gap-2">
-              <StatusRow ok={features.claudeLoggedIn} label="claude login" detail={features.claudeLoggedIn ? undefined : 'Run: claude login (enables usage/reset-time widget)'} />
+              <StatusRow
+                ok={features.claudeLoggedIn}
+                label="claude login"
+                {...(features.claudeLoggedIn ? {} : { detail: 'Run: claude login (enables usage/reset-time widget)' })}
+              />
               <StatusRow ok={features.ffmpeg}     label="ffmpeg"       detail="audio pipeline" />
               <StatusRow ok={features.wpctl}      label="wpctl"        detail="audio source selection (wireplumber)" />
               <StatusRow ok={features.pwDump}     label="pw-dump"      detail="audio device enumeration (pipewire-utils)" />

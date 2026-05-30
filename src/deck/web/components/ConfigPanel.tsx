@@ -102,7 +102,7 @@ export function ConfigPanel({ dualModule, topPad }: { dualModule: boolean; topPa
             )}
             {activeTab === 'appearance' && (
               <AppearanceTab
-                value={configData.appearance}
+                {...(configData.appearance !== undefined ? { value: configData.appearance } : {})}
                 onChange={v => patchConfig({ appearance: v })}
               />
             )}
