@@ -815,7 +815,11 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
       const html = `<!DOCTYPE html><html><head><title>Twitch Auth</title><link rel="icon" href="data:,"></head><body><script nonce="${nonce}">
 var p=new URLSearchParams(location.hash.slice(1));
 var token=p.get('access_token'),state=p.get('state');
-if(token&&state){fetch('/api/twitch/save-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:token,state:state})}).then(function(r){r.ok?location.href='/':document.body.textContent='Save failed'});}
+// 'dm:authReturn' is written by TwitchConnectForm.tsx (separate web bundle). Resolve it
+// against our own origin and reject anything that would navigate off-origin (open redirect).
+function ret(){var r;try{r=localStorage.getItem('dm:authReturn');localStorage.removeItem('dm:authReturn');}catch(e){}
+if(!r)return '/';try{var u=new URL(r,location.origin);return u.origin===location.origin?u.pathname+u.search:'/';}catch(e){return '/';}}
+if(token&&state){fetch('/api/twitch/save-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:token,state:state})}).then(function(r){r.ok?location.href=ret():document.body.textContent='Save failed'});}
 else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error');}
 </script></body></html>`;
       // connect-src 'self' lets the inline script POST the token back to /api/twitch/save-token
