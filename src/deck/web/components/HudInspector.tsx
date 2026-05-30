@@ -93,7 +93,10 @@ function widgetHasSettings(w: HudWidget): boolean {
 
 // ── Layer 1: Category select ──────────────────────────────────────────────
 
+// Order here is display order only; the default selection is hardcoded to
+// 'time' below (see useState), not CATEGORIES[0].
 const CATEGORIES = [
+  { id: 'strings', label: 'strings' },
   { id: 'time',  label: 'time'  },
   { id: 'timer', label: 'timer' },
   { id: 'media', label: 'media' },
@@ -101,7 +104,6 @@ const CATEGORIES = [
   { id: 'audio', label: 'audio' },
   { id: 'life',  label: 'life'  },
   { id: 'agent', label: 'agent' },
-  { id: 'strings', label: 'strings' },
 ] as const;
 
 // ── Layer 2: Clock grid ───────────────────────────────────────────────────
@@ -957,17 +959,24 @@ const SIZE_RESTRICTED: readonly TextStyle[] = ['spine', 'neon', 'bigglyph', 'veg
 const sizeOptionsFor = (style: TextStyle): readonly TextSize[] =>
   SIZE_RESTRICTED.includes(style) ? (['tiny', 'small'] as const) : TEXT_SIZES;
 // The two fastest tiers (fast2/fast3) are bigglyph-only; scrolling stops at 'fast'.
+// vegas chase reads best slow — 40px/s ('fast') runs the bulbs too fast, so it
+// tops out at 20px/s ('normal').
 const speedOptionsFor = (style: TextStyle): readonly TextSpeed[] =>
-  style === 'bigglyph' ? TEXT_SPEEDS : TEXT_SPEEDS.filter(s => s !== 'fast2' && s !== 'fast3');
+  style === 'bigglyph' ? TEXT_SPEEDS
+    : style === 'vegas' ? TEXT_SPEEDS.filter(s => s !== 'fast' && s !== 'fast2' && s !== 'fast3')
+    : TEXT_SPEEDS.filter(s => s !== 'fast2' && s !== 'fast3');
 
 // Build the text widget for a chosen style, enforcing per-style constraints:
 // only marquee spans, and restricted styles cap at 'small'.
 function widgetForStyle(base: (HudWidget & { widget: 'text' }) | null, style: TextStyle): HudWidget & { widget: 'text' } {
   const next: HudWidget & { widget: 'text' } = base
     ? { ...base, style }
-    : { widget: 'text', text: 'HELLO', style, size: 'small', speed: 'normal' };
+    : { widget: 'text', text: 'HELLO', style, size: 'small', speed: style === 'vegas' ? 'slow' : 'normal' };
   if (style !== 'marquee') delete next.span;
   if (SIZE_RESTRICTED.includes(style) && (next.size === 'medium' || next.size === 'large')) next.size = 'small';
+  // vegas tops out at 20px/s — clamp a faster tier (e.g. 'fast') carried over
+  // from another style down to the 10px/s default.
+  if (style === 'vegas' && next.speed !== undefined && !speedOptionsFor('vegas').includes(next.speed)) next.speed = 'slow';
   return next;
 }
 
