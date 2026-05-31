@@ -38,6 +38,8 @@ import { createElegantTimerRenderer, createHourglassTimerRenderer, createTwinzTi
 import { createTextRenderer, TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS, TEXT_FLICKERS, TEXT_TRANSITIONS } from '../animations/text-renderers.js';
 import type { TextStyle, TextSize, TextSpeed, TextFlicker, TextTransition } from '../animations/text-renderers.js';
 import type { ClaudeStyle, ClaudeRendererApi } from '../animations/claude-renderers.js';
+import { createZenRenderer } from '../animations/zen-renderers.js';
+import type { ZenStyle } from '../animations/zen-renderers.js';
 import { watchProcStats } from '../lib/proc-source.js';
 import { createPresetTriggerEngine } from '../lib/preset-triggers.js';
 import { createGifAnimation } from '../animations/gif.js';
@@ -791,6 +793,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
           render(now, _audioCtx) { return textRenderer.render(now); },
           stop() { textRenderer.stop(); },
         };
+      }
+      case 'zen': {
+        const r = createZenRenderer((widget.style as ZenStyle | undefined) ?? 'fluid-1');
+        return { render(_now: Date, _audioCtx: unknown) { return r.render(); }, stop() { r.stop(); } };
       }
       default: {
         const _exhaustive: never = widget;

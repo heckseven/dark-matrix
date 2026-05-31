@@ -5,6 +5,7 @@ import os from 'node:os';
 import { enumerateMatrixModules } from './modules.js';
 import { TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS, TEXT_FLICKERS, TEXT_TRANSITIONS } from '../animations/text-renderers.js';
 import { AUDIO_STYLES } from '../animations/audio-renderers.js';
+import { ZEN_STYLE_VALUES } from '../animations/zen-renderers.js';
 
 const AUDIO_STYLE_VALUES = AUDIO_STYLES.map(s => s.id) as [string, ...string[]];
 
@@ -21,6 +22,7 @@ const HudWidgetSchema = z.discriminatedUnion('widget', [
   z.object({ widget: z.literal('image'), file: z.string().regex(/^[a-zA-Z0-9_\-]+\.dmx\.json$/i).max(73), speed: z.number().min(0.25).max(8).optional(), loop: z.boolean().optional() }),
   z.object({ widget: z.literal('life'), biomeName: z.string().min(1).max(100), randomIntervalMs: z.number().int().min(5000).max(3_600_000).optional() }),
   z.object({ widget: z.literal('claude'), style: z.enum(['snow', 'quota', 'sand', 'tetris']).optional().catch(undefined) }),
+  z.object({ widget: z.literal('zen'), style: z.enum(ZEN_STYLE_VALUES).optional().catch(undefined) }),
   z.object({ widget: z.literal('timer'), style: z.enum(['elegant', 'hourglass', 'twinz']).optional().catch(undefined), durationMs: z.number().int().min(1000).optional(), repeat: z.boolean().optional() }),
   z.object({ widget: z.literal('text'), text: z.string().max(128), style: z.enum(TEXT_STYLES).optional().catch(undefined), size: z.enum(TEXT_SIZES).optional().catch(undefined), speed: z.enum(TEXT_SPEEDS).optional().catch(undefined), span: z.boolean().optional(), flicker: z.enum(TEXT_FLICKERS).optional().catch(undefined), transition: z.enum(TEXT_TRANSITIONS).optional().catch(undefined), loopDelayMs: z.number().int().min(0).max(60000).optional() }),
 ]);
