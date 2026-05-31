@@ -8,13 +8,15 @@ import { Input } from '../ui/input.js';
 import { Button } from '../ui/button.js';
 import { Checkbox } from '../ui/checkbox.js';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.js';
+import { Dialog, DialogClose, DialogContent, DialogTitle } from '../ui/dialog.js';
 import { AssetPickerModal } from '../AssetPickerModal.js';
 import { DmxPreview } from '../DmxPreview.js';
+import { ScrubInput } from '../ui/scrub-input.js';
 
 export type NotificationRule = {
-  source?: 'ec-switch' | 'vm' | 'claude' | 'desktop-notification' | 'manual' | 'twitch';
+  source?: 'ec-switch' | 'vm' | 'claude' | 'desktop-notification' | 'manual' | 'twitch' | 'battery';
+  battery_threshold?: number;
   app_name_glob?: string;
-  urgency?: 'low' | 'normal' | 'critical' | 'any';
   content_glob?: string;
   animation: 'scroll' | 'dmx' | 'none';
   scroll_text?: string;
@@ -36,11 +38,19 @@ export type NotificationsTabProps = {
   dualModule?: boolean;
 };
 
+// Partial rule used for pending (new, not-yet-saved) rows
+type RuleDraft = Partial<NotificationRule>;
+
+type PendingRow = { id: string; draft: RuleDraft; sourceConfigured: boolean };
+
 type RowProps = {
-  rule: NotificationRule;
+  rule: RuleDraft;
+  isExisting: boolean;
+  sourceConfigured: boolean;
   idx: number;
   total: number;
-  onUpdate: (rule: NotificationRule) => void;
+  onSourceDone: (draft: RuleDraft) => void;
+  onAnimationDone: (rule: NotificationRule) => void;
   onDelete: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
@@ -50,13 +60,12 @@ type RowProps = {
   onDrop: () => void;
   dragging: boolean;
   dragOver: boolean;
-  editOpen: boolean;
-  onEditOpenChange: (open: boolean) => void;
   onHoverEnter: () => void;
   onHoverLeave: () => void;
   rowRef: (el: HTMLDivElement | null) => void;
   history: Record<string, string[]>;
   refreshHistory: () => Promise<void>;
+  dualModule: boolean;
 };
 
 type RulePatch = { [K in keyof NotificationRule]+?: NotificationRule[K] | undefined };
@@ -67,13 +76,15 @@ function buildRule(base: NotificationRule, changes: RulePatch): NotificationRule
   const anim: NotificationRule['animation'] = merged.animation ?? base.animation;
   const needsAsset = anim === 'dmx';
   const isDesktop = src === 'desktop-notification' || src === undefined;
+  const isBattery = src === 'battery';
 
   const result: NotificationRule = { animation: anim };
   if (src !== undefined) result.source = src;
 
   if (isDesktop) {
     if (merged.app_name_glob !== undefined && merged.app_name_glob !== '') result.app_name_glob = merged.app_name_glob;
-    if (merged.urgency !== undefined && merged.urgency !== 'any') result.urgency = merged.urgency;
+  } else if (isBattery) {
+    if (merged.battery_threshold !== undefined) result.battery_threshold = merged.battery_threshold;
   } else {
     if (merged.content_glob !== undefined && merged.content_glob !== '') result.content_glob = merged.content_glob;
   }
@@ -110,11 +121,11 @@ function buildRule(base: NotificationRule, changes: RulePatch): NotificationRule
 // ec-switch events produce content strings like "MIC ON", "MIC OFF", "CAM ON", "CAM OFF".
 type SwitchState = 'on' | 'off' | 'any';
 
-function virtualSource(rule: NotificationRule): string {
-  if (rule.source === 'ec-switch') {
-    return (rule.content_glob ?? '').startsWith('CAM') ? 'cam-switch' : 'mic-switch';
+function virtualSource(draft: RuleDraft): string {
+  if (draft.source === 'ec-switch') {
+    return (draft.content_glob ?? '').startsWith('CAM') ? 'cam-switch' : 'mic-switch';
   }
-  return rule.source ?? '';
+  return draft.source ?? '';
 }
 
 function switchState(glob?: string): SwitchState {
@@ -156,32 +167,65 @@ function toClaudeGlob(kind: ClaudeEventKind, suffix: string): string | undefined
 
 type TimingMode = 'default' | 'loops' | 'duration';
 
-function timingMode(rule: NotificationRule): TimingMode {
+function timingMode(rule: RuleDraft): TimingMode {
   if (rule.loop_count !== undefined) return 'loops';
   if (rule.duration_ms_override !== undefined) return 'duration';
   return 'default';
 }
 
-// ── chip summary helpers ──────────────────────────────────────────────────────
+// ── label helpers ─────────────────────────────────────────────────────────────
 
-function srcLabel(r: NotificationRule): string {
-  if (!r.source || r.source === 'desktop-notification') return r.app_name_glob || '*';
-  if (r.source === 'ec-switch') return r.content_glob?.startsWith('CAM') ? 'cam' : 'mic';
-  return r.source;
+function srcButtonLabel(draft: RuleDraft): string {
+  const src = draft.source;
+  if (!src || src === 'desktop-notification') {
+    return draft.app_name_glob ? `desktop "${draft.app_name_glob}"` : 'desktop';
+  }
+  if (src === 'ec-switch') {
+    const isCamera = (draft.content_glob ?? '').startsWith('CAM');
+    const device = isCamera ? 'cam' : 'mic';
+    const state = switchState(draft.content_glob);
+    return state === 'any' ? `${device} toggled` : `${device} ${state}`;
+  }
+  if (src === 'battery') {
+    return draft.battery_threshold !== undefined ? `battery ≤${draft.battery_threshold}%` : 'battery';
+  }
+  if (src === 'claude') {
+    const kind = claudeEventKind(draft.content_glob);
+    if (kind === 'idle') return 'claude idle';
+    if (kind === 'input') return 'claude needs input';
+    if (kind === 'tool') {
+      const suffix = claudeEventSuffix(draft.content_glob);
+      return suffix === '*' ? 'claude tool' : `claude tool "${suffix}"`;
+    }
+    if (kind === 'agent') {
+      const suffix = claudeEventSuffix(draft.content_glob);
+      return suffix === '*' ? 'claude agent' : `claude agent "${suffix}"`;
+    }
+    return 'claude';
+  }
+  if (src === 'vm') return draft.content_glob ? `vm "${draft.content_glob}"` : 'vm';
+  if (src === 'twitch') return draft.content_glob ? `twitch "${draft.content_glob}"` : 'twitch';
+  if (src === 'manual') return 'manual';
+  return src;
 }
 
+function animButtonLabel(rule: NotificationRule): string {
+  if (rule.animation === 'none') return 'suppress';
+  if (rule.animation === 'scroll') {
+    return rule.scroll_text ? `scroll "${rule.scroll_text}"` : 'scroll';
+  }
+  if (rule.animation === 'dmx') {
+    const name = stripAssetName(rule.asset_path ?? rule.dmx_path ?? '');
+    return name ? `design "${name}"` : 'design';
+  }
+  return rule.animation;
+}
+
+// used for hover preview label
 function animLabel(r: NotificationRule): string {
   if (r.animation === 'none') return 'suppress';
-  if (r.animation === 'dmx') return r.asset_path?.replace(/^library\//, '').replace('.dmx.json', '') ?? 'dmx';
+  if (r.animation === 'dmx') return r.asset_path ? stripAssetName(r.asset_path) : 'dmx';
   return r.composite === 'overlay' ? 'scroll·overlay' : 'scroll';
-}
-
-function Chip({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <span className={`font-mono text-xs px-1.5 py-0.5 rounded-sm border border-foreground/25 text-foreground/65 whitespace-nowrap${className ? ` ${className}` : ''}`}>
-      {children}
-    </span>
-  );
 }
 
 // ── live preview ──────────────────────────────────────────────────────────────
@@ -339,6 +383,24 @@ function RecentExamplesButton({ items, onPick, refresh }: {
   );
 }
 
+// Applies a patch to a RuleDraft, deleting properties set to undefined.
+// Required because exactOptionalPropertyTypes disallows explicit undefined on optional props.
+function patchDraft(base: RuleDraft, patch: Record<string, unknown>): RuleDraft {
+  const result: Record<string, unknown> = { ...base };
+  for (const [k, v] of Object.entries(patch)) {
+    if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+    if (v === undefined) delete result[k];
+    else result[k] = v;
+  }
+  return result as RuleDraft;
+}
+
+function stripAssetName(path: string): string {
+  return path.replace(/^library\//, '').replace('.dmx.json', '');
+}
+
+const NOOP = () => {};
+
 function FormRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2">
@@ -348,15 +410,232 @@ function FormRow({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-// ── rule row ──────────────────────────────────────────────────────────────────
+// ── source dialog ─────────────────────────────────────────────────────────────
 
-function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, onDragStart, onDragEnter, onDragEnd, onDrop, dragging, dragOver, editOpen, onEditOpenChange, onHoverEnter, onHoverLeave, rowRef, history, refreshHistory }: RowProps) {
+function SourceDialog({ open, onOpenChange, initial, onDone, history, refreshHistory, triggerRef }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  initial: RuleDraft;
+  onDone: (draft: RuleDraft) => void;
+  history: NotificationHistory;
+  refreshHistory: () => Promise<void>;
+  triggerRef?: React.RefObject<HTMLButtonElement>;
+}) {
+  const [draft, setDraft] = useState<RuleDraft>(initial);
+
+  // Capture latest initial and reset draft when dialog opens
+  const initialRef = useRef(initial);
+  initialRef.current = initial;
+  useEffect(() => {
+    if (open) setDraft(initialRef.current);
+  }, [open]);
+
+  const vSrc = virtualSource(draft);
+  const isMicSwitch = vSrc === 'mic-switch';
+  const isCamSwitch = vSrc === 'cam-switch';
+  const isDesktop = draft.source === 'desktop-notification' || draft.source === undefined;
+  const isClaude = draft.source === 'claude';
+  const isBattery = draft.source === 'battery';
+
+  function handleSourceChange(newVirt: string) {
+    if (newVirt === 'mic-switch') {
+      const state = (isMicSwitch || isCamSwitch) ? switchState(draft.content_glob) : 'any';
+      setDraft(d => patchDraft(d, { source: 'ec-switch', content_glob: toSwitchGlob('MIC', state) }));
+    } else if (newVirt === 'cam-switch') {
+      const state = (isMicSwitch || isCamSwitch) ? switchState(draft.content_glob) : 'any';
+      setDraft(d => patchDraft(d, { source: 'ec-switch', content_glob: toSwitchGlob('CAM', state) }));
+    } else {
+      const newSrc = (newVirt === '' || newVirt === 'any') ? undefined : newVirt as NotificationRule['source'];
+      setDraft(d => {
+        const patch: Record<string, unknown> = { source: newSrc };
+        // Clear content_glob when switching away from any source that uses it
+        if (isMicSwitch || isCamSwitch || isClaude || d.source === 'vm' || d.source === 'twitch' || d.source === 'manual') {
+          patch.content_glob = undefined;
+        }
+        // Seed battery threshold default on first switch to battery
+        if (newSrc === 'battery' && d.battery_threshold === undefined) {
+          patch.battery_threshold = 20;
+        }
+        return patchDraft(d, patch);
+      });
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="w-[320px] flex flex-col gap-3"
+        onCloseAutoFocus={e => { if (triggerRef?.current) { e.preventDefault(); triggerRef.current.focus(); } }}
+      >
+        <DialogTitle>select source</DialogTitle>
+        <div className="flex flex-col gap-2">
+          <FormRow label="source">
+            <Select
+              fluid
+              aria-label="Source"
+              value={vSrc === '' ? 'any' : vSrc}
+              options={[
+                { value: 'any', label: 'any source' },
+                { value: 'desktop-notification', label: 'desktop' },
+                { value: 'mic-switch', label: 'mic switch' },
+                { value: 'cam-switch', label: 'cam switch' },
+                { value: 'vm', label: 'vm' },
+                { value: 'claude', label: 'claude' },
+                { value: 'manual', label: 'manual' },
+                { value: 'twitch', label: 'twitch' },
+                { value: 'battery', label: 'battery' },
+              ]}
+              onValueChange={handleSourceChange}
+            />
+          </FormRow>
+
+          {isDesktop && (
+            <FormRow label="app">
+              <div className="flex items-center gap-1">
+                <Input
+                  fluid
+                  aria-label="App name glob"
+                  placeholder="glob (*)"
+                  value={draft.app_name_glob ?? ''}
+                  onChange={e => setDraft(d => ({ ...d, app_name_glob: e.target.value }))}
+                  spellCheck={false}
+                />
+                <RecentExamplesButton
+                  items={history['desktop-notification'] ?? []}
+                  refresh={refreshHistory}
+                  onPick={v => setDraft(d => ({ ...d, app_name_glob: v }))}
+                />
+              </div>
+            </FormRow>
+          )}
+
+          {(isMicSwitch || isCamSwitch) && (
+            <FormRow label="state">
+              <Select
+                fluid
+                aria-label="Switch state"
+                value={switchState(draft.content_glob)}
+                options={[{ value: 'any', label: 'any' }, { value: 'on', label: 'on' }, { value: 'off', label: 'off' }]}
+                onValueChange={v => {
+                  const state: SwitchState = (v === 'on' || v === 'off') ? v : 'any';
+                  const prefix = isMicSwitch ? 'MIC' : 'CAM';
+                  setDraft(d => ({ ...d, content_glob: toSwitchGlob(prefix, state) }));
+                }}
+              />
+            </FormRow>
+          )}
+
+          {isClaude && (() => {
+            const kind = claudeEventKind(draft.content_glob);
+            const suffix = claudeEventSuffix(draft.content_glob);
+            const hasSuffix = kind === 'tool' || kind === 'agent';
+            return (
+              <>
+                <FormRow label="event">
+                  <Select
+                    fluid
+                    aria-label="Claude event type"
+                    value={kind}
+                    options={[
+                      { value: 'any', label: 'any' },
+                      { value: 'tool', label: 'TOOL' },
+                      { value: 'agent', label: 'AGENT' },
+                      { value: 'idle', label: 'IDLE' },
+                      { value: 'input', label: 'INPUT' },
+                    ]}
+                    onValueChange={v => {
+                      const next = v as ClaudeEventKind;
+                      setDraft(d => patchDraft(d, { content_glob: toClaudeGlob(next, suffix) }));
+                    }}
+                  />
+                </FormRow>
+                {hasSuffix && (
+                  <FormRow label="match">
+                    <Input
+                      fluid
+                      aria-label={`${kind === 'tool' ? 'Tool' : 'Agent'} name glob`}
+                      placeholder="* (any)"
+                      value={suffix === '*' ? '' : suffix}
+                      onChange={e => {
+                        setDraft(d => patchDraft(d, { content_glob: toClaudeGlob(kind, e.target.value || '*') }));
+                      }}
+                      spellCheck={false}
+                    />
+                  </FormRow>
+                )}
+              </>
+            );
+          })()}
+
+          {isBattery && (
+            <FormRow label="at or below">
+              <ScrubInput
+                aria-label="Battery threshold"
+                suffix="%"
+                min={1}
+                max={99}
+                pixelsPerUnit={2}
+                value={draft.battery_threshold ?? 20}
+                onChange={v => setDraft(d => ({ ...d, battery_threshold: v }))}
+              />
+            </FormRow>
+          )}
+
+          {!isDesktop && !isMicSwitch && !isCamSwitch && !isClaude && !isBattery && (
+            <FormRow label="content">
+              <div className="flex items-center gap-1">
+                <Input
+                  fluid
+                  aria-label="Content glob"
+                  placeholder="glob (*)"
+                  value={draft.content_glob ?? ''}
+                  onChange={e => setDraft(d => patchDraft(d, { content_glob: e.target.value }))}
+                  spellCheck={false}
+                />
+                <RecentExamplesButton
+                  items={history[draft.source ?? ''] ?? []}
+                  refresh={refreshHistory}
+                  onPick={v => setDraft(d => patchDraft(d, { content_glob: v }))}
+                />
+              </div>
+            </FormRow>
+          )}
+        </div>
+
+        <div className="flex gap-2 pt-2 border-t border-foreground/10">
+          <DialogClose asChild>
+            <Button size="sm" onClick={() => onDone(draft)}>done</Button>
+          </DialogClose>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── animation dialog ──────────────────────────────────────────────────────────
+
+function AnimationDialog({ open, onOpenChange, initial, onDone, dualModule, triggerRef }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  initial: RuleDraft;
+  onDone: (draft: RuleDraft) => void;
+  dualModule: boolean;
+  triggerRef?: React.RefObject<HTMLButtonElement>;
+}) {
+  const [draft, setDraft] = useState<RuleDraft>(initial);
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerOpenRef = useRef(false);
   useEffect(() => { pickerOpenRef.current = pickerOpen; }, [pickerOpen]);
+
+  const initialRef = useRef(initial);
+  initialRef.current = initial;
+  useEffect(() => {
+    if (open) setDraft(initialRef.current);
+  }, [open]);
+
   const [assetWidth, setAssetWidth] = useState<9 | 18 | null>(null);
   useEffect(() => {
-    const path = rule.asset_path;
+    const path = draft.asset_path;
     if (!path) { setAssetWidth(null); return; }
     let cancelled = false;
     fetch(`/api/assets/${encodeURIComponent(path)}`)
@@ -364,7 +643,293 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, o
       .then(d => { if (!cancelled) setAssetWidth(d.asset.width); })
       .catch(() => { if (!cancelled) setAssetWidth(null); });
     return () => { cancelled = true; };
-  }, [rule.asset_path]);
+  }, [draft.asset_path]);
+
+  const animType = draft.animation ?? 'scroll';
+  const mode = timingMode(draft);
+  const assetDisplay = draft.asset_path ?? draft.dmx_path ?? '';
+  const durationDisplay = draft.duration_ms_override !== undefined ? String(draft.duration_ms_override) : '';
+  const previewRule = buildRule({ animation: animType }, draft as RulePatch);
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!pickerOpenRef.current) onOpenChange(v); }}>
+      <DialogContent
+        className="w-[360px] flex flex-col gap-3"
+        onInteractOutside={e => { if (pickerOpenRef.current) e.preventDefault(); }}
+        onCloseAutoFocus={e => { if (triggerRef?.current) { e.preventDefault(); triggerRef.current.focus(); } }}
+      >
+        <DialogTitle>select animation</DialogTitle>
+
+        <div className="flex justify-center">
+          <RulePrev rule={previewRule} dual={dualModule} />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <FormRow label="type">
+            <Select
+              fluid
+              aria-label="Animation type"
+              value={animType}
+              options={[
+                { value: 'scroll', label: 'scroll' },
+                { value: 'dmx', label: 'design' },
+                { value: 'none', label: 'suppress' },
+              ]}
+              onValueChange={v => {
+                if (v === 'dmx') {
+                  setDraft(d => ({ ...d, animation: 'dmx', transition: 'dissolve', overlay_mode: 'halo', composite: 'overlay' }));
+                } else if (v === 'scroll' || v === 'none') {
+                  setDraft(d => ({ ...d, animation: v }));
+                }
+              }}
+            />
+          </FormRow>
+
+          {animType === 'scroll' && (
+            <FormRow label="text">
+              <Input
+                fluid
+                aria-label="Scroll text"
+                placeholder="notification text"
+                value={draft.scroll_text ?? ''}
+                onChange={e => setDraft(d => patchDraft(d, { scroll_text: e.target.value }))}
+                spellCheck={false}
+              />
+            </FormRow>
+          )}
+
+          {animType === 'scroll' && (
+            <FormRow label="size">
+              <Select
+                fluid
+                aria-label="Text size"
+                value={draft.scroll_size ?? 'small'}
+                options={[
+                  { value: 'tiny', label: 'tiny' },
+                  { value: 'small', label: 'small' },
+                  { value: 'medium', label: 'medium' },
+                  { value: 'large', label: 'large' },
+                ]}
+                onValueChange={v => {
+                  const s: ScrollSize | undefined = (v === 'tiny' || v === 'small' || v === 'medium' || v === 'large') ? v : undefined;
+                  setDraft(d => patchDraft(d, { scroll_size: s }));
+                }}
+              />
+            </FormRow>
+          )}
+
+          {animType === 'scroll' && (
+            <FormRow label="composite">
+              <Select
+                fluid
+                aria-label="Composite"
+                value={draft.composite ?? 'replace'}
+                options={[{ value: 'replace', label: 'replace' }, { value: 'overlay', label: 'overlay' }]}
+                onValueChange={v => setDraft(d => ({ ...d, composite: v === 'overlay' ? 'overlay' : 'replace' }))}
+              />
+            </FormRow>
+          )}
+
+          {animType === 'dmx' && (
+            <FormRow label="asset">
+              <div className="flex items-center gap-1.5 w-full">
+                <Input
+                  fluid
+                  readOnly
+                  value={assetDisplay ? stripAssetName(assetDisplay) : ''}
+                  placeholder="none"
+                  aria-label="Selected asset"
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0"
+                  aria-label={`Pick asset${assetDisplay ? ` (current: ${stripAssetName(assetDisplay)})` : ''}`}
+                  onClick={() => setPickerOpen(true)}
+                >
+                  pick
+                </Button>
+              </div>
+            </FormRow>
+          )}
+
+          {animType === 'dmx' && (
+            <FormRow label="mirror">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <Checkbox
+                  checked={draft.mirror === true}
+                  onChange={e => setDraft(d => patchDraft(d, {
+                    mirror: e.target.checked ? true : undefined,
+                    side: e.target.checked ? d.side : undefined,
+                  }))}
+                />
+                <span className="font-mono text-xs text-muted-foreground">mirror on second panel</span>
+              </label>
+            </FormRow>
+          )}
+
+          {animType === 'dmx' && assetWidth === 9 && !draft.mirror && (
+            <FormRow label="side">
+              <Select
+                fluid
+                aria-label="Panel side"
+                value={draft.side ?? 'both'}
+                options={[
+                  { value: 'both', label: 'both' },
+                  { value: 'left', label: 'left' },
+                  { value: 'right', label: 'right' },
+                ]}
+                onValueChange={v => setDraft(d => patchDraft(d, { side: (v === 'left' || v === 'right') ? v : undefined }))}
+              />
+            </FormRow>
+          )}
+
+          {animType === 'dmx' && (
+            <FormRow label="blend">
+              <Select
+                fluid
+                aria-label="Blend"
+                value={draft.overlay_mode ?? (draft.composite === 'overlay' ? 'or' : 'replace')}
+                options={[{ value: 'replace', label: 'replace' }, { value: 'or', label: 'additive' }, { value: 'xor', label: 'xor' }, { value: 'halo', label: 'halo' }]}
+                onValueChange={v => {
+                  if (v === 'replace') {
+                    setDraft(d => patchDraft(d, { composite: 'replace', overlay_mode: undefined }));
+                  } else {
+                    setDraft(d => patchDraft(d, { composite: 'overlay', overlay_mode: v as 'or' | 'xor' | 'halo' }));
+                  }
+                }}
+              />
+            </FormRow>
+          )}
+
+          {animType === 'dmx' && (
+            <FormRow label="transition">
+              <Select
+                fluid
+                aria-label="Transition"
+                value={draft.transition ?? 'none'}
+                options={[
+                  { value: 'none', label: 'none' },
+                  { value: 'wipe', label: 'wipe' },
+                  { value: 'scan', label: 'scan' },
+                  { value: 'slide', label: 'slide' },
+                  { value: 'dissolve', label: 'dissolve' },
+                  { value: 'flash', label: 'flash' },
+                ]}
+                onValueChange={v => {
+                  const t: NotificationRule['transition'] = (v === 'wipe' || v === 'scan' || v === 'slide' || v === 'dissolve' || v === 'flash') ? v : undefined;
+                  setDraft(d => patchDraft(d, { transition: t }));
+                }}
+              />
+            </FormRow>
+          )}
+
+          {animType === 'dmx' && (
+            <>
+              <FormRow label="timing">
+                <Select
+                  fluid
+                  aria-label="Timing mode"
+                  value={mode}
+                  options={[
+                    { value: 'default', label: 'default' },
+                    { value: 'loops', label: 'loops' },
+                    { value: 'duration', label: 'duration ms' },
+                  ]}
+                  onValueChange={v => {
+                    if (v === 'loops') setDraft(d => patchDraft(d, { loop_count: d.loop_count ?? 1, duration_ms_override: undefined }));
+                    else if (v === 'duration') setDraft(d => patchDraft(d, { duration_ms_override: d.duration_ms_override ?? 5000, loop_count: undefined }));
+                    else setDraft(d => patchDraft(d, { loop_count: undefined, duration_ms_override: undefined }));
+                  }}
+                />
+              </FormRow>
+              {mode === 'loops' && (
+                <FormRow label="count">
+                  <Input
+                    fluid
+                    aria-label="Loop count"
+                    type="number"
+                    min="1"
+                    placeholder="1"
+                    value={draft.loop_count !== undefined ? String(draft.loop_count) : ''}
+                    onChange={e => {
+                      const n = parseInt(e.target.value, 10);
+                      setDraft(d => ({ ...d, loop_count: isNaN(n) || n < 1 ? 1 : n }));
+                    }}
+                  />
+                </FormRow>
+              )}
+              {mode === 'duration' && (
+                <FormRow label="duration">
+                  <Input
+                    fluid
+                    aria-label="Duration override ms"
+                    type="number"
+                    min="100"
+                    placeholder="default"
+                    value={durationDisplay}
+                    suffix="ms"
+                    onChange={e => {
+                      const n = parseInt(e.target.value, 10);
+                      setDraft(d => patchDraft(d, { duration_ms_override: isNaN(n) || n <= 0 ? undefined : n }));
+                    }}
+                  />
+                </FormRow>
+              )}
+            </>
+          )}
+
+          {animType !== 'dmx' && (
+            <FormRow label="duration">
+              <Input
+                fluid
+                aria-label="Duration override ms"
+                type="number"
+                min="100"
+                placeholder="default"
+                value={durationDisplay}
+                suffix="ms"
+                onChange={e => {
+                  const n = parseInt(e.target.value, 10);
+                  setDraft(d => patchDraft(d, { duration_ms_override: isNaN(n) || n <= 0 ? undefined : n }));
+                }}
+              />
+            </FormRow>
+          )}
+        </div>
+
+        <div className="flex gap-2 pt-2 border-t border-foreground/10">
+          <DialogClose asChild>
+            <Button size="sm" onClick={() => onDone(draft)}>done</Button>
+          </DialogClose>
+        </div>
+
+        <AssetPickerModal
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          {...(assetDisplay ? { current: assetDisplay } : {})}
+          onPick={filename => setDraft(d => patchDraft(d, { asset_path: filename }))}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── rule row ──────────────────────────────────────────────────────────────────
+
+function RuleRow({
+  rule, isExisting, sourceConfigured, idx, total, dualModule,
+  onSourceDone, onAnimationDone,
+  onDelete, onMoveUp, onMoveDown,
+  onDragStart, onDragEnter, onDragEnd, onDrop,
+  dragging, dragOver,
+  onHoverEnter, onHoverLeave, rowRef,
+  history, refreshHistory,
+}: RowProps) {
+  const [srcOpen, setSrcOpen] = useState(false);
+  const [animOpen, setAnimOpen] = useState(false);
+  const srcBtnRef = useRef<HTMLButtonElement>(null);
+  const animBtnRef = useRef<HTMLButtonElement>(null);
 
   const [testState, setTestState] = useState<'idle' | 'firing' | 'ok' | 'err'>('idle');
   const testTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -376,8 +941,9 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, o
       if (testTimerRef.current !== null) clearTimeout(testTimerRef.current);
     };
   }, []);
+
   async function fireTest() {
-    if (rule.animation === 'none') return;
+    if (!rule.animation || rule.animation === 'none') return;
     setTestState('firing');
     try {
       const body: Record<string, unknown> = {};
@@ -407,27 +973,13 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, o
     if (testTimerRef.current !== null) clearTimeout(testTimerRef.current);
     testTimerRef.current = setTimeout(() => { testTimerRef.current = null; if (testMountedRef.current) setTestState('idle'); }, 1500);
   }
-  const assetDisplay = rule.asset_path ?? rule.dmx_path ?? '';
-  const durationDisplay = rule.duration_ms_override !== undefined ? String(rule.duration_ms_override) : '';
-  const vSrc = virtualSource(rule);
-  const isMicSwitch = vSrc === 'mic-switch';
-  const isCamSwitch = vSrc === 'cam-switch';
-  const isDesktop = rule.source === 'desktop-notification' || rule.source === undefined;
-  const isClaude = rule.source === 'claude';
 
-  function handleSourceChange(newVirt: string) {
-    if (newVirt === 'mic-switch') {
-      const state = (isMicSwitch || isCamSwitch) ? switchState(rule.content_glob) : 'any';
-      onUpdate(buildRule(rule, { source: 'ec-switch', content_glob: toSwitchGlob('MIC', state) }));
-    } else if (newVirt === 'cam-switch') {
-      const state = (isMicSwitch || isCamSwitch) ? switchState(rule.content_glob) : 'any';
-      onUpdate(buildRule(rule, { source: 'ec-switch', content_glob: toSwitchGlob('CAM', state) }));
-    } else {
-      const newSrc = (newVirt === '' || newVirt === 'any') ? undefined : newVirt as NotificationRule['source'];
-      const patch: RulePatch = { source: newSrc };
-      if (isMicSwitch || isCamSwitch) patch.content_glob = '';
-      onUpdate(buildRule(rule, patch));
-    }
+  const completeRule = rule.animation !== undefined ? rule as NotificationRule : null;
+
+  function handleAnimationDone(draft: RuleDraft) {
+    const anim = draft.animation ?? 'scroll';
+    const complete = buildRule({ animation: anim }, draft as RulePatch);
+    onAnimationDone(complete);
   }
 
   return (
@@ -442,42 +994,62 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, o
       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
       onDrop={e => { e.preventDefault(); onDrop(); }}
     >
-      {/* drag handle — pointer-only affordance; keyboard reorder is via the up/down buttons */}
+      {/* drag handle — existing rows only */}
       <button
         type="button"
-        draggable
+        draggable={isExisting}
         tabIndex={-1}
         aria-hidden="true"
         onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
         onDragEnd={onDragEnd}
         title="Drag to reorder"
-        className="cursor-grab active:cursor-grabbing font-mono text-foreground/30 hover:text-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 leading-none"
+        className={`font-mono text-foreground/30 hover:text-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 leading-none${isExisting ? ' cursor-grab active:cursor-grabbing' : ' invisible pointer-events-none'}`}
       >
         ⠿
       </button>
       <span className="font-mono text-xs text-foreground/25 tabular-nums w-4 shrink-0">{idx + 1}</span>
 
-      {/* chip summary */}
-      <div className="flex items-center gap-1.5 flex-1 min-w-0">
-        <Chip className="shrink-0">{srcLabel(rule)}</Chip>
-        <span className="text-xs shrink-0">→</span>
-        <Chip className="max-w-[10rem] overflow-hidden text-ellipsis inline-block shrink-0">{animLabel(rule)}</Chip>
-        {rule.transition && <Chip className="shrink-0">{rule.transition}</Chip>}
-        {rule.loop_count !== undefined && <Chip className="shrink-0">{rule.loop_count}×</Chip>}
-        {rule.loop_count === undefined && rule.duration_ms_override !== undefined && <Chip className="shrink-0">{rule.duration_ms_override}ms</Chip>}
-      </div>
+      {/* source button */}
+      <Button
+        ref={srcBtnRef}
+        variant={sourceConfigured ? 'default' : 'primary'}
+        size="sm"
+        className="shrink-0 font-mono truncate max-w-[180px]"
+        aria-label={sourceConfigured ? `Edit source for rule ${idx + 1}` : `Select source for rule ${idx + 1}`}
+        onClick={() => setSrcOpen(true)}
+      >
+        {sourceConfigured ? srcButtonLabel(rule) : 'select source'}
+      </Button>
 
-      {/* reorder — hover visible */}
-      <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
-        <Button variant="ghost" size="sm" aria-label={`Move rule ${idx + 1} up`} disabled={idx === 0} onClick={onMoveUp}>↑</Button>
-        <Button variant="ghost" size="sm" aria-label={`Move rule ${idx + 1} down`} disabled={idx === total - 1} onClick={onMoveDown}>↓</Button>
-      </div>
+      {/* animation button */}
+      <Button
+        ref={animBtnRef}
+        variant="default"
+        size="sm"
+        className="shrink-0 font-mono truncate max-w-[180px]"
+        aria-label={completeRule ? `Edit animation for rule ${idx + 1}` : `Select animation for rule ${idx + 1}`}
+        aria-disabled={!sourceConfigured}
+        aria-description={!sourceConfigured ? 'Select a source first' : undefined}
+        disabled={!sourceConfigured}
+        onClick={() => setAnimOpen(true)}
+      >
+        {completeRule ? animButtonLabel(completeRule) : 'select animation'}
+      </Button>
 
-      {/* test button */}
-      <span aria-live="polite" aria-atomic="true" className="sr-only">
-        {testState === 'firing' ? 'Firing test' : testState === 'ok' ? 'Test succeeded' : testState === 'err' ? 'Test failed' : ''}
-      </span>
-      {rule.animation !== 'none' && (
+      {/* reorder — existing rows only, hover visible */}
+      {isExisting && (
+        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
+          <Button variant="ghost" size="sm" aria-label={`Move rule ${idx + 1} up`} disabled={idx === 0} onClick={onMoveUp}>↑</Button>
+          <Button variant="ghost" size="sm" aria-label={`Move rule ${idx + 1} down`} disabled={idx === total - 1} onClick={onMoveDown}>↓</Button>
+        </div>
+      )}
+
+      {/* test button — existing complete rules only, hover visible */}
+      {isExisting && completeRule && completeRule.animation !== 'none' && (
+        <>
+        <span aria-live="polite" aria-atomic="true" className="sr-only">
+          {testState === 'firing' ? 'Firing test' : testState === 'ok' ? 'Test succeeded' : testState === 'err' ? 'Test failed' : ''}
+        </span>
         <Button
           variant="ghost"
           size="sm"
@@ -488,411 +1060,14 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, o
         >
           {testState === 'firing' ? '…' : testState === 'ok' ? 'ok' : testState === 'err' ? 'err' : 'test'}
         </Button>
+        </>
       )}
 
-      {/* edit popover */}
-      <Popover open={editOpen} onOpenChange={onEditOpenChange}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`transition-opacity ${editOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'}`}
-            aria-label={`Edit rule ${idx + 1}`}
-          >
-            edit
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent side="left" className="w-[360px] flex flex-col gap-3" onInteractOutside={e => { if (pickerOpenRef.current) e.preventDefault(); }}>
-          <div className="flex flex-col gap-2">
-            {/* source */}
-            <FormRow label="source">
-              <Select
-                fluid
-                aria-label="Source"
-                value={vSrc === '' ? 'any' : vSrc}
-                options={[
-                  { value: 'any', label: 'any source' },
-                  { value: 'desktop-notification', label: 'desktop' },
-                  { value: 'mic-switch', label: 'mic switch' },
-                  { value: 'cam-switch', label: 'cam switch' },
-                  { value: 'vm', label: 'vm' },
-                  { value: 'claude', label: 'claude' },
-                  { value: 'manual', label: 'manual' },
-                  { value: 'twitch', label: 'twitch' },
-                ]}
-                onValueChange={handleSourceChange}
-              />
-            </FormRow>
-
-            {/* app glob */}
-            {isDesktop && (
-              <FormRow label="app">
-                <div className="flex items-center gap-1">
-                  <Input
-                    fluid
-                    aria-label="App name glob"
-                    placeholder="glob (*)"
-                    value={rule.app_name_glob ?? ''}
-                    onChange={e => onUpdate(buildRule(rule, { app_name_glob: e.target.value }))}
-                    spellCheck={false}
-                  />
-                  <RecentExamplesButton
-                    items={history['desktop-notification'] ?? []}
-                    refresh={refreshHistory}
-                    onPick={(v) => onUpdate(buildRule(rule, { app_name_glob: v }))}
-                  />
-                </div>
-              </FormRow>
-            )}
-
-            {/* urgency */}
-            {isDesktop && (
-              <FormRow label="urgency">
-                <Select
-                  fluid
-                  aria-label="Urgency"
-                  value={rule.urgency ?? 'any'}
-                  options={[{ value: 'any', label: 'any' }, { value: 'low', label: 'low' }, { value: 'normal', label: 'normal' }, { value: 'critical', label: 'critical' }]}
-                  onValueChange={v => onUpdate(buildRule(rule, { urgency: (v === 'low' || v === 'normal' || v === 'critical') ? v : 'any' }))}
-                />
-              </FormRow>
-            )}
-
-            {/* switch state */}
-            {(isMicSwitch || isCamSwitch) && (
-              <FormRow label="state">
-                <Select
-                  fluid
-                  aria-label="Switch state"
-                  value={switchState(rule.content_glob)}
-                  options={[{ value: 'any', label: 'any' }, { value: 'on', label: 'on' }, { value: 'off', label: 'off' }]}
-                  onValueChange={v => {
-                    const state: SwitchState = (v === 'on' || v === 'off') ? v : 'any';
-                    const prefix = isMicSwitch ? 'MIC' : 'CAM';
-                    onUpdate(buildRule(rule, { content_glob: toSwitchGlob(prefix, state) }));
-                  }}
-                />
-              </FormRow>
-            )}
-
-            {/* claude event selector */}
-            {isClaude && (() => {
-              const kind = claudeEventKind(rule.content_glob);
-              const suffix = claudeEventSuffix(rule.content_glob);
-              const hasSuffix = kind === 'tool' || kind === 'agent';
-              return (
-                <>
-                  <FormRow label="event">
-                    <Select
-                      fluid
-                      aria-label="Claude event type"
-                      value={kind}
-                      options={[
-                        { value: 'any', label: 'any' },
-                        { value: 'tool', label: 'TOOL' },
-                        { value: 'agent', label: 'AGENT' },
-                        { value: 'idle', label: 'IDLE' },
-                        { value: 'input', label: 'INPUT' },
-                      ]}
-                      onValueChange={v => {
-                        const next = v as ClaudeEventKind;
-                        onUpdate(buildRule(rule, { content_glob: toClaudeGlob(next, suffix) }));
-                      }}
-                    />
-                  </FormRow>
-                  {hasSuffix && (
-                    <FormRow label="match">
-                      <Input
-                        fluid
-                        aria-label={`${kind === 'tool' ? 'Tool' : 'Agent'} name glob`}
-                        placeholder="* (any)"
-                        value={suffix === '*' ? '' : suffix}
-                        onChange={e => {
-                          onUpdate(buildRule(rule, { content_glob: toClaudeGlob(kind, e.target.value || '*') }));
-                        }}
-                        spellCheck={false}
-                      />
-                    </FormRow>
-                  )}
-                </>
-              );
-            })()}
-
-            {/* content glob — non-desktop, non-switch, non-claude */}
-            {!isDesktop && !isMicSwitch && !isCamSwitch && !isClaude && (
-              <FormRow label="content">
-                <div className="flex items-center gap-1">
-                  <Input
-                    fluid
-                    aria-label="Content glob"
-                    placeholder="glob (*)"
-                    value={rule.content_glob ?? ''}
-                    onChange={e => onUpdate(buildRule(rule, { content_glob: e.target.value }))}
-                    spellCheck={false}
-                  />
-                  <RecentExamplesButton
-                    items={history[rule.source ?? ''] ?? []}
-                    refresh={refreshHistory}
-                    onPick={(v) => onUpdate(buildRule(rule, { content_glob: v }))}
-                  />
-                </div>
-              </FormRow>
-            )}
-
-            {/* animation */}
-            <FormRow label="animation">
-              <Select
-                fluid
-                aria-label="Animation"
-                value={rule.animation}
-                options={[{ value: 'scroll', label: 'scroll' }, { value: 'dmx', label: 'dmx' }, { value: 'none', label: 'none' }]}
-                onValueChange={v => {
-                  if (v === 'dmx') {
-                    onUpdate(buildRule(rule, { animation: 'dmx', transition: 'dissolve', overlay_mode: 'halo', composite: 'overlay' }));
-                  } else if (v === 'scroll' || v === 'none') {
-                    onUpdate(buildRule(rule, { animation: v }));
-                  }
-                }}
-              />
-            </FormRow>
-
-            {/* scroll text — scroll only */}
-            {rule.animation === 'scroll' && (
-              <FormRow label="text">
-                <Input
-                  fluid
-                  aria-label="Scroll text"
-                  placeholder="notification text"
-                  value={rule.scroll_text ?? ''}
-                  onChange={e => onUpdate(buildRule(rule, { scroll_text: e.target.value }))}
-                  spellCheck={false}
-                />
-              </FormRow>
-            )}
-
-            {/* scroll size — scroll only */}
-            {rule.animation === 'scroll' && (
-              <FormRow label="size">
-                <Select
-                  fluid
-                  aria-label="Text size"
-                  value={rule.scroll_size ?? 'small'}
-                  options={[
-                    { value: 'tiny', label: 'tiny' },
-                    { value: 'small', label: 'small' },
-                    { value: 'medium', label: 'medium' },
-                    { value: 'large', label: 'large' },
-                  ]}
-                  onValueChange={v => {
-                    const s: ScrollSize | undefined = (v === 'tiny' || v === 'small' || v === 'medium' || v === 'large') ? v : undefined;
-                    onUpdate(buildRule(rule, { scroll_size: s }));
-                  }}
-                />
-              </FormRow>
-            )}
-
-            {/* asset — dmx only */}
-            {rule.animation === 'dmx' && (
-              <FormRow label="asset">
-                <div className="flex items-center gap-1.5 w-full">
-                  <Input
-                    fluid
-                    readOnly
-                    value={assetDisplay ? assetDisplay.replace('.dmx.json', '') : ''}
-                    placeholder="none"
-                    aria-label="Selected asset"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="shrink-0"
-                    aria-label={`Pick asset${assetDisplay ? ` (current: ${assetDisplay.replace('.dmx.json', '')})` : ''}`}
-                    onClick={() => setPickerOpen(true)}
-                  >
-                    pick
-                  </Button>
-                </div>
-              </FormRow>
-            )}
-
-            {/* mirror — dmx only */}
-            {rule.animation === 'dmx' && (
-              <FormRow label="mirror">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <Checkbox
-                    checked={rule.mirror === true}
-                    onChange={e => onUpdate(buildRule(rule, {
-                      mirror: e.target.checked ? true : undefined,
-                      ...(e.target.checked ? {} : { side: undefined }),
-                    }))}
-                  />
-                  <span className="font-mono text-xs text-muted-foreground">mirror on second panel</span>
-                </label>
-              </FormRow>
-            )}
-
-            {/* side — dmx, single-panel, no mirror */}
-            {rule.animation === 'dmx' && assetWidth === 9 && !rule.mirror && (
-              <FormRow label="side">
-                <Select
-                  fluid
-                  aria-label="Panel side"
-                  value={rule.side ?? 'both'}
-                  options={[
-                    { value: 'both', label: 'both' },
-                    { value: 'left', label: 'left' },
-                    { value: 'right', label: 'right' },
-                  ]}
-                  onValueChange={v => onUpdate(buildRule(rule, { side: (v === 'left' || v === 'right') ? v : undefined }))}
-                />
-              </FormRow>
-            )}
-
-            {/* blend — dmx only */}
-            {rule.animation === 'dmx' && (
-              <FormRow label="blend">
-                <Select
-                  fluid
-                  aria-label="Blend"
-                  value={rule.overlay_mode ?? (rule.composite === 'overlay' ? 'or' : 'replace')}
-                  options={[{ value: 'replace', label: 'replace' }, { value: 'or', label: 'additive' }, { value: 'xor', label: 'xor' }, { value: 'halo', label: 'halo' }]}
-                  onValueChange={v => {
-                    if (v === 'replace') {
-                      onUpdate(buildRule(rule, { composite: 'replace', overlay_mode: undefined }));
-                    } else {
-                      onUpdate(buildRule(rule, { composite: 'overlay', overlay_mode: v as 'or' | 'xor' | 'halo' }));
-                    }
-                  }}
-                />
-              </FormRow>
-            )}
-
-            {/* transition — dmx only */}
-            {rule.animation === 'dmx' && (
-              <FormRow label="transition">
-                <Select
-                  fluid
-                  aria-label="Transition"
-                  value={rule.transition ?? 'none'}
-                  options={[
-                    { value: 'none', label: 'none' },
-                    { value: 'wipe', label: 'wipe' },
-                    { value: 'scan', label: 'scan' },
-                    { value: 'slide', label: 'slide' },
-                    { value: 'dissolve', label: 'dissolve' },
-                    { value: 'flash', label: 'flash' },
-                  ]}
-                  onValueChange={v => {
-                    const t: NotificationRule['transition'] = (v === 'wipe' || v === 'scan' || v === 'slide' || v === 'dissolve' || v === 'flash') ? v : undefined;
-                    onUpdate(buildRule(rule, { transition: t }));
-                  }}
-                />
-              </FormRow>
-            )}
-
-            {/* composite — scroll only */}
-            {rule.animation === 'scroll' && (
-              <FormRow label="composite">
-                <Select
-                  fluid
-                  aria-label="Composite"
-                  value={rule.composite ?? 'replace'}
-                  options={[{ value: 'replace', label: 'replace' }, { value: 'overlay', label: 'overlay' }]}
-                  onValueChange={v => onUpdate(buildRule(rule, { composite: v === 'overlay' ? 'overlay' : 'replace' }))}
-                />
-              </FormRow>
-            )}
-
-            {/* timing — DMX: loops / duration / default */}
-            {rule.animation === 'dmx' && (() => {
-              const mode = timingMode(rule);
-              return (
-                <>
-                  <FormRow label="timing">
-                    <Select
-                      fluid
-                      aria-label="Timing mode"
-                      value={mode}
-                      options={[
-                        { value: 'default', label: 'default' },
-                        { value: 'loops', label: 'loops' },
-                        { value: 'duration', label: 'duration ms' },
-                      ]}
-                      onValueChange={v => {
-                        if (v === 'loops') onUpdate(buildRule(rule, { loop_count: rule.loop_count ?? 1, duration_ms_override: undefined }));
-                        else if (v === 'duration') onUpdate(buildRule(rule, { duration_ms_override: rule.duration_ms_override ?? 5000, loop_count: undefined }));
-                        else onUpdate(buildRule(rule, { loop_count: undefined, duration_ms_override: undefined }));
-                      }}
-                    />
-                  </FormRow>
-                  {mode === 'loops' && (
-                    <FormRow label="count">
-                      <Input
-                        fluid
-                        aria-label="Loop count"
-                        type="number"
-                        min="1"
-                        placeholder="1"
-                        value={rule.loop_count !== undefined ? String(rule.loop_count) : ''}
-                        onChange={e => {
-                          const n = parseInt(e.target.value, 10);
-                          onUpdate(buildRule(rule, { loop_count: isNaN(n) || n < 1 ? 1 : n }));
-                        }}
-                      />
-                    </FormRow>
-                  )}
-                  {mode === 'duration' && (
-                    <FormRow label="duration">
-                      <Input
-                        fluid
-                        aria-label="Duration override ms"
-                        type="number"
-                        min="100"
-                        placeholder="default"
-                        value={durationDisplay}
-                        suffix="ms"
-                        onChange={e => {
-                          const n = parseInt(e.target.value, 10);
-                          onUpdate(buildRule(rule, { duration_ms_override: isNaN(n) || n <= 0 ? undefined : n }));
-                        }}
-                      />
-                    </FormRow>
-                  )}
-                </>
-              );
-            })()}
-
-            {/* duration — scroll / none */}
-            {rule.animation !== 'dmx' && (
-              <FormRow label="duration">
-                <Input
-                  fluid
-                  aria-label="Duration override ms"
-                  type="number"
-                  min="100"
-                  placeholder="default"
-                  value={durationDisplay}
-                  suffix="ms"
-                  onChange={e => {
-                    const n = parseInt(e.target.value, 10);
-                    onUpdate(buildRule(rule, { duration_ms_override: isNaN(n) || n <= 0 ? undefined : n }));
-                  }}
-                />
-              </FormRow>
-            )}
-          </div>
-
-          <div className="flex gap-2 pt-2 border-t border-foreground/10">
-            <Button size="sm" onClick={() => onEditOpenChange(false)}>done</Button>
-          </div>
-        </PopoverContent>
-      </Popover>
-
-      {/* delete */}
+      {/* delete — hover visible */}
       <Button
         variant="ghost"
         size="sm"
-        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity ml-auto shrink-0"
         tooltip="Delete rule"
         aria-label={`Delete rule ${idx + 1}`}
         onClick={onDelete}
@@ -900,12 +1075,23 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, o
         ×
       </Button>
 
-      {/* asset picker modal — portalled, always mounted so it survives animation type changes */}
-      <AssetPickerModal
-        open={pickerOpen}
-        onOpenChange={setPickerOpen}
-        {...(assetDisplay ? { current: assetDisplay } : {})}
-        onPick={filename => onUpdate(buildRule(rule, { asset_path: filename }))}
+      <SourceDialog
+        open={srcOpen}
+        onOpenChange={setSrcOpen}
+        initial={rule}
+        onDone={onSourceDone}
+        history={history}
+        refreshHistory={refreshHistory}
+        triggerRef={srcBtnRef}
+      />
+
+      <AnimationDialog
+        open={animOpen}
+        onOpenChange={setAnimOpen}
+        initial={rule}
+        onDone={handleAnimationDone}
+        dualModule={dualModule}
+        triggerRef={animBtnRef}
       />
     </div>
   );
@@ -916,19 +1102,19 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, o
 export function NotificationsTab({ value, onChange, dualModule = false }: NotificationsTabProps) {
   const idsRef = useRef<string[]>(value.map(() => crypto.randomUUID()));
   const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const pendingRowRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [hoverY, setHoverY] = useState<number | null>(null);
-  const [editOpenIdx, setEditOpenIdx] = useState<number | null>(null);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragIdxRef = useRef<number | null>(null);
   const [reorderMsg, setReorderMsg] = useState('');
+  const [pendingRows, setPendingRows] = useState<PendingRow[]>([]);
   const { history, refresh: refreshHistory } = useNotificationHistory();
 
   function addRule() {
-    onChange([...value, { animation: 'scroll' as const }]);
-    idsRef.current = [...idsRef.current, crypto.randomUUID()];
-    setEditOpenIdx(value.length);
+    const id = crypto.randomUUID();
+    setPendingRows(rows => [...rows, { id, draft: {}, sourceConfigured: false }]);
   }
 
   function updateRule(idx: number, rule: NotificationRule) {
@@ -940,6 +1126,10 @@ export function NotificationsTab({ value, onChange, dualModule = false }: Notifi
   function deleteRule(idx: number) {
     onChange(value.filter((_, i) => i !== idx));
     idsRef.current = idsRef.current.filter((_, i) => i !== idx);
+  }
+
+  function deletePendingRow(id: string) {
+    setPendingRows(rows => rows.filter(r => r.id !== id));
   }
 
   function moveRule(from: number, to: number) {
@@ -972,6 +1162,8 @@ export function NotificationsTab({ value, onChange, dualModule = false }: Notifi
     endDrag();
   }
 
+  const hoverRule = hoverIdx !== null ? (value[hoverIdx] ?? null) : null;
+
   return (
     <div className="flex flex-col p-2">
       <p className="font-mono text-xs text-muted-foreground mb-2">
@@ -980,14 +1172,14 @@ export function NotificationsTab({ value, onChange, dualModule = false }: Notifi
 
       <div className="relative">
         {/* hover preview — floats left of the list */}
-        {hoverIdx !== null && hoverY !== null && editOpenIdx !== hoverIdx && value[hoverIdx] !== undefined && (
+        {hoverRule !== null && hoverY !== null && (
           <div
             className="absolute right-full mr-6 -translate-y-1/2 flex flex-col items-center gap-1.5 p-2 border border-foreground/20 bg-background rounded shadow-lg pointer-events-none z-50"
             style={{ top: hoverY }}
           >
-            <RulePrev rule={value[hoverIdx]!} dual={dualModule} />
+            <RulePrev rule={hoverRule} dual={dualModule} />
             <span className="font-mono text-foreground/30 text-center" style={{ fontSize: 9 }}>
-              {animLabel(value[hoverIdx]!)}
+              {animLabel(hoverRule)}
             </span>
           </div>
         )}
@@ -999,11 +1191,15 @@ export function NotificationsTab({ value, onChange, dualModule = false }: Notifi
             <RuleRow
               key={idsRef.current[idx] ?? String(idx)}
               rule={rule}
+              isExisting={true}
+              sourceConfigured={true}
               idx={idx}
-              total={value.length}
+              total={value.length + pendingRows.length}
+              dualModule={dualModule}
               history={history}
               refreshHistory={refreshHistory}
-              onUpdate={r => updateRule(idx, r)}
+              onSourceDone={draft => updateRule(idx, buildRule(rule, draft))}
+              onAnimationDone={updated => updateRule(idx, updated)}
               onDelete={() => deleteRule(idx)}
               onMoveUp={() => moveRule(idx, idx - 1)}
               onMoveDown={() => moveRule(idx, idx + 1)}
@@ -1013,8 +1209,6 @@ export function NotificationsTab({ value, onChange, dualModule = false }: Notifi
               onDrop={() => handleDrop(idx)}
               dragging={dragIdx === idx}
               dragOver={dragOverIdx === idx && dragIdx !== idx}
-              editOpen={editOpenIdx === idx}
-              onEditOpenChange={v => setEditOpenIdx(v ? idx : null)}
               onHoverEnter={() => {
                 const el = rowRefs.current[idx];
                 setHoverY(el ? el.offsetTop + el.offsetHeight / 2 : null);
@@ -1022,6 +1216,49 @@ export function NotificationsTab({ value, onChange, dualModule = false }: Notifi
               }}
               onHoverLeave={() => { setHoverIdx(null); setHoverY(null); }}
               rowRef={(el: HTMLDivElement | null) => { rowRefs.current[idx] = el; }}
+            />
+          ))}
+
+          {pendingRows.map((pending, pi) => (
+            <RuleRow
+              key={pending.id}
+              rule={pending.draft}
+              isExisting={false}
+              sourceConfigured={pending.sourceConfigured}
+              idx={value.length + pi}
+              total={value.length + pendingRows.length}
+              dualModule={dualModule}
+              history={history}
+              refreshHistory={refreshHistory}
+              onSourceDone={draft => {
+                setPendingRows(rows => rows.map(r =>
+                  r.id === pending.id
+                    ? { ...r, draft: { ...r.draft, ...draft }, sourceConfigured: true }
+                    : r
+                ));
+              }}
+              onAnimationDone={complete => {
+                // Promote pending row to saved rule
+                setPendingRows(rows => rows.filter(r => r.id !== pending.id));
+                idsRef.current = [...idsRef.current, pending.id];
+                onChange([...value, complete]);
+              }}
+              onDelete={() => deletePendingRow(pending.id)}
+              onMoveUp={NOOP}
+              onMoveDown={NOOP}
+              onDragStart={NOOP}
+              onDragEnter={NOOP}
+              onDragEnd={NOOP}
+              onDrop={NOOP}
+              dragging={false}
+              dragOver={false}
+              onHoverEnter={() => {
+                // Pending rows have no complete animation — clear hover to suppress preview
+                setHoverIdx(null);
+                setHoverY(null);
+              }}
+              onHoverLeave={() => { setHoverIdx(null); setHoverY(null); }}
+              rowRef={(el: HTMLDivElement | null) => { pendingRowRefs.current[pi] = el; }}
             />
           ))}
         </div>

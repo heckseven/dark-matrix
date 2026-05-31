@@ -21,11 +21,11 @@ type Story = StoryObj<typeof meta>;
 /** No rules configured — shows the "add rule" button and empty state. */
 export const Empty: Story = {};
 
-/** Legacy rules — desktop-notification source with app_name_glob and urgency. */
+/** Legacy rules — desktop-notification source with app_name_glob. */
 export const LegacyRules: Story = {
   args: {
     value: [
-      { app_name_glob: 'Slack', urgency: 'normal', animation: 'scroll' },
+      { app_name_glob: 'Slack', animation: 'scroll' },
       { app_name_glob: 'system-daemon', animation: 'none' },
     ] satisfies NotificationRule[],
   },
@@ -96,7 +96,7 @@ export const Mixed: Story = {
   args: {
     value: [
       { source: 'ec-switch', animation: 'scroll', composite: 'overlay' },
-      { source: 'desktop-notification', app_name_glob: 'Slack', urgency: 'critical', animation: 'dmx', asset_path: 'alert.dmx.json', duration_ms_override: 5000 },
+      { source: 'desktop-notification', app_name_glob: 'Slack', animation: 'dmx', asset_path: 'alert.dmx.json', duration_ms_override: 5000 },
       { source: 'desktop-notification', app_name_glob: '*', animation: 'scroll' },
       { source: 'vm', animation: 'none' },
     ] satisfies NotificationRule[],
