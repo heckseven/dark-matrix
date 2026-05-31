@@ -140,3 +140,14 @@ export const AudioSpecter: Story = {
     widget: { widget: 'audio', style: 'specter' } satisfies HudWidget,
   },
 };
+
+/** Zen grid — fluid-1 style active; opens directly on zen category. */
+export const ZenFluid: Story = {
+  args: {
+    widget: { widget: 'zen', style: 'fluid-1' } satisfies HudWidget,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.findByRole('button', { name: 'fluid-1', pressed: true })).resolves.toBeVisible();
+  },
+};
