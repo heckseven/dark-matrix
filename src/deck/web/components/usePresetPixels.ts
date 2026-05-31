@@ -8,7 +8,7 @@ import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.
 import { renderElegantTimer, renderHourglassFrame, renderTwinzTimer, renderTwinzUsagePercent } from '../../../animations/timer-renderers.js';
 import { createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import { createTextRenderer, textRendererCacheKey, type TextRenderer } from '../../../animations/text-renderers.js';
-import { createZenRenderer } from '../../../animations/zen-renderers.js';
+import { zenThumbFrame, ZEN_STYLES } from '../../../animations/zen-renderers.js';
 import type { ZenStyle } from '../../../animations/zen-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { HudPresetClient } from '../types/hud-preset.js';
@@ -23,7 +23,19 @@ const _clockCache: Partial<Record<ClockFace, ClockRenderer>> = {};
 const _textThumbCache: Record<string, TextRenderer> = {};
 const _dataCache:  Partial<Record<DataStyle, DataRenderer>> = {};
 const _audioCache: Partial<Record<AudioStyle, ReturnType<typeof createAudioRenderer>>> = {};
-const _zenCache:   Partial<Record<ZenStyle, ReturnType<typeof createZenRenderer>>> = {};
+
+// Static zen thumbnails computed once at module load — each style gets a
+// representative frame rather than the blank/partial frame at t=0.
+const _zenThumbs: Partial<Record<ZenStyle, string>> = (() => {
+  const out: Partial<Record<ZenStyle, string>> = {};
+  for (const { id } of ZEN_STYLES) {
+    const frame = zenThumbFrame(id);
+    const bw = new Uint8Array(COLS * ROWS);
+    for (let i = 0; i < bw.length; i++) bw[i] = frame[i]! > 127 ? 255 : 0;
+    out[id] = btoa(String.fromCharCode(...bw));
+  }
+  return out;
+})();
 
 // Create a data renderer seeded with representative stats so the thumbnail is
 // non-blank — fill/scroll/cores draw nothing from a zeroed history.
@@ -95,8 +107,6 @@ if (import.meta.hot) {
     for (const k in _clockCache) delete _clockCache[k as ClockFace];
     for (const k in _dataCache)  delete _dataCache[k as DataStyle];
     for (const k in _audioCache) delete _audioCache[k as AudioStyle];
-    for (const r of Object.values(_zenCache)) r?.stop();
-    for (const k in _zenCache)   delete _zenCache[k as ZenStyle];
   });
 }
 
@@ -226,12 +236,8 @@ function renderWidgetToB64(
       return btoa(String.fromCharCode(...out));
     }
     if (widget.widget === 'zen') {
-      const style = widget.style ?? 'fluid-1';
-      if (!_zenCache[style]) _zenCache[style] = createZenRenderer(style);
-      const raw = _zenCache[style]!.render();
-      const out = new Uint8Array(COLS * ROWS);
-      for (let i = 0; i < raw.length; i++) out[i] = (raw[i] ?? 0) > 127 ? 255 : 0;
-      return btoa(String.fromCharCode(...out));
+      const style = widget.style ?? 'waves';
+      return _zenThumbs[style] ?? empty;
     }
     const style: DataStyle = widget.style ?? 'line';
     if (!_dataCache[style]) _dataCache[style] = makeSeededDataRenderer(style);
