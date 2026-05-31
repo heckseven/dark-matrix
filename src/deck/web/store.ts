@@ -672,6 +672,21 @@ if (typeof localStorage !== 'undefined') {
     }
   } catch { /* corrupt or unavailable */ }
 
+  // Prune recent files that no longer exist in the library
+  if (_store.getState().recentFiles.length > 0) {
+    void fetch('/api/library', { signal: AbortSignal.timeout(5000) })
+      .then(r => r.json() as Promise<{ ok: boolean; files?: { name: string }[] }>)
+      .then(data => {
+        if (typeof data !== 'object' || data === null || !data.ok || !Array.isArray(data.files)) return;
+        const live = new Set(data.files.map(f => f.name));
+        _store.setState(s => {
+          const pruned = s.recentFiles.filter(f => live.has(f));
+          return pruned.length !== s.recentFiles.length ? { recentFiles: pruned } : s;
+        });
+      })
+      .catch(() => { /* network unavailable — keep list as-is */ });
+  }
+
   // Debounced save on every state change
   let _saveTimer: ReturnType<typeof setTimeout> | null = null;
   _store.subscribe((state) => {
