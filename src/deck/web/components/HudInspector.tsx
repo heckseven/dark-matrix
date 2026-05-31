@@ -413,52 +413,69 @@ function AgentGrid({ currentWidget, onPick }: {
 
 // ── Layer 2: Zen grid ─────────────────────────────────────────────────────
 
+// Animates a single zen style only while hovered or focused.
+// Renderer is created lazily on first activation and stopped on deactivation.
+function ZenItem({ id, label, isSelected, onSelect }: {
+  id: ZenStyle;
+  label: string;
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  const [pixels, setPixels] = useState(EMPTY_PIXELS);
+  const rendererRef = useRef<ReturnType<typeof createZenRenderer> | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reducedMotion = useRef(
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+
+  function startAnimation() {
+    if (reducedMotion.current || intervalRef.current) return;
+    if (!rendererRef.current) rendererRef.current = createZenRenderer(id);
+    const r = rendererRef.current;
+    intervalRef.current = setInterval(() => setPixels(bayerToB64(r.render())), 100);
+  }
+
+  function stopAnimation() {
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+  }
+
+  useEffect(() => () => {
+    stopAnimation();
+    rendererRef.current?.stop();
+    rendererRef.current = null;
+  }, []);
+
+  return (
+    <div
+      onMouseEnter={startAnimation}
+      onMouseLeave={stopAnimation}
+      onFocus={startAnimation}
+      onBlur={stopAnimation}
+    >
+      <MatrixItem
+        name={label}
+        aria-label={label}
+        width={9}
+        pixels={pixels}
+        isSelected={isSelected}
+        onSelect={onSelect}
+      />
+    </div>
+  );
+}
+
 function ZenGrid({ currentWidget, onPick }: {
   currentWidget: HudWidget | null;
   onPick: (w: HudWidget) => void;
 }) {
-  const [pixels, setPixels] = useState<Partial<Record<ZenStyle, string>>>({});
-  const renderersRef = useRef<Partial<Record<ZenStyle, ReturnType<typeof createZenRenderer>>>>({});
-
-  useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-    // Instantiate all renderers on mount
-    for (const { id } of ZEN_STYLES) {
-      renderersRef.current[id] = createZenRenderer(id);
-    }
-
-    // Single shared interval driving all previews
-    const iid = setInterval(() => {
-      const next: Partial<Record<ZenStyle, string>> = {};
-      for (const { id } of ZEN_STYLES) {
-        const r = renderersRef.current[id];
-        if (r) next[id] = bayerToB64(r.render());
-      }
-      setPixels(next);
-    }, 100);
-
-    // Cleanup: stop all renderers on unmount
-    return () => {
-      clearInterval(iid);
-      for (const r of Object.values(renderersRef.current)) {
-        r?.stop();
-      }
-      renderersRef.current = {};
-    };
-  }, []);
-
   const zenStyle = currentWidget?.widget === 'zen' ? (currentWidget.style ?? 'fluid-1') : null;
-
   return (
     <div role="group" aria-label="Zen panels" className="flex flex-wrap gap-6">
       {ZEN_STYLES.map(({ id, label }) => (
-        <MatrixItem
+        <ZenItem
           key={id}
-          name={label}
-          aria-label={label}
-          width={9}
-          pixels={pixels[id] ?? EMPTY_PIXELS}
+          id={id}
+          label={label}
           isSelected={zenStyle === id}
           onSelect={() => onPick({ widget: 'zen', style: id })}
         />
