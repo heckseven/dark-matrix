@@ -43,28 +43,28 @@ export type ZenRendererApi = {
   stop(): void;
 };
 
-export function createZenRenderer(style: ZenStyle): ZenRendererApi {
+export function createZenRenderer(style: ZenStyle, side?: 'left' | 'right'): ZenRendererApi {
   switch (style) {
     case 'fluid-1':
     case 'fluid-5':
     case 'fluid-9':
-      return createZenFluidRenderer(style);
+      return createZenFluidRenderer(style, side);
     case 'breath-1':
     case 'breath-2':
-      return createZenBreathRenderer(style);
+      return createZenBreathRenderer(style, side);
     case 'flora-1':
     case 'flora-2':
     case 'flora-5':
-      return createZenFloraRenderer(style);
+      return createZenFloraRenderer(style, side);
     case 'grass-4':
-      return createZenGrassRenderer(style);
+      return createZenGrassRenderer(style, side);
     case 'tree-1':
     case 'tree-2':
     case 'tree-3':
     case 'tree-4':
     case 'tree-5':
     case 'tree-6':
-      return createZenTreeRenderer(style);
+      return createZenTreeRenderer(style); // trees remain independent
     default:
       return createZenFluidRenderer('fluid-1');
   }

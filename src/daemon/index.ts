@@ -795,7 +795,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         };
       }
       case 'zen': {
-        const r = createZenRenderer((widget.style as ZenStyle | undefined) ?? 'fluid-1');
+        const style = (widget.style as ZenStyle | undefined) ?? 'fluid-1';
+        const r = createZenRenderer(style, side);
         return { render(_now: Date, _audioCtx: unknown) { return r.render(); }, stop() { r.stop(); } };
       }
       default: {

@@ -31,9 +31,12 @@ function hash21(x: number, y: number): number {
 // amplitude drift slowly for organic feel.
 // ---------------------------------------------------------------------------
 
-function createFluid1Renderer(): ZenRendererApi {
+function createFluid1Renderer(side?: 'left' | 'right'): ZenRendererApi {
   const startTime = Date.now();
   let stopped = false;
+
+  const totalCols = side !== undefined ? FRAME_COLS * 2 : FRAME_COLS;
+  const colOffset = side === 'right' ? FRAME_COLS : 0;
 
   return {
     render(): Frame {
@@ -46,12 +49,13 @@ function createFluid1Renderer(): ZenRendererApi {
       const phaseDrift = t * 0.7;
 
       for (let col = 0; col < FRAME_COLS; col++) {
-        const colPhase = (col / (FRAME_COLS - 1)) * Math.PI * 0.8;
+        const virtualCol = col + colOffset;
+        const colPhase = (virtualCol / (totalCols - 1)) * Math.PI * 0.8;
         for (let row = 0; row < FRAME_ROWS; row++) {
           // Wave brightness: bright band centered on a sine-derived position
           const waveCentre = (FRAME_ROWS / 2) + amp * Math.sin(colPhase + phaseDrift);
           const dist = Math.abs(row - waveCentre);
-          const spread = 2.5 + 1.5 * Math.sin(t * 0.09 + col);
+          const spread = 2.5 + 1.5 * Math.sin(t * 0.09 + virtualCol);
           const brightness = 255 * Math.exp(-(dist * dist) / (2 * spread * spread));
           f[col * FRAME_ROWS + row] = clamp255(brightness);
         }
@@ -256,16 +260,20 @@ function createFluid4Renderer(): ZenRendererApi {
 // based on inverse distance to the nearest seed (closer = brighter).
 // ---------------------------------------------------------------------------
 
-function createFluid5Renderer(): ZenRendererApi {
+function createFluid5Renderer(side?: 'left' | 'right'): ZenRendererApi {
   const startTime = Date.now();
   let stopped = false;
 
-  // speedX/speedY are now in radians/second (was radians/tick at 30fps)
-  // Original: 0.011 rad/tick * 30 fps = 0.33 rad/s; keep same rate
+  const totalCols = side !== undefined ? FRAME_COLS * 2 : FRAME_COLS;
+  const colOffset = side === 'right' ? FRAME_COLS : 0;
+
+  // Seeds defined in normalized [0,1] space (cx/cy), scaled to actual display at render time.
+  // Original cx values: 2/9≈0.22, 6/9≈0.67, 4/9≈0.44 (normalized)
+  // speedX/speedY are in radians/second.
   const seeds = [
-    { cx: 2, cy: 8,  rx: 1.5, ry: 5, phaseX: 0,    phaseY: 0,    speedX: 0.33, speedY: 0.27 },
-    { cx: 6, cy: 25, rx: 1.8, ry: 4, phaseX: 2.1,  phaseY: 1.1,  speedX: 0.24, speedY: 0.39 },
-    { cx: 4, cy: 17, rx: 2.0, ry: 6, phaseX: 4.2,  phaseY: 3.5,  speedX: 0.39, speedY: 0.21 },
+    { ncx: 2 / FRAME_COLS, cy: 8,  rx: 1.5, ry: 5, phaseX: 0,    phaseY: 0,    speedX: 0.33, speedY: 0.27 },
+    { ncx: 6 / FRAME_COLS, cy: 25, rx: 1.8, ry: 4, phaseX: 2.1,  phaseY: 1.1,  speedX: 0.24, speedY: 0.39 },
+    { ncx: 4 / FRAME_COLS, cy: 17, rx: 2.0, ry: 6, phaseX: 4.2,  phaseY: 3.5,  speedX: 0.39, speedY: 0.21 },
   ];
 
   return {
@@ -273,18 +281,22 @@ function createFluid5Renderer(): ZenRendererApi {
       const f = createFrame();
       const t = (Date.now() - startTime) / 1000; // seconds
 
-      // Compute current seed positions
+      // Scale normalized cx to current totalCols; rx scales proportionally too
+      const colScale = totalCols / FRAME_COLS;
+
+      // Compute current seed positions in virtual canvas coordinates
       const positions = seeds.map(s => ({
-        x: s.cx + s.rx * Math.sin(t * s.speedX + s.phaseX),
+        x: s.ncx * totalCols + s.rx * colScale * Math.sin(t * s.speedX + s.phaseX),
         y: s.cy + s.ry * Math.sin(t * s.speedY + s.phaseY),
       }));
 
       for (let col = 0; col < FRAME_COLS; col++) {
+        const virtualCol = col + colOffset;
         for (let row = 0; row < FRAME_ROWS; row++) {
-          // Distance to nearest seed
+          // Distance to nearest seed in virtual canvas space
           let minDist = Infinity;
           for (const p of positions) {
-            const dx = col - p.x;
+            const dx = virtualCol - p.x;
             const dy = row - p.y;
             const d = Math.sqrt(dx * dx + dy * dy);
             if (d < minDist) minDist = d;
@@ -637,9 +649,12 @@ function createFluid8Renderer(): ZenRendererApi {
 // creates hypnotic patterns within the display bounds.
 // ---------------------------------------------------------------------------
 
-function createFluid9Renderer(): ZenRendererApi {
+function createFluid9Renderer(side?: 'left' | 'right'): ZenRendererApi {
   let stopped = false;
   let lastRenderMs9 = Date.now();
+
+  const totalCols = side !== undefined ? FRAME_COLS * 2 : FRAME_COLS;
+  const colOffset = side === 'right' ? FRAME_COLS : 0;
 
   // Double pendulum parameters
   const m1 = 1.0;
@@ -654,12 +669,13 @@ function createFluid9Renderer(): ZenRendererApi {
   let omega1 = 0.0;
   let omega2 = 0.0;
 
-  // Pivot at top-center of display
-  const pivotX = 4;
+  // Pivot at top-center of virtual display
+  const pivotX = (totalCols - 1) / 2;
   const pivotY = 4;
 
-  // Trail buffer: brightness values for each pixel
-  const trail = new Float32Array(FRAME_SIZE);
+  // Trail buffer: brightness values for each pixel in the virtual canvas
+  const trailSize = totalCols * FRAME_ROWS;
+  const trail = new Float32Array(trailSize);
   const TRAIL_DECAY_PER_SEC = 0.85; // decay/s (was 0.935/frame ≈ 0.14/s at 30fps → faster)
 
   return {
@@ -697,7 +713,7 @@ function createFluid9Renderer(): ZenRendererApi {
         theta2 += omega2 * physDt;
       }
 
-      // Compute bob positions
+      // Compute bob positions in virtual canvas space
       const x1 = pivotX + L1 * Math.sin(theta1);
       const y1 = pivotY + L1 * Math.cos(theta1);
       const x2 = x1 + L2 * Math.sin(theta2);
@@ -705,21 +721,21 @@ function createFluid9Renderer(): ZenRendererApi {
 
       // Decay trail (frame-rate-independent)
       const trailDecay = Math.pow(TRAIL_DECAY_PER_SEC, frameMs / 1000);
-      for (let i = 0; i < FRAME_SIZE; i++) {
+      for (let i = 0; i < trailSize; i++) {
         trail[i] = (trail[i] ?? 0) * trailDecay;
       }
 
-      // Paint bob2 position (the chaotic end) brightly
-      const col2 = Math.round(x2);
+      // Paint bob2 position (the chaotic end) brightly in virtual canvas
+      const vcol2 = Math.round(x2);
       const row2 = Math.round(y2);
-      if (col2 >= 0 && col2 < FRAME_COLS && row2 >= 0 && row2 < FRAME_ROWS) {
-        trail[col2 * FRAME_ROWS + row2] = 255;
+      if (vcol2 >= 0 && vcol2 < totalCols && row2 >= 0 && row2 < FRAME_ROWS) {
+        trail[vcol2 * FRAME_ROWS + row2] = 255;
         // Also paint neighboring pixels for thicker trail
         for (let dc = -1; dc <= 1; dc++) {
           for (let dr = -1; dr <= 1; dr++) {
-            const nc = col2 + dc;
+            const nc = vcol2 + dc;
             const nr = row2 + dr;
-            if (nc >= 0 && nc < FRAME_COLS && nr >= 0 && nr < FRAME_ROWS) {
+            if (nc >= 0 && nc < totalCols && nr >= 0 && nr < FRAME_ROWS) {
               const idx = nc * FRAME_ROWS + nr;
               const existing = trail[idx] ?? 0;
               trail[idx] = Math.max(existing, 180 * (1 - Math.sqrt(dc * dc + dr * dr) * 0.5));
@@ -728,18 +744,22 @@ function createFluid9Renderer(): ZenRendererApi {
         }
       }
 
-      // Also paint bob1 (inner bob) more dimly
-      const col1 = Math.round(x1);
+      // Also paint bob1 (inner bob) more dimly in virtual canvas
+      const vcol1 = Math.round(x1);
       const row1 = Math.round(y1);
-      if (col1 >= 0 && col1 < FRAME_COLS && row1 >= 0 && row1 < FRAME_ROWS) {
-        const idx1 = col1 * FRAME_ROWS + row1;
+      if (vcol1 >= 0 && vcol1 < totalCols && row1 >= 0 && row1 < FRAME_ROWS) {
+        const idx1 = vcol1 * FRAME_ROWS + row1;
         const existing = trail[idx1] ?? 0;
         trail[idx1] = Math.max(existing, 120);
       }
 
+      // Copy the [colOffset .. colOffset+FRAME_COLS-1] slice of the virtual trail to the frame
       const f = createFrame();
-      for (let i = 0; i < FRAME_SIZE; i++) {
-        f[i] = clamp255(trail[i] ?? 0);
+      for (let col = 0; col < FRAME_COLS; col++) {
+        const vcol = col + colOffset;
+        for (let row = 0; row < FRAME_ROWS; row++) {
+          f[col * FRAME_ROWS + row] = clamp255(trail[vcol * FRAME_ROWS + row] ?? 0);
+        }
       }
 
       return f;
@@ -754,10 +774,10 @@ function createFluid9Renderer(): ZenRendererApi {
 // Dispatcher
 // ---------------------------------------------------------------------------
 
-export function createZenFluidRenderer(style: ZenFluidStyle): ZenRendererApi {
+export function createZenFluidRenderer(style: ZenFluidStyle, side?: 'left' | 'right'): ZenRendererApi {
   switch (style) {
-    case 'fluid-1': return createFluid1Renderer();
-    case 'fluid-5': return createFluid5Renderer();
-    case 'fluid-9': return createFluid9Renderer();
+    case 'fluid-1': return createFluid1Renderer(side);
+    case 'fluid-5': return createFluid5Renderer(side);
+    case 'fluid-9': return createFluid9Renderer(side);
   }
 }

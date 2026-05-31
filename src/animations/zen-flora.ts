@@ -7,9 +7,9 @@ export type ZenFloraStyle =
   | 'flora-2'
   | 'flora-5';
 
-const CENTER_COL = 4;
+const DEFAULT_CENTER_COL = 4;
 const CENTER_ROW = 17;
-// Use min(CENTER_COL, CENTER_ROW) for a square-ish polar fit
+// Use min(DEFAULT_CENTER_COL, CENTER_ROW) for a square-ish polar fit
 const POLAR_SCALE = 4;
 
 /** Clamp a value to [0, 255] and round to integer */
@@ -69,9 +69,12 @@ function drawLine(
 // ---------------------------------------------------------------------------
 // flora-1: Petal unfurl
 // ---------------------------------------------------------------------------
-function createFlora1(): ZenRendererApi {
+function createFlora1(side?: 'left' | 'right'): ZenRendererApi {
   const startTime = Date.now();
   let stopped = false;
+
+  const colOffset = side === 'right' ? FRAME_COLS : 0;
+  const centerCol = side !== undefined ? (FRAME_COLS * 2 - 1) / 2 : DEFAULT_CENTER_COL;
 
   return {
     render(): Frame {
@@ -92,6 +95,9 @@ function createFlora1(): ZenRendererApi {
       // Slow rotation of the whole flower (90° per cycle)
       const rotOffset = t * Math.PI * 0.5;
 
+      // Translate virtual-canvas coordinates to frame coordinates
+      const toFrameCol = (vc: number) => vc - colOffset;
+
       for (let p = 0; p < NUM_PETALS; p++) {
         const baseAngle = (p / NUM_PETALS) * Math.PI * 2 + rotOffset;
 
@@ -101,20 +107,20 @@ function createFlora1(): ZenRendererApi {
 
         for (let s = -1; s <= 1; s += 2) {
           const edgeAngle = baseAngle + s * spreadAngle;
-          const endC = CENTER_COL + Math.cos(edgeAngle) * petalLen;
-          const endR = CENTER_ROW + Math.sin(edgeAngle) * petalLen * 2.2;
+          const endVC = centerCol + Math.cos(edgeAngle) * petalLen;
+          const endR  = CENTER_ROW + Math.sin(edgeAngle) * petalLen * 2.2;
           const bright = clamp255(180 * envelope + 40);
-          drawLine(f, CENTER_COL, CENTER_ROW, endC, endR, bright, 20);
+          drawLine(f, toFrameCol(centerCol), CENTER_ROW, toFrameCol(endVC), endR, bright, 20);
         }
 
         // Center spine of petal (brightest)
-        const endC = CENTER_COL + Math.cos(baseAngle) * petalLen;
-        const endR = CENTER_ROW + Math.sin(baseAngle) * petalLen * 2.2;
-        drawLine(f, CENTER_COL, CENTER_ROW, endC, endR, clamp255(220 * envelope + 35), 20);
+        const endVC = centerCol + Math.cos(baseAngle) * petalLen;
+        const endR  = CENTER_ROW + Math.sin(baseAngle) * petalLen * 2.2;
+        drawLine(f, toFrameCol(centerCol), CENTER_ROW, toFrameCol(endVC), endR, clamp255(220 * envelope + 35), 20);
       }
 
       // Center dot always visible
-      plotSoft(f, CENTER_COL, CENTER_ROW, 255);
+      plotSoft(f, toFrameCol(centerCol), CENTER_ROW, 255);
 
       return f;
     },
@@ -127,13 +133,16 @@ function createFlora1(): ZenRendererApi {
 // ---------------------------------------------------------------------------
 // flora-2: Fibonacci / golden-angle spiral
 // ---------------------------------------------------------------------------
-function createFlora2(): ZenRendererApi {
+function createFlora2(side?: 'left' | 'right'): ZenRendererApi {
   const startTime = Date.now();
   let stopped = false;
   const GOLDEN_ANGLE = 137.508 * (Math.PI / 180);
   const MAX_POINTS = 80;
   const CYCLE_MS = 8_000; // grow fully in 8s wall-clock (was 20s at 30fps)
   const ROT_CYCLE_MS = 24_000; // full rotation in 24s (was 40s at 30fps)
+
+  const colOffset = side === 'right' ? FRAME_COLS : 0;
+  const centerCol = side !== undefined ? (FRAME_COLS * 2 - 1) / 2 : DEFAULT_CENTER_COL;
 
   return {
     render(): Frame {
@@ -150,14 +159,19 @@ function createFlora2(): ZenRendererApi {
         const angle = n * GOLDEN_ANGLE + rotAngle;
         // Radius scales with sqrt(n) and fits within POLAR_SCALE
         const r = Math.sqrt(n) * (POLAR_SCALE / Math.sqrt(MAX_POINTS));
-        const col = CENTER_COL + Math.cos(angle) * r;
+        // Virtual canvas column, translated to frame column
+        const vcol = centerCol + Math.cos(angle) * r;
+        const frameCol = vcol - colOffset;
         // Stretch vertically to fill the taller display
         const row = CENTER_ROW + Math.sin(angle) * r * 2.5;
 
-        // Brightness: newer points brighter
-        const ageFrac = n / numPoints;
-        const bright = clamp255(180 + 75 * ageFrac);
-        plotDot(f, col, row, bright);
+        // Only plot if this point falls within our 9-wide slice
+        if (frameCol >= -0.5 && frameCol < FRAME_COLS + 0.5) {
+          // Brightness: newer points brighter
+          const ageFrac = n / numPoints;
+          const bright = clamp255(180 + 75 * ageFrac);
+          plotDot(f, frameCol, row, bright);
+        }
       }
 
       return f;
@@ -199,7 +213,7 @@ function buildLSystem(iterations: number): LSegment[] {
   }
 
   const trunkLen = 8;
-  grow(CENTER_COL, FRAME_ROWS - 2, -Math.PI / 2, trunkLen, iterations);
+  grow(DEFAULT_CENTER_COL, FRAME_ROWS - 2, -Math.PI / 2, trunkLen, iterations);
 
   return segments;
 }
@@ -305,7 +319,7 @@ function createFlora4(): ZenRendererApi {
         if (r < 0) continue; // only positive petals
 
         const angle = theta + rotation;
-        const col = CENTER_COL + Math.cos(angle) * r * POLAR_SCALE;
+        const col = DEFAULT_CENTER_COL + Math.cos(angle) * r * POLAR_SCALE;
         const row = CENTER_ROW + Math.sin(angle) * r * POLAR_SCALE * 3;
         const bright = clamp255(150 + 105 * r);
         plotSoft(f, col, row, bright);
@@ -322,10 +336,10 @@ function createFlora4(): ZenRendererApi {
 // ---------------------------------------------------------------------------
 // flora-5: Lissajous blossom with persistence / decay
 // ---------------------------------------------------------------------------
-function createFlora5(): ZenRendererApi {
+function createFlora5(side?: 'left' | 'right'): ZenRendererApi {
   const startTime = Date.now();
   let stopped = false;
-  // Persistence buffer
+  // Persistence buffer (9-wide frame only — virtual canvas math maps at render time)
   const persist = new Float32Array(FRAME_COLS * FRAME_ROWS);
   const DECAY = 0.88; // faster trail fade (was 0.93)
 
@@ -334,6 +348,10 @@ function createFlora5(): ZenRendererApi {
   const B = 2;
   // Phase δ cycles 0→2π over 12s wall-clock (was 30s at 30fps)
   const PHASE_CYCLE_MS = 12_000;
+
+  const totalCols = side !== undefined ? FRAME_COLS * 2 : FRAME_COLS;
+  const colOffset = side === 'right' ? FRAME_COLS : 0;
+  const centerCol = side !== undefined ? (totalCols - 1) / 2 : DEFAULT_CENTER_COL;
 
   return {
     render(): Frame {
@@ -354,14 +372,14 @@ function createFlora5(): ZenRendererApi {
         const x = Math.sin(A * t + delta); // -1..1
         const y = Math.sin(B * t);          // -1..1
 
-        // Map to display: x→col, y→row, stretch vertically
-        const col = CENTER_COL + x * (FRAME_COLS / 2 - 0.5);
-        const row = CENTER_ROW + y * (FRAME_ROWS / 2 - 1);
+        // Map to virtual canvas: x→virtual col, y→row, then translate to frame col
+        const vcol = centerCol + x * (totalCols / 2 - 0.5);
+        const row  = CENTER_ROW + y * (FRAME_ROWS / 2 - 1);
+        const col  = Math.round(vcol - colOffset);
 
-        const c = Math.round(col);
         const r = Math.round(row);
-        if (c >= 0 && c < FRAME_COLS && r >= 0 && r < FRAME_ROWS) {
-          const idx = c * FRAME_ROWS + r;
+        if (col >= 0 && col < FRAME_COLS && r >= 0 && r < FRAME_ROWS) {
+          const idx = col * FRAME_ROWS + r;
           persist[idx] = Math.min(255, (persist[idx] ?? 0) + 60);
         }
       }
@@ -402,7 +420,7 @@ function createFlora6(): ZenRendererApi {
   // Seed v with a small random blob in the center
   for (let dc = -2; dc <= 2; dc++) {
     for (let dr = -4; dr <= 4; dr++) {
-      const c = CENTER_COL + dc;
+      const c = DEFAULT_CENTER_COL + dc;
       const r = CENTER_ROW + dr;
       if (c >= 0 && c < W && r >= 0 && r < H) {
         const i = c * H + r;
@@ -476,10 +494,10 @@ function createFlora6(): ZenRendererApi {
 // ---------------------------------------------------------------------------
 // Public factory
 // ---------------------------------------------------------------------------
-export function createZenFloraRenderer(style: ZenFloraStyle): ZenRendererApi {
+export function createZenFloraRenderer(style: ZenFloraStyle, side?: 'left' | 'right'): ZenRendererApi {
   switch (style) {
-    case 'flora-1': return createFlora1();
-    case 'flora-2': return createFlora2();
-    case 'flora-5': return createFlora5();
+    case 'flora-1': return createFlora1(side);
+    case 'flora-2': return createFlora2(side);
+    case 'flora-5': return createFlora5(side);
   }
 }

@@ -4,10 +4,10 @@ import type { ZenRendererApi } from './zen-renderers.js';
 
 export type ZenBreathStyle = 'breath-1' | 'breath-2';
 
-export function createZenBreathRenderer(style: ZenBreathStyle): ZenRendererApi {
+export function createZenBreathRenderer(style: ZenBreathStyle, side?: 'left' | 'right'): ZenRendererApi {
   switch (style) {
     case 'breath-1': return createBreath1Renderer();
-    case 'breath-2': return createBreath2Renderer();
+    case 'breath-2': return createBreath2Renderer(side);
   }
 }
 
@@ -81,14 +81,16 @@ function createBreath1Renderer(): ZenRendererApi {
 //         radius during hold, contracts back to center during exhale.
 // Center: col 4, row 17. Max radius ~8 pixels.
 // ---------------------------------------------------------------------------
-function createBreath2Renderer(): ZenRendererApi {
+function createBreath2Renderer(side?: 'left' | 'right'): ZenRendererApi {
   const startTime = Date.now();
   const cycleMs = 19_000;
   const phaseInhaleEnd = 4_000 / cycleMs;   // ~0.211
   const phaseHoldEnd   = 11_000 / cycleMs;  // ~0.579
   // exhale: ~0.579 – 1.0
 
-  const centerCol = 4;
+  const colOffset = side === 'right' ? FRAME_COLS : 0;
+  // When spanning: center at seam (col 8.5 in virtual space); else col 4
+  const centerCol = side !== undefined ? (FRAME_COLS * 2 - 1) / 2 : 4;
   const centerRow = 17;
   const maxRadius = 14; // extends well past horizontal edges; partial arc is the look
   const frontWidth = 0.8;  // sharp leading edge
@@ -122,8 +124,9 @@ function createBreath2Renderer(): ZenRendererApi {
       if (radius < 0.01) return f;
 
       for (let col = 0; col < FRAME_COLS; col++) {
+        const virtualCol = col + colOffset;
         for (let row = 0; row < FRAME_ROWS; row++) {
-          const dc = col - centerCol;
+          const dc = virtualCol - centerCol;
           const dr = row - centerRow;
           const dist = Math.sqrt(dc * dc + dr * dr);
           // signed distance: positive = outside ring, negative = inside

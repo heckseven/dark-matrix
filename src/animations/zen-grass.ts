@@ -274,17 +274,20 @@ function spawnParticle(col: number, initialRowFrac?: number): Particle {
   };
 }
 
-function createGrass4(): ZenRendererApi {
+function createGrass4(side?: 'left' | 'right'): ZenRendererApi {
   let stopped = false;
   const start = Date.now();
+
+  const totalCols = side !== undefined ? FRAME_COLS * 2 : FRAME_COLS;
+  const colOffset = side === 'right' ? FRAME_COLS : 0;
 
   const PARTICLES_PER_COL = 5;
   const particles: Particle[] = [];
 
-  // Initialise staggered particles
-  for (let col = 0; col < FRAME_COLS; col++) {
+  // Initialise staggered particles across the full virtual width
+  for (let vcol = 0; vcol < totalCols; vcol++) {
     for (let p = 0; p < PARTICLES_PER_COL; p++) {
-      particles.push(spawnParticle(col, p / PARTICLES_PER_COL));
+      particles.push(spawnParticle(vcol, p / PARTICLES_PER_COL));
     }
   }
 
@@ -299,7 +302,7 @@ function createGrass4(): ZenRendererApi {
       const dt = Math.min(t - lastT, 0.1);
       lastT = t;
 
-      // Move particles upward
+      // Move particles upward; respawn at virtual-canvas col when they exit top
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
         if (p === undefined) continue;
@@ -309,7 +312,7 @@ function createGrass4(): ZenRendererApi {
         }
       }
 
-      // Draw particles
+      // Draw particles — only those whose rendered column falls in this 9-wide slice
       for (const p of particles) {
         const row = Math.round(p.row);
         if (row < 0 || row >= FRAME_ROWS) continue;
@@ -318,17 +321,20 @@ function createGrass4(): ZenRendererApi {
         const frac = row / (FRAME_ROWS - 1); // 0=top, 1=bottom
         const brightness = clamp255(60 + frac * 180);
 
-        // Fractional col drift based on travel distance from bottom
+        // Fractional col drift based on travel distance from bottom; wrap at virtual canvas bounds
         const traveled = FRAME_ROWS - 1 - row;
-        const colOffset = p.drift * traveled;
-        const mainCol = p.col + Math.floor(colOffset);
-        const fracPart = colOffset - Math.floor(colOffset);
+        const driftOffset = p.drift * traveled;
+        const virtualMainCol = ((Math.floor(p.col + driftOffset) % totalCols) + totalCols) % totalCols;
+        const fracPart = driftOffset - Math.floor(driftOffset);
 
+        // Translate virtual col to frame col
+        const mainCol = virtualMainCol - colOffset;
         if (mainCol >= 0 && mainCol < FRAME_COLS) {
           const idx = mainCol * FRAME_ROWS + row;
           frame[idx] = clamp255(Math.max(frame[idx] ?? 0, brightness * (1 - fracPart)));
         }
-        const nextCol = mainCol + 1;
+        const virtualNextCol = (virtualMainCol + 1) % totalCols;
+        const nextCol = virtualNextCol - colOffset;
         if (fracPart > 0 && nextCol >= 0 && nextCol < FRAME_COLS) {
           const idx = nextCol * FRAME_ROWS + row;
           frame[idx] = clamp255(Math.max(frame[idx] ?? 0, brightness * fracPart * 0.6));
@@ -461,8 +467,8 @@ function createGrass6(): ZenRendererApi {
 // Factory
 // ---------------------------------------------------------------------------
 
-export function createZenGrassRenderer(style: ZenGrassStyle): ZenRendererApi {
+export function createZenGrassRenderer(style: ZenGrassStyle, side?: 'left' | 'right'): ZenRendererApi {
   switch (style) {
-    case 'grass-4': return createGrass4();
+    case 'grass-4': return createGrass4(side);
   }
 }
