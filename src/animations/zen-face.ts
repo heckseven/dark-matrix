@@ -2,12 +2,10 @@ import { createFrame, FRAME_COLS, FRAME_ROWS } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 import type { ZenRendererApi } from './zen-renderers.js';
 
-export type ZenFaceStyle = 'face-1' | 'face-2' | 'face-3';
+export type ZenFaceStyle = 'face-3';
 
 export function createZenFaceRenderer(style: ZenFaceStyle, side?: 'left' | 'right'): ZenRendererApi {
   switch (style) {
-    case 'face-1': return createFace1Renderer(side);
-    case 'face-2': return createFace2Renderer(side);
     case 'face-3': return createFace3Renderer(side);
   }
 }
