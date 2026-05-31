@@ -177,8 +177,9 @@ function timingMode(rule: RuleDraft): TimingMode {
 
 function srcButtonLabel(draft: RuleDraft): string {
   const src = draft.source;
-  if (!src || src === 'desktop-notification') {
-    return draft.app_name_glob ? `desktop "${draft.app_name_glob}"` : 'desktop';
+  if (!src) return 'any source';
+  if (src === 'desktop-notification') {
+    return draft.app_name_glob ? `desktop "${draft.app_name_glob}"` : 'desktop any';
   }
   if (src === 'ec-switch') {
     const isCamera = (draft.content_glob ?? '').startsWith('CAM');
@@ -464,7 +465,7 @@ function SourceDialog({ open, onOpenChange, initial, onDone, history, refreshHis
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="w-[320px] flex flex-col gap-3"
+        className="w-[380px] flex flex-col gap-3"
         onCloseAutoFocus={e => { if (triggerRef?.current) { e.preventDefault(); triggerRef.current.focus(); } }}
       >
         <DialogTitle>select source</DialogTitle>
@@ -491,7 +492,7 @@ function SourceDialog({ open, onOpenChange, initial, onDone, history, refreshHis
 
           {isDesktop && (
             <FormRow label="app">
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 min-w-0">
                 <Input
                   fluid
                   aria-label="App name glob"
@@ -1012,7 +1013,7 @@ function RuleRow({
       {/* source button */}
       <Button
         ref={srcBtnRef}
-        variant={sourceConfigured ? 'default' : 'primary'}
+        variant={sourceConfigured ? 'ghost' : 'primary'}
         size="sm"
         className="shrink-0 font-mono truncate max-w-[180px]"
         aria-label={sourceConfigured ? `Edit source for rule ${idx + 1}` : `Select source for rule ${idx + 1}`}
@@ -1021,10 +1022,12 @@ function RuleRow({
         {sourceConfigured ? srcButtonLabel(rule) : 'select source'}
       </Button>
 
+      <span aria-hidden="true" className="text-foreground/30 shrink-0 select-none">·</span>
+
       {/* animation button */}
       <Button
         ref={animBtnRef}
-        variant="default"
+        variant={completeRule ? 'ghost' : 'default'}
         size="sm"
         className="shrink-0 font-mono truncate max-w-[180px]"
         aria-label={completeRule ? `Edit animation for rule ${idx + 1}` : `Select animation for rule ${idx + 1}`}
@@ -1097,6 +1100,40 @@ function RuleRow({
   );
 }
 
+// ── add rule row ──────────────────────────────────────────────────────────────
+
+function AddRuleRow({ onSourceDone, history, refreshHistory }: {
+  onSourceDone: (draft: RuleDraft) => void;
+  history: NotificationHistory;
+  refreshHistory: () => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  return (
+    <div className="flex items-center py-1.5 border-b border-foreground/10 last:border-b-0">
+      <Button
+        ref={btnRef}
+        variant="ghost"
+        size="sm"
+        className="font-mono"
+        onClick={() => setOpen(true)}
+      >
+        add rule
+      </Button>
+      <SourceDialog
+        open={open}
+        onOpenChange={setOpen}
+        initial={{}}
+        onDone={onSourceDone}
+        history={history}
+        refreshHistory={refreshHistory}
+        triggerRef={btnRef}
+      />
+    </div>
+  );
+}
+
 // ── tab ───────────────────────────────────────────────────────────────────────
 
 export function NotificationsTab({ value, onChange, dualModule = false }: NotificationsTabProps) {
@@ -1111,11 +1148,6 @@ export function NotificationsTab({ value, onChange, dualModule = false }: Notifi
   const [reorderMsg, setReorderMsg] = useState('');
   const [pendingRows, setPendingRows] = useState<PendingRow[]>([]);
   const { history, refresh: refreshHistory } = useNotificationHistory();
-
-  function addRule() {
-    const id = crypto.randomUUID();
-    setPendingRows(rows => [...rows, { id, draft: {}, sourceConfigured: false }]);
-  }
 
   function updateRule(idx: number, rule: NotificationRule) {
     const next = [...value];
@@ -1261,12 +1293,15 @@ export function NotificationsTab({ value, onChange, dualModule = false }: Notifi
               rowRef={(el: HTMLDivElement | null) => { pendingRowRefs.current[pi] = el; }}
             />
           ))}
-        </div>
 
-        <div className="h-10 flex items-center gap-1 px-1">
-          <div aria-hidden="true" className="flex-1 h-px bg-border" />
-          <Button variant="ghost" aria-label="Add rule" tooltip="Add rule" onClick={addRule}>+</Button>
-          <div aria-hidden="true" className="flex-1 h-px bg-border" />
+          <AddRuleRow
+            onSourceDone={draft => {
+              const id = crypto.randomUUID();
+              setPendingRows(rows => [...rows, { id, draft, sourceConfigured: true }]);
+            }}
+            history={history}
+            refreshHistory={refreshHistory}
+          />
         </div>
       </div>
     </div>
