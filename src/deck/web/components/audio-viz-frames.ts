@@ -23,7 +23,7 @@ const CTR    = Math.floor(ROWS / 2);
 /** Static fallback frames shown before live FFT band data arrives. */
 export const PLACEHOLDER: Record<AudioStyle, string> = {
   'spectrum-fall':       makeFrame((c, r) => Math.abs(r - CTR) <= SPEC_H[c]! ? 255 - Math.round((r / (ROWS - 1)) * 255) : 0),
-  'vu-glitch':           makeFrame((c, r) => r % 9 < 4 && (c * 5 + r * 7) % 7 < 4 ? 255 : 0),
+  'glitch':              makeFrame((c, r) => r % 9 < 4 && (c * 5 + r * 7) % 7 < 4 ? 255 : 0),
   'circuit':             makeFrame((c, r) => { const bv = Math.floor(r / 4), bh = Math.floor(c / 3); return (bv + bh) % 3 !== 0 && (c * 7 + r * 11) % 5 < 3 ? 255 : 0; }),
   'spirits':             makeFrame((c, r) => { const h = [10,16,22,28,30,28,22,16,10][c]!; const bRow = ROWS - 1 - h; return Math.abs(r - bRow) <= 1 ? Math.round(255 * Math.pow(0.78, Math.abs(r - bRow))) : 0; }),
   'scope-dual':          makeFrame((c, r) => { const rA = ROWS - 1 - Math.round(EQ_H[c]! / ROWS * (ROWS - 1)); const rB = ROWS - 1 - Math.round(EQ_H[COLS - 1 - c]! / ROWS * (ROWS - 1)) + 4; return r === rA ? 255 : Math.abs(r - rA) === 1 ? 170 : r === rB ? 180 : Math.abs(r - rB) === 1 ? 150 : 0; }),

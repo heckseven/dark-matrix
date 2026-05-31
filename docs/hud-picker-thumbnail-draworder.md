@@ -39,7 +39,7 @@ Export as `.dmx.json` and hand off — the pixel data will be parsed by frame in
 |-------|----------|-------|
 | 16 | `dark-matter` | dark matter |
 | 17 | `glitch-corrupt` | summon |
-| 18 | `vu-glitch` | vu glitch |
+| 18 | `glitch` | glitch |
 | 19 | `specter` | specter |
 | 20 | `circuit` | circuit |
 | 21 | `scope-dual` | ward |
