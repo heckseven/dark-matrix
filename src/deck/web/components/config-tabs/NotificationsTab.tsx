@@ -12,7 +12,7 @@ import { AssetPickerModal } from '../AssetPickerModal.js';
 import { DmxPreview } from '../DmxPreview.js';
 
 export type NotificationRule = {
-  source?: 'ec-switch' | 'vm' | 'claude' | 'desktop-notification' | 'manual' | 'twitch';
+  source?: 'ec-switch' | 'vm' | 'claude' | 'desktop-notification' | 'manual' | 'twitch' | 'battery';
   app_name_glob?: string;
   urgency?: 'low' | 'normal' | 'critical' | 'any';
   content_glob?: string;
@@ -519,6 +519,7 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, o
                   { value: 'claude', label: 'claude' },
                   { value: 'manual', label: 'manual' },
                   { value: 'twitch', label: 'twitch' },
+                  { value: 'battery', label: 'battery' },
                 ]}
                 onValueChange={handleSourceChange}
               />
