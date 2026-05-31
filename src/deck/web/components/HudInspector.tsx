@@ -415,22 +415,25 @@ function AgentGrid({ currentWidget, onPick }: {
 
 // Animates a single zen style only while hovered or focused.
 // Renderer is created lazily on first activation and stopped on deactivation.
-function ZenItem({ id, label, isSelected, onSelect }: {
+function ZenItem({ id, label, isSelected, spanSide, onSelect }: {
   id: ZenStyle;
   label: string;
   isSelected: boolean;
+  spanSide?: 'left' | 'right';
   onSelect: () => void;
 }) {
   const [pixels, setPixels] = useState(EMPTY_PIXELS);
   const rendererRef = useRef<ReturnType<typeof createZenRenderer> | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const spanSideRef = useRef(spanSide);
+  spanSideRef.current = spanSide;
   const reducedMotion = useRef(
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
   );
 
   function startAnimation() {
     if (reducedMotion.current || intervalRef.current) return;
-    if (!rendererRef.current) rendererRef.current = createZenRenderer(id);
+    if (!rendererRef.current) rendererRef.current = createZenRenderer(id, spanSideRef.current);
     const r = rendererRef.current;
     intervalRef.current = setInterval(() => setPixels(bayerToB64(r.render())), 100);
   }
@@ -438,6 +441,14 @@ function ZenItem({ id, label, isSelected, onSelect }: {
   function stopAnimation() {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
   }
+
+  // Recreate renderer when spanning mode changes so next hover shows the correct slice
+  useEffect(() => {
+    if (!intervalRef.current) {
+      rendererRef.current?.stop();
+      rendererRef.current = null;
+    }
+  }, [spanSide]);
 
   useEffect(() => () => {
     stopAnimation();
@@ -464,11 +475,14 @@ function ZenItem({ id, label, isSelected, onSelect }: {
   );
 }
 
-function ZenGrid({ currentWidget, onPick }: {
+function ZenGrid({ currentWidget, onPick, side, oppositeWidget }: {
   currentWidget: HudWidget | null;
   onPick: (w: HudWidget) => void;
+  side?: 'left' | 'right';
+  oppositeWidget?: HudWidget;
 }) {
   const zenStyle = currentWidget?.widget === 'zen' ? (currentWidget.style ?? 'fluid-1') : null;
+  const oppositeZenStyle = oppositeWidget?.widget === 'zen' ? (oppositeWidget.style ?? 'fluid-1') : null;
   return (
     <div role="group" aria-label="Zen panels" className="flex flex-wrap gap-6">
       {ZEN_STYLES.map(({ id, label }) => (
@@ -477,6 +491,7 @@ function ZenGrid({ currentWidget, onPick }: {
           id={id}
           label={label}
           isSelected={zenStyle === id}
+          spanSide={oppositeZenStyle === id ? side : undefined}
           onSelect={() => onPick({ widget: 'zen', style: id })}
         />
       ))}
@@ -1357,7 +1372,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
               {activeCategory === 'timer'  && <TimerGrid currentWidget={widget} onSettings={handleSettings} />}
               {activeCategory === 'data'   && <DataGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} />}
               {activeCategory === 'agent'   && <AgentGrid  currentWidget={widget} onPick={handlePick} />}
-              {activeCategory === 'zen'     && <ZenGrid    currentWidget={widget} onPick={handlePick} />}
+              {activeCategory === 'zen'     && <ZenGrid    currentWidget={widget} onPick={handlePick} side={side} oppositeWidget={oppositeWidget} />}
               {activeCategory === 'strings' && <StringsGrid currentWidget={widget} onSettings={handleSettings} />}
               {activeCategory === 'audio'  && <AudioGrid currentWidget={widget} audioCtx={audioCtx} side={side} onPick={handlePick} onMount={handleAudioMount} onUnmount={handleAudioUnmount} />}
               {activeCategory === 'life'   && <LifeGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} dualModule={dualModule} {...(onDeleteBiome ? { onDeleteBiome } : {})} {...(onEditBiome ? { onEditBiome } : {})} />}
