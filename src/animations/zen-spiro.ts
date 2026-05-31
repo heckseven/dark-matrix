@@ -2,7 +2,7 @@ import { createFrame, FRAME_COLS, FRAME_ROWS } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 import type { ZenRendererApi } from './zen-renderers.js';
 
-export type ZenSpiroStyle = 'spiro-1' | 'spiro-2' | 'spiro-3';
+export type ZenSpiroStyle = 'rose' | 'orbit' | 'corona';
 
 const CENTER_ROW = 17;
 
@@ -364,8 +364,8 @@ function createSpiro3(side?: 'left' | 'right'): ZenRendererApi {
 // ---------------------------------------------------------------------------
 export function createZenSpiroRenderer(style: ZenSpiroStyle, side?: 'left' | 'right'): ZenRendererApi {
   switch (style) {
-    case 'spiro-1': return createSpiro1(side);
-    case 'spiro-2': return createSpiro2(side);
-    case 'spiro-3': return createSpiro3(side);
+    case 'rose':   return createSpiro1(side);
+    case 'orbit':  return createSpiro2(side);
+    case 'corona': return createSpiro3(side);
   }
 }
