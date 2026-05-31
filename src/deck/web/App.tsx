@@ -817,7 +817,7 @@ export function App() {
                 </div>
               ) : undefined
             ) : activeMode === 'config' ? (
-              <Button variant="ghost" disabled={!configDirty} onClick={() => void saveConfig()}>save</Button>
+              <Button variant={configDirty ? "primary" : "ghost"} disabled={!configDirty} onClick={() => void saveConfig()}>save</Button>
             ) : activeMode === 'audio' ? (
               <div className="flex items-center gap-2">
                 {/* Mic + levels: shown while the visualizer runs or the picker grid
