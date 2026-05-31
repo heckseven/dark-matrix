@@ -4,7 +4,6 @@ import type { ZenRendererApi } from './zen-renderers.js';
 
 export type ZenFloraStyle =
   | 'flora-1'
-  | 'flora-2'
   | 'flora-5';
 
 const DEFAULT_CENTER_COL = 4;
@@ -497,7 +496,6 @@ function createFlora6(): ZenRendererApi {
 export function createZenFloraRenderer(style: ZenFloraStyle, side?: 'left' | 'right'): ZenRendererApi {
   switch (style) {
     case 'flora-1': return createFlora1(side);
-    case 'flora-2': return createFlora2(side);
     case 'flora-5': return createFlora5(side);
   }
 }

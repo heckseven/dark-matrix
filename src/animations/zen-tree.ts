@@ -2,7 +2,7 @@ import { createFrame, FRAME_COLS, FRAME_ROWS } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 import type { ZenRendererApi } from './zen-renderers.js';
 
-export type ZenTreeStyle = 'tree-1' | 'tree-2' | 'tree-3' | 'tree-4' | 'tree-5' | 'tree-6';
+export type ZenTreeStyle = 'tree-2' | 'tree-4' | 'tree-5' | 'tree-6';
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -691,9 +691,7 @@ function createTree6Renderer(): ZenRendererApi {
 
 export function createZenTreeRenderer(style: ZenTreeStyle): ZenRendererApi {
   switch (style) {
-    case 'tree-1': return createTree1Renderer();
     case 'tree-2': return createTree2Renderer();
-    case 'tree-3': return createTree3Renderer();
     case 'tree-4': return createTree4Renderer();
     case 'tree-5': return createTree5Renderer();
     case 'tree-6': return createTree6Renderer();

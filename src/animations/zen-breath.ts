@@ -75,26 +75,32 @@ function createBreath1Renderer(): ZenRendererApi {
 }
 
 // ---------------------------------------------------------------------------
-// breath-2: 4-7-8 breathing — Radial ring visual
+// breath-2: 4-7-8 breathing — Dual-ring hold-timer visual
 // Protocol: inhale 4s → hold 7s → exhale 8s (total 19s cycle)
-// Visual: a thin bright ring expands from center during inhale, holds at max
-//         radius during hold, contracts back to center during exhale.
-// Center: col 4, row 17. Max radius ~8 pixels.
+// Visual:
+//   Inhale (0–4s): outer ring expands 0→maxRadius with comet trail on inner edge
+//   Hold (4–11s):  outer ring at maxRadius (pulse+shimmer); inner ring grows
+//                  0→maxRadius as a hold-progress timer
+//   Exhale (11–19s): outer ring contracts maxRadius→0 with comet trail on outer edge;
+//                    inner ring is absent
 // ---------------------------------------------------------------------------
 function createBreath2Renderer(side?: 'left' | 'right'): ZenRendererApi {
   const startTime = Date.now();
   const cycleMs = 19_000;
-  const phaseInhaleEnd = 4_000 / cycleMs;   // ~0.211
-  const phaseHoldEnd   = 11_000 / cycleMs;  // ~0.579
-  // exhale: ~0.579 – 1.0
+  const inhaleMs = 4_000;
+  const holdMs   = 7_000;
+  // exhale: 8_000ms
+  const phaseInhaleEnd = inhaleMs / cycleMs;  // ~0.2105
+  const phaseHoldEnd   = (inhaleMs + holdMs) / cycleMs; // ~0.5789
+  // exhale: phaseHoldEnd – 1.0
 
   const colOffset = side === 'right' ? FRAME_COLS : 0;
-  // When spanning: center at seam (col 8.5 in virtual space); else col 4
   const centerCol = side !== undefined ? (FRAME_COLS * 2 - 1) / 2 : 4;
   const centerRow = 17;
-  const maxRadius = 14; // extends well past horizontal edges; partial arc is the look
-  const frontWidth = 0.8;  // sharp leading edge
-  const trailLength = 5.0; // comet tail on trailing edge
+  const maxRadius = 14;
+  const outerFrontWidth = 0.8;
+  const outerTrailLength = 5.0;
+  const innerRingWidth = 0.5;
 
   let stopped = false;
 
@@ -104,24 +110,38 @@ function createBreath2Renderer(side?: 'left' | 'right'): ZenRendererApi {
       if (stopped) return f;
 
       const elapsed = Date.now() - startTime;
-      const phase = (elapsed % cycleMs) / cycleMs;
+      const cycleElapsed = elapsed % cycleMs;
+      const phase = cycleElapsed / cycleMs;
 
-      let radius: number;
-      // radialDir: +1 = expanding, -1 = contracting, 0 = holding
-      let radialDir: number;
+      // Determine outer ring radius, direction, and hold-elapsed
+      let outerRadius: number;
+      let radialDir: number; // +1 expanding, -1 contracting, 0 holding
+      let holdElapsedMs = 0;
+
       if (phase < phaseInhaleEnd) {
-        radius = (phase / phaseInhaleEnd) * maxRadius;
+        outerRadius = (phase / phaseInhaleEnd) * maxRadius;
         radialDir = 1;
       } else if (phase < phaseHoldEnd) {
-        radius = maxRadius;
+        outerRadius = maxRadius;
         radialDir = 0;
+        holdElapsedMs = cycleElapsed - inhaleMs;
       } else {
         const exhaleProgress = (phase - phaseHoldEnd) / (1.0 - phaseHoldEnd);
-        radius = (1.0 - exhaleProgress) * maxRadius;
+        outerRadius = (1.0 - exhaleProgress) * maxRadius;
         radialDir = -1;
       }
 
-      if (radius < 0.01) return f;
+      // Inner ring only exists during hold phase
+      const innerRadius = radialDir === 0
+        ? (holdElapsedMs / holdMs) * maxRadius
+        : -1;
+
+      if (outerRadius < 0.01 && innerRadius < 0) return f;
+
+      // Hold-phase animation params (reused below)
+      const pulse = radialDir === 0
+        ? 0.80 + 0.20 * Math.sin(holdElapsedMs / 3000 * Math.PI * 2)
+        : 1.0;
 
       for (let col = 0; col < FRAME_COLS; col++) {
         const virtualCol = col + colOffset;
@@ -129,37 +149,50 @@ function createBreath2Renderer(side?: 'left' | 'right'): ZenRendererApi {
           const dc = virtualCol - centerCol;
           const dr = row - centerRow;
           const dist = Math.sqrt(dc * dc + dr * dr);
-          // signed distance: positive = outside ring, negative = inside
-          const signedDist = dist - radius;
+          const signedDist = dist - outerRadius;
 
-          let brightness = 0;
+          let outerBrightness = 0;
 
           if (radialDir === 0) {
-            // Holding at max — ring pulses gently and a shimmer orbits
-            const holdElapsedMs = Math.max(0, (elapsed % cycleMs) - phaseInhaleEnd * cycleMs);
-            const pulse = 0.80 + 0.20 * Math.sin(holdElapsedMs / 3000 * Math.PI * 2);
+            // Hold: outer ring pulses + shimmer
             const shimmerAngle = holdElapsedMs / 8000 * Math.PI * 2;
             const pixelAngle = Math.atan2(row - centerRow, col - centerCol);
             const shimmer = 0.78 + 0.22 * Math.max(0, Math.cos(pixelAngle - shimmerAngle));
             const d = Math.abs(signedDist);
-            const ringWidth = frontWidth + 1.2;
-            if (d <= ringWidth) brightness = Math.max(0, 1.0 - d / ringWidth) * pulse * shimmer;
+            const ringWidth = outerFrontWidth + 1.2;
+            if (d <= ringWidth) outerBrightness = Math.max(0, 1.0 - d / ringWidth) * pulse * shimmer;
           } else if (radialDir > 0) {
-            // Expanding: leading edge is outer (signedDist > 0), trail is inner (signedDist < 0)
-            if (signedDist >= 0 && signedDist <= frontWidth) {
-              brightness = 1.0 - signedDist / frontWidth;
-            } else if (signedDist < 0 && signedDist >= -trailLength) {
-              brightness = (1.0 + signedDist / trailLength) * 0.65;
+            // Expanding: leading edge outer, trail inner
+            if (signedDist >= 0 && signedDist <= outerFrontWidth) {
+              outerBrightness = 1.0 - signedDist / outerFrontWidth;
+            } else if (signedDist < 0 && signedDist >= -outerTrailLength) {
+              outerBrightness = (1.0 + signedDist / outerTrailLength) * 0.65;
             }
           } else {
-            // Contracting: leading edge is inner (signedDist < 0), trail is outer (signedDist > 0)
-            if (signedDist <= 0 && signedDist >= -frontWidth) {
-              brightness = 1.0 + signedDist / frontWidth;
-            } else if (signedDist > 0 && signedDist <= trailLength) {
-              brightness = (1.0 - signedDist / trailLength) * 0.65;
+            // Contracting: leading edge inner, trail outer
+            if (signedDist <= 0 && signedDist >= -outerFrontWidth) {
+              outerBrightness = 1.0 + signedDist / outerFrontWidth;
+            } else if (signedDist > 0 && signedDist <= outerTrailLength) {
+              outerBrightness = (1.0 - signedDist / outerTrailLength) * 0.65;
             }
           }
 
+          // Inner ring (hold timer)
+          let innerBrightness = 0;
+          if (innerRadius >= 0) {
+            const innerDist = Math.abs(dist - innerRadius);
+            if (innerDist <= innerRingWidth) {
+              innerBrightness = (1.0 - innerDist / innerRingWidth) * 0.8;
+            }
+
+            // Merge flash when inner ring approaches maxRadius
+            const mergeProximity = Math.max(0, 1.0 - Math.abs(innerRadius - maxRadius));
+            const mergeFactor = 1.0 + 0.4 * mergeProximity;
+            outerBrightness = Math.min(1.0, outerBrightness * mergeFactor);
+            innerBrightness = Math.min(1.0, innerBrightness * mergeFactor);
+          }
+
+          const brightness = Math.max(outerBrightness, innerBrightness);
           if (brightness > 0) {
             f[col * FRAME_ROWS + row] = Math.round(Math.max(0, Math.min(1, brightness)) * 255);
           }
