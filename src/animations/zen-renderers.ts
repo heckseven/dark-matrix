@@ -4,7 +4,6 @@ import { createZenBreathRenderer } from './zen-breath.js';
 import { createZenFloraRenderer } from './zen-flora.js';
 import { createZenGrassRenderer } from './zen-grass.js';
 import { createZenTreeRenderer } from './zen-tree.js';
-import { createZenFaceRenderer } from './zen-face.js';
 import { createZenPlantRenderer } from './zen-plant.js';
 import { createZenSpiroRenderer } from './zen-spiro.js';
 
@@ -13,36 +12,33 @@ export type { ZenBreathStyle } from './zen-breath.js';
 export type { ZenFloraStyle } from './zen-flora.js';
 export type { ZenGrassStyle } from './zen-grass.js';
 export type { ZenTreeStyle } from './zen-tree.js';
-export type { ZenFaceStyle } from './zen-face.js';
 export type { ZenPlantStyle } from './zen-plant.js';
 export type { ZenSpiroStyle } from './zen-spiro.js';
 
 export type ZenStyle =
-  | 'fluid-1' | 'fluid-5' | 'fluid-9'
-  | 'breath-1' | 'breath-2'
+  | 'waves' | 'pool' | 'brush'
+  | 'breathe' | 'inhale'
   | 'flora-1' | 'flora-5'
-  | 'face-3'
-  | 'grass-4'
-  | 'plant-2' | 'plant-3'
-  | 'tree-6'
-  | 'spiro-1' | 'spiro-2' | 'spiro-3';
+  | 'spiro-1' | 'spiro-2' | 'spiro-3'
+  | 'grass'
+  | 'pine' | 'plant-3'
+  | 'tree-6';
 
 export const ZEN_STYLES: { id: ZenStyle; label: string }[] = [
-  { id: 'fluid-1',  label: 'fluid-1'  },
-  { id: 'fluid-5',  label: 'fluid-5'  },
-  { id: 'fluid-9',  label: 'fluid-9'  },
-  { id: 'breath-1', label: 'breath-1' },
-  { id: 'breath-2', label: 'breath-2' },
-  { id: 'flora-1',  label: 'flora-1'  },
-  { id: 'flora-5',  label: 'flora-5'  },
-  { id: 'spiro-1',  label: 'spiro-1'  },
-  { id: 'spiro-2',  label: 'spiro-2'  },
-  { id: 'spiro-3',  label: 'spiro-3'  },
-  { id: 'face-3',   label: 'face-3'   },
-  { id: 'grass-4',  label: 'grass-4'  },
-  { id: 'plant-2',  label: 'plant-2'  },
-  { id: 'plant-3',  label: 'plant-3'  },
-  { id: 'tree-6',   label: 'tree-6'   },
+  { id: 'waves',   label: 'waves'   },
+  { id: 'pool',    label: 'pool'    },
+  { id: 'brush',   label: 'brush'   },
+  { id: 'breathe', label: 'breathe' },
+  { id: 'inhale',  label: 'inhale'  },
+  { id: 'flora-1', label: 'flora-1' },
+  { id: 'flora-5', label: 'flora-5' },
+  { id: 'spiro-1', label: 'spiro-1' },
+  { id: 'spiro-2', label: 'spiro-2' },
+  { id: 'spiro-3', label: 'spiro-3' },
+  { id: 'grass',   label: 'grass'   },
+  { id: 'pine',    label: 'pine'    },
+  { id: 'plant-3', label: 'plant-3' },
+  { id: 'tree-6',  label: 'tree-6'  },
 ];
 
 export const ZEN_STYLE_VALUES = ZEN_STYLES.map(s => s.id) as [string, ...string[]];
@@ -54,30 +50,28 @@ export type ZenRendererApi = {
 
 export function createZenRenderer(style: ZenStyle, side?: 'left' | 'right'): ZenRendererApi {
   switch (style) {
-    case 'fluid-1':
-    case 'fluid-5':
-    case 'fluid-9':
+    case 'waves':
+    case 'pool':
+    case 'brush':
       return createZenFluidRenderer(style, side);
-    case 'breath-1':
-    case 'breath-2':
+    case 'breathe':
+    case 'inhale':
       return createZenBreathRenderer(style, side);
     case 'flora-1':
     case 'flora-5':
       return createZenFloraRenderer(style, side);
-    case 'face-3':
-      return createZenFaceRenderer(style, side);
-    case 'grass-4':
-      return createZenGrassRenderer(style, side);
-    case 'plant-2':
-    case 'plant-3':
-      return createZenPlantRenderer(style);
-    case 'tree-6':
-      return createZenTreeRenderer(style);
     case 'spiro-1':
     case 'spiro-2':
     case 'spiro-3':
       return createZenSpiroRenderer(style, side);
+    case 'grass':
+      return createZenGrassRenderer(style, side);
+    case 'pine':
+    case 'plant-3':
+      return createZenPlantRenderer(style);
+    case 'tree-6':
+      return createZenTreeRenderer(style);
     default:
-      return createZenFluidRenderer('fluid-1');
+      return createZenFluidRenderer('waves');
   }
 }

@@ -3,9 +3,9 @@ import type { Frame } from '../lib/frame.js';
 import type { ZenRendererApi } from './zen-renderers.js';
 
 export type ZenFluidStyle =
-  | 'fluid-1'
-  | 'fluid-5'
-  | 'fluid-9';
+  | 'waves'
+  | 'pool'
+  | 'brush';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -776,8 +776,8 @@ function createFluid9Renderer(side?: 'left' | 'right'): ZenRendererApi {
 
 export function createZenFluidRenderer(style: ZenFluidStyle, side?: 'left' | 'right'): ZenRendererApi {
   switch (style) {
-    case 'fluid-1': return createFluid1Renderer(side);
-    case 'fluid-5': return createFluid5Renderer(side);
-    case 'fluid-9': return createFluid9Renderer(side);
+    case 'waves': return createFluid1Renderer(side);
+    case 'pool':  return createFluid5Renderer(side);
+    case 'brush': return createFluid9Renderer(side);
   }
 }

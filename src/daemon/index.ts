@@ -796,7 +796,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         };
       }
       case 'zen': {
-        const style = (widget.style as ZenStyle | undefined) ?? 'fluid-1';
+        const style = (widget.style as ZenStyle | undefined) ?? 'waves';
         const r = createZenRenderer(style, zenSide);
         return { render(_now: Date, _audioCtx: unknown) { return r.render(); }, stop() { r.stop(); } };
       }
@@ -829,7 +829,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     const zenSpanning =
       leftHudWidget.widget === 'zen' &&
       rightHudWidget.widget === 'zen' &&
-      (leftHudWidget.style ?? 'fluid-1') === (rightHudWidget.style ?? 'fluid-1');
+      (leftHudWidget.style ?? 'waves') === (rightHudWidget.style ?? 'waves');
 
     const leftRenderer  = createWidgetRenderer(leftHudWidget,  'left',  leftProcRef,  zenSpanning ? 'left'  : undefined);
     const rightRenderer = createWidgetRenderer(rightHudWidget, 'right', rightProcRef, zenSpanning ? 'right' : undefined);
@@ -1857,7 +1857,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               } else if (m.leftWidget === 'text' && typeof m.leftText === 'string') {
                 newHud.left = buildText(m.leftText, m.leftTextStyle, m.leftTextSize, m.leftTextSpeed, m.leftTextSpan, m.leftTextFlicker, m.leftTextTransition, m.leftTextLoopDelayMs);
               } else if (m.leftWidget === 'zen') {
-                const style = (ZEN_STYLE_VALUES as readonly string[]).includes(m.leftZenStyle ?? '') ? m.leftZenStyle as ZenStyle : 'fluid-1';
+                const style = (ZEN_STYLE_VALUES as readonly string[]).includes(m.leftZenStyle ?? '') ? m.leftZenStyle as ZenStyle : 'waves';
                 newHud.left = { widget: 'zen', ...(style !== undefined ? { style } : {}) };
               } else if (typeof m.leftFace === 'string') {
                 const face = isClockFace(m.leftFace) ? m.leftFace : 'elegant';
@@ -1884,7 +1884,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               } else if (m.rightWidget === 'text' && typeof m.rightText === 'string') {
                 newHud.right = buildText(m.rightText, m.rightTextStyle, m.rightTextSize, m.rightTextSpeed, m.rightTextSpan, m.rightTextFlicker, m.rightTextTransition, m.rightTextLoopDelayMs);
               } else if (m.rightWidget === 'zen') {
-                const style = (ZEN_STYLE_VALUES as readonly string[]).includes(m.rightZenStyle ?? '') ? m.rightZenStyle as ZenStyle : 'fluid-1';
+                const style = (ZEN_STYLE_VALUES as readonly string[]).includes(m.rightZenStyle ?? '') ? m.rightZenStyle as ZenStyle : 'waves';
                 newHud.right = { widget: 'zen', ...(style !== undefined ? { style } : {}) };
               } else if (typeof m.rightFace === 'string') {
                 const face = isClockFace(m.rightFace) ? m.rightFace : 'elegant';
