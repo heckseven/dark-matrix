@@ -2,9 +2,7 @@ import { createFrame, FRAME_COLS, FRAME_ROWS } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 import type { ZenRendererApi } from './zen-renderers.js';
 
-export type ZenFloraStyle =
-  | 'flora-1'
-  | 'flora-5';
+export type ZenFloraStyle = 'flora-5';
 
 const DEFAULT_CENTER_COL = 4;
 const CENTER_ROW = 17;
@@ -495,7 +493,6 @@ function createFlora6(): ZenRendererApi {
 // ---------------------------------------------------------------------------
 export function createZenFloraRenderer(style: ZenFloraStyle, side?: 'left' | 'right'): ZenRendererApi {
   switch (style) {
-    case 'flora-1': return createFlora1(side);
     case 'flora-5': return createFlora5(side);
   }
 }
