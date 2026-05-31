@@ -16,7 +16,7 @@ export type { ZenSpiroStyle } from './zen-spiro.js';
 export type ZenStyle =
   | 'waves' | 'pool' | 'brush'
   | 'breathe' | 'inhale'
-  | 'flora-5'
+  | 'blossom'
   | 'spiro-1' | 'spiro-2' | 'spiro-3'
   | 'grass'
   | 'pine' | 'seeds';
@@ -27,7 +27,7 @@ export const ZEN_STYLES: { id: ZenStyle; label: string }[] = [
   { id: 'brush',   label: 'brush'   },
   { id: 'breathe', label: 'breathe' },
   { id: 'inhale',  label: 'inhale'  },
-  { id: 'flora-5', label: 'flora-5' },
+  { id: 'blossom', label: 'blossom' },
   { id: 'spiro-1', label: 'spiro-1' },
   { id: 'spiro-2', label: 'spiro-2' },
   { id: 'spiro-3', label: 'spiro-3' },
@@ -52,7 +52,7 @@ export function createZenRenderer(style: ZenStyle, side?: 'left' | 'right'): Zen
     case 'breathe':
     case 'inhale':
       return createZenBreathRenderer(style, side);
-    case 'flora-5':
+    case 'blossom':
       return createZenFloraRenderer(style, side);
     case 'spiro-1':
     case 'spiro-2':
