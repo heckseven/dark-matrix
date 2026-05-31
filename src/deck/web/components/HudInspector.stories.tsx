@@ -141,13 +141,13 @@ export const AudioSpecter: Story = {
   },
 };
 
-/** Zen grid — fluid-1 style active; opens directly on zen category. */
+/** Zen grid — waves style active; opens directly on zen category. */
 export const ZenFluid: Story = {
   args: {
-    widget: { widget: 'zen', style: 'fluid-1' } satisfies HudWidget,
+    widget: { widget: 'zen', style: 'waves' } satisfies HudWidget,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.findByRole('button', { name: 'fluid-1', pressed: true })).resolves.toBeVisible();
+    await expect(canvas.findByRole('button', { name: 'waves', pressed: true })).resolves.toBeVisible();
   },
 };
