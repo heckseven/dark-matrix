@@ -1,5 +1,15 @@
-import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
+import { createZenFluidRenderer } from './zen-fluid.js';
+import { createZenBreathRenderer } from './zen-breath.js';
+import { createZenFloraRenderer } from './zen-flora.js';
+import { createZenGrassRenderer } from './zen-grass.js';
+import { createZenTreeRenderer } from './zen-tree.js';
+
+export type { ZenFluidStyle } from './zen-fluid.js';
+export type { ZenBreathStyle } from './zen-breath.js';
+export type { ZenFloraStyle } from './zen-flora.js';
+export type { ZenGrassStyle } from './zen-grass.js';
+export type { ZenTreeStyle } from './zen-tree.js';
 
 export type ZenStyle =
   | 'fluid-1' | 'fluid-2' | 'fluid-3' | 'fluid-4' | 'fluid-5' | 'fluid-6' | 'fluid-7' | 'fluid-8' | 'fluid-9'
@@ -48,13 +58,45 @@ export type ZenRendererApi = {
   stop(): void;
 };
 
-export function createZenRenderer(_style: ZenStyle): ZenRendererApi {
-  return {
-    render(): Frame {
-      return createFrame();
-    },
-    stop(): void {
-      // stub — no resources to release
-    },
-  };
+export function createZenRenderer(style: ZenStyle): ZenRendererApi {
+  switch (style) {
+    case 'fluid-1':
+    case 'fluid-2':
+    case 'fluid-3':
+    case 'fluid-4':
+    case 'fluid-5':
+    case 'fluid-6':
+    case 'fluid-7':
+    case 'fluid-8':
+    case 'fluid-9':
+      return createZenFluidRenderer(style);
+    case 'breath-1':
+    case 'breath-2':
+    case 'breath-3':
+      return createZenBreathRenderer(style);
+    case 'flora-1':
+    case 'flora-2':
+    case 'flora-3':
+    case 'flora-4':
+    case 'flora-5':
+    case 'flora-6':
+      return createZenFloraRenderer(style);
+    case 'grass-1':
+    case 'grass-2':
+    case 'grass-3':
+    case 'grass-4':
+    case 'grass-5':
+    case 'grass-6':
+      return createZenGrassRenderer(style);
+    case 'tree-1':
+    case 'tree-2':
+    case 'tree-3':
+    case 'tree-4':
+    case 'tree-5':
+    case 'tree-6':
+      return createZenTreeRenderer(style);
+    default:
+      // Exhaustive fallback: TypeScript will catch unknown styles at compile time
+      return createZenFluidRenderer('fluid-1');
+  }
 }
