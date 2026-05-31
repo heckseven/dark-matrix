@@ -2,13 +2,12 @@ import { createFrame, FRAME_COLS, FRAME_ROWS } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 import type { ZenRendererApi } from './zen-renderers.js';
 
-export type ZenPlantStyle = 'plant-1' | 'plant-2' | 'plant-3';
+export type ZenPlantStyle = 'plant-2' | 'plant-3';
 
-export function createZenPlantRenderer(style: ZenPlantStyle, side?: 'left' | 'right'): ZenRendererApi {
+export function createZenPlantRenderer(style: ZenPlantStyle): ZenRendererApi {
   switch (style) {
-    case 'plant-1': return createPlant1Renderer(side);
-    case 'plant-2': return createPlant2Renderer(side);
-    case 'plant-3': return createPlant3Renderer(side);
+    case 'plant-2': return createPlant2Renderer();
+    case 'plant-3': return createPlant3Renderer();
   }
 }
 
@@ -254,16 +253,12 @@ function createPlant1Renderer(side?: 'left' | 'right'): ZenRendererApi {
 // ---------------------------------------------------------------------------
 // plant-2: Fern frond
 // ---------------------------------------------------------------------------
-function createPlant2Renderer(side?: 'left' | 'right'): ZenRendererApi {
-  const colOffset = side === 'right' ? FRAME_COLS : 0;
-  const totalCols = side !== undefined ? FRAME_COLS * 2 : FRAME_COLS;
-  const centerCol = Math.round((totalCols - 1) / 2) - colOffset;
+function createPlant2Renderer(): ZenRendererApi {
+  const centerCol = Math.round((FRAME_COLS - 1) / 2);
 
   const GROW_DURATION = 18_000;
-  const SWAY_DURATION = 8_000;
+  const SWAY_DURATION = 3_000; // stand still for 3s before snow
   const SNOW_DURATION = 5_000;
-  const SWAY_FREQ = (2 * Math.PI) / 4000;
-  const SWAY_AMP = 1.2;
 
   // Stem grows from row 33 up to row 3
   const STEM_TOP = 3;
@@ -364,9 +359,8 @@ function createPlant2Renderer(side?: 'left' | 'right'): ZenRendererApi {
           pinnaPairIndex++;
         }
       } else if (phase === 'swaying') {
-        const swayOffset = SWAY_AMP * Math.sin(phaseElapsed * SWAY_FREQ);
-        const swayed = applySwayToPixels(canonicalPixels, swayOffset);
-        for (const [c, r] of swayed) {
+        // Stand still for a few seconds before snow
+        for (const [c, r] of canonicalPixels) {
           setPixel(f, c, r, 200);
         }
       } else if (phase === 'snowing') {
@@ -400,10 +394,8 @@ function createPlant2Renderer(side?: 'left' | 'right'): ZenRendererApi {
 // ---------------------------------------------------------------------------
 // plant-3: Wild grass / reed
 // ---------------------------------------------------------------------------
-function createPlant3Renderer(side?: 'left' | 'right'): ZenRendererApi {
-  const colOffset = side === 'right' ? FRAME_COLS : 0;
-  const totalCols = side !== undefined ? FRAME_COLS * 2 : FRAME_COLS;
-  const centerCol = Math.round((totalCols - 1) / 2) - colOffset;
+function createPlant3Renderer(): ZenRendererApi {
+  const centerCol = Math.round((FRAME_COLS - 1) / 2);
 
   const GROW_DURATION = 18_000;
   const SWAY_DURATION = 8_000;
