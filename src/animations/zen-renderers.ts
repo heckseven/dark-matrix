@@ -73,7 +73,7 @@ export function createZenRenderer(style: ZenStyle, side?: 'left' | 'right'): Zen
     case 'plant-1':
     case 'plant-2':
     case 'plant-3':
-      return createZenPlantRenderer(style, side);
+      return createZenPlantRenderer(style); // plants are independent per-module like trees
     case 'tree-2':
     case 'tree-4':
     case 'tree-5':
