@@ -16,7 +16,6 @@ export type NotificationRule = {
   source?: 'ec-switch' | 'vm' | 'claude' | 'desktop-notification' | 'manual' | 'twitch' | 'battery';
   battery_threshold?: number;
   app_name_glob?: string;
-  urgency?: 'low' | 'normal' | 'critical' | 'any';
   content_glob?: string;
   animation: 'scroll' | 'dmx' | 'none';
   scroll_text?: string;
@@ -76,7 +75,6 @@ function buildRule(base: NotificationRule, changes: RulePatch): NotificationRule
 
   if (isDesktop) {
     if (merged.app_name_glob !== undefined && merged.app_name_glob !== '') result.app_name_glob = merged.app_name_glob;
-    if (merged.urgency !== undefined && merged.urgency !== 'any') result.urgency = merged.urgency;
   } else if (isBattery) {
     if (merged.battery_threshold !== undefined) result.battery_threshold = merged.battery_threshold;
   } else {
@@ -550,19 +548,6 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, o
                     onPick={(v) => onUpdate(buildRule(rule, { app_name_glob: v }))}
                   />
                 </div>
-              </FormRow>
-            )}
-
-            {/* urgency */}
-            {isDesktop && (
-              <FormRow label="urgency">
-                <Select
-                  fluid
-                  aria-label="Urgency"
-                  value={rule.urgency ?? 'any'}
-                  options={[{ value: 'any', label: 'any' }, { value: 'low', label: 'low' }, { value: 'normal', label: 'normal' }, { value: 'critical', label: 'critical' }]}
-                  onValueChange={v => onUpdate(buildRule(rule, { urgency: (v === 'low' || v === 'normal' || v === 'critical') ? v : 'any' }))}
-                />
               </FormRow>
             )}
 
