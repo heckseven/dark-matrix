@@ -482,6 +482,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     widget: NonNullable<NonNullable<Config['hud']>['left']>,
     side: 'left' | 'right',
     procDataRendererRef: { renderer: DataRenderer | null },
+    zenSide?: 'left' | 'right',
   ): WidgetRenderer {
     if (widget.widget !== 'timer') persistedTimerEpochs[side] = null;
     switch (widget.widget) {
@@ -796,7 +797,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       }
       case 'zen': {
         const style = (widget.style as ZenStyle | undefined) ?? 'fluid-1';
-        const r = createZenRenderer(style, side);
+        const r = createZenRenderer(style, zenSide);
         return { render(_now: Date, _audioCtx: unknown) { return r.render(); }, stop() { r.stop(); } };
       }
       default: {
@@ -824,8 +825,14 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     const leftProcRef:  { renderer: DataRenderer | null } = { renderer: null };
     const rightProcRef: { renderer: DataRenderer | null } = { renderer: null };
 
-    const leftRenderer  = createWidgetRenderer(leftHudWidget,  'left',  leftProcRef);
-    const rightRenderer = createWidgetRenderer(rightHudWidget, 'right', rightProcRef);
+    // Zen spanning: only render as a single 18-wide canvas when both sides share the same style
+    const zenSpanning =
+      leftHudWidget.widget === 'zen' &&
+      rightHudWidget.widget === 'zen' &&
+      (leftHudWidget.style ?? 'fluid-1') === (rightHudWidget.style ?? 'fluid-1');
+
+    const leftRenderer  = createWidgetRenderer(leftHudWidget,  'left',  leftProcRef,  zenSpanning ? 'left'  : undefined);
+    const rightRenderer = createWidgetRenderer(rightHudWidget, 'right', rightProcRef, zenSpanning ? 'right' : undefined);
 
     const needsProc = leftHudWidget.widget === 'data' || rightHudWidget.widget === 'data';
     const stopProc = needsProc
