@@ -2,11 +2,11 @@ import { createFrame, FRAME_COLS, FRAME_ROWS } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 import type { ZenRendererApi } from './zen-renderers.js';
 
-export type ZenPlantStyle = 'plant-2' | 'plant-3';
+export type ZenPlantStyle = 'pine' | 'plant-3';
 
 export function createZenPlantRenderer(style: ZenPlantStyle): ZenRendererApi {
   switch (style) {
-    case 'plant-2': return createPlant2Renderer();
+    case 'pine':    return createPlant2Renderer();
     case 'plant-3': return createPlant3Renderer();
   }
 }

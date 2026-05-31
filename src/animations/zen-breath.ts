@@ -2,12 +2,12 @@ import { createFrame, FRAME_COLS, FRAME_ROWS } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 import type { ZenRendererApi } from './zen-renderers.js';
 
-export type ZenBreathStyle = 'breath-1' | 'breath-2';
+export type ZenBreathStyle = 'breathe' | 'inhale';
 
 export function createZenBreathRenderer(style: ZenBreathStyle, side?: 'left' | 'right'): ZenRendererApi {
   switch (style) {
-    case 'breath-1': return createBreath1Renderer();
-    case 'breath-2': return createBreath2Renderer(side);
+    case 'breathe': return createBreath1Renderer();
+    case 'inhale':  return createBreath2Renderer(side);
   }
 }
 
