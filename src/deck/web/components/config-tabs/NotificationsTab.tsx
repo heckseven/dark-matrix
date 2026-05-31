@@ -10,9 +10,11 @@ import { Checkbox } from '../ui/checkbox.js';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.js';
 import { AssetPickerModal } from '../AssetPickerModal.js';
 import { DmxPreview } from '../DmxPreview.js';
+import { ScrubInput } from '../ui/scrub-input.js';
 
 export type NotificationRule = {
   source?: 'ec-switch' | 'vm' | 'claude' | 'desktop-notification' | 'manual' | 'twitch' | 'battery';
+  battery_threshold?: number;
   app_name_glob?: string;
   urgency?: 'low' | 'normal' | 'critical' | 'any';
   content_glob?: string;
@@ -67,6 +69,7 @@ function buildRule(base: NotificationRule, changes: RulePatch): NotificationRule
   const anim: NotificationRule['animation'] = merged.animation ?? base.animation;
   const needsAsset = anim === 'dmx';
   const isDesktop = src === 'desktop-notification' || src === undefined;
+  const isBattery = src === 'battery';
 
   const result: NotificationRule = { animation: anim };
   if (src !== undefined) result.source = src;
@@ -74,6 +77,8 @@ function buildRule(base: NotificationRule, changes: RulePatch): NotificationRule
   if (isDesktop) {
     if (merged.app_name_glob !== undefined && merged.app_name_glob !== '') result.app_name_glob = merged.app_name_glob;
     if (merged.urgency !== undefined && merged.urgency !== 'any') result.urgency = merged.urgency;
+  } else if (isBattery) {
+    if (merged.battery_threshold !== undefined) result.battery_threshold = merged.battery_threshold;
   } else {
     if (merged.content_glob !== undefined && merged.content_glob !== '') result.content_glob = merged.content_glob;
   }
@@ -167,6 +172,7 @@ function timingMode(rule: NotificationRule): TimingMode {
 function srcLabel(r: NotificationRule): string {
   if (!r.source || r.source === 'desktop-notification') return r.app_name_glob || '*';
   if (r.source === 'ec-switch') return r.content_glob?.startsWith('CAM') ? 'cam' : 'mic';
+  if (r.source === 'battery') return r.battery_threshold !== undefined ? `bat ≤${r.battery_threshold}%` : 'battery';
   return r.source;
 }
 
@@ -414,6 +420,7 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, o
   const isCamSwitch = vSrc === 'cam-switch';
   const isDesktop = rule.source === 'desktop-notification' || rule.source === undefined;
   const isClaude = rule.source === 'claude';
+  const isBattery = rule.source === 'battery';
 
   function handleSourceChange(newVirt: string) {
     if (newVirt === 'mic-switch') {
@@ -619,8 +626,23 @@ function RuleRow({ rule, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, o
               );
             })()}
 
-            {/* content glob — non-desktop, non-switch, non-claude */}
-            {!isDesktop && !isMicSwitch && !isCamSwitch && !isClaude && (
+            {/* battery threshold */}
+            {isBattery && (
+              <FormRow label="at or below">
+                <ScrubInput
+                  aria-label="Battery threshold"
+                  suffix="%"
+                  min={1}
+                  max={99}
+                  pixelsPerUnit={2}
+                  value={rule.battery_threshold ?? 20}
+                  onChange={v => onUpdate(buildRule(rule, { battery_threshold: v }))}
+                />
+              </FormRow>
+            )}
+
+            {/* content glob — non-desktop, non-switch, non-claude, non-battery */}
+            {!isDesktop && !isMicSwitch && !isCamSwitch && !isClaude && !isBattery && (
               <FormRow label="content">
                 <div className="flex items-center gap-1">
                   <Input
