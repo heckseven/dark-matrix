@@ -3,7 +3,7 @@ import type { VmEvent } from './vm-source.js';
 import type { ClaudeActivityEvent } from './claude-source.js';
 import type { DesktopNotification } from './dbus-notifications.js';
 
-export type DisplaySource = 'ec-switch' | 'vm' | 'claude' | 'desktop-notification' | 'manual' | 'twitch';
+export type DisplaySource = 'ec-switch' | 'vm' | 'claude' | 'desktop-notification' | 'manual' | 'twitch' | 'battery';
 
 export type DisplayIntent = {
   id: string;
@@ -115,6 +115,18 @@ export function notificationIntent(n: DesktopNotification, opts?: NotificationDi
   if (opts?.assetPath !== undefined) base.assetPath = opts.assetPath;
   if (opts?.composite !== undefined) base.composite = opts.composite;
   return base;
+}
+
+export function batteryIntent(pct: number): DisplayIntent {
+  const durationMs = 8000;
+  return {
+    id: nextId(),
+    source: 'battery',
+    priority: pct <= 10 ? PRIORITY.URGENT : PRIORITY.HIGH,
+    content: `BAT ${pct}%`,
+    durationMs,
+    expiresAt: Date.now() + durationMs,
+  };
 }
 
 export class Dispatcher {

@@ -1,27 +1,29 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import type { HudPreset } from './config.js';
+import type { ProcStats } from './proc-source.js';
 
 type TriggerEngineOpts = {
   presets: HudPreset[];
   onActivate: (name: string) => void;
 };
 
+type Stats = Pick<ProcStats, 'cpuPct' | 'ramPct' | 'netRxBps' | 'netTxBps' | 'batteryPct'>;
+
 type TriggerEngine = {
   updatePresets(presets: HudPreset[]): void;
-  updateStats(stats: { cpuPct: number; ramPct: number; netRxBps: number; netTxBps: number }): void;
+  updateStats(stats: Stats): void;
   stop(): void;
 };
 
 // Maps config metric names to stats field names
-const METRIC_MAP: Record<string, keyof { cpuPct: number; ramPct: number; netRxBps: number; netTxBps: number }> = {
-  cpu:    'cpuPct',
-  ram:    'ramPct',
-  net_rx: 'netRxBps',
-  net_tx: 'netTxBps',
+const METRIC_MAP: Record<string, keyof Stats> = {
+  cpu:     'cpuPct',
+  ram:     'ramPct',
+  net_rx:  'netRxBps',
+  net_tx:  'netTxBps',
+  battery: 'batteryPct',
 };
-
-type Stats = { cpuPct: number; ramPct: number; netRxBps: number; netTxBps: number };
 
 export function createPresetTriggerEngine(opts: TriggerEngineOpts): TriggerEngine {
   let presets = opts.presets;
@@ -83,15 +85,20 @@ export function createPresetTriggerEngine(opts: TriggerEngineOpts): TriggerEngin
             if (statsKey) {
               const key = `${preset.name}:${ti}`;
               const value = latestStats[statsKey];
-              let conditionMet = true;
-              if (trigger.above !== undefined && value <= trigger.above) conditionMet = false;
-              if (trigger.below !== undefined && value >= trigger.below) conditionMet = false;
-              if (conditionMet) {
-                const count = (thresholdCounters.get(key) ?? 0) + 1;
-                thresholdCounters.set(key, count);
-                triggerMatch = count >= 5;
-              } else {
+              if (value === null) {
+                // Metric unavailable (e.g. no battery on this machine)
                 thresholdCounters.set(key, 0);
+              } else {
+                let conditionMet = true;
+                if (trigger.above !== undefined && value <= trigger.above) conditionMet = false;
+                if (trigger.below !== undefined && value >= trigger.below) conditionMet = false;
+                if (conditionMet) {
+                  const count = (thresholdCounters.get(key) ?? 0) + 1;
+                  thresholdCounters.set(key, count);
+                  triggerMatch = count >= 5;
+                } else {
+                  thresholdCounters.set(key, 0);
+                }
               }
             }
           }

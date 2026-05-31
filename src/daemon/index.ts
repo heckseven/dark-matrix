@@ -18,7 +18,7 @@ import { parseProject, base64ToFrame } from '../deck/format.js';
 import type { DmxProject } from '../deck/format.js';
 import { watchDesktopNotifications } from '../lib/dbus-notifications.js';
 import { watchMic } from '../lib/mic-source.js';
-import { Dispatcher, ecSwitchIntent, vmIntent, claudeIntent, notificationIntent } from '../lib/dispatcher.js';
+import { Dispatcher, ecSwitchIntent, vmIntent, claudeIntent, notificationIntent, batteryIntent } from '../lib/dispatcher.js';
 import { routeNotification } from '../lib/notification-routing.js';
 import { SerialTransport } from '../lib/transport.js';
 import { runAnimation } from '../lib/animation.js';
@@ -1458,9 +1458,38 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     },
   });
 
-  // Feed proc stats into the trigger engine
+  // Feed proc stats into the trigger engine + battery notification monitoring
+  const firedBatteryThresholds = new Set<number>();
+  let prevBatteryCharging: boolean | null = null;
+
   disposeWatches.push(watchProcStats((stats) => {
     triggerEngine.updateStats(stats);
+
+    const { batteryPct, batteryCharging } = stats;
+    if (batteryPct !== null && batteryCharging !== null) {
+      // Full clear on discharging → charging transition
+      if (prevBatteryCharging === false && batteryCharging === true) {
+        firedBatteryThresholds.clear();
+      }
+      prevBatteryCharging = batteryCharging;
+
+      if (!batteryCharging) {
+        // Re-arm individual thresholds the battery has risen back above
+        for (const fired of [...firedBatteryThresholds]) {
+          if (batteryPct > fired) firedBatteryThresholds.delete(fired);
+        }
+
+        // Fire the highest unfired threshold crossed, one per interval
+        const thresholds = [...(currentConfig.battery_alerts?.thresholds ?? [20, 10, 5])].sort((a, b) => b - a);
+        for (const threshold of thresholds) {
+          if (batteryPct <= threshold && !firedBatteryThresholds.has(threshold)) {
+            firedBatteryThresholds.add(threshold);
+            routeAndPush(batteryIntent(batteryPct));
+            break;
+          }
+        }
+      }
+    }
   }, { intervalMs: 2000 }));
 
   // Brightness loop
