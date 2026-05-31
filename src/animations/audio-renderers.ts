@@ -1,12 +1,12 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type AudioStyle = 'vu-glitch' | 'circuit' | 'spirits' | 'scope-dual' | 'kick-d' | 'waterfall' | 'sparks' | 'hex' | 'specter' | 'heat' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'rhythm' | 'drop' | 'life-erode-4' | 'glitch-sort-b' | 'spiral-d' | 'strobe' | 'glitch-corrupt';
+export type AudioStyle = 'glitch' | 'circuit' | 'spirits' | 'scope-dual' | 'kick-d' | 'waterfall' | 'sparks' | 'hex' | 'specter' | 'heat' | 'dark-matter' | 'spectrum-fall' | 'neo' | 'cipher' | 'wake' | 'rhythm' | 'drop' | 'life-erode-4' | 'glitch-sort-b' | 'spiral-d' | 'strobe' | 'glitch-corrupt';
 
 export const AUDIO_STYLES: { id: AudioStyle; label: string }[] = [
   { id: 'dark-matter',         label: 'dark matter' },
   { id: 'glitch-corrupt',      label: 'summon' },
-  { id: 'vu-glitch',           label: 'vu glitch' },
+  { id: 'glitch',              label: 'glitch' },
   { id: 'specter',             label: 'specter' },
   { id: 'circuit',             label: 'circuit' },
   { id: 'scope-dual',          label: 'ward' },
@@ -57,7 +57,7 @@ function dbLevel(mag: number, gain: number, ref: number): number {
 
 
 
-function vuGlitch(): Renderer {
+function glitch(): Renderer {
   const rowCorrupt = new Float32Array(ROWS);
   let smoothed = 0;
   return ({ bands, gain, fftSize }) => {
@@ -1034,7 +1034,7 @@ function glitchCorrupt(): Renderer {
 
 const FACTORIES: Record<AudioStyle, (params?: Record<string, number>) => Renderer> = {
   'spectrum-fall':       spectrumFall,
-  'vu-glitch':           vuGlitch,
+  'glitch':              glitch,
   'circuit':             vuBlock,
   'spirits':             blip,
   'scope-dual':          scopeDual,

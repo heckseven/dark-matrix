@@ -17,7 +17,7 @@ function makeFrame(fill: (c: number, r: number) => number): string {
 
 const STYLE_FRAMES: Partial<Record<AudioStyle, string>> = {
   'dark-matter': makeFrame((c, r) => r >= ROWS - Math.round((c + 1) * 5) ? 255 : 0),
-  'vu-glitch': makeFrame((c, r) => c < 2 && r >= 6 ? 255 : 0),
+  'glitch': makeFrame((c, r) => c < 2 && r >= 6 ? 255 : 0),
   'waterfall': makeFrame((_c, r) => r < 10 ? 255 : 0),
   'heat':      makeFrame((_c, r) => r >= 28 ? 255 : 0),
 };

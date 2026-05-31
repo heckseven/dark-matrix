@@ -136,7 +136,7 @@ function fullSpirits(): FullRenderer {
   };
 }
 
-function fullVuGlitch(): FullRenderer {
+function fullGlitch(): FullRenderer {
   let buf: Float32Array | null = null;
   let smoothed = 0;
   return ({ bands, cols, rows, gain, fftSize }) => {
@@ -1033,7 +1033,7 @@ function fullCircuit(): FullRenderer {
 const RENDERERS: Record<AudioStyle, () => FullRenderer> = {
   'spectrum-fall':  fullSpectrumFall,
   'spirits':        fullSpirits,
-  'vu-glitch':      fullVuGlitch,
+  'glitch':         fullGlitch,
   'kick-d':         fullKickD,
   'dark-matter':    fullDarkMatter,
   'heat':           fullHeat,
