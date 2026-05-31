@@ -415,6 +415,11 @@ function AgentGrid({ currentWidget, onPick }: {
 
 // Animates a single zen style only while hovered or focused.
 // Renderer is created lazily on first activation and stopped on deactivation.
+/** Combine two 9-wide base64 pixel strings into one 18-wide string. */
+function combinePx(left: string, right: string): string {
+  return btoa(atob(left) + atob(right));
+}
+
 function ZenItem({ id, label, isSelected, spanSide, onSelect }: {
   id: ZenStyle;
   label: string;
@@ -423,37 +428,65 @@ function ZenItem({ id, label, isSelected, spanSide, onSelect }: {
   onSelect: () => void;
 }) {
   const [pixels, setPixels] = useState(EMPTY_PIXELS);
-  const rendererRef = useRef<ReturnType<typeof createZenRenderer> | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const spanSideRef = useRef(spanSide);
-  spanSideRef.current = spanSide;
+  const [displayWidth, setDisplayWidth] = useState<9 | 18>(spanSide !== undefined ? 18 : 9);
+  const rendererLRef  = useRef<ReturnType<typeof createZenRenderer> | null>(null);
+  const rendererRRef  = useRef<ReturnType<typeof createZenRenderer> | null>(null);
+  const intervalRef   = useRef<ReturnType<typeof setInterval> | null>(null);
   const reducedMotion = useRef(
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
   );
-
-  function startAnimation() {
-    if (reducedMotion.current || intervalRef.current) return;
-    if (!rendererRef.current) rendererRef.current = createZenRenderer(id, spanSideRef.current);
-    const r = rendererRef.current;
-    intervalRef.current = setInterval(() => setPixels(bayerToB64(r.render())), 100);
-  }
 
   function stopAnimation() {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
   }
 
-  // Recreate renderer when spanning mode changes so next hover shows the correct slice
-  useEffect(() => {
-    if (!intervalRef.current) {
-      rendererRef.current?.stop();
-      rendererRef.current = null;
+  function teardownRenderers() {
+    rendererLRef.current?.stop(); rendererLRef.current = null;
+    rendererRRef.current?.stop(); rendererRRef.current = null;
+  }
+
+  function startAnimation() {
+    if (reducedMotion.current || intervalRef.current) return;
+    if (spanSide !== undefined) {
+      // Dual-renderer: left half + right half combined into 18-wide preview
+      if (!rendererLRef.current) rendererLRef.current = createZenRenderer(id, 'left');
+      if (!rendererRRef.current) rendererRRef.current = createZenRenderer(id, 'right');
+      const lR = rendererLRef.current, rR = rendererRRef.current;
+      setDisplayWidth(18);
+      intervalRef.current = setInterval(() => {
+        setPixels(combinePx(bayerToB64(lR.render()), bayerToB64(rR.render())));
+      }, 100);
+    } else {
+      if (!rendererLRef.current) rendererLRef.current = createZenRenderer(id);
+      const r = rendererLRef.current;
+      setDisplayWidth(9);
+      intervalRef.current = setInterval(() => setPixels(bayerToB64(r.render())), 100);
     }
+  }
+
+  // On mount and when spanning mode changes: stop live animation, generate static thumbnail
+  useEffect(() => {
+    stopAnimation();
+    teardownRenderers();
+    if (reducedMotion.current) return;
+    if (spanSide !== undefined) {
+      const lR = createZenRenderer(id, 'left');
+      const rR = createZenRenderer(id, 'right');
+      setDisplayWidth(18);
+      setPixels(combinePx(bayerToB64(lR.render()), bayerToB64(rR.render())));
+      lR.stop(); rR.stop();
+    } else {
+      const r = createZenRenderer(id);
+      setDisplayWidth(9);
+      setPixels(bayerToB64(r.render()));
+      r.stop();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spanSide]);
 
   useEffect(() => () => {
     stopAnimation();
-    rendererRef.current?.stop();
-    rendererRef.current = null;
+    teardownRenderers();
   }, []);
 
   return (
@@ -466,7 +499,7 @@ function ZenItem({ id, label, isSelected, spanSide, onSelect }: {
       <MatrixItem
         name={label}
         aria-label={label}
-        width={9}
+        width={displayWidth}
         pixels={pixels}
         isSelected={isSelected}
         onSelect={onSelect}
@@ -481,7 +514,7 @@ function ZenGrid({ currentWidget, onPick, side, oppositeWidget }: {
   side?: 'left' | 'right';
   oppositeWidget?: HudWidget;
 }) {
-  const zenStyle = currentWidget?.widget === 'zen' ? (currentWidget.style ?? 'fluid-1') : null;
+  const zenStyle = currentWidget?.widget === 'zen' ? (currentWidget.style ?? 'waves') : null;
   const oppositeZenStyle = oppositeWidget?.widget === 'zen' ? (oppositeWidget.style ?? 'fluid-1') : null;
   return (
     <div role="group" aria-label="Zen panels" className="flex flex-wrap gap-6">
