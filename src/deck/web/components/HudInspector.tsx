@@ -16,7 +16,7 @@ import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../an
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { CLAUDE_STYLES, createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import type { ClaudeStyle } from '../../../animations/claude-renderers.js';
-import { ZEN_STYLES, createZenRenderer } from '../../../animations/zen-renderers.js';
+import { ZEN_STYLES, createZenRenderer, zenThumbFrame } from '../../../animations/zen-renderers.js';
 import type { ZenStyle } from '../../../animations/zen-renderers.js';
 import { TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS, TEXT_FLICKERS, TEXT_TRANSITIONS, TEXT_SIZE_PX, SPEED_PXPS, SPEED_DWELL_MS, createTextRenderer } from '../../../animations/text-renderers.js';
 import type { TextStyle, TextSize, TextSpeed, TextFlicker, TextTransition } from '../../../animations/text-renderers.js';
@@ -467,14 +467,9 @@ function ZenItem({ id, label, isSelected, dual, onSelect }: {
     teardownRenderers();
     if (reducedMotion.current) return;
     if (dual) {
-      const lR = createZenRenderer(id, 'left');
-      const rR = createZenRenderer(id, 'right');
-      setPixels(combinePx(bayerToB64(lR.render()), bayerToB64(rR.render())));
-      lR.stop(); rR.stop();
+      setPixels(combinePx(bayerToB64(zenThumbFrame(id)), bayerToB64(zenThumbFrame(id))));
     } else {
-      const r = createZenRenderer(id);
-      setPixels(bayerToB64(r.render()));
-      r.stop();
+      setPixels(bayerToB64(zenThumbFrame(id)));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dual]);
