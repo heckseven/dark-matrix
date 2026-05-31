@@ -6,11 +6,8 @@ export type ZenFluidStyle =
   | 'fluid-1'
   | 'fluid-2'
   | 'fluid-3'
-  | 'fluid-4'
   | 'fluid-5'
-  | 'fluid-6'
   | 'fluid-7'
-  | 'fluid-8'
   | 'fluid-9';
 
 // ---------------------------------------------------------------------------
@@ -765,11 +762,8 @@ export function createZenFluidRenderer(style: ZenFluidStyle): ZenRendererApi {
     case 'fluid-1': return createFluid1Renderer();
     case 'fluid-2': return createFluid2Renderer();
     case 'fluid-3': return createFluid3Renderer();
-    case 'fluid-4': return createFluid4Renderer();
     case 'fluid-5': return createFluid5Renderer();
-    case 'fluid-6': return createFluid6Renderer();
     case 'fluid-7': return createFluid7Renderer();
-    case 'fluid-8': return createFluid8Renderer();
     case 'fluid-9': return createFluid9Renderer();
   }
 }

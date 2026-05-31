@@ -2,7 +2,7 @@ import { createFrame, FRAME_COLS, FRAME_ROWS } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 import type { ZenRendererApi } from './zen-renderers.js';
 
-export type ZenGrassStyle = 'grass-1' | 'grass-2' | 'grass-3' | 'grass-4' | 'grass-5' | 'grass-6';
+export type ZenGrassStyle = 'grass-4';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -463,11 +463,6 @@ function createGrass6(): ZenRendererApi {
 
 export function createZenGrassRenderer(style: ZenGrassStyle): ZenRendererApi {
   switch (style) {
-    case 'grass-1': return createGrass1();
-    case 'grass-2': return createGrass2();
-    case 'grass-3': return createGrass3();
     case 'grass-4': return createGrass4();
-    case 'grass-5': return createGrass5();
-    case 'grass-6': return createGrass6();
   }
 }
