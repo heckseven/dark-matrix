@@ -3,6 +3,7 @@ import type { DataStyle, DataMetric } from '../../../animations/data-renderers.j
 import type { AudioStyle } from '../../../animations/audio-renderers.js';
 import type { ClaudeStyle } from '../../../animations/claude-renderers.js';
 import type { TextStyle, TextSize, TextSpeed, TextFlicker, TextTransition } from '../../../animations/text-renderers.js';
+import type { ZenStyle } from '../../../animations/zen-renderers.js';
 
 export type HudWidget =
   | { widget: 'clock'; face?: ClockFace }
@@ -12,6 +13,7 @@ export type HudWidget =
   | { widget: 'image'; file: string; speed?: number; loop?: boolean }
   | { widget: 'life'; biomeName: string; randomIntervalMs?: number }
   | { widget: 'claude'; style?: ClaudeStyle }
+  | { widget: 'zen'; style?: ZenStyle }
   | { widget: 'text'; text: string; style?: TextStyle; size?: TextSize; speed?: TextSpeed; span?: boolean; flicker?: TextFlicker; transition?: TextTransition; loopDelayMs?: number };
 
 export type HudTrigger =
