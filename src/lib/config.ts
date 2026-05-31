@@ -67,6 +67,7 @@ const NotificationRuleSchema = z.object({
   scroll_size: z.enum(['tiny', 'small', 'medium', 'large']).optional(),
   dmx_path: z.string().regex(/\.dmx\.json$/i).optional(),
   source: z.enum(['ec-switch', 'vm', 'claude', 'desktop-notification', 'manual', 'twitch', 'battery']).optional(),
+  battery_threshold: z.number().int().min(1).max(99).optional(),
   content_glob: z.string().optional(),
   asset_path: z.string().optional(),
   composite: z.enum(['replace', 'overlay']).optional(),

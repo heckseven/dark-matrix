@@ -1494,7 +1494,12 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         }
 
         // Fire the highest unfired threshold crossed, one per interval
-        const thresholds = [...(currentConfig.battery_alerts?.thresholds ?? [20, 10, 5])].sort((a, b) => b - a);
+        const ruleThresholds = (currentConfig.notification_rules ?? [])
+          .filter(r => r.source === 'battery' && r.battery_threshold !== undefined)
+          .map(r => r.battery_threshold!);
+        const baseThresholds = currentConfig.battery_alerts?.thresholds
+          ?? (ruleThresholds.length > 0 ? [] : [20, 10, 5]);
+        const thresholds = [...new Set([...baseThresholds, ...ruleThresholds])].sort((a, b) => b - a);
         for (const threshold of thresholds) {
           if (batteryPct <= threshold && !firedBatteryThresholds.has(threshold)) {
             firedBatteryThresholds.add(threshold);
