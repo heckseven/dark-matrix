@@ -91,8 +91,9 @@ function createBreath2Renderer(): ZenRendererApi {
 
   const centerCol = 4;
   const centerRow = 17;
-  const maxRadius = 8;
-  const ringHalfWidth = 0.75; // half-width of the ring outline in pixels
+  const maxRadius = 14; // extends well past horizontal edges; partial arc is the look
+  const frontWidth = 0.8;  // sharp leading edge
+  const trailLength = 5.0; // comet tail on trailing edge
 
   let stopped = false;
 
@@ -105,30 +106,54 @@ function createBreath2Renderer(): ZenRendererApi {
       const phase = (elapsed % cycleMs) / cycleMs;
 
       let radius: number;
+      // radialDir: +1 = expanding, -1 = contracting, 0 = holding
+      let radialDir: number;
       if (phase < phaseInhaleEnd) {
         radius = (phase / phaseInhaleEnd) * maxRadius;
+        radialDir = 1;
       } else if (phase < phaseHoldEnd) {
         radius = maxRadius;
+        radialDir = 0;
       } else {
         const exhaleProgress = (phase - phaseHoldEnd) / (1.0 - phaseHoldEnd);
         radius = (1.0 - exhaleProgress) * maxRadius;
+        radialDir = -1;
       }
 
       if (radius < 0.01) return f;
-
-      const innerR = radius - ringHalfWidth;
-      const outerR = radius + ringHalfWidth;
 
       for (let col = 0; col < FRAME_COLS; col++) {
         for (let row = 0; row < FRAME_ROWS; row++) {
           const dc = col - centerCol;
           const dr = row - centerRow;
           const dist = Math.sqrt(dc * dc + dr * dr);
+          // signed distance: positive = outside ring, negative = inside
+          const signedDist = dist - radius;
 
-          if (dist >= innerR && dist <= outerR) {
-            const distFromRingCenter = Math.abs(dist - radius);
-            const t = 1.0 - distFromRingCenter / ringHalfWidth;
-            f[col * FRAME_ROWS + row] = Math.round(Math.max(0, t) * 255);
+          let brightness = 0;
+
+          if (radialDir === 0) {
+            // Holding at max — symmetric soft ring
+            const d = Math.abs(signedDist);
+            if (d <= frontWidth + 1.0) brightness = Math.max(0, 1.0 - d / (frontWidth + 1.0));
+          } else if (radialDir > 0) {
+            // Expanding: leading edge is outer (signedDist > 0), trail is inner (signedDist < 0)
+            if (signedDist >= 0 && signedDist <= frontWidth) {
+              brightness = 1.0 - signedDist / frontWidth;
+            } else if (signedDist < 0 && signedDist >= -trailLength) {
+              brightness = (1.0 + signedDist / trailLength) * 0.65;
+            }
+          } else {
+            // Contracting: leading edge is inner (signedDist < 0), trail is outer (signedDist > 0)
+            if (signedDist <= 0 && signedDist >= -frontWidth) {
+              brightness = 1.0 + signedDist / frontWidth;
+            } else if (signedDist > 0 && signedDist <= trailLength) {
+              brightness = (1.0 - signedDist / trailLength) * 0.65;
+            }
+          }
+
+          if (brightness > 0) {
+            f[col * FRAME_ROWS + row] = Math.round(Math.max(0, Math.min(1, brightness)) * 255);
           }
         }
       }
