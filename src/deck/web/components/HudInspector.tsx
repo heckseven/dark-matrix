@@ -420,15 +420,15 @@ function combinePx(left: string, right: string): string {
   return btoa(atob(left) + atob(right));
 }
 
-function ZenItem({ id, label, isSelected, spanSide, onSelect }: {
+function ZenItem({ id, label, isSelected, dual, onSelect }: {
   id: ZenStyle;
   label: string;
   isSelected: boolean;
-  spanSide?: 'left' | 'right';
+  dual: boolean;
   onSelect: () => void;
 }) {
   const [pixels, setPixels] = useState(EMPTY_PIXELS);
-  const [displayWidth, setDisplayWidth] = useState<9 | 18>(spanSide !== undefined ? 18 : 9);
+  const width: 9 | 18 = dual ? 18 : 9;
   const rendererLRef  = useRef<ReturnType<typeof createZenRenderer> | null>(null);
   const rendererRRef  = useRef<ReturnType<typeof createZenRenderer> | null>(null);
   const intervalRef   = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -447,42 +447,37 @@ function ZenItem({ id, label, isSelected, spanSide, onSelect }: {
 
   function startAnimation() {
     if (reducedMotion.current || intervalRef.current) return;
-    if (spanSide !== undefined) {
-      // Dual-renderer: left half + right half combined into 18-wide preview
+    if (dual) {
       if (!rendererLRef.current) rendererLRef.current = createZenRenderer(id, 'left');
       if (!rendererRRef.current) rendererRRef.current = createZenRenderer(id, 'right');
       const lR = rendererLRef.current, rR = rendererRRef.current;
-      setDisplayWidth(18);
       intervalRef.current = setInterval(() => {
         setPixels(combinePx(bayerToB64(lR.render()), bayerToB64(rR.render())));
       }, 100);
     } else {
       if (!rendererLRef.current) rendererLRef.current = createZenRenderer(id);
       const r = rendererLRef.current;
-      setDisplayWidth(9);
       intervalRef.current = setInterval(() => setPixels(bayerToB64(r.render())), 100);
     }
   }
 
-  // On mount and when spanning mode changes: stop live animation, generate static thumbnail
+  // On mount and when dual changes: generate static thumbnail
   useEffect(() => {
     stopAnimation();
     teardownRenderers();
     if (reducedMotion.current) return;
-    if (spanSide !== undefined) {
+    if (dual) {
       const lR = createZenRenderer(id, 'left');
       const rR = createZenRenderer(id, 'right');
-      setDisplayWidth(18);
       setPixels(combinePx(bayerToB64(lR.render()), bayerToB64(rR.render())));
       lR.stop(); rR.stop();
     } else {
       const r = createZenRenderer(id);
-      setDisplayWidth(9);
       setPixels(bayerToB64(r.render()));
       r.stop();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spanSide]);
+  }, [dual]);
 
   useEffect(() => () => {
     stopAnimation();
@@ -499,7 +494,7 @@ function ZenItem({ id, label, isSelected, spanSide, onSelect }: {
       <MatrixItem
         name={label}
         aria-label={label}
-        width={displayWidth}
+        width={width}
         pixels={pixels}
         isSelected={isSelected}
         onSelect={onSelect}
@@ -508,14 +503,12 @@ function ZenItem({ id, label, isSelected, spanSide, onSelect }: {
   );
 }
 
-function ZenGrid({ currentWidget, onPick, side, oppositeWidget }: {
+function ZenGrid({ currentWidget, onPick, dual }: {
   currentWidget: HudWidget | null;
   onPick: (w: HudWidget) => void;
-  side?: 'left' | 'right';
-  oppositeWidget?: HudWidget;
+  dual: boolean;
 }) {
   const zenStyle = currentWidget?.widget === 'zen' ? (currentWidget.style ?? 'waves') : null;
-  const oppositeZenStyle = oppositeWidget?.widget === 'zen' ? (oppositeWidget.style ?? 'fluid-1') : null;
   return (
     <div role="group" aria-label="Zen panels" className="flex flex-wrap gap-6">
       {ZEN_STYLES.map(({ id, label }) => (
@@ -524,7 +517,7 @@ function ZenGrid({ currentWidget, onPick, side, oppositeWidget }: {
           id={id}
           label={label}
           isSelected={zenStyle === id}
-          spanSide={oppositeZenStyle === id ? side : undefined}
+          dual={dual}
           onSelect={() => onPick({ widget: 'zen', style: id })}
         />
       ))}
@@ -1405,7 +1398,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
               {activeCategory === 'timer'  && <TimerGrid currentWidget={widget} onSettings={handleSettings} />}
               {activeCategory === 'data'   && <DataGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} />}
               {activeCategory === 'agent'   && <AgentGrid  currentWidget={widget} onPick={handlePick} />}
-              {activeCategory === 'zen'     && <ZenGrid    currentWidget={widget} onPick={handlePick} side={side} oppositeWidget={oppositeWidget} />}
+              {activeCategory === 'zen'     && <ZenGrid    currentWidget={widget} onPick={handlePick} dual={dualModule} />}
               {activeCategory === 'strings' && <StringsGrid currentWidget={widget} onSettings={handleSettings} />}
               {activeCategory === 'audio'  && <AudioGrid currentWidget={widget} audioCtx={audioCtx} side={side} onPick={handlePick} onMount={handleAudioMount} onUnmount={handleAudioUnmount} />}
               {activeCategory === 'life'   && <LifeGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} dualModule={dualModule} {...(onDeleteBiome ? { onDeleteBiome } : {})} {...(onEditBiome ? { onEditBiome } : {})} />}
