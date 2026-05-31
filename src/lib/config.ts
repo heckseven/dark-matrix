@@ -149,7 +149,7 @@ export const ConfigSchema = z.object({
   cast_chat_font_size: z.number().int().min(10).max(40).optional(),
   // Visualizer style is shared across audio mode and cast mode for continuity;
   // each mode has its own on/off gate. Source (monitor/mic) is shared too.
-  visualizer_style: z.enum(AUDIO_STYLE_VALUES).optional(),
+  visualizer_style: z.enum(AUDIO_STYLE_VALUES).optional().catch(undefined),
   audio_visualizer_on: z.boolean().optional(),
   cast_visualizer_on: z.boolean().optional(),
   audio_source: z.enum(['monitor', 'mic']).optional(),
