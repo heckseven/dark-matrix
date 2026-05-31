@@ -243,8 +243,9 @@ function createSpiro3(side?: 'left' | 'right'): ZenRendererApi {
   const colOffset = side === 'right' ? FRAME_COLS : 0;
   const centerCol = (totalCols - 1) / 2;
 
-  const xScale = 3.8;
-  const yScale = 9.0;
+  // Epitrochoid max extent ≈ R+r+d = 11 → scale to fit display (half-width 4, half-height 15)
+  const xScale = (totalCols / 2 - 0.5) / 11;
+  const yScale = (FRAME_ROWS / 2 - 2) / 11;
 
   const DRAW_MS = 20_000;  // draw phase
   const HOLD_MS = 5_000;   // hold phase
