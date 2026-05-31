@@ -502,8 +502,8 @@ function createTree5Renderer(): ZenRendererApi {
         const above = row > 0 ? (grid[col * FRAME_ROWS + (row - 1)] ?? 0) : 1;
         if (above !== 0) continue;
 
-        const upProb = cell === 1 ? 0.6 : 0.35;
-        const diagProb = 0.25;
+        const upProb = cell === 1 ? 0.4 : 0.25;
+        const diagProb = 0.15;
 
         if (row > 0 && Math.random() < upProb) {
           newGrid[col * FRAME_ROWS + (row - 1)] = cell;
@@ -535,7 +535,7 @@ function createTree5Renderer(): ZenRendererApi {
     if (tickCount > 60) fadeOut = true;
   }
 
-  const TICK_INTERVAL = 500;
+  const TICK_INTERVAL = 150;
 
   return {
     render(): Frame {

@@ -38,13 +38,14 @@ function hash21(x: number, y: number): number {
 // ---------------------------------------------------------------------------
 
 function createFluid1Renderer(): ZenRendererApi {
-  let tick = 0;
+  const startTime = Date.now();
   let stopped = false;
 
   return {
     render(): Frame {
       const f = createFrame();
-      const t = tick * 0.04;
+      // Wall-clock t advances 2.5/s (was tick*0.04 = 1.2/s at 30fps)
+      const t = (Date.now() - startTime) / 1000 * 2.5;
 
       // Slowly drifting amplitude and speed
       const amp = 3.5 + 2.5 * Math.sin(t * 0.13);
@@ -62,7 +63,6 @@ function createFluid1Renderer(): ZenRendererApi {
         }
       }
 
-      if (!stopped) tick++;
       return f;
     },
     stop(): void {
@@ -77,23 +77,28 @@ function createFluid1Renderer(): ZenRendererApi {
 // ~60 frames; each is a bright ring that fades as it expands.
 // ---------------------------------------------------------------------------
 
-type Ripple = { spawnTick: number; speed: number };
+type Ripple = { spawnMs: number; speed: number };
 
 function createFluid2Renderer(): ZenRendererApi {
-  let tick = 0;
   let stopped = false;
-  const ripples: Ripple[] = [{ spawnTick: 0, speed: 0.18 }];
+  const startTime = Date.now();
+  // speed in radius-units per ms
+  const ripples: Ripple[] = [{ spawnMs: startTime, speed: 0.18 / 1000 }];
   const CX = 4;
   const CY = 17;
   const MAX_RADIUS = Math.sqrt(CX * CX + CY * CY) + 5;
+  const SPAWN_INTERVAL_MS = 1800; // spawn every 1800ms (was ~60 ticks = 2s at 30fps)
+  let lastSpawnMs = startTime;
 
   return {
     render(): Frame {
       const f = createFrame();
+      const now = Date.now();
 
-      // Spawn a new ripple every ~60 ticks
-      if (tick % 60 === 0) {
-        ripples.push({ spawnTick: tick, speed: 0.14 + 0.06 * Math.random() });
+      // Spawn a new ripple every ~1800ms
+      if (now - lastSpawnMs >= SPAWN_INTERVAL_MS) {
+        lastSpawnMs = now;
+        ripples.push({ spawnMs: now, speed: (0.14 + 0.06 * Math.random()) / 1000 });
       }
 
       // Remove fully-faded ripples
@@ -107,8 +112,8 @@ function createFluid2Renderer(): ZenRendererApi {
           let brightness = 0;
 
           for (const r of ripples) {
-            const age = tick - r.spawnTick;
-            const radius = age * r.speed;
+            const ageMs = now - r.spawnMs;
+            const radius = ageMs * r.speed;
             if (radius > MAX_RADIUS) continue;
 
             // Thin bright ring with Gaussian falloff
@@ -124,7 +129,6 @@ function createFluid2Renderer(): ZenRendererApi {
         }
       }
 
-      if (!stopped) tick++;
       return f;
     },
     stop(): void {
@@ -139,7 +143,7 @@ function createFluid2Renderer(): ZenRendererApi {
 // ---------------------------------------------------------------------------
 
 function createFluid3Renderer(): ZenRendererApi {
-  let tick = 0;
+  const startTime = Date.now();
   let stopped = false;
 
   // Sum-of-sines noise: stacks several octaves to approximate Perlin noise
@@ -156,7 +160,8 @@ function createFluid3Renderer(): ZenRendererApi {
   return {
     render(): Frame {
       const f = createFrame();
-      const t = tick * 0.025;
+      // Wall-clock t advances 1.5/s (was tick*0.025 = 0.75/s at 30fps)
+      const t = (Date.now() - startTime) / 1000 * 1.5;
 
       for (let col = 0; col < FRAME_COLS; col++) {
         for (let row = 0; row < FRAME_ROWS; row++) {
@@ -167,7 +172,6 @@ function createFluid3Renderer(): ZenRendererApi {
         }
       }
 
-      if (!stopped) tick++;
       return f;
     },
     stop(): void {
@@ -183,7 +187,6 @@ function createFluid3Renderer(): ZenRendererApi {
 // ---------------------------------------------------------------------------
 
 function createFluid4Renderer(): ZenRendererApi {
-  let tick = 0;
   let stopped = false;
 
   // Use Rule 30 (XOR-based): produces chaotic but bounded waves
@@ -193,40 +196,48 @@ function createFluid4Renderer(): ZenRendererApi {
   // Seed: single bright cell in the center of the top row
   state[0 * FRAME_COLS + Math.floor(FRAME_COLS / 2)] = 1;
 
-  let caTicksPerFrame = 3; // slow evolution
-  let caCounter = 0;
+  const CA_STEP_MS = 200;   // CA step every 200ms (predictable, frame-rate-independent)
+  const RESEED_MS = 4000;   // reseed every 4s (was every 120 ticks = 4s at 30fps)
+  let lastStepMs = Date.now();
+  let lastReseedMs = Date.now();
+
+  function caStep(): void {
+    // Scroll all rows down by 1, freeing row 0 for next generation
+    for (let row = FRAME_ROWS - 1; row > 0; row--) {
+      for (let col = 0; col < FRAME_COLS; col++) {
+        state[row * FRAME_COLS + col] = state[(row - 1) * FRAME_COLS + col] ?? 0;
+      }
+    }
+
+    // Generate new top row from Rule 30 applied to previous top row
+    const prevTopRow = new Uint8Array(FRAME_COLS);
+    for (let col = 0; col < FRAME_COLS; col++) {
+      prevTopRow[col] = state[1 * FRAME_COLS + col] ?? 0;
+    }
+
+    for (let col = 0; col < FRAME_COLS; col++) {
+      const left = prevTopRow[(col - 1 + FRAME_COLS) % FRAME_COLS] ?? 0;
+      const center = prevTopRow[col] ?? 0;
+      const right = prevTopRow[(col + 1) % FRAME_COLS] ?? 0;
+      // Rule 30: new = left XOR (center OR right)
+      state[col] = left ^ (center | right);
+    }
+  }
 
   return {
     render(): Frame {
-      caCounter++;
-      if (caCounter >= caTicksPerFrame) {
-        caCounter = 0;
+      const now = Date.now();
 
-        // Scroll all rows down by 1, freeing row 0 for next generation
-        for (let row = FRAME_ROWS - 1; row > 0; row--) {
-          for (let col = 0; col < FRAME_COLS; col++) {
-            state[row * FRAME_COLS + col] = state[(row - 1) * FRAME_COLS + col] ?? 0;
-          }
-        }
+      // Reseed to keep it alive
+      if (now - lastReseedMs >= RESEED_MS) {
+        lastReseedMs = now;
+        state[Math.floor(FRAME_COLS / 2)] = 1;
+      }
 
-        // Generate new top row from Rule 30 applied to previous top row
-        const prevTopRow = new Uint8Array(FRAME_COLS);
-        for (let col = 0; col < FRAME_COLS; col++) {
-          prevTopRow[col] = state[1 * FRAME_COLS + col] ?? 0;
-        }
-
-        for (let col = 0; col < FRAME_COLS; col++) {
-          const left = prevTopRow[(col - 1 + FRAME_COLS) % FRAME_COLS] ?? 0;
-          const center = prevTopRow[col] ?? 0;
-          const right = prevTopRow[(col + 1) % FRAME_COLS] ?? 0;
-          // Rule 30: new = left XOR (center OR right)
-          state[col] = left ^ (center | right);
-        }
-
-        // Every few cycles, seed a new cell to keep it alive
-        if (tick % 120 === 0) {
-          state[Math.floor(FRAME_COLS / 2)] = 1;
-        }
+      // Step CA at fixed wall-clock interval
+      if (now - lastStepMs >= CA_STEP_MS) {
+        lastStepMs = now;
+        caStep();
       }
 
       const f = createFrame();
@@ -237,7 +248,6 @@ function createFluid4Renderer(): ZenRendererApi {
         }
       }
 
-      if (!stopped) tick++;
       return f;
     },
     stop(): void {
@@ -253,19 +263,21 @@ function createFluid4Renderer(): ZenRendererApi {
 // ---------------------------------------------------------------------------
 
 function createFluid5Renderer(): ZenRendererApi {
-  let tick = 0;
+  const startTime = Date.now();
   let stopped = false;
 
+  // speedX/speedY are now in radians/second (was radians/tick at 30fps)
+  // Original: 0.011 rad/tick * 30 fps = 0.33 rad/s; keep same rate
   const seeds = [
-    { cx: 2, cy: 8,  rx: 1.5, ry: 5, phaseX: 0,    phaseY: 0,    speedX: 0.011, speedY: 0.009 },
-    { cx: 6, cy: 25, rx: 1.8, ry: 4, phaseX: 2.1,  phaseY: 1.1,  speedX: 0.008, speedY: 0.013 },
-    { cx: 4, cy: 17, rx: 2.0, ry: 6, phaseX: 4.2,  phaseY: 3.5,  speedX: 0.013, speedY: 0.007 },
+    { cx: 2, cy: 8,  rx: 1.5, ry: 5, phaseX: 0,    phaseY: 0,    speedX: 0.33, speedY: 0.27 },
+    { cx: 6, cy: 25, rx: 1.8, ry: 4, phaseX: 2.1,  phaseY: 1.1,  speedX: 0.24, speedY: 0.39 },
+    { cx: 4, cy: 17, rx: 2.0, ry: 6, phaseX: 4.2,  phaseY: 3.5,  speedX: 0.39, speedY: 0.21 },
   ];
 
   return {
     render(): Frame {
       const f = createFrame();
-      const t = tick;
+      const t = (Date.now() - startTime) / 1000; // seconds
 
       // Compute current seed positions
       const positions = seeds.map(s => ({
@@ -289,7 +301,6 @@ function createFluid5Renderer(): ZenRendererApi {
         }
       }
 
-      if (!stopped) tick++;
       return f;
     },
     stop(): void {
@@ -309,7 +320,6 @@ const RD_COLS = FRAME_COLS;
 const RD_ROWS = FRAME_ROWS;
 
 function createFluid6Renderer(): ZenRendererApi {
-  let tick = 0;
   let stopped = false;
 
   // Gray-Scott parameters (F=feed, k=kill) — "spots" regime
@@ -338,8 +348,9 @@ function createFluid6Renderer(): ZenRendererApi {
     }
   }
 
-  // Re-seed periodically to keep it alive
-  let lastReseed = 0;
+  // Re-seed periodically to keep it alive (wall-clock)
+  let lastReseedMs = Date.now();
+  const RESEED_INTERVAL_MS = 10_000; // was tick>300 ≈ 10s at 30fps
 
   function laplacian(grid: Float32Array, col: number, row: number): number {
     const c = col * RD_ROWS + row;
@@ -377,8 +388,9 @@ function createFluid6Renderer(): ZenRendererApi {
       }
 
       // Periodically re-seed to prevent stagnation
-      if (tick - lastReseed > 300) {
-        lastReseed = tick;
+      const nowMs = Date.now();
+      if (nowMs - lastReseedMs >= RESEED_INTERVAL_MS) {
+        lastReseedMs = nowMs;
         const sc = Math.floor(Math.random() * RD_COLS);
         const sr = Math.floor(Math.random() * RD_ROWS);
         for (let dc = -1; dc <= 1; dc++) {
@@ -400,7 +412,6 @@ function createFluid6Renderer(): ZenRendererApi {
         }
       }
 
-      if (!stopped) tick++;
       return f;
     },
     stop(): void {
@@ -418,13 +429,14 @@ function createFluid6Renderer(): ZenRendererApi {
 type Vec2 = { x: number; y: number };
 
 function createFluid7Renderer(): ZenRendererApi {
-  let tick = 0;
   let stopped = false;
+  let lastRenderMs = Date.now();
+  let physicsT = 0; // wall-clock seconds for anchor oscillation
 
   const NUM_NODES = 12;
-  const GRAVITY = 0.08;
-  const SPRING_K = 0.35;
-  const DAMPING = 0.92;
+  const GRAVITY = 2.5;   // pixels/s² (was 0.08/frame * 30fps² — scaled for dt physics)
+  const SPRING_K = 10.5; // spring constant /s² (was 0.35/frame)
+  const DAMPING_PER_SEC = 0.1; // exponential damping per second (vel *= exp(-DAMPING_PER_SEC*dt))
   const REST_LEN = (FRAME_ROWS - 2) / (NUM_NODES - 1);
 
   // Initialize nodes hanging vertically from center
@@ -439,12 +451,17 @@ function createFluid7Renderer(): ZenRendererApi {
 
   return {
     render(): Frame {
-      const t = tick * 0.02;
+      const now = Date.now();
+      const dtMs = Math.min(now - lastRenderMs, 100); // cap at 100ms
+      lastRenderMs = now;
+      const dt = dtMs / 1000; // seconds
+      physicsT += dt;
 
       // Slowly oscillating anchor position
-      const ax = anchorX + 3.5 * Math.sin(t * 0.6) * Math.cos(t * 0.23);
+      const ax = anchorX + 3.5 * Math.sin(physicsT * 0.6) * Math.cos(physicsT * 0.23);
+      const dampingFactor = Math.exp(-DAMPING_PER_SEC * dt);
 
-      // Update physics
+      // Update physics with real dt
       for (let i = NUM_NODES - 1; i >= 0; i--) {
         const p = pos[i]!;
         const v = vel[i]!;
@@ -468,14 +485,14 @@ function createFluid7Renderer(): ZenRendererApi {
         const nx = dist > 0.001 ? dx / dist : 0;
         const ny = dist > 0.001 ? dy / dist : 1;
 
-        v.x += (-SPRING_K * stretch * nx);
-        v.y += (-SPRING_K * stretch * ny + GRAVITY);
+        v.x += (-SPRING_K * stretch * nx) * dt;
+        v.y += (-SPRING_K * stretch * ny + GRAVITY) * dt;
 
-        v.x *= DAMPING;
-        v.y *= DAMPING;
+        v.x *= dampingFactor;
+        v.y *= dampingFactor;
 
-        p.x += v.x;
-        p.y += v.y;
+        p.x += v.x * dt;
+        p.y += v.y * dt;
       }
 
       const f = createFrame();
@@ -500,7 +517,6 @@ function createFluid7Renderer(): ZenRendererApi {
         }
       }
 
-      if (!stopped) tick++;
       return f;
     },
     stop(): void {
@@ -516,13 +532,14 @@ function createFluid7Renderer(): ZenRendererApi {
 // ---------------------------------------------------------------------------
 
 function createFluid8Renderer(): ZenRendererApi {
-  let tick = 0;
+  const startTime = Date.now();
+  let lastRenderMs8 = Date.now();
   let stopped = false;
 
   const NUM_PARTICLES = 8;
   const BLOB_RADIUS = 4.5;
-  const SPRING_K8 = 0.25;
-  const DAMPING8 = 0.88;
+  const SPRING_K8 = 7.5;    // /s² (was 0.25/frame; 0.25*30fps² scaled)
+  const DAMPING8_PER_SEC = 3.5; // exponential damping per second
 
   // Initialize particles in a circle
   const pos8: Vec2[] = [];
@@ -541,11 +558,18 @@ function createFluid8Renderer(): ZenRendererApi {
 
   return {
     render(): Frame {
-      const t = tick * 0.018;
+      const now = Date.now();
+      const dtMs8 = Math.min(now - lastRenderMs8, 100);
+      lastRenderMs8 = now;
+      const dt8 = dtMs8 / 1000; // seconds
+      // t in seconds for center drift (was tick*0.018 ≈ 0.54/s → keep same rate)
+      const t = (now - startTime) / 1000 * 0.54;
 
       // Slowly drifting blob center
       const cx = FRAME_COLS / 2 + 2.5 * Math.sin(t * 0.4);
       const cy = FRAME_ROWS / 2 + 7 * Math.sin(t * 0.27 + 1.2);
+
+      const dampingFactor8 = Math.exp(-DAMPING8_PER_SEC * dt8);
 
       // Update particles: spring toward rest positions + center drift
       for (let i = 0; i < NUM_PARTICLES; i++) {
@@ -558,12 +582,12 @@ function createFluid8Renderer(): ZenRendererApi {
         const ry = cy + BLOB_RADIUS * Math.sin(angle);
 
         // Spring toward rest
-        v.x += SPRING_K8 * (rx - p.x);
-        v.y += SPRING_K8 * (ry - p.y);
-        v.x *= DAMPING8;
-        v.y *= DAMPING8;
-        p.x += v.x;
-        p.y += v.y;
+        v.x += SPRING_K8 * (rx - p.x) * dt8;
+        v.y += SPRING_K8 * (ry - p.y) * dt8;
+        v.x *= dampingFactor8;
+        v.y *= dampingFactor8;
+        p.x += v.x * dt8;
+        p.y += v.y * dt8;
       }
 
       const f = createFrame();
@@ -605,7 +629,6 @@ function createFluid8Renderer(): ZenRendererApi {
         }
       }
 
-      if (!stopped) tick++;
       return f;
     },
     stop(): void {
@@ -621,15 +644,15 @@ function createFluid8Renderer(): ZenRendererApi {
 // ---------------------------------------------------------------------------
 
 function createFluid9Renderer(): ZenRendererApi {
-  let tick = 0;
   let stopped = false;
+  let lastRenderMs9 = Date.now();
 
   // Double pendulum parameters
   const m1 = 1.0;
   const m2 = 1.0;
   const L1 = 8;   // arm lengths in pixel units
   const L2 = 8;
-  const g = 0.5;
+  const g = 9.8;  // realistic gravity (was 0.5/frame; now in sim units/s²)
 
   // State: angles and angular velocities
   let theta1 = Math.PI * 0.6;
@@ -643,13 +666,17 @@ function createFluid9Renderer(): ZenRendererApi {
 
   // Trail buffer: brightness values for each pixel
   const trail = new Float32Array(FRAME_SIZE);
-  const TRAIL_DECAY = 0.935;
+  const TRAIL_DECAY_PER_SEC = 0.85; // decay/s (was 0.935/frame ≈ 0.14/s at 30fps → faster)
 
   return {
     render(): Frame {
-      // Integrate double pendulum equations (RK4-lite, just 4 Euler substeps)
-      const dt = 0.06;
-      const substeps = 4;
+      const now9 = Date.now();
+      const frameMs = Math.min(now9 - lastRenderMs9, 100); // cap at 100ms
+      lastRenderMs9 = now9;
+
+      // Integrate double pendulum using fixed substeps of 0.015s
+      const physDt = 0.015;
+      const substeps = Math.max(1, Math.round(frameMs / (physDt * 1000)));
 
       for (let _s = 0; _s < substeps; _s++) {
         // Classic double pendulum equations
@@ -670,10 +697,10 @@ function createFluid9Renderer(): ZenRendererApi {
               omega2 * omega2 * L2 * m2 * cos12)) /
           (L2 * den);
 
-        omega1 += alpha1 * dt;
-        omega2 += alpha2 * dt;
-        theta1 += omega1 * dt;
-        theta2 += omega2 * dt;
+        omega1 += alpha1 * physDt;
+        omega2 += alpha2 * physDt;
+        theta1 += omega1 * physDt;
+        theta2 += omega2 * physDt;
       }
 
       // Compute bob positions
@@ -682,9 +709,10 @@ function createFluid9Renderer(): ZenRendererApi {
       const x2 = x1 + L2 * Math.sin(theta2);
       const y2 = y1 + L2 * Math.cos(theta2);
 
-      // Decay trail
+      // Decay trail (frame-rate-independent)
+      const trailDecay = Math.pow(TRAIL_DECAY_PER_SEC, frameMs / 1000);
       for (let i = 0; i < FRAME_SIZE; i++) {
-        trail[i] = (trail[i] ?? 0) * TRAIL_DECAY;
+        trail[i] = (trail[i] ?? 0) * trailDecay;
       }
 
       // Paint bob2 position (the chaotic end) brightly
@@ -720,7 +748,6 @@ function createFluid9Renderer(): ZenRendererApi {
         f[i] = clamp255(trail[i] ?? 0);
       }
 
-      if (!stopped) tick++;
       return f;
     },
     stop(): void {

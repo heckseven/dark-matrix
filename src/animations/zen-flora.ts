@@ -73,7 +73,7 @@ function drawLine(
 // flora-1: Petal unfurl
 // ---------------------------------------------------------------------------
 function createFlora1(): ZenRendererApi {
-  let frameCount = 0;
+  const startTime = Date.now();
   let stopped = false;
 
   return {
@@ -81,10 +81,9 @@ function createFlora1(): ZenRendererApi {
       if (stopped) return createFrame();
       const f = createFrame();
 
-      // Cycle period in frames (at 30 fps, 45 s cycle = 1350 frames)
-      const CYCLE = 1350;
-      const t = (frameCount % CYCLE) / CYCLE; // 0..1 within cycle
-      frameCount++;
+      // Cycle period: 12s wall-clock (was 45s at 30fps)
+      const CYCLE_MS = 12_000;
+      const t = ((Date.now() - startTime) % CYCLE_MS) / CYCLE_MS; // 0..1 within cycle
 
       const NUM_PETALS = 6;
       // Petal length grows from 0 to max then back to 0
@@ -93,8 +92,8 @@ function createFlora1(): ZenRendererApi {
       const maxLen = POLAR_SCALE * 3.5; // in display units
       const petalLen = envelope * maxLen;
 
-      // Slow rotation of the whole flower
-      const rotOffset = t * Math.PI * 0.5; // 90° per cycle
+      // Slow rotation of the whole flower (90° per cycle)
+      const rotOffset = t * Math.PI * 0.5;
 
       for (let p = 0; p < NUM_PETALS; p++) {
         const baseAngle = (p / NUM_PETALS) * Math.PI * 2 + rotOffset;
@@ -132,22 +131,23 @@ function createFlora1(): ZenRendererApi {
 // flora-2: Fibonacci / golden-angle spiral
 // ---------------------------------------------------------------------------
 function createFlora2(): ZenRendererApi {
-  let frameCount = 0;
+  const startTime = Date.now();
   let stopped = false;
   const GOLDEN_ANGLE = 137.508 * (Math.PI / 180);
   const MAX_POINTS = 80;
-  const CYCLE_FRAMES = 600; // grow fully in 20s @ 30fps
+  const CYCLE_MS = 8_000; // grow fully in 8s wall-clock (was 20s at 30fps)
+  const ROT_CYCLE_MS = 24_000; // full rotation in 24s (was 40s at 30fps)
 
   return {
     render(): Frame {
       if (stopped) return createFrame();
       const f = createFrame();
 
-      const t = frameCount / CYCLE_FRAMES;
-      const numPoints = Math.floor((t % 1) * MAX_POINTS) + 1;
+      const elapsed = Date.now() - startTime;
+      const t = (elapsed % CYCLE_MS) / CYCLE_MS;
+      const numPoints = Math.floor(t * MAX_POINTS) + 1;
       // Slow global rotation
-      const rotAngle = (frameCount / 1200) * Math.PI * 2;
-      frameCount++;
+      const rotAngle = (elapsed / ROT_CYCLE_MS) * Math.PI * 2;
 
       for (let n = 0; n < numPoints; n++) {
         const angle = n * GOLDEN_ANGLE + rotAngle;
@@ -208,10 +208,10 @@ function buildLSystem(iterations: number): LSegment[] {
 }
 
 function createFlora3(): ZenRendererApi {
-  let frameCount = 0;
+  const startTime = Date.now();
   let stopped = false;
 
-  const GROW_FRAMES = 450; // 15s per iteration at 30fps
+  const GROW_MS = 4_000; // 4s per iteration wall-clock (was 15s at 30fps)
   const MAX_ITER = 4;
   const levelSegments: LSegment[][] = [];
   for (let i = 1; i <= MAX_ITER; i++) {
@@ -223,14 +223,13 @@ function createFlora3(): ZenRendererApi {
       if (stopped) return createFrame();
       const f = createFrame();
 
-      const cycleDuration = GROW_FRAMES * MAX_ITER;
-      const cycleT = frameCount % cycleDuration;
-      frameCount++;
+      const cycleDurationMs = GROW_MS * MAX_ITER;
+      const cycleT = (Date.now() - startTime) % cycleDurationMs;
 
       // Which iteration level are we growing into?
-      const iter = Math.min(Math.floor(cycleT / GROW_FRAMES), MAX_ITER - 1);
+      const iter = Math.min(Math.floor(cycleT / GROW_MS), MAX_ITER - 1);
       // How far through this iteration (0..1)
-      const iterT = (cycleT % GROW_FRAMES) / GROW_FRAMES;
+      const iterT = (cycleT % GROW_MS) / GROW_MS;
 
       // Draw all completed iterations fully (dim)
       for (let i = 0; i < iter; i++) {
@@ -276,27 +275,28 @@ function createFlora3(): ZenRendererApi {
 // flora-4: Rose curve r=cos(k*theta) rotating
 // ---------------------------------------------------------------------------
 function createFlora4(): ZenRendererApi {
-  let frameCount = 0;
+  const startTime = Date.now();
   let stopped = false;
 
   // k varies: 2→4→2 slowly
-  const K_CYCLE = 1800; // 60s full k-cycle @ 30fps
-  const ROT_CYCLE = 600; // 20s full rotation @ 30fps
+  const K_CYCLE_MS = 20_000; // 20s full k-cycle wall-clock (was 60s at 30fps)
+  const ROT_CYCLE_MS = 8_000; // 8s full rotation wall-clock (was 20s at 30fps)
 
   return {
     render(): Frame {
       if (stopped) return createFrame();
       const f = createFrame();
 
+      const elapsed = Date.now() - startTime;
+
       // Vary k smoothly between 2 and 4 (triangle wave)
-      const kT = (frameCount % K_CYCLE) / K_CYCLE; // 0..1
+      const kT = (elapsed % K_CYCLE_MS) / K_CYCLE_MS; // 0..1
       // Triangle wave: 0→1→0
       const kTri = kT < 0.5 ? kT * 2 : 2 - kT * 2;
       const k = 2 + kTri * 2; // 2..4
 
       // Rotation offset
-      const rotation = ((frameCount % ROT_CYCLE) / ROT_CYCLE) * Math.PI * 2;
-      frameCount++;
+      const rotation = ((elapsed % ROT_CYCLE_MS) / ROT_CYCLE_MS) * Math.PI * 2;
 
       const STEPS = 400;
       // For non-integer k, use 2π*ceil(k) theta range to ensure full petals
@@ -326,25 +326,24 @@ function createFlora4(): ZenRendererApi {
 // flora-5: Lissajous blossom with persistence / decay
 // ---------------------------------------------------------------------------
 function createFlora5(): ZenRendererApi {
-  let frameCount = 0;
+  const startTime = Date.now();
   let stopped = false;
   // Persistence buffer
   const persist = new Float32Array(FRAME_COLS * FRAME_ROWS);
-  const DECAY = 0.93;
+  const DECAY = 0.88; // faster trail fade (was 0.93)
 
   // a=3, b=2 Lissajous
   const A = 3;
   const B = 2;
-  // Phase δ cycles 0→2π over 30s = 900 frames
-  const PHASE_CYCLE = 900;
+  // Phase δ cycles 0→2π over 12s wall-clock (was 30s at 30fps)
+  const PHASE_CYCLE_MS = 12_000;
 
   return {
     render(): Frame {
       if (stopped) return createFrame();
       const f = createFrame();
 
-      const delta = ((frameCount % PHASE_CYCLE) / PHASE_CYCLE) * Math.PI * 2;
-      frameCount++;
+      const delta = (((Date.now() - startTime) % PHASE_CYCLE_MS) / PHASE_CYCLE_MS) * Math.PI * 2;
 
       // Decay persistence
       for (let i = 0; i < persist.length; i++) {
