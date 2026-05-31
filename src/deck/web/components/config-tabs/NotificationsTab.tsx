@@ -995,19 +995,6 @@ function RuleRow({
       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
       onDrop={e => { e.preventDefault(); onDrop(); }}
     >
-      {/* drag handle — existing rows only */}
-      <button
-        type="button"
-        draggable={isExisting}
-        tabIndex={-1}
-        aria-hidden="true"
-        onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
-        onDragEnd={onDragEnd}
-        title="Drag to reorder"
-        className={`font-mono text-foreground/30 hover:text-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 leading-none${isExisting ? ' cursor-grab active:cursor-grabbing' : ' invisible pointer-events-none'}`}
-      >
-        ⠿
-      </button>
       <span className="font-mono text-xs text-foreground/25 tabular-nums w-4 shrink-0">{idx + 1}</span>
 
       {/* source button */}
@@ -1017,6 +1004,7 @@ function RuleRow({
         size="sm"
         className="shrink-0 font-mono truncate max-w-[180px]"
         aria-label={sourceConfigured ? `Edit source for rule ${idx + 1}` : `Select source for rule ${idx + 1}`}
+        tooltip={sourceConfigured ? srcButtonLabel(rule) : 'Select event source'}
         onClick={() => setSrcOpen(true)}
       >
         {sourceConfigured ? srcButtonLabel(rule) : 'select source'}
@@ -1027,25 +1015,18 @@ function RuleRow({
       {/* animation button */}
       <Button
         ref={animBtnRef}
-        variant={completeRule ? 'ghost' : 'default'}
+        variant={completeRule ? 'ghost' : sourceConfigured ? 'primary' : 'default'}
         size="sm"
         className="shrink-0 font-mono truncate max-w-[180px]"
         aria-label={completeRule ? `Edit animation for rule ${idx + 1}` : `Select animation for rule ${idx + 1}`}
         aria-disabled={!sourceConfigured}
         aria-description={!sourceConfigured ? 'Select a source first' : undefined}
         disabled={!sourceConfigured}
+        tooltip={sourceConfigured ? (completeRule ? animButtonLabel(completeRule) : 'Select animation') : undefined}
         onClick={() => setAnimOpen(true)}
       >
         {completeRule ? animButtonLabel(completeRule) : 'select animation'}
       </Button>
-
-      {/* reorder — existing rows only, hover visible */}
-      {isExisting && (
-        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
-          <Button variant="ghost" size="sm" aria-label={`Move rule ${idx + 1} up`} disabled={idx === 0} onClick={onMoveUp}>↑</Button>
-          <Button variant="ghost" size="sm" aria-label={`Move rule ${idx + 1} down`} disabled={idx === total - 1} onClick={onMoveDown}>↓</Button>
-        </div>
-      )}
 
       {/* test button — existing complete rules only, hover visible */}
       {isExisting && completeRule && completeRule.animation !== 'none' && (
@@ -1066,17 +1047,38 @@ function RuleRow({
         </>
       )}
 
-      {/* delete — hover visible */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity ml-auto shrink-0"
-        tooltip="Delete rule"
-        aria-label={`Delete rule ${idx + 1}`}
-        onClick={onDelete}
-      >
-        ×
-      </Button>
+      {/* right cluster: reorder + delete + drag */}
+      <div className="flex items-center gap-0.5 ml-auto shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+        {isExisting && (
+          <>
+            <Button variant="ghost" size="sm" aria-label={`Move rule ${idx + 1} up`} disabled={idx === 0} onClick={onMoveUp}>↑</Button>
+            <Button variant="ghost" size="sm" aria-label={`Move rule ${idx + 1} down`} disabled={idx === total - 1} onClick={onMoveDown}>↓</Button>
+          </>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="shrink-0"
+          tooltip="Delete rule"
+          aria-label={`Delete rule ${idx + 1}`}
+          onClick={onDelete}
+        >
+          ×
+        </Button>
+        {/* drag handle — rightmost, existing rows only */}
+        <button
+          type="button"
+          draggable={isExisting}
+          tabIndex={-1}
+          aria-hidden="true"
+          onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
+          onDragEnd={onDragEnd}
+          title="Drag to reorder"
+          className={`font-mono text-foreground/30 hover:text-foreground/60 shrink-0 leading-none${isExisting ? ' cursor-grab active:cursor-grabbing' : ' invisible pointer-events-none'}`}
+        >
+          ⠿
+        </button>
+      </div>
 
       <SourceDialog
         open={srcOpen}
