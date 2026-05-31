@@ -4,10 +4,7 @@ import type { ZenRendererApi } from './zen-renderers.js';
 
 export type ZenFluidStyle =
   | 'fluid-1'
-  | 'fluid-2'
-  | 'fluid-3'
   | 'fluid-5'
-  | 'fluid-7'
   | 'fluid-9';
 
 // ---------------------------------------------------------------------------
@@ -48,7 +45,7 @@ function createFluid1Renderer(): ZenRendererApi {
       const phaseDrift = t * 0.7;
 
       for (let col = 0; col < FRAME_COLS; col++) {
-        const colPhase = (col / (FRAME_COLS - 1)) * Math.PI * 2;
+        const colPhase = (col / (FRAME_COLS - 1)) * Math.PI * 0.8;
         for (let row = 0; row < FRAME_ROWS; row++) {
           // Wave brightness: bright band centered on a sine-derived position
           const waveCentre = (FRAME_ROWS / 2) + amp * Math.sin(colPhase + phaseDrift);
@@ -733,10 +730,7 @@ function createFluid9Renderer(): ZenRendererApi {
 export function createZenFluidRenderer(style: ZenFluidStyle): ZenRendererApi {
   switch (style) {
     case 'fluid-1': return createFluid1Renderer();
-    case 'fluid-2': return createFluid2Renderer();
-    case 'fluid-3': return createFluid3Renderer();
     case 'fluid-5': return createFluid5Renderer();
-    case 'fluid-7': return createFluid7Renderer();
     case 'fluid-9': return createFluid9Renderer();
   }
 }

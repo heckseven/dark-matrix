@@ -2,13 +2,12 @@ import { createFrame, FRAME_COLS, FRAME_ROWS } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 import type { ZenRendererApi } from './zen-renderers.js';
 
-export type ZenBreathStyle = 'breath-1' | 'breath-2' | 'breath-3';
+export type ZenBreathStyle = 'breath-1' | 'breath-2';
 
 export function createZenBreathRenderer(style: ZenBreathStyle): ZenRendererApi {
   switch (style) {
     case 'breath-1': return createBreath1Renderer();
     case 'breath-2': return createBreath2Renderer();
-    case 'breath-3': return createBreath3Renderer();
   }
 }
 
@@ -133,9 +132,15 @@ function createBreath2Renderer(): ZenRendererApi {
           let brightness = 0;
 
           if (radialDir === 0) {
-            // Holding at max — symmetric soft ring
+            // Holding at max — ring pulses gently and a shimmer orbits
+            const holdElapsedMs = Math.max(0, (elapsed % cycleMs) - phaseInhaleEnd * cycleMs);
+            const pulse = 0.80 + 0.20 * Math.sin(holdElapsedMs / 3000 * Math.PI * 2);
+            const shimmerAngle = holdElapsedMs / 8000 * Math.PI * 2;
+            const pixelAngle = Math.atan2(row - centerRow, col - centerCol);
+            const shimmer = 0.78 + 0.22 * Math.max(0, Math.cos(pixelAngle - shimmerAngle));
             const d = Math.abs(signedDist);
-            if (d <= frontWidth + 1.0) brightness = Math.max(0, 1.0 - d / (frontWidth + 1.0));
+            const ringWidth = frontWidth + 1.2;
+            if (d <= ringWidth) brightness = Math.max(0, 1.0 - d / ringWidth) * pulse * shimmer;
           } else if (radialDir > 0) {
             // Expanding: leading edge is outer (signedDist > 0), trail is inner (signedDist < 0)
             if (signedDist >= 0 && signedDist <= frontWidth) {

@@ -12,22 +12,18 @@ export type { ZenGrassStyle } from './zen-grass.js';
 export type { ZenTreeStyle } from './zen-tree.js';
 
 export type ZenStyle =
-  | 'fluid-1' | 'fluid-2' | 'fluid-3' | 'fluid-5' | 'fluid-7' | 'fluid-9'
-  | 'breath-1' | 'breath-2' | 'breath-3'
+  | 'fluid-1' | 'fluid-5' | 'fluid-9'
+  | 'breath-1' | 'breath-2'
   | 'flora-1' | 'flora-2' | 'flora-5'
   | 'grass-4'
   | 'tree-1' | 'tree-2' | 'tree-3' | 'tree-4' | 'tree-5' | 'tree-6';
 
 export const ZEN_STYLES: { id: ZenStyle; label: string }[] = [
   { id: 'fluid-1',  label: 'fluid-1'  },
-  { id: 'fluid-2',  label: 'fluid-2'  },
-  { id: 'fluid-3',  label: 'fluid-3'  },
   { id: 'fluid-5',  label: 'fluid-5'  },
-  { id: 'fluid-7',  label: 'fluid-7'  },
   { id: 'fluid-9',  label: 'fluid-9'  },
   { id: 'breath-1', label: 'breath-1' },
   { id: 'breath-2', label: 'breath-2' },
-  { id: 'breath-3', label: 'breath-3' },
   { id: 'flora-1',  label: 'flora-1'  },
   { id: 'flora-2',  label: 'flora-2'  },
   { id: 'flora-5',  label: 'flora-5'  },
@@ -50,15 +46,11 @@ export type ZenRendererApi = {
 export function createZenRenderer(style: ZenStyle): ZenRendererApi {
   switch (style) {
     case 'fluid-1':
-    case 'fluid-2':
-    case 'fluid-3':
     case 'fluid-5':
-    case 'fluid-7':
     case 'fluid-9':
       return createZenFluidRenderer(style);
     case 'breath-1':
     case 'breath-2':
-    case 'breath-3':
       return createZenBreathRenderer(style);
     case 'flora-1':
     case 'flora-2':
