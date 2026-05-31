@@ -35,7 +35,7 @@ const HudWidgetSlot = HudWidgetSchema.catch(HUD_WIDGET_FALLBACK);
 
 const HudTriggerSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('time'), from: z.string().regex(/^\d{2}:\d{2}$/), to: z.string().regex(/^\d{2}:\d{2}$/) }),
-  z.object({ type: z.literal('threshold'), metric: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']), above: z.number().min(0).optional(), below: z.number().min(0).optional() }),
+  z.object({ type: z.literal('threshold'), metric: z.enum(['cpu', 'ram', 'net_rx', 'net_tx', 'battery']), above: z.number().min(0).optional(), below: z.number().min(0).optional() }),
   z.object({ type: z.literal('interface'), name: z.string(), state: z.enum(['up', 'down']) }),
   z.object({ type: z.literal('vm'), name: z.string(), state: z.enum(['running', 'stopped']).optional() }),
   z.object({ type: z.literal('day'), days: z.array(z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])) }),
@@ -66,7 +66,7 @@ const NotificationRuleSchema = z.object({
   scroll_text: z.string().max(200).optional(),
   scroll_size: z.enum(['tiny', 'small', 'medium', 'large']).optional(),
   dmx_path: z.string().regex(/\.dmx\.json$/i).optional(),
-  source: z.enum(['ec-switch', 'vm', 'claude', 'desktop-notification', 'manual', 'twitch']).optional(),
+  source: z.enum(['ec-switch', 'vm', 'claude', 'desktop-notification', 'manual', 'twitch', 'battery']).optional(),
   content_glob: z.string().optional(),
   asset_path: z.string().optional(),
   composite: z.enum(['replace', 'overlay']).optional(),
@@ -137,6 +137,9 @@ export const ConfigSchema = z.object({
   }).optional(),
   ectool_path: z.string().regex(/^\/[a-zA-Z0-9_\-.\/]+$/).optional(),
   notification_rules: z.array(NotificationRuleSchema).optional(),
+  battery_alerts: z.object({
+    thresholds: z.array(z.number().int().min(1).max(99)).optional(),
+  }).optional(),
   active_hud_preset: z.string().optional(),
   hud_presets: z.array(HudPresetSchema).optional().superRefine((presets, ctx) => {
     if (!presets) return;

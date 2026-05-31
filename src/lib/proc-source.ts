@@ -1,11 +1,13 @@
 import fs from 'node:fs/promises';
 
 export type ProcStats = {
-  cpuPct: number;      // 0–100
-  ramPct: number;      // 0–100
-  netRxBps: number;    // bytes/sec
-  netTxBps: number;    // bytes/sec
-  cpuCores: number[];  // per-core % usage (0–100), length = logical core count
+  cpuPct: number;               // 0–100
+  ramPct: number;               // 0–100
+  netRxBps: number;             // bytes/sec
+  netTxBps: number;             // bytes/sec
+  cpuCores: number[];           // per-core % usage (0–100), length = logical core count
+  batteryPct: number | null;    // 0–100, null when no battery present
+  batteryCharging: boolean | null; // false = discharging (on battery), null = no battery
 };
 
 type CpuRaw = { total: number; idle: number };
@@ -49,6 +51,31 @@ async function readRamPct(): Promise<number> {
   return total > 0 ? ((total - avail) / total) * 100 : 0;
 }
 
+type BatteryRaw = { pct: number; charging: boolean } | null;
+
+async function readBatteryRaw(): Promise<BatteryRaw> {
+  let dir: string[];
+  try {
+    dir = await fs.readdir('/sys/class/power_supply');
+  } catch {
+    return null;
+  }
+  for (const name of dir) {
+    if (!/^BAT\d+$/i.test(name)) continue;
+    try {
+      const [capText, statusText] = await Promise.all([
+        fs.readFile(`/sys/class/power_supply/${name}/capacity`, 'utf-8'),
+        fs.readFile(`/sys/class/power_supply/${name}/status`, 'utf-8').catch(() => 'Unknown'),
+      ]);
+      const pct = parseInt(capText.trim(), 10);
+      if (isNaN(pct)) continue;
+      const status = statusText.trim();
+      return { pct: Math.max(0, Math.min(100, pct)), charging: status === 'Charging' || status === 'Full' };
+    } catch { /* try next */ }
+  }
+  return null;
+}
+
 async function readNetRaw(): Promise<NetRaw> {
   const text = await fs.readFile('/proc/net/dev', 'utf-8');
   let rx = 0n, tx = 0n;
@@ -82,7 +109,7 @@ export function watchProcStats(
     polling = true;
     try {
       const now = Date.now();
-      const [{ agg, cores }, ramPct, net] = await Promise.all([readCpuAllRaw(), readRamPct(), readNetRaw()]);
+      const [{ agg, cores }, ramPct, net, battery] = await Promise.all([readCpuAllRaw(), readRamPct(), readNetRaw(), readBatteryRaw()]);
 
       if (prevAgg === null || prevNet === null) {
         prevAgg   = agg;
@@ -114,11 +141,13 @@ export function watchProcStats(
       prevTime  = now;
 
       onStats({
-        cpuPct:   Math.max(0, Math.min(100, cpuPct)),
-        ramPct:   Math.max(0, Math.min(100, ramPct)),
-        netRxBps: Math.max(0, netRxBps),
-        netTxBps: Math.max(0, netTxBps),
-        cpuCores: cpuCores.map(v => Math.max(0, Math.min(100, v))),
+        cpuPct:          Math.max(0, Math.min(100, cpuPct)),
+        ramPct:          Math.max(0, Math.min(100, ramPct)),
+        netRxBps:        Math.max(0, netRxBps),
+        netTxBps:        Math.max(0, netTxBps),
+        cpuCores:        cpuCores.map(v => Math.max(0, Math.min(100, v))),
+        batteryPct:      battery?.pct ?? null,
+        batteryCharging: battery?.charging ?? null,
       });
     } catch (err) {
       process.stderr.write(`dark-matrix: proc-source: poll failed: ${String(err)}\n`);
