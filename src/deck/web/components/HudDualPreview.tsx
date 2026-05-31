@@ -8,6 +8,8 @@ import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../an
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import { createTextRenderer, textRendererCacheKey, type TextRenderer } from '../../../animations/text-renderers.js';
+import { createZenRenderer } from '../../../animations/zen-renderers.js';
+import type { ZenStyle } from '../../../animations/zen-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import { deckStore } from '../store.js';
 
@@ -151,6 +153,8 @@ const HG_PREVIEW_TOTAL_MS = 60_000;
 let _hgPreviewRem = HG_PREVIEW_TOTAL_MS;
 const _previewHourglass = createHourglassTimerRenderer();
 
+const _zenRenderers: Partial<Record<ZenStyle, ReturnType<typeof createZenRenderer>>> = {};
+
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     for (const k in _clockL) delete _clockL[k as ClockFace];
@@ -159,6 +163,8 @@ if (import.meta.hot) {
     _previewClaudeSnow.stop();
     _previewClaudeSand.stop();
     _previewClaudeTetris.stop();
+    for (const r of Object.values(_zenRenderers)) r?.stop();
+    for (const k in _zenRenderers) delete _zenRenderers[k as ZenStyle];
   });
 }
 
@@ -246,6 +252,11 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, 
       const out = new Uint8Array(COLS * ROWS);
       for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
       return out;
+    } else if (widget.widget === 'zen') {
+      const style = widget.style ?? 'fluid-1';
+      if (!_zenRenderers[style]) _zenRenderers[style] = createZenRenderer(style);
+      const frame = _zenRenderers[style]!.render();
+      return bayerDither(frame);
     } else {
       return empty;
     }

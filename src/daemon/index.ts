@@ -38,7 +38,7 @@ import { createElegantTimerRenderer, createHourglassTimerRenderer, createTwinzTi
 import { createTextRenderer, TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS, TEXT_FLICKERS, TEXT_TRANSITIONS } from '../animations/text-renderers.js';
 import type { TextStyle, TextSize, TextSpeed, TextFlicker, TextTransition } from '../animations/text-renderers.js';
 import type { ClaudeStyle, ClaudeRendererApi } from '../animations/claude-renderers.js';
-import { createZenRenderer } from '../animations/zen-renderers.js';
+import { createZenRenderer, ZEN_STYLE_VALUES } from '../animations/zen-renderers.js';
 import type { ZenStyle } from '../animations/zen-renderers.js';
 import { watchProcStats } from '../lib/proc-source.js';
 import { createPresetTriggerEngine } from '../lib/preset-triggers.js';
@@ -1806,7 +1806,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               break;
             }
             case 'hud-config': {
-              const m = msg as { cmd: string; leftFace?: string; leftWidget?: string; leftDataStyle?: string; leftAudioStyle?: string; leftClaudeStyle?: string; leftFile?: string; leftBiomeName?: string; leftRandomIntervalMs?: number; leftTimerStyle?: string; leftTimerDurationMs?: number; leftTimerRepeat?: boolean; leftText?: string; leftTextStyle?: string; leftTextSize?: string; leftTextSpeed?: string; leftTextSpan?: boolean; leftTextFlicker?: string; leftTextTransition?: string; leftTextLoopDelayMs?: number; rightFace?: string; rightWidget?: string; rightDataStyle?: string; rightAudioStyle?: string; rightClaudeStyle?: string; rightFile?: string; rightBiomeName?: string; rightRandomIntervalMs?: number; rightTimerStyle?: string; rightTimerDurationMs?: number; rightTimerRepeat?: boolean; rightText?: string; rightTextStyle?: string; rightTextSize?: string; rightTextSpeed?: string; rightTextSpan?: boolean; rightTextFlicker?: string; rightTextTransition?: string; rightTextLoopDelayMs?: number };
+              const m = msg as { cmd: string; leftFace?: string; leftWidget?: string; leftDataStyle?: string; leftAudioStyle?: string; leftClaudeStyle?: string; leftZenStyle?: string; leftFile?: string; leftBiomeName?: string; leftRandomIntervalMs?: number; leftTimerStyle?: string; leftTimerDurationMs?: number; leftTimerRepeat?: boolean; leftText?: string; leftTextStyle?: string; leftTextSize?: string; leftTextSpeed?: string; leftTextSpan?: boolean; leftTextFlicker?: string; leftTextTransition?: string; leftTextLoopDelayMs?: number; rightFace?: string; rightWidget?: string; rightDataStyle?: string; rightAudioStyle?: string; rightClaudeStyle?: string; rightZenStyle?: string; rightFile?: string; rightBiomeName?: string; rightRandomIntervalMs?: number; rightTimerStyle?: string; rightTimerDurationMs?: number; rightTimerRepeat?: boolean; rightText?: string; rightTextStyle?: string; rightTextSize?: string; rightTextSpeed?: string; rightTextSpan?: boolean; rightTextFlicker?: string; rightTextTransition?: string; rightTextLoopDelayMs?: number };
               const biomeNames = new Set((currentConfig.biome_presets ?? []).map(b => b.name));
               const validBiome = (name: string) => name === 'random' || biomeNames.has(name);
               const asTextStyle = (v?: string): TextStyle | undefined => v && (TEXT_STYLES as readonly string[]).includes(v) ? v as TextStyle : undefined;
@@ -1848,6 +1848,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 newHud.left = { widget: 'timer', style, ...(durationMs !== undefined ? { durationMs } : {}), ...(repeat !== undefined ? { repeat } : {}) };
               } else if (m.leftWidget === 'text' && typeof m.leftText === 'string') {
                 newHud.left = buildText(m.leftText, m.leftTextStyle, m.leftTextSize, m.leftTextSpeed, m.leftTextSpan, m.leftTextFlicker, m.leftTextTransition, m.leftTextLoopDelayMs);
+              } else if (m.leftWidget === 'zen') {
+                const style = (ZEN_STYLE_VALUES as readonly string[]).includes(m.leftZenStyle ?? '') ? m.leftZenStyle as ZenStyle : 'fluid-1';
+                newHud.left = { widget: 'zen', ...(style !== undefined ? { style } : {}) };
               } else if (typeof m.leftFace === 'string') {
                 const face = isClockFace(m.leftFace) ? m.leftFace : 'elegant';
                 newHud.left = { widget: 'clock', face };
@@ -1872,6 +1875,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 newHud.right = { widget: 'timer', style, ...(durationMs !== undefined ? { durationMs } : {}), ...(repeat !== undefined ? { repeat } : {}) };
               } else if (m.rightWidget === 'text' && typeof m.rightText === 'string') {
                 newHud.right = buildText(m.rightText, m.rightTextStyle, m.rightTextSize, m.rightTextSpeed, m.rightTextSpan, m.rightTextFlicker, m.rightTextTransition, m.rightTextLoopDelayMs);
+              } else if (m.rightWidget === 'zen') {
+                const style = (ZEN_STYLE_VALUES as readonly string[]).includes(m.rightZenStyle ?? '') ? m.rightZenStyle as ZenStyle : 'fluid-1';
+                newHud.right = { widget: 'zen', ...(style !== undefined ? { style } : {}) };
               } else if (typeof m.rightFace === 'string') {
                 const face = isClockFace(m.rightFace) ? m.rightFace : 'elegant';
                 newHud.right = { widget: 'clock', face };
