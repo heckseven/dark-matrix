@@ -16,6 +16,8 @@ import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../an
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
 import { CLAUDE_STYLES, createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
 import type { ClaudeStyle } from '../../../animations/claude-renderers.js';
+import { ZEN_STYLES, createZenRenderer } from '../../../animations/zen-renderers.js';
+import type { ZenStyle } from '../../../animations/zen-renderers.js';
 import { TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS, TEXT_FLICKERS, TEXT_TRANSITIONS, TEXT_SIZE_PX, SPEED_PXPS, SPEED_DWELL_MS, createTextRenderer } from '../../../animations/text-renderers.js';
 import type { TextStyle, TextSize, TextSpeed, TextFlicker, TextTransition } from '../../../animations/text-renderers.js';
 import { Input } from './ui/input.js';
@@ -78,6 +80,7 @@ function categoryOfWidget(w: HudWidget): string {
   if (w.widget === 'image')   return 'media';
   if (w.widget === 'life')    return 'life';
   if (w.widget === 'text')    return 'strings';
+  if (w.widget === 'zen')     return 'zen';
   return 'data';
 }
 
@@ -104,6 +107,7 @@ const CATEGORIES = [
   { id: 'audio', label: 'audio' },
   { id: 'life',  label: 'life'  },
   { id: 'agent', label: 'agent' },
+  { id: 'zen',   label: 'zen'   },
 ] as const;
 
 // ── Layer 2: Clock grid ───────────────────────────────────────────────────
@@ -403,6 +407,62 @@ function AgentGrid({ currentWidget, onPick }: {
           />
         );
       })}
+    </div>
+  );
+}
+
+// ── Layer 2: Zen grid ─────────────────────────────────────────────────────
+
+function ZenGrid({ currentWidget, onPick }: {
+  currentWidget: HudWidget | null;
+  onPick: (w: HudWidget) => void;
+}) {
+  const [pixels, setPixels] = useState<Partial<Record<ZenStyle, string>>>({});
+  const renderersRef = useRef<Partial<Record<ZenStyle, ReturnType<typeof createZenRenderer>>>>({});
+
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    // Instantiate all renderers on mount
+    for (const { id } of ZEN_STYLES) {
+      renderersRef.current[id] = createZenRenderer(id);
+    }
+
+    // Single shared interval driving all previews
+    const iid = setInterval(() => {
+      const next: Partial<Record<ZenStyle, string>> = {};
+      for (const { id } of ZEN_STYLES) {
+        const r = renderersRef.current[id];
+        if (r) next[id] = bayerToB64(r.render());
+      }
+      setPixels(next);
+    }, 100);
+
+    // Cleanup: stop all renderers on unmount
+    return () => {
+      clearInterval(iid);
+      for (const r of Object.values(renderersRef.current)) {
+        r?.stop();
+      }
+      renderersRef.current = {};
+    };
+  }, []);
+
+  const zenStyle = currentWidget?.widget === 'zen' ? (currentWidget.style ?? 'fluid-1') : null;
+
+  return (
+    <div role="group" aria-label="Zen panels" className="flex flex-wrap gap-6">
+      {ZEN_STYLES.map(({ id, label }) => (
+        <MatrixItem
+          key={id}
+          name={label}
+          aria-label={label}
+          width={9}
+          pixels={pixels[id] ?? EMPTY_PIXELS}
+          isSelected={zenStyle === id}
+          onSelect={() => onPick({ widget: 'zen', style: id })}
+        />
+      ))}
     </div>
   );
 }
@@ -1280,6 +1340,7 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
               {activeCategory === 'timer'  && <TimerGrid currentWidget={widget} onSettings={handleSettings} />}
               {activeCategory === 'data'   && <DataGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} />}
               {activeCategory === 'agent'   && <AgentGrid  currentWidget={widget} onPick={handlePick} />}
+              {activeCategory === 'zen'     && <ZenGrid    currentWidget={widget} onPick={handlePick} />}
               {activeCategory === 'strings' && <StringsGrid currentWidget={widget} onSettings={handleSettings} />}
               {activeCategory === 'audio'  && <AudioGrid currentWidget={widget} audioCtx={audioCtx} side={side} onPick={handlePick} onMount={handleAudioMount} onUnmount={handleAudioUnmount} />}
               {activeCategory === 'life'   && <LifeGrid  currentWidget={widget} onPick={handlePick} onSettings={handleSettings} dualModule={dualModule} {...(onDeleteBiome ? { onDeleteBiome } : {})} {...(onEditBiome ? { onEditBiome } : {})} />}
