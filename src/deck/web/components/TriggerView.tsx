@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useId } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import type { HudTrigger, HudPresetClient } from '../types/hud-preset.js';
 import { Select } from './ui/select.js';
 import { Button } from './ui/button.js';
@@ -6,7 +7,7 @@ import { Input } from './ui/input.js';
 import { ScrubInput } from './ui/scrub-input.js';
 import { TimeInput } from './ui/time-input.js';
 import { Checkbox } from './ui/checkbox.js';
-import { Menu, MenuTrigger, MenuContent, MenuItem } from './ui/menu.js';
+import { Dialog, DialogClose, DialogContent, DialogTitle } from './ui/dialog.js';
 
 // ── constants ──────────────────────────────────────────────────────────────
 
@@ -34,7 +35,7 @@ const TRIGGER_DESCRIPTIONS: Record<TriggerType, string> = {
   vm:        'Active when a named virtual machine is in a specific state (running or stopped).',
 };
 
-const FW = 'w-24';
+const FIELD_WIDTH = 'w-24';
 
 function defaultTrigger(type: TriggerType): HudTrigger {
   switch (type) {
@@ -47,264 +48,464 @@ function defaultTrigger(type: TriggerType): HudTrigger {
   }
 }
 
-// ── field editors ──────────────────────────────────────────────────────────
+// ── label ──────────────────────────────────────────────────────────────────
 
-type FieldProps = { trigger: HudTrigger; onChange: (t: HudTrigger) => void };
+function triggerLabel(t: HudTrigger): string {
+  switch (t.type) {
+    case 'time': {
+      const overnight = t.from > t.to;
+      return `${t.from} – ${t.to}${overnight ? ' (overnight)' : ''}`;
+    }
+    case 'day':
+      return t.days.length === 0 ? 'no days' : t.days.join(' ');
+    case 'date':
+      return `${MONTHS[(t.month - 1) % 12] ?? ''} ${t.day}`;
+    case 'threshold': {
+      const parts: string[] = [t.metric];
+      if (t.above !== undefined) parts.push(`> ${t.above}`);
+      if (t.below !== undefined) parts.push(`< ${t.below}`);
+      return parts.join(' ');
+    }
+    case 'interface':
+      return `${t.name || '?'} ${t.state}`;
+    case 'vm':
+      return t.state ? `${t.name || '?'} ${t.state}` : `${t.name || '?'} any`;
+  }
+}
 
-function TimeFields({ trigger, onChange }: FieldProps) {
-  if (trigger.type !== 'time') return null;
+// ── form row ───────────────────────────────────────────────────────────────
+
+function FormRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-4 flex-wrap">
-      <TimeInput label="from" value={trigger.from} onChange={v => onChange({ ...trigger, from: v })} />
-      <TimeInput label="to"   value={trigger.to}   onChange={v => onChange({ ...trigger, to: v })} />
+    <div className="flex items-center gap-2">
+      <span className="font-mono text-xs text-muted-foreground w-20 shrink-0">{label}</span>
+      <div className="flex-1 min-w-0">{children}</div>
     </div>
   );
 }
 
-function ThresholdFields({ trigger, onChange }: FieldProps) {
+// ── trigger dialog ─────────────────────────────────────────────────────────
+
+function TriggerDialog({ open, onOpenChange, initial, onDone, triggerRef }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  initial: HudTrigger;
+  onDone: (t: HudTrigger) => void;
+  triggerRef?: RefObject<HTMLButtonElement>;
+}) {
+  const [draft, setDraft] = useState<HudTrigger>(initial);
   const uid = useId();
-  if (trigger.type !== 'threshold') return null;
-  const t = trigger;
-  const cfg = METRIC_CONFIG[t.metric];
-  const conflict = t.above !== undefined && t.below !== undefined && t.above >= t.below;
 
-  function update(patch: { metric?: 'cpu' | 'ram' | 'net_rx' | 'net_tx'; above?: number; below?: number; clearAbove?: true; clearBelow?: true }) {
-    type T = { type: 'threshold'; metric: 'cpu' | 'ram' | 'net_rx' | 'net_tx'; above?: number; below?: number };
-    const base: T = { type: 'threshold', metric: patch.metric ?? t.metric };
-    const above = patch.clearAbove ? undefined : (patch.above !== undefined ? patch.above : t.above);
-    const below = patch.clearBelow ? undefined : (patch.below !== undefined ? patch.below : t.below);
-    if (above !== undefined) base.above = above;
-    if (below !== undefined) base.below = below;
-    onChange(base);
-  }
-
-  return (
-    <div className="flex items-center gap-4 flex-wrap">
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-xs text-muted-foreground">metric</span>
-        <Select
-          aria-label="Metric"
-          value={t.metric}
-          options={(['cpu', 'ram', 'net_rx', 'net_tx'] as const).map(m => ({ value: m, label: m }))}
-          onValueChange={v => update({ metric: v as 'cpu' | 'ram' | 'net_rx' | 'net_tx' })}
-        />
-      </div>
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id={`${uid}-above-en`}
-          checked={t.above !== undefined}
-          onChange={e => e.target.checked ? update({ above: cfg.defaultVal }) : update({ clearAbove: true })}
-        />
-        <label htmlFor={`${uid}-above-en`} className="font-mono text-xs text-muted-foreground cursor-pointer select-none">above</label>
-        {t.above !== undefined && (
-          <ScrubInput
-            aria-label="above threshold"
-            value={t.above}
-            min={cfg.min}
-            max={cfg.max}
-            pixelsPerUnit={cfg.pixelsPerUnit}
-            onChange={v => update({ above: v })}
-            className={FW}
-          />
-        )}
-      </div>
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id={`${uid}-below-en`}
-          checked={t.below !== undefined}
-          onChange={e => e.target.checked ? update({ below: cfg.defaultVal }) : update({ clearBelow: true })}
-        />
-        <label htmlFor={`${uid}-below-en`} className="font-mono text-xs text-muted-foreground cursor-pointer select-none">below</label>
-        {t.below !== undefined && (
-          <ScrubInput
-            aria-label="below threshold"
-            value={t.below}
-            min={cfg.min}
-            max={cfg.max}
-            pixelsPerUnit={cfg.pixelsPerUnit}
-            onChange={v => update({ below: v })}
-            className={FW}
-          />
-        )}
-      </div>
-      {conflict && (
-        <span role="alert" className="font-mono text-xs text-yellow-400">above &ge; below — never matches</span>
-      )}
-    </div>
-  );
-}
-
-function InterfaceFields({ trigger, onChange }: FieldProps) {
-  const [ifaces, setIfaces] = useState<string[] | null>(null);
-
+  const initialRef = useRef(initial);
+  initialRef.current = initial;
   useEffect(() => {
+    if (open) setDraft(initialRef.current);
+  }, [open]);
+
+  // Fetch interfaces once, on first open with type=interface
+  const [ifaces, setIfaces] = useState<string[] | null>(null);
+  const ifacesFetchedRef = useRef(false);
+  useEffect(() => {
+    if (!open || draft.type !== 'interface' || ifacesFetchedRef.current) return;
+    ifacesFetchedRef.current = true;
+    let cancelled = false;
     fetch('/api/net-interfaces')
-      .then(r => r.json() as Promise<{ ok: boolean; interfaces?: string[] }>)
-      .then(d => setIfaces(d.interfaces ?? []))
-      .catch(() => setIfaces([]));
-  }, []);
+      .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() as Promise<{ ok: boolean; interfaces?: string[] }>; })
+      .then(d => { if (!cancelled) setIfaces(d.interfaces ?? []); })
+      .catch(() => { if (!cancelled) setIfaces([]); });
+    return () => { cancelled = true; };
+  }, [open, draft.type]);
 
-  if (trigger.type !== 'interface') return null;
+  const type = draft.type;
 
+  // Threshold derived values (computed outside JSX to avoid IIFEs)
+  const thresholdCfg = draft.type === 'threshold' ? METRIC_CONFIG[draft.metric] : null;
+  const thresholdConflict = draft.type === 'threshold' &&
+    draft.above !== undefined && draft.below !== undefined && draft.above >= draft.below;
+
+  // Interface derived values
   const detected = ifaces ?? [];
-  const useSelect = detected.length > 0;
-  const isOther = useSelect && !detected.includes(trigger.name);
+  const useSelect = draft.type === 'interface' && detected.length > 0;
+  const isOther = useSelect && !detected.includes((draft as { name: string }).name);
 
   return (
-    <div className="flex items-center gap-4 flex-wrap">
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-xs text-muted-foreground">name</span>
-        {useSelect && (
-          <Select
-            aria-label="Interface name"
-            value={isOther ? '__other__' : trigger.name}
-            options={[...detected.map(iface => ({ value: iface, label: iface })), { value: '__other__', label: 'other…' }]}
-            onValueChange={v => onChange({ ...trigger, name: v === '__other__' ? '' : v })}
-          />
-        )}
-        {(!useSelect || isOther) && (
-          <Input
-            type="text"
-            aria-label="Custom interface name"
-            placeholder="eth0"
-            value={trigger.name}
-            onChange={e => onChange({ ...trigger, name: e.target.value })}
-            className="w-32"
-            expandedClassName="w-32"
-          />
-        )}
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-xs text-muted-foreground">state</span>
-        <Select
-          aria-label="Interface state"
-          value={trigger.state}
-          options={[{ value: 'up', label: 'up' }, { value: 'down', label: 'down' }]}
-          onValueChange={v => { if (v === 'up' || v === 'down') onChange({ ...trigger, state: v }); }}
-        />
-      </div>
-    </div>
-  );
-}
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="w-[400px] flex flex-col gap-3"
+        onCloseAutoFocus={e => { if (triggerRef?.current) { e.preventDefault(); triggerRef.current.focus(); } }}
+      >
+        <DialogTitle>Edit trigger</DialogTitle>
 
-function VmFields({ trigger, onChange }: FieldProps) {
-  if (trigger.type !== 'vm') return null;
-  const stateValue = trigger.state ?? 'any';
-  function update(name: string, state: string) {
-    if (state === 'running' || state === 'stopped') onChange({ type: 'vm', name, state });
-    else onChange({ type: 'vm', name });
-  }
-  return (
-    <div className="flex items-center gap-4 flex-wrap">
-      <Input
-        type="text"
-        label="name"
-        aria-label="VM name"
-        placeholder="vm-name"
-        value={trigger.name}
-        onChange={e => update(e.target.value, stateValue)}
-        className="w-32"
-        expandedClassName="w-32"
-      />
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-xs text-muted-foreground">state</span>
-        <Select
-          aria-label="VM state"
-          value={stateValue}
-          options={[{ value: 'any', label: 'any' }, { value: 'running', label: 'running' }, { value: 'stopped', label: 'stopped' }]}
-          onValueChange={v => update(trigger.name, v)}
-        />
-      </div>
-    </div>
-  );
-}
+        <div className="flex flex-col gap-2">
+          <FormRow label="type">
+            <Select
+              fluid
+              aria-label="Trigger type"
+              value={type}
+              options={TRIGGER_TYPES.map(t => ({ value: t, label: t }))}
+              onValueChange={v => {
+                if ((TRIGGER_TYPES as readonly string[]).includes(v)) {
+                  setDraft(defaultTrigger(v as TriggerType));
+                }
+              }}
+            />
+          </FormRow>
 
-function DayFields({ trigger, onChange }: FieldProps) {
-  if (trigger.type !== 'day') return null;
-  function toggle(d: Weekday) {
-    if (trigger.type !== 'day') return;
-    const next = trigger.days.includes(d)
-      ? trigger.days.filter(x => x !== d)
-      : [...trigger.days, d];
-    onChange({ type: 'day', days: next as Weekday[] });
-  }
-  return (
-    <div className="flex items-center gap-1 flex-wrap">
-      {DAYS.map(d => (
-        <button
-          key={d}
-          type="button"
-          aria-pressed={trigger.days.includes(d)}
-          className={`font-mono text-xs border px-2 py-0.5 transition-colors ${
-            trigger.days.includes(d)
-              ? 'border-foreground text-foreground'
-              : 'border-foreground/30 text-foreground/50 hover:text-foreground hover:border-foreground/60'
-          }`}
-          onClick={() => toggle(d)}
-        >
-          {d}
-        </button>
-      ))}
-    </div>
-  );
-}
+          <p className="font-mono text-xs text-muted-foreground leading-relaxed pl-[88px]">
+            {TRIGGER_DESCRIPTIONS[type]}
+          </p>
 
-function DateFields({ trigger, onChange }: FieldProps) {
-  if (trigger.type !== 'date') return null;
-  return (
-    <div className="flex items-center gap-4 flex-wrap">
-      <ScrubInput
-        label="month"
-        aria-label="Month"
-        value={trigger.month}
-        min={1}
-        max={12}
-        suffix={MONTHS[Math.max(0, trigger.month - 1) % 12] ?? ''}
-        onChange={v => onChange({ ...trigger, month: v })}
-        className="w-6 text-center"
-      />
-      <ScrubInput
-        label="day"
-        aria-label="Day of month"
-        value={trigger.day}
-        min={1}
-        max={31}
-        onChange={v => onChange({ ...trigger, day: v })}
-        className={FW}
-      />
-    </div>
+          {/* time */}
+          {draft.type === 'time' && (
+            <>
+              <FormRow label="from">
+                <TimeInput aria-label="From time" value={draft.from} onChange={v => setDraft({ ...draft, from: v })} />
+              </FormRow>
+              <FormRow label="to">
+                <TimeInput aria-label="To time" value={draft.to} onChange={v => setDraft({ ...draft, to: v })} />
+              </FormRow>
+            </>
+          )}
+
+          {/* day */}
+          {draft.type === 'day' && (
+            <FormRow label="days">
+              <div className="flex items-center gap-1 flex-wrap">
+                {DAYS.map(d => {
+                  const active = draft.days.includes(d);
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      aria-pressed={active}
+                      className={`font-mono text-xs border px-2 py-0.5 transition-colors ${
+                        active
+                          ? 'bg-foreground text-background border-foreground'
+                          : 'border-foreground/30 text-foreground/50 hover:text-foreground hover:border-foreground/60'
+                      }`}
+                      onClick={() => {
+                        if (draft.type !== 'day') return;
+                        const next = active
+                          ? draft.days.filter(x => x !== d)
+                          : [...draft.days, d];
+                        setDraft({ type: 'day', days: next as Weekday[] });
+                      }}
+                    >
+                      {d}
+                    </button>
+                  );
+                })}
+              </div>
+            </FormRow>
+          )}
+
+          {/* date */}
+          {draft.type === 'date' && (
+            <>
+              <FormRow label="month">
+                <ScrubInput
+                  aria-label="Month"
+                  value={draft.month}
+                  min={1}
+                  max={12}
+                  suffix={MONTHS[Math.max(0, draft.month - 1) % 12] ?? ''}
+                  onChange={v => setDraft({ ...draft, month: v })}
+                  className="w-6 text-center"
+                />
+              </FormRow>
+              <FormRow label="day">
+                <ScrubInput
+                  aria-label="Day of month"
+                  value={draft.day}
+                  min={1}
+                  max={31}
+                  onChange={v => setDraft({ ...draft, day: v })}
+                  className={FIELD_WIDTH}
+                />
+              </FormRow>
+            </>
+          )}
+
+          {/* threshold */}
+          {draft.type === 'threshold' && thresholdCfg && (
+            <>
+              <FormRow label="metric">
+                <Select
+                  fluid
+                  aria-label="Metric"
+                  value={draft.metric}
+                  options={(['cpu', 'ram', 'net_rx', 'net_tx'] as const).map(m => ({ value: m, label: m }))}
+                  onValueChange={v => {
+                    const m = v as 'cpu' | 'ram' | 'net_rx' | 'net_tx';
+                    setDraft({ type: 'threshold', metric: m });
+                  }}
+                />
+              </FormRow>
+              <FormRow label="above">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id={`${uid}-above-en`}
+                    checked={draft.above !== undefined}
+                    onChange={e => {
+                      if (e.target.checked) {
+                        setDraft({ ...draft, above: thresholdCfg.defaultVal });
+                      } else {
+                        const base = { type: 'threshold' as const, metric: draft.metric };
+                        setDraft(draft.below !== undefined ? { ...base, below: draft.below } : base);
+                      }
+                    }}
+                  />
+                  <label htmlFor={`${uid}-above-en`} className="font-mono text-xs text-muted-foreground cursor-pointer select-none">enabled</label>
+                  {draft.above !== undefined && (
+                    <ScrubInput
+                      aria-label="above threshold"
+                      value={draft.above}
+                      min={thresholdCfg.min}
+                      max={thresholdCfg.max}
+                      pixelsPerUnit={thresholdCfg.pixelsPerUnit}
+                      onChange={v => setDraft({ ...draft, above: v })}
+                      className={FIELD_WIDTH}
+                    />
+                  )}
+                </div>
+              </FormRow>
+              <FormRow label="below">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id={`${uid}-below-en`}
+                    checked={draft.below !== undefined}
+                    onChange={e => {
+                      if (e.target.checked) {
+                        setDraft({ ...draft, below: thresholdCfg.defaultVal });
+                      } else {
+                        const base = { type: 'threshold' as const, metric: draft.metric };
+                        setDraft(draft.above !== undefined ? { ...base, above: draft.above } : base);
+                      }
+                    }}
+                  />
+                  <label htmlFor={`${uid}-below-en`} className="font-mono text-xs text-muted-foreground cursor-pointer select-none">enabled</label>
+                  {draft.below !== undefined && (
+                    <ScrubInput
+                      aria-label="below threshold"
+                      value={draft.below}
+                      min={thresholdCfg.min}
+                      max={thresholdCfg.max}
+                      pixelsPerUnit={thresholdCfg.pixelsPerUnit}
+                      onChange={v => setDraft({ ...draft, below: v })}
+                      className={FIELD_WIDTH}
+                    />
+                  )}
+                </div>
+              </FormRow>
+              {/* always-mounted live region so AT announces state changes reliably */}
+              <span role="status" aria-live="assertive" className={`font-mono text-xs text-yellow-400 pl-[88px]${thresholdConflict ? '' : ' sr-only'}`}>
+                above &ge; below — never matches
+              </span>
+            </>
+          )}
+
+          {/* interface */}
+          {draft.type === 'interface' && (
+            <>
+              <FormRow label="name">
+                <div className="flex items-center gap-2 min-w-0">
+                  {useSelect && (
+                    <Select
+                      fluid
+                      aria-label="Interface name"
+                      value={isOther ? '__other__' : draft.name}
+                      options={[
+                        ...detected.map(iface => ({ value: iface, label: iface })),
+                        { value: '__other__', label: 'other…' },
+                      ]}
+                      onValueChange={v => setDraft({ ...draft, name: v === '__other__' ? '' : v })}
+                    />
+                  )}
+                  {(!useSelect || isOther) && (
+                    <Input
+                      fluid
+                      type="text"
+                      aria-label="Custom interface name"
+                      placeholder="eth0"
+                      value={draft.name}
+                      onChange={e => setDraft({ ...draft, name: e.target.value })}
+                    />
+                  )}
+                </div>
+              </FormRow>
+              <FormRow label="state">
+                <Select
+                  fluid
+                  aria-label="Interface state"
+                  value={draft.state}
+                  options={[{ value: 'up', label: 'up' }, { value: 'down', label: 'down' }]}
+                  onValueChange={v => { if (v === 'up' || v === 'down') setDraft({ ...draft, state: v }); }}
+                />
+              </FormRow>
+            </>
+          )}
+
+          {/* vm */}
+          {draft.type === 'vm' && (
+            <>
+              <FormRow label="name">
+                <Input
+                  fluid
+                  type="text"
+                  aria-label="VM name"
+                  placeholder="vm-name"
+                  value={draft.name}
+                  onChange={e => setDraft({ ...draft, name: e.target.value })}
+                />
+              </FormRow>
+              <FormRow label="state">
+                <Select
+                  fluid
+                  aria-label="VM state"
+                  value={draft.state ?? 'any'}
+                  options={[
+                    { value: 'any',     label: 'any' },
+                    { value: 'running', label: 'running' },
+                    { value: 'stopped', label: 'stopped' },
+                  ]}
+                  onValueChange={v => {
+                    if (v === 'running' || v === 'stopped') {
+                      setDraft({ type: 'vm', name: draft.name, state: v });
+                    } else {
+                      setDraft({ type: 'vm', name: draft.name });
+                    }
+                  }}
+                />
+              </FormRow>
+            </>
+          )}
+        </div>
+
+        <div className="flex gap-2 pt-2 border-t border-foreground/10">
+          <DialogClose asChild>
+            <Button size="sm" onClick={() => onDone(draft)}>done</Button>
+          </DialogClose>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 // ── trigger row ────────────────────────────────────────────────────────────
 
-function TriggerRow({ trigger, onUpdate, onDelete }: {
+function TriggerRow({ trigger, idx, total, onUpdate, onDelete, onMoveUp, onMoveDown, onDragStart, onDragEnter, onDragEnd, onDrop, dragging, dragOver, onDialogOpenChange }: {
   trigger: HudTrigger;
+  idx: number;
+  total: number;
   onUpdate: (t: HudTrigger) => void;
   onDelete: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onDragStart: () => void;
+  onDragEnter: () => void;
+  onDragEnd: () => void;
+  onDrop: () => void;
+  dragging: boolean;
+  dragOver: boolean;
+  onDialogOpenChange: (open: boolean) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  function handleOpenChange(o: boolean) {
+    setOpen(o);
+    onDialogOpenChange(o);
+  }
+
   return (
-    <div className="group flex items-center gap-4 py-3">
-      <span className="font-mono text-xs font-bold text-foreground shrink-0">
-        {trigger.type}:
-      </span>
-      <div className="flex-1 min-w-0">
-        {trigger.type === 'time'      && <TimeFields      trigger={trigger} onChange={onUpdate} />}
-        {trigger.type === 'day'       && <DayFields       trigger={trigger} onChange={onUpdate} />}
-        {trigger.type === 'date'      && <DateFields      trigger={trigger} onChange={onUpdate} />}
-        {trigger.type === 'threshold' && <ThresholdFields trigger={trigger} onChange={onUpdate} />}
-        {trigger.type === 'interface' && <InterfaceFields trigger={trigger} onChange={onUpdate} />}
-        {trigger.type === 'vm'        && <VmFields        trigger={trigger} onChange={onUpdate} />}
-      </div>
+    <div
+      role="group"
+      aria-label={`Trigger ${idx + 1}`}
+      className={`group flex items-center gap-2 py-1.5 border-b border-foreground/10 last:border-b-0 transition-opacity${dragging ? ' opacity-40' : ''}${dragOver ? ' -mt-px border-t-2 border-t-primary' : ''}`}
+      onDragEnter={e => { e.preventDefault(); onDragEnter(); }}
+      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+      onDrop={e => { e.preventDefault(); onDrop(); }}
+    >
+      <span className="font-mono text-xs text-foreground/25 tabular-nums w-4 shrink-0">{idx + 1}</span>
+
       <Button
+        ref={btnRef}
         variant="ghost"
-        aria-label={`Delete ${trigger.type} trigger`}
-        tooltip="Remove trigger"
-        onClick={onDelete}
-        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-100"
+        size="sm"
+        className="shrink-0 font-mono truncate max-w-xs text-left"
+        aria-label={`Edit trigger ${idx + 1}: ${trigger.type} ${triggerLabel(trigger)}`}
+        onClick={() => handleOpenChange(true)}
       >
-        del
+        <span className="text-foreground/50">{trigger.type}:</span>
+        <span className="ml-1">{triggerLabel(trigger)}</span>
       </Button>
+
+      <div className="flex items-center gap-0.5 ml-auto shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+        <Button variant="ghost" size="sm" aria-label={`Move trigger ${idx + 1} up`}   disabled={idx === 0}         onClick={onMoveUp}>
+          <span aria-hidden="true">↑</span>
+        </Button>
+        <Button variant="ghost" size="sm" aria-label={`Move trigger ${idx + 1} down`} disabled={idx === total - 1} onClick={onMoveDown}>
+          <span aria-hidden="true">↓</span>
+        </Button>
+        <Button variant="ghost" size="sm" aria-label={`Delete trigger ${idx + 1}`} tooltip="Delete trigger" onClick={onDelete}>×</Button>
+        <button
+          type="button"
+          draggable
+          tabIndex={-1}
+          aria-hidden="true"
+          onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
+          onDragEnd={onDragEnd}
+          title="Drag to reorder"
+          className="font-mono text-foreground/30 hover:text-foreground/60 shrink-0 leading-none cursor-grab active:cursor-grabbing"
+        >
+          ⠿
+        </button>
+      </div>
+
+      <TriggerDialog
+        open={open}
+        onOpenChange={handleOpenChange}
+        initial={trigger}
+        onDone={t => onUpdate(t)}
+        triggerRef={btnRef}
+      />
+    </div>
+  );
+}
+
+// ── add trigger row ────────────────────────────────────────────────────────
+
+function AddTriggerRow({ onAdd, onDialogOpenChange }: {
+  onAdd: (t: HudTrigger) => void;
+  onDialogOpenChange: (open: boolean) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  function handleOpenChange(o: boolean) {
+    setOpen(o);
+    onDialogOpenChange(o);
+  }
+
+  return (
+    <div className="flex items-center py-1.5 border-b border-foreground/10 last:border-b-0">
+      <Button
+        ref={btnRef}
+        variant="ghost"
+        size="sm"
+        aria-label="Add trigger"
+        className="font-mono"
+        onClick={() => handleOpenChange(true)}
+      >
+        + add trigger
+      </Button>
+      <TriggerDialog
+        open={open}
+        onOpenChange={handleOpenChange}
+        initial={defaultTrigger('time')}
+        onDone={t => { onAdd(t); }}
+        triggerRef={btnRef}
+      />
     </div>
   );
 }
@@ -319,14 +520,20 @@ export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
 }) {
   const triggers = preset.triggers ?? [];
   const match = preset.match ?? 'all';
+  const titleId = useId();
 
   const triggerIdsRef = useRef<string[]>(triggers.map(() => crypto.randomUUID()));
-  if (triggerIdsRef.current.length !== triggers.length) {
-    triggerIdsRef.current = triggers.map(() => crypto.randomUUID());
-  }
 
-  const [highlighted, setHighlighted] = useState<TriggerType | null>(null);
-  const menuOpenRef = useRef(false);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const dragIdxRef = useRef<number | null>(null);
+  const [reorderMsg, setReorderMsg] = useState('');
+
+  // Guard Escape so it doesn't close TriggerView while a TriggerDialog is open
+  const openDialogCountRef = useRef(0);
+  function notifyDialogOpen(open: boolean) {
+    openDialogCountRef.current += open ? 1 : -1;
+  }
 
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
@@ -335,7 +542,7 @@ export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !menuOpenRef.current) { e.preventDefault(); onDone(); }
+      if (e.key === 'Escape' && openDialogCountRef.current === 0) { e.preventDefault(); onDone(); }
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -352,20 +559,52 @@ export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
     triggerIdsRef.current = triggerIdsRef.current.filter((_, i) => i !== idx);
   }
 
-  function addTrigger(type: TriggerType) {
-    onChange([...triggers, defaultTrigger(type)]);
+  function moveTrigger(from: number, to: number) {
+    if (to < 0 || to >= triggers.length) return;
+    // Guard: IDs and triggers must be in sync for safe splice
+    if (triggerIdsRef.current.length !== triggers.length) return;
+    const next = [...triggers];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item!);
+    const ids = [...triggerIdsRef.current];
+    const [id] = ids.splice(from, 1);
+    ids.splice(to, 0, id!);
+    triggerIdsRef.current = ids;
+    onChange(next);
+    setReorderMsg(`Trigger moved to position ${to + 1} of ${triggers.length}`);
+  }
+
+  function startDrag(idx: number) {
+    dragIdxRef.current = idx;
+    setDragIdx(idx);
+  }
+
+  function endDrag() {
+    dragIdxRef.current = null;
+    setDragIdx(null);
+    setDragOverIdx(null);
+  }
+
+  function handleDrop(to: number) {
+    const from = dragIdxRef.current;
+    if (from !== null && from !== to) moveTrigger(from, to);
+    endDrag();
+  }
+
+  function addTrigger(t: HudTrigger) {
+    onChange([...triggers, t]);
     triggerIdsRef.current = [...triggerIdsRef.current, crypto.randomUUID()];
   }
 
   return (
     <div
       role="dialog"
-      aria-label={`Triggers — ${preset.name}`}
+      aria-labelledby={titleId}
       aria-modal="true"
       className="fixed inset-0 z-50 bg-background text-foreground font-mono flex flex-col"
     >
       <header className="relative flex items-center px-5 py-4 shrink-0 gap-3">
-        <span className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
+        <span id={titleId} className="absolute inset-x-0 text-center font-mono text-xs text-foreground pointer-events-none">
           {preset.name} — trigger config
         </span>
         <div className="ml-auto flex items-center gap-3">
@@ -380,6 +619,12 @@ export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
               />
             </div>
           )}
+          {/* Announce when match control disappears so AT users aren't left wondering */}
+          {triggers.length < 2 && (
+            <span role="status" aria-live="polite" className="sr-only">
+              match mode inactive — add a second trigger to configure
+            </span>
+          )}
           <Button variant="default" size="sm" onClick={onDone}>done</Button>
         </div>
       </header>
@@ -392,49 +637,30 @@ export function TriggerView({ preset, onDone, onChange, onMatchChange }: {
             </p>
           )}
 
-          <div>
+          <span role="status" aria-live="polite" className="sr-only">{reorderMsg}</span>
+
+          <div className="flex flex-col">
             {triggers.map((t, i) => (
               <TriggerRow
                 key={triggerIdsRef.current[i] ?? String(i)}
                 trigger={t}
+                idx={i}
+                total={triggers.length}
                 onUpdate={u => updateTrigger(i, u)}
                 onDelete={() => deleteTrigger(i)}
+                onMoveUp={() => moveTrigger(i, i - 1)}
+                onMoveDown={() => moveTrigger(i, i + 1)}
+                onDragStart={() => startDrag(i)}
+                onDragEnter={() => { if (dragIdxRef.current !== null) setDragOverIdx(i); }}
+                onDragEnd={endDrag}
+                onDrop={() => handleDrop(i)}
+                dragging={dragIdx === i}
+                dragOver={dragOverIdx === i && dragIdx !== i}
+                onDialogOpenChange={notifyDialogOpen}
               />
             ))}
-          </div>
 
-          <div className="mt-4">
-            <Menu onOpenChange={open => { menuOpenRef.current = open; setHighlighted(open ? TRIGGER_TYPES[0]! : null); }}>
-              <MenuTrigger asChild>
-                <Button variant={triggers.length === 0 ? 'primary' : 'default'}>+ add trigger</Button>
-              </MenuTrigger>
-              <MenuContent
-                align="start"
-                className="flex p-0 gap-0 overflow-hidden"
-              >
-                <div className="py-1.5">
-                  {TRIGGER_TYPES.map(type => (
-                    <MenuItem
-                      key={type}
-                      className="px-4"
-                      onMouseEnter={() => setHighlighted(type)}
-                      onFocus={() => setHighlighted(type)}
-                      onSelect={() => addTrigger(type)}
-                    >
-                      {type}
-                    </MenuItem>
-                  ))}
-                </div>
-                <div
-                  role="status"
-                  aria-live="polite"
-                  aria-atomic="true"
-                  className="w-52 shrink-0 border-l border-foreground/15 px-4 py-3 text-muted-foreground leading-relaxed"
-                >
-                  {highlighted ? TRIGGER_DESCRIPTIONS[highlighted] : ''}
-                </div>
-              </MenuContent>
-            </Menu>
+            <AddTriggerRow onAdd={addTrigger} onDialogOpenChange={notifyDialogOpen} />
           </div>
         </div>
       </div>
