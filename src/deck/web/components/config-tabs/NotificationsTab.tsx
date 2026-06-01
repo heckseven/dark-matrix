@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AssetMeta } from '../../../../lib/asset-meta.js';
 import { createScrollAnimation } from '../../../../animations/scroll.js';
-import type { ScrollFrame, ScrollSize } from '../../../../animations/scroll.js';
+import type { ScrollFrame } from '../../../../animations/scroll.js';
+import { TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS, TEXT_FLICKERS, TEXT_TRANSITIONS, SPEED_PXPS, SPEED_DWELL_MS, createTextRenderer } from '../../../../animations/text-renderers.js';
+import type { TextStyle, TextSize, TextSpeed, TextFlicker, TextTransition } from '../../../../animations/text-renderers.js';
 import { MatrixPreview } from '../MatrixPreview.js';
 import { Select } from '../ui/select.js';
 import { Input } from '../ui/input.js';
@@ -18,9 +20,13 @@ export type NotificationRule = {
   battery_threshold?: number;
   app_name_glob?: string;
   content_glob?: string;
-  animation: 'scroll' | 'dmx' | 'none';
-  scroll_text?: string;
-  scroll_size?: ScrollSize;
+  animation: 'text' | 'design' | 'suppress';
+  text_content?: string;
+  text_size?: TextSize;
+  text_style?: TextStyle;
+  text_speed?: TextSpeed;
+  text_flicker?: TextFlicker;
+  text_transition?: TextTransition;
   asset_path?: string;
   composite?: 'replace' | 'overlay';
   overlay_mode?: 'or' | 'replace' | 'xor' | 'halo';
@@ -74,7 +80,7 @@ function buildRule(base: NotificationRule, changes: RulePatch): NotificationRule
   const merged = { ...base, ...changes };
   const src = merged.source;
   const anim: NotificationRule['animation'] = merged.animation ?? base.animation;
-  const needsAsset = anim === 'dmx';
+  const needsAsset = anim === 'design';
   const isDesktop = src === 'desktop-notification' || src === undefined;
   const isBattery = src === 'battery';
 
@@ -97,16 +103,21 @@ function buildRule(base: NotificationRule, changes: RulePatch): NotificationRule
     if (!merged.mirror && merged.side !== undefined) result.side = merged.side;
   }
 
-  if (anim === 'scroll') {
-    if (merged.scroll_text !== undefined && merged.scroll_text !== '') result.scroll_text = merged.scroll_text;
-    if (merged.scroll_size !== undefined && merged.scroll_size !== 'small') result.scroll_size = merged.scroll_size;
+  if (anim === 'text') {
+    if (merged.text_content !== undefined && merged.text_content !== '') result.text_content = merged.text_content;
+    if (merged.text_size !== undefined && merged.text_size !== 'small') result.text_size = merged.text_size;
+    if (merged.text_style !== undefined && merged.text_style !== 'marquee') result.text_style = merged.text_style;
+    if (merged.text_speed !== undefined && merged.text_speed !== 'normal') result.text_speed = merged.text_speed;
+    if (merged.text_flicker !== undefined) result.text_flicker = merged.text_flicker;
+    if (merged.text_transition !== undefined) result.text_transition = merged.text_transition;
+    if (merged.side !== undefined) result.side = merged.side;
   }
 
-  if (anim !== 'none' && merged.composite !== undefined && merged.composite !== 'replace') {
+  if (anim !== 'suppress' && merged.composite !== undefined && merged.composite !== 'replace') {
     result.composite = merged.composite;
   }
 
-  if (anim === 'dmx') {
+  if (anim === 'design') {
     if (merged.overlay_mode !== undefined) result.overlay_mode = merged.overlay_mode;
     if (merged.transition !== undefined) result.transition = merged.transition;
   }
@@ -211,11 +222,13 @@ function srcButtonLabel(draft: RuleDraft): string {
 }
 
 function animButtonLabel(rule: NotificationRule): string {
-  if (rule.animation === 'none') return 'suppress';
-  if (rule.animation === 'scroll') {
-    return rule.scroll_text ? `scroll "${rule.scroll_text}"` : 'scroll';
+  if (rule.animation === 'suppress') return 'suppress';
+  if (rule.animation === 'text') {
+    const style = rule.text_style ?? 'marquee';
+    const label = rule.text_content ? `"${rule.text_content}"` : '';
+    return label ? `${style} ${label}` : style;
   }
-  if (rule.animation === 'dmx') {
+  if (rule.animation === 'design') {
     const name = stripAssetName(rule.asset_path ?? rule.dmx_path ?? '');
     return name ? `design "${name}"` : 'design';
   }
@@ -224,9 +237,10 @@ function animButtonLabel(rule: NotificationRule): string {
 
 // used for hover preview label
 function animLabel(r: NotificationRule): string {
-  if (r.animation === 'none') return 'suppress';
-  if (r.animation === 'dmx') return r.asset_path ? stripAssetName(r.asset_path) : 'dmx';
-  return r.composite === 'overlay' ? 'scroll·overlay' : 'scroll';
+  if (r.animation === 'suppress') return 'suppress';
+  if (r.animation === 'design') return r.asset_path ? stripAssetName(r.asset_path) : 'design';
+  const style = r.text_style ?? 'marquee';
+  return r.composite === 'overlay' ? `${style}·overlay` : style;
 }
 
 // ── live preview ──────────────────────────────────────────────────────────────
@@ -249,28 +263,73 @@ function mergeFrames(left: Uint8Array, right: Uint8Array): Uint8Array {
   return out;
 }
 
-function ScrollPrev({ text = 'dark matrix', size = 'small', dual = false }: { text?: string; size?: ScrollSize; dual?: boolean }) {
+function TextPrev({ text = 'dark matrix', size = 'small', style = 'marquee' as TextStyle, dual = false, speed, flicker, transition }: {
+  text?: string;
+  size?: TextSize;
+  style?: TextStyle;
+  dual?: boolean;
+  speed?: TextSpeed;
+  flicker?: TextFlicker;
+  transition?: TextTransition;
+}) {
   const [px, setPx] = useState(() => blankB64(dual));
   useEffect(() => {
     setPx(blankB64(dual));
+    const displayText = text || ' ';
+    if (style === 'marquee') {
+      let dead = false;
+      const a = createScrollAnimation({ text: displayText, size, loop: true, startOffset: 0 });
+      const it = a[Symbol.asyncIterator]();
+      const tick = () => void it.next().then((r: IteratorResult<ScrollFrame>) => {
+        if (dead || r.done) return;
+        setPx(toB64(dual ? mergeFrames(r.value[0], r.value[1]) : r.value[0]));
+        setTimeout(tick, 50);
+      });
+      tick();
+      return () => { dead = true; a.stop(); };
+    }
+    // Non-marquee: use TextRenderer at 100ms interval
+    const widgetCfg = {
+      text: displayText,
+      style,
+      size,
+      ...(speed !== undefined ? { speed } : {}),
+      ...(flicker !== undefined ? { flicker } : {}),
+      ...(transition !== undefined ? { transition } : {}),
+    };
+    const rendL = createTextRenderer(widgetCfg, 'left');
+    const rendR = dual ? createTextRenderer(widgetCfg, 'right') : null;
     let dead = false;
-    const a = createScrollAnimation({ text: text || ' ', size, loop: true, startOffset: 0 });
-    const it = a[Symbol.asyncIterator]();
-    const tick = () => void it.next().then((r: IteratorResult<ScrollFrame>) => {
-      if (dead || r.done) return;
-      setPx(toB64(dual ? mergeFrames(r.value[0], r.value[1]) : r.value[0]));
-      setTimeout(tick, 50);
-    });
+    const tick = () => {
+      if (dead) return;
+      const now = new Date();
+      const lf = rendL.render(now);
+      if (dual && rendR) {
+        const rf = rendR.render(now);
+        setPx(toB64(mergeFrames(lf as Uint8Array, rf as Uint8Array)));
+      } else {
+        setPx(toB64(lf as Uint8Array));
+      }
+      setTimeout(tick, 100);
+    };
     tick();
-    return () => { dead = true; a.stop(); };
-  }, [text, size, dual]);
+    return () => { dead = true; rendL.stop(); rendR?.stop(); };
+  }, [text, size, style, dual, speed, flicker, transition]);
   return <MatrixPreview pixels={px} width={dual ? 18 : 9} />;
 }
 
 function RulePrev({ rule, dual }: { rule: NotificationRule; dual: boolean }) {
   const w = dual ? 91 : 43;
-  if (rule.animation === 'scroll') return <ScrollPrev {...(rule.scroll_text ? { text: rule.scroll_text } : {})} {...(rule.scroll_size ? { size: rule.scroll_size } : {})} dual={dual} />;
-  if (rule.animation === 'dmx') return <DmxPreview filename={rule.asset_path} dual={dual} {...(rule.mirror ? { mirror: true } : {})} {...(rule.side ? { side: rule.side } : {})} />;
+  if (rule.animation === 'text') return <TextPrev
+    {...(rule.text_content ? { text: rule.text_content } : {})}
+    {...(rule.text_size ? { size: rule.text_size } : {})}
+    {...(rule.text_style ? { style: rule.text_style } : {})}
+    {...(rule.text_speed ? { speed: rule.text_speed } : {})}
+    {...(rule.text_flicker ? { flicker: rule.text_flicker } : {})}
+    {...(rule.text_transition ? { transition: rule.text_transition } : {})}
+    dual={dual}
+  />;
+  if (rule.animation === 'design') return <DmxPreview filename={rule.asset_path} dual={dual} {...(rule.mirror ? { mirror: true } : {})} {...(rule.side ? { side: rule.side } : {})} />;
   return (
     <div aria-hidden="true" className="flex items-center justify-center bg-black shrink-0" style={{ width: w, height: 168 }}>
       <span className="font-mono text-foreground/15" style={{ fontSize: 8 }}>none</span>
@@ -613,6 +672,24 @@ function SourceDialog({ open, onOpenChange, initial, onDone, history, refreshHis
   );
 }
 
+// ── animation dialog helpers ───────────────────────────────────────────────────
+
+const SIZE_RESTRICTED_STYLES: readonly TextStyle[] = ['spine', 'neon', 'bigglyph', 'vegas'];
+const sizeOptionsForStyle = (style: TextStyle): readonly TextSize[] =>
+  SIZE_RESTRICTED_STYLES.includes(style) ? (['tiny', 'small'] as const) : TEXT_SIZES;
+const speedOptionsForStyle = (style: TextStyle): readonly TextSpeed[] =>
+  style === 'bigglyph' ? TEXT_SPEEDS
+    : style === 'vegas' ? TEXT_SPEEDS.filter(s => s !== 'fast' && s !== 'fast2' && s !== 'fast3')
+    : TEXT_SPEEDS.filter(s => s !== 'fast2' && s !== 'fast3');
+
+function speedLabel(style: TextStyle, s: TextSpeed): string {
+  if (style === 'bigglyph') {
+    const ms = SPEED_DWELL_MS[s];
+    return `${ms >= 1000 ? `${ms / 1000}s` : `${ms}ms`}/letter`;
+  }
+  return `${SPEED_PXPS[s]}px/s`;
+}
+
 // ── animation dialog ──────────────────────────────────────────────────────────
 
 function AnimationDialog({ open, onOpenChange, initial, onDone, dualModule, triggerRef }: {
@@ -646,11 +723,12 @@ function AnimationDialog({ open, onOpenChange, initial, onDone, dualModule, trig
     return () => { cancelled = true; };
   }, [draft.asset_path]);
 
-  const animType = draft.animation ?? 'scroll';
+  const animType = draft.animation ?? 'text';
   const mode = timingMode(draft);
   const assetDisplay = draft.asset_path ?? draft.dmx_path ?? '';
   const durationDisplay = draft.duration_ms_override !== undefined ? String(draft.duration_ms_override) : '';
   const previewRule = buildRule({ animation: animType }, draft as RulePatch);
+  const textStyle: TextStyle = draft.text_style ?? 'marquee';
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!pickerOpenRef.current) onOpenChange(v); }}>
@@ -672,54 +750,139 @@ function AnimationDialog({ open, onOpenChange, initial, onDone, dualModule, trig
               aria-label="Animation type"
               value={animType}
               options={[
-                { value: 'scroll', label: 'scroll' },
-                { value: 'dmx', label: 'design' },
-                { value: 'none', label: 'suppress' },
+                { value: 'text', label: 'text' },
+                { value: 'design', label: 'design' },
+                { value: 'suppress', label: 'suppress' },
               ]}
               onValueChange={v => {
-                if (v === 'dmx') {
-                  setDraft(d => ({ ...d, animation: 'dmx', transition: 'dissolve', overlay_mode: 'halo', composite: 'overlay' }));
-                } else if (v === 'scroll' || v === 'none') {
-                  setDraft(d => ({ ...d, animation: v }));
+                if (v === 'design') {
+                  setDraft(d => ({ ...d, animation: 'design', transition: 'dissolve', overlay_mode: 'halo', composite: 'overlay' }));
+                } else if (v === 'text' || v === 'suppress') {
+                  setDraft(d => ({ ...d, animation: v as 'text' | 'suppress' }));
                 }
               }}
             />
           </FormRow>
 
-          {animType === 'scroll' && (
-            <FormRow label="text">
-              <Input
-                fluid
-                aria-label="Scroll text"
-                placeholder="notification text"
-                value={draft.scroll_text ?? ''}
-                onChange={e => setDraft(d => patchDraft(d, { scroll_text: e.target.value }))}
-                spellCheck={false}
-              />
-            </FormRow>
-          )}
-
-          {animType === 'scroll' && (
-            <FormRow label="size">
+          {animType === 'text' && (
+            <FormRow label="style">
               <Select
                 fluid
-                aria-label="Text size"
-                value={draft.scroll_size ?? 'small'}
-                options={[
-                  { value: 'tiny', label: 'tiny' },
-                  { value: 'small', label: 'small' },
-                  { value: 'medium', label: 'medium' },
-                  { value: 'large', label: 'large' },
-                ]}
+                aria-label="Text style"
+                value={textStyle}
+                options={TEXT_STYLES.map(s => ({ value: s, label: s }))}
                 onValueChange={v => {
-                  const s: ScrollSize | undefined = (v === 'tiny' || v === 'small' || v === 'medium' || v === 'large') ? v : undefined;
-                  setDraft(d => patchDraft(d, { scroll_size: s }));
+                  const next = v as TextStyle;
+                  setDraft(d => {
+                    const patch: Record<string, unknown> = { text_style: next === 'marquee' ? undefined : next };
+                    // Clamp size if style is restricted
+                    if (SIZE_RESTRICTED_STYLES.includes(next) && (d.text_size === 'medium' || d.text_size === 'large')) {
+                      patch['text_size'] = 'small';
+                    }
+                    // Clamp speed for vegas
+                    if (next === 'vegas' && d.text_speed !== undefined && !speedOptionsForStyle('vegas').includes(d.text_speed)) {
+                      patch['text_speed'] = 'slow';
+                    }
+                    // Clear style-specific params when switching away
+                    if (next !== 'neon') patch['text_flicker'] = undefined;
+                    if (next !== 'bigglyph') patch['text_transition'] = undefined;
+                    return patchDraft(d, patch);
+                  });
                 }}
               />
             </FormRow>
           )}
 
-          {animType === 'scroll' && (
+          {animType === 'text' && (
+            <FormRow label="text">
+              <Input
+                fluid
+                aria-label="Text content"
+                placeholder="notification text"
+                value={draft.text_content ?? ''}
+                onChange={e => setDraft(d => patchDraft(d, { text_content: e.target.value }))}
+                spellCheck={false}
+              />
+            </FormRow>
+          )}
+
+          {animType === 'text' && (
+            <FormRow label="size">
+              <Select
+                fluid
+                aria-label="Text size"
+                value={draft.text_size ?? 'small'}
+                options={sizeOptionsForStyle(textStyle).map(s => ({ value: s, label: s }))}
+                onValueChange={v => {
+                  const s = (TEXT_SIZES as readonly string[]).includes(v) ? v as TextSize : undefined;
+                  setDraft(d => patchDraft(d, { text_size: s }));
+                }}
+              />
+            </FormRow>
+          )}
+
+          {animType === 'text' && textStyle !== 'neon' && (
+            <FormRow label="speed">
+              <Select
+                fluid
+                aria-label="Text speed"
+                value={draft.text_speed ?? 'normal'}
+                options={speedOptionsForStyle(textStyle).map(s => ({ value: s, label: speedLabel(textStyle, s) }))}
+                onValueChange={v => {
+                  const s = (TEXT_SPEEDS as readonly string[]).includes(v) ? v as TextSpeed : undefined;
+                  setDraft(d => patchDraft(d, { text_speed: s === 'normal' ? undefined : s }));
+                }}
+              />
+            </FormRow>
+          )}
+
+          {animType === 'text' && textStyle === 'neon' && (
+            <FormRow label="flicker">
+              <Select
+                fluid
+                aria-label="Flicker intensity"
+                value={draft.text_flicker ?? 'medium'}
+                options={TEXT_FLICKERS.map(f => ({ value: f, label: f }))}
+                onValueChange={v => {
+                  const f = (TEXT_FLICKERS as readonly string[]).includes(v) ? v as TextFlicker : undefined;
+                  setDraft(d => patchDraft(d, { text_flicker: f }));
+                }}
+              />
+            </FormRow>
+          )}
+
+          {animType === 'text' && textStyle === 'bigglyph' && (
+            <FormRow label="transition">
+              <Select
+                fluid
+                aria-label="Letter transition"
+                value={draft.text_transition ?? 'slide'}
+                options={TEXT_TRANSITIONS.map(t => ({ value: t, label: t }))}
+                onValueChange={v => {
+                  const t = (TEXT_TRANSITIONS as readonly string[]).includes(v) ? v as TextTransition : undefined;
+                  setDraft(d => patchDraft(d, { text_transition: t }));
+                }}
+              />
+            </FormRow>
+          )}
+
+          {animType === 'text' && (
+            <FormRow label="side">
+              <Select
+                fluid
+                aria-label="Module side"
+                value={draft.side ?? 'both'}
+                options={[
+                  { value: 'both', label: 'both' },
+                  { value: 'left', label: 'left' },
+                  { value: 'right', label: 'right' },
+                ]}
+                onValueChange={v => setDraft(d => patchDraft(d, { side: (v === 'left' || v === 'right') ? v : undefined }))}
+              />
+            </FormRow>
+          )}
+
+          {animType === 'text' && (
             <FormRow label="composite">
               <Select
                 fluid
@@ -731,7 +894,7 @@ function AnimationDialog({ open, onOpenChange, initial, onDone, dualModule, trig
             </FormRow>
           )}
 
-          {animType === 'dmx' && (
+          {animType === 'design' && (
             <FormRow label="asset">
               <div className="flex items-center gap-1.5 w-full">
                 <Input
@@ -754,7 +917,7 @@ function AnimationDialog({ open, onOpenChange, initial, onDone, dualModule, trig
             </FormRow>
           )}
 
-          {animType === 'dmx' && (
+          {animType === 'design' && (
             <FormRow label="mirror">
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <Checkbox
@@ -769,7 +932,7 @@ function AnimationDialog({ open, onOpenChange, initial, onDone, dualModule, trig
             </FormRow>
           )}
 
-          {animType === 'dmx' && assetWidth === 9 && !draft.mirror && (
+          {animType === 'design' && assetWidth === 9 && !draft.mirror && (
             <FormRow label="side">
               <Select
                 fluid
@@ -785,7 +948,7 @@ function AnimationDialog({ open, onOpenChange, initial, onDone, dualModule, trig
             </FormRow>
           )}
 
-          {animType === 'dmx' && (
+          {animType === 'design' && (
             <FormRow label="blend">
               <Select
                 fluid
@@ -803,7 +966,7 @@ function AnimationDialog({ open, onOpenChange, initial, onDone, dualModule, trig
             </FormRow>
           )}
 
-          {animType === 'dmx' && (
+          {animType === 'design' && (
             <FormRow label="transition">
               <Select
                 fluid
@@ -825,7 +988,7 @@ function AnimationDialog({ open, onOpenChange, initial, onDone, dualModule, trig
             </FormRow>
           )}
 
-          {animType === 'dmx' && (
+          {animType === 'design' && (
             <>
               <FormRow label="timing">
                 <Select
@@ -880,7 +1043,7 @@ function AnimationDialog({ open, onOpenChange, initial, onDone, dualModule, trig
             </>
           )}
 
-          {animType !== 'dmx' && (
+          {animType !== 'design' && (
             <FormRow label="duration">
               <Input
                 fluid
@@ -944,11 +1107,11 @@ function RuleRow({
   }, []);
 
   async function fireTest() {
-    if (!rule.animation || rule.animation === 'none') return;
+    if (!rule.animation || rule.animation === 'suppress') return;
     setTestState('firing');
     try {
       const body: Record<string, unknown> = {};
-      if (rule.animation === 'dmx') {
+      if (rule.animation === 'design') {
         body['style'] = 'dmx';
         if (rule.asset_path) body['assetPath'] = rule.asset_path;
         if (rule.composite) body['composite'] = rule.composite;
@@ -960,8 +1123,14 @@ function RuleRow({
         if (rule.duration_ms_override !== undefined) body['durationMsOverride'] = rule.duration_ms_override;
       } else {
         body['style'] = 'text';
-        body['summary'] = rule.scroll_text || 'dark matrix';
+        body['summary'] = rule.text_content || 'dark matrix';
+        if (rule.text_style) body['textStyle'] = rule.text_style;
+        if (rule.text_size) body['textSize'] = rule.text_size;
+        if (rule.text_speed) body['textSpeed'] = rule.text_speed;
+        if (rule.text_flicker) body['textFlicker'] = rule.text_flicker;
+        if (rule.text_transition) body['textTransition'] = rule.text_transition;
         if (rule.composite) body['composite'] = rule.composite;
+        if (rule.side !== undefined) body['side'] = rule.side;
         if (rule.duration_ms_override !== undefined) body['durationMsOverride'] = rule.duration_ms_override;
       }
       const r = await fetch('/api/test-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -978,7 +1147,7 @@ function RuleRow({
   const completeRule = rule.animation !== undefined ? rule as NotificationRule : null;
 
   function handleAnimationDone(draft: RuleDraft) {
-    const anim = draft.animation ?? 'scroll';
+    const anim = draft.animation ?? 'text';
     const complete = buildRule({ animation: anim }, draft as RulePatch);
     onAnimationDone(complete);
   }
@@ -1029,7 +1198,7 @@ function RuleRow({
       </Button>
 
       {/* test button — existing complete rules only, hover visible */}
-      {isExisting && completeRule && completeRule.animation !== 'none' && (
+      {isExisting && completeRule && completeRule.animation !== 'suppress' && (
         <>
         <span aria-live="polite" aria-atomic="true" className="sr-only">
           {testState === 'firing' ? 'Firing test' : testState === 'ok' ? 'Test succeeded' : testState === 'err' ? 'Test failed' : ''}

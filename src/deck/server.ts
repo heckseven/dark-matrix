@@ -1192,6 +1192,10 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
           bodyText?: string;
           style?: string;
           textSize?: string;
+          textStyle?: string;
+          textSpeed?: string;
+          textFlicker?: string;
+          textTransition?: string;
           textPosition?: string;
           overlayMode?: string;
           transition?: string;
@@ -1205,6 +1209,10 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
         const VALID_STYLES = ['text', 'dmx'];
         const VALID_COMPOSITES = ['replace', 'overlay'];
         const VALID_TEXT_SIZES = ['tiny', 'small', 'medium', 'large'];
+        const VALID_TEXT_STYLES = ['marquee', 'columnar', 'spine', 'bigglyph', 'neon', 'vegas'];
+        const VALID_TEXT_SPEEDS = ['slowest', 'slow', 'normal', 'fast', 'fast2', 'fast3'];
+        const VALID_TEXT_FLICKERS = ['none', 'low', 'medium', 'high'];
+        const VALID_TEXT_TRANSITIONS = ['none', 'slide', 'dissolve'];
         const VALID_TEXT_POSITIONS = ['top', 'middle', 'bottom'];
         const VALID_OVERLAY_MODES = ['or', 'replace', 'xor', 'halo'];
         const VALID_TRANSITIONS = ['wipe', 'scan', 'slide', 'dissolve', 'flash'];
@@ -1217,6 +1225,26 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
         if (parsed.textSize !== undefined && !VALID_TEXT_SIZES.includes(parsed.textSize)) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: false, error: 'invalid textSize' }));
+          return;
+        }
+        if (parsed.textStyle !== undefined && !VALID_TEXT_STYLES.includes(parsed.textStyle)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid textStyle' }));
+          return;
+        }
+        if (parsed.textSpeed !== undefined && !VALID_TEXT_SPEEDS.includes(parsed.textSpeed)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid textSpeed' }));
+          return;
+        }
+        if (parsed.textFlicker !== undefined && !VALID_TEXT_FLICKERS.includes(parsed.textFlicker)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid textFlicker' }));
+          return;
+        }
+        if (parsed.textTransition !== undefined && !VALID_TEXT_TRANSITIONS.includes(parsed.textTransition)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid textTransition' }));
           return;
         }
         if (parsed.textPosition !== undefined && !VALID_TEXT_POSITIONS.includes(parsed.textPosition)) {
@@ -1274,6 +1302,10 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
         };
         if (parsed.style !== undefined) cmd['style'] = parsed.style;
         if (parsed.textSize !== undefined) cmd['textSize'] = parsed.textSize;
+        if (parsed.textStyle !== undefined) cmd['textStyle'] = parsed.textStyle;
+        if (parsed.textSpeed !== undefined) cmd['textSpeed'] = parsed.textSpeed;
+        if (parsed.textFlicker !== undefined) cmd['textFlicker'] = parsed.textFlicker;
+        if (parsed.textTransition !== undefined) cmd['textTransition'] = parsed.textTransition;
         if (parsed.textPosition !== undefined) cmd['textPosition'] = parsed.textPosition;
         if (parsed.overlayMode !== undefined) cmd['overlayMode'] = parsed.overlayMode;
         if (parsed.transition !== undefined) cmd['transition'] = parsed.transition;
