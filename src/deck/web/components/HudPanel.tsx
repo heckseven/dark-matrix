@@ -223,6 +223,7 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
             netRxBps: msg.netRxBps ?? 0,
             netTxBps: msg.netTxBps ?? 0,
             ...(Array.isArray(msg.cpuCores) ? { cpuCores: msg.cpuCores as number[] } : {}),
+            ...(msg.cpuTempC !== undefined && msg.cpuTempC !== null ? { cpuTempC: msg.cpuTempC as number } : {}),
           };
           updateAllDataRenderers(stats);
         } else if (msg.type === 'audio-bands' && msg.bands) {

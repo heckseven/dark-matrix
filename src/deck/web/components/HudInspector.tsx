@@ -238,10 +238,11 @@ function TimerGrid({ currentWidget, onSettings }: {
 // ── Layer 2: Data grid ────────────────────────────────────────────────────
 
 const DATA_PRESETS: { id: string; label: string; style: DataStyle; widget: HudWidget }[] = [
-  { id: 'system',      label: 'system',    style: 'line',   widget: { widget: 'data', style: 'line',   top_left: 'cpu', top_right: 'ram', bottom_left: 'net_rx', bottom_right: 'net_tx' } },
-  { id: 'fill-system', label: 'fill',      style: 'fill',   widget: { widget: 'data', style: 'fill',   top_left: 'cpu', top_right: 'ram', bottom_left: 'net_rx', bottom_right: 'net_tx' } },
-  { id: 'cpu-scroll',  label: 'scroll',    style: 'scroll', widget: { widget: 'data', style: 'scroll', top_left: 'cpu', top_right: 'ram', bottom_left: 'net_rx', bottom_right: 'net_tx' } },
-  { id: 'cpu-cores',   label: 'cores',     style: 'cores',  widget: { widget: 'data', style: 'cores'  } },
+  { id: 'system',      label: 'system',    style: 'line',     widget: { widget: 'data', style: 'line',     top_left: 'cpu', top_right: 'ram', bottom_left: 'net_rx', bottom_right: 'net_tx' } },
+  { id: 'fill-system', label: 'fill',      style: 'fill',     widget: { widget: 'data', style: 'fill',     top_left: 'cpu', top_right: 'ram', bottom_left: 'net_rx', bottom_right: 'net_tx' } },
+  { id: 'cpu-scroll',  label: 'scroll',    style: 'scroll',   widget: { widget: 'data', style: 'scroll',   top_left: 'cpu', top_right: 'ram', bottom_left: 'net_rx', bottom_right: 'net_tx' } },
+  { id: 'cpu-cores',   label: 'cores',     style: 'cores',    widget: { widget: 'data', style: 'cores'    } },
+  { id: 'heatcore',    label: 'heatcore',  style: 'heatcore', widget: { widget: 'data', style: 'heatcore' } },
 ];
 
 function initDataRenderers(): Record<DataStyle, DataRenderer> {
@@ -250,6 +251,9 @@ function initDataRenderers(): Record<DataStyle, DataRenderer> {
     if (style === 'cores') {
       r.update({ cpuPct: 45, ramPct: 70, netRxBps: 1_000_000, netTxBps: 500_000,
         cpuCores: [80, 45, 30, 60, 70, 20, 50, 40] });
+    } else if (style === 'heatcore') {
+      r.update({ cpuPct: 45, ramPct: 0, netRxBps: 0, netTxBps: 0,
+        cpuCores: [80, 45, 30, 60, 70, 20, 50, 40, 55], cpuTempC: 42 });
     } else {
       // line, fill, scroll — feed metric history
       for (let i = 16; i >= 0; i--) {
@@ -260,7 +264,7 @@ function initDataRenderers(): Record<DataStyle, DataRenderer> {
     }
     return r;
   };
-  return { line: make('line'), fill: make('fill'), scroll: make('scroll'), cores: make('cores') };
+  return { line: make('line'), fill: make('fill'), scroll: make('scroll'), cores: make('cores'), heatcore: make('heatcore') };
 }
 
 function DataGrid({ currentWidget, onPick, onSettings }: {
@@ -273,7 +277,7 @@ function DataGrid({ currentWidget, onPick, onSettings }: {
 
   const [pixels, setPixels] = useState<Record<DataStyle, string>>(() => {
     const r = renderersRef.current!;
-    return { line: bwToB64(r.line.render()), fill: bwToB64(r.fill.render()), scroll: bwToB64(r.scroll.render()), cores: bwToB64(r.cores.render()) };
+    return { line: bwToB64(r.line.render()), fill: bwToB64(r.fill.render()), scroll: bwToB64(r.scroll.render()), cores: bwToB64(r.cores.render()), heatcore: bwToB64(r.heatcore.render()) };
   });
   const frameRef = useRef(0);
 
@@ -292,13 +296,17 @@ function DataGrid({ currentWidget, onPick, onSettings }: {
       r.line.update(metrics);
       r.fill.update(metrics);
       r.scroll.update(metrics);
-      r.cores.update({ cpuPct: 0, ramPct: 0, netRxBps: 0, netTxBps: 0, cpuCores: [
+      const cores = [
         Math.round(50 + 40 * Math.sin(base * 1.1)),       Math.round(30 + 30 * Math.sin(base * 0.9 + 1)),
         Math.round(70 + 25 * Math.sin(base * 1.3 + 2)),   Math.round(45 + 35 * Math.sin(base * 0.7 + 3)),
         Math.round(60 + 30 * Math.sin(base * 1.2)),       Math.round(40 + 40 * Math.sin(base * 0.8 + 1.5)),
         Math.round(55 + 35 * Math.sin(base * 1.4 + 0.5)), Math.round(65 + 25 * Math.sin(base * 1.1 + 2.5)),
-      ]});
-      setPixels({ line: bwToB64(r.line.render()), fill: bwToB64(r.fill.render()), scroll: bwToB64(r.scroll.render()), cores: bwToB64(r.cores.render()) });
+      ];
+      r.cores.update({ cpuPct: 0, ramPct: 0, netRxBps: 0, netTxBps: 0, cpuCores: cores });
+      r.heatcore.update({ cpuPct: 0, ramPct: 0, netRxBps: 0, netTxBps: 0,
+        cpuCores: [...cores, Math.round(50 + 35 * Math.sin(base * 0.95))],
+        cpuTempC: Math.round(42 + 8 * Math.sin(base * 0.2)) });
+      setPixels({ line: bwToB64(r.line.render()), fill: bwToB64(r.fill.render()), scroll: bwToB64(r.scroll.render()), cores: bwToB64(r.cores.render()), heatcore: bwToB64(r.heatcore.render()) });
     }, 100);
     return () => clearInterval(iid);
   }, []);
