@@ -7,11 +7,12 @@ export type DataStats = {
   ramPct: number;
   netRxBps: number;
   netTxBps: number;
-  cpuCores?: number[];  // per-core % (0–100), optional for backwards compat
+  cpuCores?: number[];       // per-core % (0–100), optional for backwards compat
+  cpuTempC?: number | null;  // average CPU temperature in °C, optional
 };
 
 export type DataMetric = 'cpu' | 'ram' | 'net_rx' | 'net_tx';
-export type DataStyle  = 'line' | 'fill' | 'scroll' | 'cores';
+export type DataStyle  = 'line' | 'fill' | 'scroll' | 'cores' | 'heatcore';
 
 export type DataWidgetConfig = {
   style?:       DataStyle;
@@ -22,13 +23,43 @@ export type DataWidgetConfig = {
 };
 
 export const DATA_STYLES: { id: DataStyle; label: string }[] = [
-  { id: 'line',   label: 'line'   },
-  { id: 'fill',   label: 'fill'   },
-  { id: 'scroll', label: 'scroll' },
-  { id: 'cores',  label: 'cores'  },
+  { id: 'line',     label: 'line'     },
+  { id: 'fill',     label: 'fill'     },
+  { id: 'scroll',   label: 'scroll'   },
+  { id: 'cores',    label: 'cores'    },
+  { id: 'heatcore', label: 'heatcore' },
 ];
 
-// Layout constants
+// ── Heatcore constants ────────────────────────────────────────────────────
+// Top row for each of the 9 bar columns at 100% usage (base row = 26).
+// Derived from the data_heatcore.dmx.json design file (frame 2).
+const HC_BAR_TOP  = [13, 22, 6, 1, 13, 24, 16, 25, 9] as const;
+const HC_BAR_BASE = 26;
+const HC_EASE     = 0.2;
+const HC_NUM_BARS = 9;
+// Digit glyphs (2 cols × 5 rows, col-major) from the design's frames 4–13.
+// glyph[d][col * 5 + row], col=0..1, row=0..4.
+type HcGlyph = readonly [number,number,number,number,number, number,number,number,number,number];
+const HC_GLYPHS: ReadonlyArray<HcGlyph> = [
+  [1,1,1,1,1, 1,1,1,1,1], // 0
+  [1,1,1,1,1, 0,0,0,0,0], // 1
+  [1,0,1,1,1, 1,1,0,0,1], // 2
+  [1,0,1,0,1, 1,1,1,1,1], // 3
+  [1,1,1,0,0, 0,1,1,1,1], // 4
+  [1,1,1,0,1, 1,0,1,1,0], // 5
+  [1,1,1,1,1, 0,0,1,1,1], // 6
+  [1,0,0,0,0, 1,1,1,1,1], // 7
+  [1,0,1,1,1, 1,0,1,1,1], // 8
+  [1,1,1,0,0, 1,1,1,1,1], // 9
+];
+// Temperature digit slot positions (rows 28–32 of the output frame).
+// HC_TEMP_ROW is 2 rows below HC_BAR_BASE, leaving a 1-row gap (row 27).
+const HC_TEMP_ROW      = HC_BAR_BASE + 2; // first row of temperature display
+const HC_TEMP_TENS_COL = 3;               // leftmost column of tens-digit slot
+const HC_TEMP_ONES_COL = 6;               // leftmost column of ones-digit slot
+const HC_TEMP_IND_COL  = 1;               // always-lit indicator column
+
+// ── Layout constants ──────────────────────────────────────────────────────
 const COLS       = 9;
 const ROWS       = 34;
 const HIST_LEN   = 17;
@@ -69,6 +100,11 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
   // coreValues = displayed (eased) values; coreTargets = latest data.
   let coreValues:  number[] = [];
   let coreTargets: number[] = [];
+
+  // heatcore: 9-bucket bar values + current temperature
+  let hcBarValues:  number[] = new Array<number>(HC_NUM_BARS).fill(0);
+  let hcBarTargets: number[] = new Array<number>(HC_NUM_BARS).fill(0);
+  let hcTemp: number | null = null;
 
   let netRxCeil = 1 * 1024 * 1024;
   let netTxCeil = 1 * 1024 * 1024;
@@ -184,6 +220,9 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
         // Snap on first data or when the core/bucket count changes; otherwise
         // render() eases coreValues toward coreTargets each frame.
         if (coreValues.length !== coreTargets.length) coreValues = [...coreTargets];
+      } else if (style === 'heatcore') {
+        hcBarTargets = cpuGroups(stats.cpuCores ?? [], HC_NUM_BARS);
+        hcTemp = stats.cpuTempC ?? null;
       } else {
         // line, fill, and scroll — use configurable metrics with full history
         updateCeilings(stats);
@@ -234,6 +273,38 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
           const botStart = Math.floor((COLS - botCount) / 2);
           for (let i = 0; i < botCount; i++) {
             drawHalfBarBot(f, coreValues[topCount + i] ?? 0, botStart + i);
+          }
+        }
+      } else if (style === 'heatcore') {
+        // Ease bar heights toward targets each frame.
+        for (let i = 0; i < HC_NUM_BARS; i++) {
+          const cur = hcBarValues[i] ?? 0;
+          const tgt = hcBarTargets[i] ?? 0;
+          hcBarValues[i] = cur + (tgt - cur) * HC_EASE;
+        }
+        // Draw each bar column upward from HC_BAR_BASE.
+        for (let col = 0; col < HC_NUM_BARS; col++) {
+          const v = hcBarValues[col] ?? 0;
+          const maxH = HC_BAR_BASE - (HC_BAR_TOP[col] ?? HC_BAR_BASE) + 1;
+          const filled = Math.round(v * maxH);
+          for (let i = 0; i < filled; i++) {
+            f[col * ROWS + (HC_BAR_BASE - i)] = 255;
+          }
+        }
+        // Draw temperature display (rows HC_TEMP_ROW .. HC_TEMP_ROW+4).
+        // Static indicator column is always lit when we have any reading.
+        if (hcTemp !== null) {
+          for (let r = 0; r < 5; r++) f[HC_TEMP_IND_COL * ROWS + HC_TEMP_ROW + r] = 255;
+          const t = Math.max(0, Math.min(99, Math.round(hcTemp)));
+          const tens = Math.floor(t / 10);
+          const ones = t % 10;
+          const gTens = HC_GLYPHS[tens]!;
+          const gOnes = HC_GLYPHS[ones]!;
+          for (let c = 0; c < 2; c++) {
+            for (let r = 0; r < 5; r++) {
+              if (gTens[c * 5 + r]) f[(HC_TEMP_TENS_COL + c) * ROWS + HC_TEMP_ROW + r] = 255;
+              if (gOnes[c * 5 + r]) f[(HC_TEMP_ONES_COL + c) * ROWS + HC_TEMP_ROW + r] = 255;
+            }
           }
         }
       } else {

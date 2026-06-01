@@ -6,6 +6,7 @@ export type ProcStats = {
   netRxBps: number;             // bytes/sec
   netTxBps: number;             // bytes/sec
   cpuCores: number[];           // per-core % usage (0–100), length = logical core count
+  cpuTempC: number | null;      // average CPU temp in °C, null when unavailable
   batteryPct: number | null;    // 0–100, null when no battery present
   batteryCharging: boolean | null; // false = discharging (on battery), null = no battery
 };
@@ -76,6 +77,26 @@ async function readBatteryRaw(): Promise<BatteryRaw> {
   return null;
 }
 
+async function readCpuTempC(): Promise<number | null> {
+  let dir: string[];
+  try {
+    dir = await fs.readdir('/sys/class/thermal');
+  } catch {
+    return null;
+  }
+  let sum = 0, count = 0;
+  await Promise.all(
+    dir.filter(n => /^thermal_zone\d+$/.test(n)).map(async (name) => {
+      try {
+        const raw = await fs.readFile(`/sys/class/thermal/${name}/temp`, 'utf-8');
+        const millic = parseInt(raw.trim(), 10);
+        if (!isNaN(millic) && millic >= 0) { sum += millic / 1000; count++; }
+      } catch { /* skip unavailable zones */ }
+    }),
+  );
+  return count > 0 ? Math.round(sum / count) : null;
+}
+
 async function readNetRaw(): Promise<NetRaw> {
   const text = await fs.readFile('/proc/net/dev', 'utf-8');
   let rx = 0n, tx = 0n;
@@ -109,7 +130,7 @@ export function watchProcStats(
     polling = true;
     try {
       const now = Date.now();
-      const [{ agg, cores }, ramPct, net, battery] = await Promise.all([readCpuAllRaw(), readRamPct(), readNetRaw(), readBatteryRaw()]);
+      const [{ agg, cores }, ramPct, net, battery, cpuTempC] = await Promise.all([readCpuAllRaw(), readRamPct(), readNetRaw(), readBatteryRaw(), readCpuTempC()]);
 
       if (prevAgg === null || prevNet === null) {
         prevAgg   = agg;
@@ -146,6 +167,7 @@ export function watchProcStats(
         netRxBps:        Math.max(0, netRxBps),
         netTxBps:        Math.max(0, netTxBps),
         cpuCores:        cpuCores.map(v => Math.max(0, Math.min(100, v))),
+        cpuTempC:        cpuTempC,
         batteryPct:      battery?.pct ?? null,
         batteryCharging: battery?.charging ?? null,
       });
