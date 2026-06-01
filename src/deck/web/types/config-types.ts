@@ -36,17 +36,26 @@ export type TwitchConfig = {
 };
 
 export type NotificationRule = {
-  source?: 'ec-switch' | 'vm' | 'claude' | 'desktop-notification' | 'manual' | 'twitch';
+  source?: 'ec-switch' | 'vm' | 'claude' | 'desktop-notification' | 'manual' | 'twitch' | 'battery';
+  battery_threshold?: number;
   app_name_glob?: string;
   urgency?: 'low' | 'normal' | 'critical' | 'any';
   content_glob?: string;
-  animation: 'scroll' | 'dmx' | 'none';
+  animation: 'text' | 'design' | 'suppress';
+  text_content?: string;
+  text_size?: 'tiny' | 'small' | 'medium' | 'large';
+  text_style?: 'marquee' | 'columnar' | 'spine' | 'bigglyph' | 'neon' | 'vegas';
+  text_speed?: 'slowest' | 'slow' | 'normal' | 'fast' | 'fast2' | 'fast3';
+  text_flicker?: 'none' | 'low' | 'medium' | 'high';
+  text_transition?: 'none' | 'slide' | 'dissolve';
   asset_path?: string;
   composite?: 'replace' | 'overlay';
   overlay_mode?: 'or' | 'replace' | 'xor' | 'halo';
   transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash';
   duration_ms_override?: number;
   loop_count?: number;
+  mirror?: boolean;
+  side?: 'left' | 'right';
   dmx_path?: string;
 };
 

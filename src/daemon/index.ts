@@ -265,6 +265,41 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     return () => { stopped = true; anim.stop(); };
   }
 
+  function runTextRenderersOnModules(
+    rendL: ReturnType<typeof createTextRenderer>,
+    rendR: ReturnType<typeof createTextRenderer>,
+    expiresAt: number,
+    side: 'left' | 'right' | undefined,
+    onComplete?: () => void,
+  ): () => void {
+    const { left, right } = currentConfig.modules;
+    const frameMs = 1000 / 20;
+    let stopped = false;
+
+    const loop = async () => {
+      let nextAt = Date.now();
+      while (!stopped && Date.now() < expiresAt) {
+        const now = new Date();
+        const lf = side !== 'right' ? rendL.render(now) : createFrame();
+        const rf = side !== 'left' ? rendR.render(now) : createFrame();
+        const [cl, cr] = composeFrames([lf, rf], activeOverlay);
+        try { if (left) await transport.frameBw(packBW(cl), left); } catch { /* non-fatal */ }
+        try { if (right) await transport.frameBw(packBW(cr), right); } catch { /* non-fatal */ }
+        nextAt += frameMs;
+        const wait = nextAt - Date.now();
+        if (wait > 0) await new Promise<void>(r => setTimeout(r, wait));
+      }
+      if (!stopped) {
+        if (left) await transport.release(left).catch(() => {});
+        if (right) await transport.release(right).catch(() => {});
+        onComplete?.();
+      }
+    };
+
+    void loop();
+    return () => { stopped = true; rendL.stop(); rendR.stop(); };
+  }
+
 
   async function resolveDefaultDeviceId(
     role: '@DEFAULT_AUDIO_SINK@' | '@DEFAULT_AUDIO_SOURCE@',
@@ -1064,9 +1099,12 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   }
 
   function startTextNotification(intent: DisplayIntent, composite: 'replace' | 'overlay'): void {
-    const safe = intent.content.replace(/[^\x20-\x7e]/g, '').slice(0, SCROLL_MAX_LEN);
+    const rawText = intent.textContent ?? intent.content;
+    const safe = rawText.replace(/[^\x20-\x7e]/g, '').slice(0, SCROLL_MAX_LEN);
     const text = safe.length > 0 ? safe : '???';
     const size = intent.textSize ?? 'small';
+    const style = intent.textStyle ?? 'marquee';
+    const side = intent.side;
 
     const OVERLAY_STRIP_ROWS = 8;
     const position = intent.textPosition ?? 'bottom';
@@ -1074,33 +1112,84 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       : position === 'middle' ? Math.floor((FRAME_ROWS - OVERLAY_STRIP_ROWS) / 2)
       : FRAME_ROWS - OVERLAY_STRIP_ROWS;
 
-    const anim = createScrollAnimation({
-      text, loop: false, size,
-      ...(composite === 'overlay' ? { stripRows: OVERLAY_STRIP_ROWS, stripStart: textStripStart } : {}),
-    });
+    // Marquee with no side restriction: use scroll animation for natural single-pass completion.
+    if (style === 'marquee' && side === undefined) {
+      const anim = createScrollAnimation({
+        text, loop: false, size,
+        ...(composite === 'overlay' ? { stripRows: OVERLAY_STRIP_ROWS, stripStart: textStripStart } : {}),
+      });
+
+      if (composite === 'replace') {
+        stopAnim();
+        runOnModules(anim, undefined, () => {
+          const curr = dispatcher.current();
+          if (!curr || curr.id === intent.id) resumeAfterInterrupt();
+        });
+        return;
+      }
+
+      const replaceStart = Math.max(0, textStripStart - 1);
+      const replaceEnd = Math.min(FRAME_ROWS, textStripStart + OVERLAY_STRIP_ROWS + 1);
+
+      let stoppedScroll = false;
+      stopCurrentOverlay = () => { stoppedScroll = true; anim.stop(); setActiveOverlay(null); };
+      void (async () => {
+        const iter = anim[Symbol.asyncIterator]();
+        const frameMs = 1000 / 20;
+        let nextAt = Date.now();
+        while (!stoppedScroll) {
+          const result = await iter.next();
+          if (stoppedScroll || result.done) break;
+          const [lf, rf] = result.value;
+          setActiveOverlay({ left: lf, right: rf, mode: intent.overlayMode ?? 'replace', stripStart: replaceStart, stripEnd: replaceEnd });
+          nextAt += frameMs;
+          const wait = nextAt - Date.now();
+          if (wait > 0) await new Promise<void>(r => setTimeout(r, wait));
+        }
+        if (!stoppedScroll) {
+          setActiveOverlay(null);
+          stopCurrentOverlay = null;
+          const remaining = intent.expiresAt - Date.now();
+          setTimeout(() => dispatcher.gc(), Math.max(0, remaining));
+        }
+      })();
+      return;
+    }
+
+    // All other styles (and marquee with side restriction): use TextRenderer, loop until expiresAt.
+    const widgetCfg = {
+      text,
+      style,
+      size,
+      ...(intent.textSpeed !== undefined ? { speed: intent.textSpeed } : {}),
+      ...(intent.textFlicker !== undefined ? { flicker: intent.textFlicker } : {}),
+      ...(intent.textTransition !== undefined ? { transition: intent.textTransition } : {}),
+    };
+    const rendL = createTextRenderer(widgetCfg, 'left');
+    const rendR = createTextRenderer(widgetCfg, 'right');
 
     if (composite === 'replace') {
       stopAnim();
-      runOnModules(anim, undefined, () => {
+      stopCurrentAnim = runTextRenderersOnModules(rendL, rendR, intent.expiresAt, side, () => {
         const curr = dispatcher.current();
         if (!curr || curr.id === intent.id) resumeAfterInterrupt();
       });
       return;
     }
 
+    // Overlay path for non-marquee styles
     const replaceStart = Math.max(0, textStripStart - 1);
     const replaceEnd = Math.min(FRAME_ROWS, textStripStart + OVERLAY_STRIP_ROWS + 1);
 
     let stopped = false;
-    stopCurrentOverlay = () => { stopped = true; anim.stop(); setActiveOverlay(null); };
+    stopCurrentOverlay = () => { stopped = true; rendL.stop(); rendR.stop(); setActiveOverlay(null); };
     void (async () => {
-      const iter = anim[Symbol.asyncIterator]();
       const frameMs = 1000 / 20;
       let nextAt = Date.now();
-      while (!stopped) {
-        const result = await iter.next();
-        if (stopped || result.done) break;
-        const [lf, rf] = result.value;
+      while (!stopped && Date.now() < intent.expiresAt) {
+        const now = new Date();
+        const lf = side !== 'right' ? rendL.render(now) : null;
+        const rf = side !== 'left' ? rendR.render(now) : null;
         setActiveOverlay({ left: lf, right: rf, mode: intent.overlayMode ?? 'replace', stripStart: replaceStart, stripEnd: replaceEnd });
         nextAt += frameMs;
         const wait = nextAt - Date.now();
@@ -1391,9 +1480,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   function routeAndPush(base: DisplayIntent): void {
     const route = routeNotification(base, currentConfig.notification_rules ?? []);
     recordNotificationExample(base.source, base.content);
-    if (route.action === 'none') return;
+    if (route.action === 'suppress') return;
     const intent: DisplayIntent = { ...base };
-    intent.style = route.action === 'scroll' ? 'text' : route.action;
+    intent.style = route.action === 'text' ? 'text' : 'dmx';
     intent.composite = route.composite;
     if (route.assetPath !== undefined) intent.assetPath = route.assetPath;
     if (route.overlayMode !== undefined) intent.overlayMode = route.overlayMode;
@@ -1406,6 +1495,12 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     }
     if (route.mirror !== undefined) intent.mirror = route.mirror;
     if (route.side !== undefined) intent.side = route.side;
+    if (route.textContent !== undefined) intent.textContent = route.textContent;
+    if (route.textSize !== undefined) intent.textSize = route.textSize;
+    if (route.textStyle !== undefined) intent.textStyle = route.textStyle;
+    if (route.textSpeed !== undefined) intent.textSpeed = route.textSpeed;
+    if (route.textFlicker !== undefined) intent.textFlicker = route.textFlicker;
+    if (route.textTransition !== undefined) intent.textTransition = route.textTransition;
     dispatcher.push(intent);
   }
 
@@ -1953,6 +2048,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 body?: string;
                 style?: 'text' | 'dmx';
                 textSize?: 'tiny' | 'small' | 'medium' | 'large';
+                textStyle?: string;
+                textSpeed?: string;
+                textFlicker?: string;
+                textTransition?: string;
                 textPosition?: 'top' | 'middle' | 'bottom';
                 overlayMode?: 'or' | 'replace' | 'xor' | 'halo';
                 transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash';
@@ -1965,13 +2064,18 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               };
               const n = { appName: m.appName ?? 'test', summary: m.summary ?? 'test notification', body: m.body ?? '' };
               const base = notificationIntent(n);
-              const route = routeNotification(base, currentConfig.notification_rules ?? [], 'scroll');
-              const effectiveAction = m.style === 'text' ? 'scroll' : (m.style ?? route.action);
-              if (effectiveAction !== 'none') {
+              const route = routeNotification(base, currentConfig.notification_rules ?? [], 'text');
+              const routeStyle: 'text' | 'dmx' = route.action === 'design' ? 'dmx' : 'text';
+              const effectiveStyle = m.style ?? (route.action === 'suppress' ? undefined : routeStyle);
+              if (effectiveStyle !== undefined) {
                 const intent: DisplayIntent = { ...base };
-                intent.style = effectiveAction === 'scroll' ? 'text' : effectiveAction;
+                intent.style = effectiveStyle;
                 intent.composite = m.composite ?? route.composite;
-                if (m.textSize !== undefined) intent.textSize = m.textSize;
+                if (m.textSize !== undefined) intent.textSize = m.textSize as TextSize;
+                if (m.textStyle !== undefined && (TEXT_STYLES as readonly string[]).includes(m.textStyle)) intent.textStyle = m.textStyle as TextStyle;
+                if (m.textSpeed !== undefined && (TEXT_SPEEDS as readonly string[]).includes(m.textSpeed)) intent.textSpeed = m.textSpeed as TextSpeed;
+                if (m.textFlicker !== undefined && (TEXT_FLICKERS as readonly string[]).includes(m.textFlicker)) intent.textFlicker = m.textFlicker as TextFlicker;
+                if (m.textTransition !== undefined && (TEXT_TRANSITIONS as readonly string[]).includes(m.textTransition)) intent.textTransition = m.textTransition as TextTransition;
                 if (m.textPosition !== undefined) intent.textPosition = m.textPosition;
                 if (m.overlayMode !== undefined) intent.overlayMode = m.overlayMode;
                 if (m.transition !== undefined) intent.transition = m.transition;
@@ -1990,7 +2094,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 if (m.side !== undefined) intent.side = m.side;
                 dispatcher.push(intent);
               }
-              socket.write(JSON.stringify({ ok: true, action: effectiveAction }) + '\n');
+              socket.write(JSON.stringify({ ok: true, action: effectiveStyle ?? 'suppress' }) + '\n');
               break;
             }
             case 'twitch-notify': {

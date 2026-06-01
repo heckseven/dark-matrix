@@ -104,8 +104,8 @@ export const DirtyWithAllTabs: Story = {
             dmx_path: '/home/user/startup.dmx.json',
           },
           notification_rules: [
-            { app_name_glob: 'slack', urgency: 'normal', animation: 'scroll' },
-            { app_name_glob: '*', animation: 'dmx', dmx_path: '/home/user/notif.dmx.json' },
+            { app_name_glob: 'slack', urgency: 'normal', animation: 'text' },
+            { app_name_glob: '*', animation: 'design', dmx_path: '/home/user/notif.dmx.json' },
           ],
           hud_presets: [
             { name: 'day', left: { widget: 'clock', face: 'elegant' }, right: { widget: 'data' } },

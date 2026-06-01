@@ -2,6 +2,7 @@ import type { SwitchEvent } from './ec-switches.js';
 import type { VmEvent } from './vm-source.js';
 import type { ClaudeActivityEvent } from './claude-source.js';
 import type { DesktopNotification } from './dbus-notifications.js';
+import type { TextStyle, TextSize, TextSpeed, TextFlicker, TextTransition } from '../animations/text-renderers.js';
 
 export type DisplaySource = 'ec-switch' | 'vm' | 'claude' | 'desktop-notification' | 'manual' | 'twitch' | 'battery';
 
@@ -13,7 +14,12 @@ export type DisplayIntent = {
   durationMs: number;
   expiresAt: number;
   style?: 'text' | 'dmx';
-  textSize?: 'tiny' | 'small' | 'medium' | 'large';
+  textContent?: string;
+  textSize?: TextSize;
+  textStyle?: TextStyle;
+  textSpeed?: TextSpeed;
+  textFlicker?: TextFlicker;
+  textTransition?: TextTransition;
   textPosition?: 'top' | 'middle' | 'bottom';
   overlayMode?: 'or' | 'replace' | 'xor' | 'halo';
   transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash';
@@ -26,7 +32,7 @@ export type DisplayIntent = {
 
 export type NotificationDisplayOptions = {
   style?: 'text' | 'dmx';
-  textSize?: 'tiny' | 'small' | 'medium' | 'large';
+  textSize?: TextSize;
   textPosition?: 'top' | 'middle' | 'bottom';
   overlayMode?: 'or' | 'replace' | 'xor' | 'halo';
   transition?: 'wipe' | 'scan' | 'slide' | 'dissolve' | 'flash';

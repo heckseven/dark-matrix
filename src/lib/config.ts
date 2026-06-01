@@ -59,25 +59,44 @@ const HudPresetSchema = z.object({
   match: z.enum(['all', 'any']).optional(),
 });
 
-const NotificationRuleSchema = z.object({
-  app_name_glob: z.string().optional(),
-  urgency: z.enum(['low', 'normal', 'critical', 'any']).optional(),
-  animation: z.enum(['scroll', 'dmx', 'none']),
-  scroll_text: z.string().max(200).optional(),
-  scroll_size: z.enum(['tiny', 'small', 'medium', 'large']).optional(),
-  dmx_path: z.string().regex(/\.dmx\.json$/i).optional(),
-  source: z.enum(['ec-switch', 'vm', 'claude', 'desktop-notification', 'manual', 'twitch', 'battery']).optional(),
-  battery_threshold: z.number().int().min(1).max(99).optional(),
-  content_glob: z.string().optional(),
-  asset_path: z.string().optional(),
-  composite: z.enum(['replace', 'overlay']).optional(),
-  overlay_mode: z.enum(['or', 'replace', 'xor', 'halo']).optional(),
-  transition: z.enum(['wipe', 'scan', 'slide', 'dissolve', 'flash']).optional(),
-  duration_ms_override: z.number().int().positive().optional(),
-  loop_count: z.number().int().min(1).optional(),
-  mirror: z.boolean().optional(),
-  side: z.enum(['left', 'right']).optional(),
-});
+const NotificationRuleSchema = z.preprocess(
+  (v) => {
+    if (typeof v !== 'object' || v === null) return v;
+    const obj = v as Record<string, unknown>;
+    const out: Record<string, unknown> = { ...obj };
+    // Migrate animation enum values from old names
+    if (out['animation'] === 'scroll') out['animation'] = 'text';
+    else if (out['animation'] === 'dmx') out['animation'] = 'design';
+    else if (out['animation'] === 'none') out['animation'] = 'suppress';
+    // Migrate scroll_text → text_content, scroll_size → text_size
+    if ('scroll_text' in out && !('text_content' in out)) { out['text_content'] = out['scroll_text']; delete out['scroll_text']; }
+    if ('scroll_size' in out && !('text_size' in out)) { out['text_size'] = out['scroll_size']; delete out['scroll_size']; }
+    return out;
+  },
+  z.object({
+    app_name_glob: z.string().optional(),
+    urgency: z.enum(['low', 'normal', 'critical', 'any']).optional(),
+    animation: z.enum(['text', 'design', 'suppress']),
+    text_content: z.string().max(200).optional(),
+    text_size: z.enum(['tiny', 'small', 'medium', 'large']).optional(),
+    text_style: z.enum(TEXT_STYLES).optional().catch(undefined),
+    text_speed: z.enum(TEXT_SPEEDS).optional().catch(undefined),
+    text_flicker: z.enum(TEXT_FLICKERS).optional().catch(undefined),
+    text_transition: z.enum(TEXT_TRANSITIONS).optional().catch(undefined),
+    dmx_path: z.string().regex(/\.dmx\.json$/i).optional(),
+    source: z.enum(['ec-switch', 'vm', 'claude', 'desktop-notification', 'manual', 'twitch', 'battery']).optional(),
+    battery_threshold: z.number().int().min(1).max(99).optional(),
+    content_glob: z.string().optional(),
+    asset_path: z.string().optional(),
+    composite: z.enum(['replace', 'overlay']).optional(),
+    overlay_mode: z.enum(['or', 'replace', 'xor', 'halo']).optional(),
+    transition: z.enum(['wipe', 'scan', 'slide', 'dissolve', 'flash']).optional(),
+    duration_ms_override: z.number().int().positive().optional(),
+    loop_count: z.number().int().min(1).optional(),
+    mirror: z.boolean().optional(),
+    side: z.enum(['left', 'right']).optional(),
+  }),
+);
 
 const CastColumnSchema = z.object({
   provider: z.enum(['twitch']),
@@ -231,10 +250,10 @@ export const DEFAULT_CONFIG: Config = {
     },
   ],
   notification_rules: [
-    { source: 'desktop-notification', animation: 'scroll', scroll_size: 'small' },
-    { source: 'ec-switch', animation: 'scroll', scroll_size: 'medium' },
-    { source: 'claude', content_glob: 'INPUT', animation: 'dmx', asset_path: 'claude_jump.dmx.json', loop_count: 3 },
-    { source: 'vm', animation: 'scroll', scroll_size: 'small' },
+    { source: 'desktop-notification', animation: 'text', text_size: 'small' },
+    { source: 'ec-switch', animation: 'text', text_size: 'medium' },
+    { source: 'claude', content_glob: 'INPUT', animation: 'design', asset_path: 'claude_jump.dmx.json', loop_count: 3 },
+    { source: 'vm', animation: 'text', text_size: 'small' },
   ],
 };
 
