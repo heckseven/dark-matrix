@@ -238,12 +238,12 @@ function TimerGrid({ currentWidget, onSettings }: {
 // ── Layer 2: Data grid ────────────────────────────────────────────────────
 
 const DATA_PRESETS: { id: string; label: string; style: DataStyle; widget: HudWidget }[] = [
+  { id: 'heatcore',    label: 'heatcore',  style: 'heatcore', widget: { widget: 'data', style: 'heatcore' } },
+  { id: 'gpuburn',     label: 'gpuburn',   style: 'gpuburn',  widget: { widget: 'data', style: 'gpuburn'  } },
   { id: 'system',      label: 'system',    style: 'line',     widget: { widget: 'data', style: 'line',     top_left: 'cpu', top_right: 'ram', bottom_left: 'net_rx', bottom_right: 'net_tx' } },
   { id: 'fill-system', label: 'fill',      style: 'fill',     widget: { widget: 'data', style: 'fill',     top_left: 'cpu', top_right: 'ram', bottom_left: 'net_rx', bottom_right: 'net_tx' } },
   { id: 'cpu-scroll',  label: 'scroll',    style: 'scroll',   widget: { widget: 'data', style: 'scroll',   top_left: 'cpu', top_right: 'ram', bottom_left: 'net_rx', bottom_right: 'net_tx' } },
   { id: 'cpu-cores',   label: 'cores',     style: 'cores',    widget: { widget: 'data', style: 'cores'    } },
-  { id: 'heatcore',    label: 'heatcore',  style: 'heatcore', widget: { widget: 'data', style: 'heatcore' } },
-  { id: 'gpuburn',     label: 'gpuburn',   style: 'gpuburn',  widget: { widget: 'data', style: 'gpuburn'  } },
 ];
 
 function initDataRenderers(): Record<DataStyle, DataRenderer> {
