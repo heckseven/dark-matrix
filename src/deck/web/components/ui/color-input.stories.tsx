@@ -11,16 +11,21 @@ const meta = {
     docs: {
       description: {
         component: [
-          'A hex color input built on React Aria `ColorField`.',
+          'A color picker built on React Aria `ColorPicker`.',
           '',
-          'Styled to match the project\'s `[ value ]` bracket aesthetic.',
-          'The color swatch updates live as the user types. Arrow keys increment',
-          'individual color channels. Accepts any CSS color format and converts to hex.',
+          'A 96×96 swatch shows the current color with the hex value overlaid.',
+          'Clicking the swatch opens a popover containing:',
+          '- `ColorArea` — 2D saturation/brightness square',
+          '- `ColorSlider` — hue rail',
+          '- `ColorField` — hex text entry in the `[ value ]` bracket style',
+          '',
+          'All three stay in sync via shared `ColorPicker` context.',
+          'A "reset" button appears below the swatch when `onClear` is provided and a value is set.',
           '',
           '**Usage**',
           '- Pass `value` as a `#rrggbb` hex string.',
-          '- `onChange` fires only when the entered value is a valid color.',
-          '- Provide `onClear` to render a "reset" label when a value is set.',
+          '- `onChange` fires on every valid color change (drag, type, or arrow keys).',
+          '- Provide `onClear` to enable the reset affordance.',
         ].join('\n'),
       },
     },
@@ -35,20 +40,20 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** No value — input is empty, swatch is transparent. */
+/** No value — swatch shows the muted background and "—" label. */
 export const Empty: Story = {};
 
-/** A preset design-system color. */
+/** A design-system green — swatch shows the color, no reset button. */
 export const WithValue: Story = {
-  args: { value: '#0dc45c' },
+  args: { value: '#0dc45c', onClear: undefined },
 };
 
-/** Shows the reset button when both value and onClear are provided. */
+/** Value with reset — reset button appears below the swatch. */
 export const WithClear: Story = {
   args: { value: '#fe428f' },
 };
 
-/** Interactive controlled example — type any color or use arrow keys to adjust channels. */
+/** Interactive — open the picker and drag to choose a color. */
 export const Controlled: Story = {
   render: (args) => {
     const [hex, setHex] = React.useState('#0dc45c');
@@ -63,8 +68,17 @@ export const Controlled: Story = {
   },
 };
 
-/** Disabled state. */
-export const Disabled: Story = {
-  args: { value: '#f59e0b', isDisabled: true },
-  parameters: { a11y: { context: { exclude: ['[aria-hidden="true"]'] } } },
+/** Starts with no value — open the picker, pick a color, then reset. */
+export const ControlledEmpty: Story = {
+  render: (args) => {
+    const [hex, setHex] = React.useState<string | undefined>(undefined);
+    return (
+      <ColorInput
+        {...args}
+        value={hex}
+        onChange={v => { setHex(v); args.onChange?.(v); }}
+        onClear={() => { setHex(undefined); args.onClear?.(); }}
+      />
+    );
+  },
 };

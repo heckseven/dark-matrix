@@ -57,7 +57,7 @@ export function ColorInput({
 
   return (
     <span className={cn('inline-flex flex-col gap-1', className)}>
-      <ColorPicker value={color} onChange={handleChange} className="inline-flex">
+      <ColorPicker value={color} onChange={handleChange}>
         <Popover>
           <PopoverTrigger asChild>
             <button
