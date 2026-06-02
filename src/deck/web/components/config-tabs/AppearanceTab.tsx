@@ -1,6 +1,6 @@
 import { Radio } from '../ui/radio.js';
 import { Text } from '../ui/text.js';
-import { TabFrame, TabRow } from './tab-frame.js';
+import { TabFrame } from './tab-frame.js';
 import { CornerBrackets } from '../MatrixItem.js';
 import { ColorInput } from '../ui/color-input.js';
 import type { Appearance } from '../../types/config-types.js';
@@ -200,14 +200,15 @@ export function AppearanceTab({ value, onChange }: AppearanceTabProps) {
       )}
 
       {/* Accent */}
-      <TabRow label="accent">
+      <fieldset className="border-0 p-0 m-0">
+        <legend className={LEGEND}>accent</legend>
         <ColorInput
           value={appearance.accent}
           onChange={(hex) => onChange({ ...appearance, accent: hex })}
           onClear={appearance.accent ? () => onChange(dropAccent(appearance)) : undefined}
           aria-label="Accent color override"
         />
-      </TabRow>
+      </fieldset>
     </TabFrame>
   );
 }
