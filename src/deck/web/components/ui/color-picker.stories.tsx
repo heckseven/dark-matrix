@@ -17,14 +17,15 @@ import { Input } from './input.js';
 // ---------------------------------------------------------------------------
 
 const PALETTE = [
-  { label: 'matrix',   hex: '#0DC45C' },
-  { label: 'amber',    hex: '#F59E0B' },
-  { label: 'volt',     hex: '#D4FF00' },
-  { label: 'cyan',     hex: '#22D3EE' },
-  { label: 'blue',     hex: '#1B8BFF' },
-  { label: 'pink',     hex: '#FF1870' },
-  { label: 'red',      hex: '#FF3131' },
-  { label: 'white',    hex: '#FFFFFF' },
+  { label: 'gr455',  hex: '#0dc45c' },
+  { label: 'p1nk',   hex: '#fe428f' },
+  { label: '5ky',    hex: '#6dc3ff' },
+  { label: '5un',    hex: '#fff420' },
+  { label: 'y3llow', hex: '#ffff90' },
+  { label: 'cuti3',  hex: '#e6b723' },
+  { label: 'red5un', hex: '#ff3131' },
+  { label: 'whi7e',  hex: '#ffffff' },
+  { label: 'bl4ck',  hex: '#000000' },
 ] as const;
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
@@ -144,7 +145,7 @@ export const RadioList: Story = {
                   borderRadius: '50%',
                   background: hex,
                   flexShrink: 0,
-                  border: hex === '#FFFFFF' ? '1px solid rgba(255,255,255,0.2)' : undefined,
+                  border: hex === '#ffffff' || hex === '#000000' ? '1px solid rgba(128,128,128,0.2)' : undefined,
                 }}
               />
               <Text as="span" size="xs" variant="muted">{label}</Text>
@@ -189,7 +190,7 @@ export const CompactStrip: Story = {
                     background: hex,
                     outline: active ? '2px solid var(--color-foreground)' : undefined,
                     outlineOffset: active ? '2px' : undefined,
-                    border: hex === '#FFFFFF' ? '1px solid rgba(255,255,255,0.15)' : undefined,
+                    border: hex === '#ffffff' || hex === '#000000' ? '1px solid rgba(128,128,128,0.2)' : undefined,
                   }}
                 />
               </button>
