@@ -1170,9 +1170,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     if (composite === 'replace') {
       stopAnim();
-      stopCurrentAnim = runTextRenderersOnModules(rendL, rendR, intent.expiresAt, side, () => {
-        const curr = dispatcher.current();
-        if (!curr || curr.id === intent.id) resumeAfterInterrupt();
+stopCurrentAnim = runTextRenderersOnModules(rendL, rendR, intent.expiresAt, side, () => {
+        stopCurrentAnim = null; // clear before complete() so next intent sees no live anim
+        dispatcher.complete(intent.id);
       });
       return;
     }
@@ -1435,11 +1435,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     if (!stopped) {
       if (composite === 'replace') {
-        stopCurrentAnim = null;
         if (leftDev) await transport.release(leftDev).catch(() => {});
         if (rightDev) await transport.release(rightDev).catch(() => {});
-        const curr = dispatcher.current();
-        if (!curr || curr.id === intent.id) resumeAfterInterrupt();
+        stopCurrentAnim = null; // clear before complete() so next intent sees no live anim
+        dispatcher.complete(intent.id);
       } else {
         setActiveOverlay(null);
         stopCurrentOverlay = null;

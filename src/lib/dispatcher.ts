@@ -141,8 +141,8 @@ export class Dispatcher {
 
   push(intent: DisplayIntent): void {
     this.queue.push(intent);
-    // Higher priority first; ties broken by most recently pushed (higher expiresAt)
-    this.queue.sort((a, b) => b.priority - a.priority || b.expiresAt - a.expiresAt);
+    // Higher priority first; ties broken by arrival order (lower expiresAt = arrived earlier)
+    this.queue.sort((a, b) => b.priority - a.priority || a.expiresAt - b.expiresAt);
     this._notify();
   }
 
@@ -155,6 +155,12 @@ export class Dispatcher {
     const now = Date.now();
     const before = this.queue.length;
     this.queue = this.queue.filter(i => i.expiresAt > now);
+    if (this.queue.length !== before) this._notify();
+  }
+
+  complete(id: string): void {
+    const before = this.queue.length;
+    this.queue = this.queue.filter(i => i.id !== id);
     if (this.queue.length !== before) this._notify();
   }
 
