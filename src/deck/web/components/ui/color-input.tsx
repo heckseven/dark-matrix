@@ -31,7 +31,7 @@ export interface ColorInputProps {
   /** Hex color string (#rrggbb). */
   value?: string;
   onChange?: (hex: string) => void;
-  /** Renders a "reset" label beside the swatch when value is set. */
+  /** Renders a "reset" button below the swatch when value is set. */
   onClear?: () => void;
   'aria-label'?: string;
   className?: string;
@@ -56,7 +56,7 @@ export function ColorInput({
   }
 
   return (
-    <span className={cn('inline-flex items-center gap-2', className)}>
+    <span className={cn('inline-flex flex-col gap-1', className)}>
       <ColorPicker value={color} onChange={handleChange} className="inline-flex">
         <Popover>
           <PopoverTrigger asChild>
@@ -64,16 +64,23 @@ export function ColorInput({
               className="relative group focus:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background rounded-sm"
               aria-label={ariaLabel ?? 'Pick color'}
             >
+              {/* 96×96 swatch */}
               <div
-                className="relative"
+                className="relative overflow-hidden"
                 style={{
-                  width: 24,
-                  height: 24,
+                  width: 96,
+                  height: 96,
                   background: value ?? 'var(--color-muted)',
                   border: '1px solid rgba(128,128,128,0.2)',
                 }}
               >
                 <CornerBrackets active={false} />
+                {/* Hex label overlaid at the bottom of the swatch */}
+                <span
+                  className="absolute bottom-0 left-0 right-0 font-mono text-[9px] text-white bg-black/60 px-1.5 py-1 leading-none select-none"
+                >
+                  {value ? value.toUpperCase() : '—'}
+                </span>
               </div>
             </button>
           </PopoverTrigger>
@@ -127,16 +134,13 @@ export function ColorInput({
         </Popover>
       </ColorPicker>
 
-      {value && (
-        <span className="font-mono text-xs text-muted-foreground uppercase">{value}</span>
-      )}
-
+      {/* Reset — shown below the swatch when an override is active */}
       {value && onClear && (
         <button
           type="button"
           onClick={onClear}
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors focus:outline-none focus-visible:underline"
-          aria-label="Reset color"
+          className="font-mono text-xs text-muted-foreground hover:text-foreground transition-colors focus:outline-none focus-visible:underline text-left"
+          aria-label="Reset accent color"
         >
           reset
         </button>
