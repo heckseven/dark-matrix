@@ -47,11 +47,15 @@ export function ModePicker({ activeMode, dualModule, onSelect, onClose }: {
   onClose?: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const selectedRef = useRef(false);
 
   useEffect(() => {
-    const prev = document.activeElement as HTMLElement | null;
-    containerRef.current?.querySelector<HTMLElement>('button')?.focus();
-    return () => { prev?.focus(); };
+    selectedRef.current = false;
+    const prev = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const container = containerRef.current;
+    (container?.querySelector<HTMLElement>('button[aria-pressed="true"]') ??
+     container?.querySelector<HTMLElement>('button'))?.focus();
+    return () => { if (!selectedRef.current) prev?.focus(); };
   }, []);
 
   useEffect(() => {
@@ -87,7 +91,7 @@ export function ModePicker({ activeMode, dualModule, onSelect, onClose }: {
             active={m.id === activeMode}
             pixels={MODE_ICONS[i] ?? MODE_ICONS[0]!}
             dualModule={dualModule}
-            onSelect={() => { onSelect(m.id); onClose?.(); }}
+            onSelect={() => { selectedRef.current = true; onSelect(m.id); onClose?.(); }}
           />
         ))}
       </div>
