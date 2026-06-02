@@ -536,19 +536,7 @@ export function createDeckStore() {
 
     patchConfig(patch) {
       const { configData } = get();
-      function deepMerge<T>(base: T, p: DeepPartial<T>): T {
-        if (base === null || base === undefined || typeof base !== 'object') return p as T;
-        const result = { ...base } as Record<string, unknown>;
-        for (const key of Object.keys(p as object)) {
-          const pVal = (p as Record<string, unknown>)[key];
-          const bVal = (base as Record<string, unknown>)[key];
-          result[key] = (pVal !== null && typeof pVal === 'object' && !Array.isArray(pVal) && bVal !== null && typeof bVal === 'object')
-            ? deepMerge(bVal as object, pVal as DeepPartial<object>)
-            : pVal;
-        }
-        return result as T;
-      }
-      const next = configData === null ? (patch as Config) : deepMerge(configData, patch);
+      const next = configData === null ? (patch as Config) : { ...configData, ...patch } as Config;
       set({ configData: next, configDirty: true });
     },
 

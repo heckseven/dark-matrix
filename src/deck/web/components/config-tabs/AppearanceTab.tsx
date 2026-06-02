@@ -203,9 +203,9 @@ export function AppearanceTab({ value, onChange }: AppearanceTabProps) {
       <fieldset className="border-0 p-0 m-0">
         <legend className={LEGEND}>accent</legend>
         <ColorInput
-          value={appearance.accent}
+          {...(appearance.accent !== undefined ? { value: appearance.accent } : {})}
           onChange={(hex) => onChange({ ...appearance, accent: hex })}
-          onClear={appearance.accent ? () => onChange(dropAccent(appearance)) : undefined}
+          {...(appearance.accent !== undefined ? { onClear: () => onChange(dropAccent(appearance)) } : {})}
           aria-label="Accent color override"
         />
       </fieldset>
