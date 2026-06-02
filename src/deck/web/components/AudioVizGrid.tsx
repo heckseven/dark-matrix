@@ -31,7 +31,7 @@ function makeSvgDot(color: string): string {
 function makeLitTileFromTheme(dpr: number): HTMLCanvasElement {
   const cs = getComputedStyle(document.documentElement);
   const bg = cs.getPropertyValue('--color-background').trim() || '#000000';
-  const fg = cs.getPropertyValue('--color-primary').trim()    || '#0DC45C';
+  const fg = cs.getPropertyValue('--color-foreground').trim()  || '#ffffff';
   return makeLitTile(dpr, bg, fg);
 }
 

@@ -8,7 +8,7 @@ function readThemeColors() {
   const cs = getComputedStyle(document.documentElement);
   return {
     bg:      cs.getPropertyValue('--color-background').trim() || '#000000',
-    primary: cs.getPropertyValue('--color-primary').trim()    || '#0DC45C',
+    primary: cs.getPropertyValue('--color-foreground').trim() || '#ffffff',
   };
 }
 
