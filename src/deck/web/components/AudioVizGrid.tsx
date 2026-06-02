@@ -25,19 +25,25 @@ function makeSvgDot(color: string): string {
   return `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${CELL}" height="${CELL}"><circle cx="${CELL / 2}" cy="${CELL / 2}" r="2" fill="${color}"/></svg>`)}")`;
 }
 
-// Pre-rasterize the lit cell (black square + white ∗) once per device-pixel
-// ratio, then blit it per lit cell with drawImage. Rendering the glyph a single
-// time keeps it crisp on HiDPI and avoids per-frame canvas text (no AA mismatch
-// with the surrounding DOM text).
-function makeLitTile(dpr: number): HTMLCanvasElement {
+// Pre-rasterize the lit cell once per device-pixel ratio, then blit it per lit
+// cell with drawImage. Rendering the glyph a single time keeps it crisp on
+// HiDPI and avoids per-frame canvas text (no AA mismatch with surrounding DOM).
+function makeLitTileFromTheme(dpr: number): HTMLCanvasElement {
+  const cs = getComputedStyle(document.documentElement);
+  const bg = cs.getPropertyValue('--color-background').trim() || '#000000';
+  const fg = cs.getPropertyValue('--color-primary').trim()    || '#0DC45C';
+  return makeLitTile(dpr, bg, fg);
+}
+
+function makeLitTile(dpr: number, bg: string, fg: string): HTMLCanvasElement {
   const t = document.createElement('canvas');
   t.width = Math.round(CELL * dpr);
   t.height = Math.round(CELL * dpr);
   const tx = t.getContext('2d')!;
   tx.scale(dpr, dpr);
-  tx.fillStyle = '#000';
+  tx.fillStyle = bg;
   tx.fillRect(0, 0, CELL, CELL);
-  tx.fillStyle = '#fff';
+  tx.fillStyle = fg;
   tx.font = '14px monospace';
   tx.textAlign = 'center';
   tx.textBaseline = 'middle';
@@ -139,7 +145,7 @@ export function AudioVizGrid({
 
     const g = canvas.getContext('2d');
     if (g) { g.setTransform(dpr, 0, 0, dpr, 0, 0); ctxRef.current = g; }
-    tileRef.current = makeLitTile(dpr);
+    tileRef.current = makeLitTileFromTheme(dpr);
 
     onBandCountChange(halfCols);
   }, [onBandCountChange]);
@@ -153,6 +159,12 @@ export function AudioVizGrid({
     ro.observe(container);
     return () => ro.disconnect();
   }, [recomputeGrid]);
+
+  // Rebuild lit-cell tile when the theme changes (DPR stays stable across theme switches)
+  React.useEffect(() => {
+    const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
+    tileRef.current = makeLitTileFromTheme(dpr);
+  }, [appearance]);
 
   // RAF render loop — renders left half from bands, mirrors to right half, Bayer dithering
   React.useEffect(() => {

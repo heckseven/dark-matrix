@@ -1,8 +1,25 @@
 import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils.js';
-import { ROWS } from '../store.js';
+import { ROWS, useDeckStore } from '../store.js';
 
 const MIN_L = 48;
+
+function readThemeColors() {
+  const cs = getComputedStyle(document.documentElement);
+  return {
+    bg:      cs.getPropertyValue('--color-background').trim() || '#000000',
+    primary: cs.getPropertyValue('--color-primary').trim()    || '#0DC45C',
+  };
+}
+
+function tintPixel(primary: string, l: number): string {
+  if (!/^#[0-9a-fA-F]{6}$/.test(primary)) return `rgb(${l},${l},${l})`;
+  const r = parseInt(primary.slice(1, 3), 16);
+  const g = parseInt(primary.slice(3, 5), 16);
+  const b = parseInt(primary.slice(5, 7), 16);
+  const s = l / 255;
+  return `rgb(${Math.round(r * s)},${Math.round(g * s)},${Math.round(b * s)})`;
+}
 const CELL = 3;
 const GAP = 2;
 const PITCH = CELL + GAP; // 5px per cell
@@ -35,6 +52,7 @@ export function MatrixPreview({ pixels, width, className }: MatrixPreviewProps) 
   const w = canvasW(width);
   const wide = width === 18;
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const appearance = useDeckStore(s => s.configData?.appearance);
 
   // Only resize the canvas when dimensions change. Setting canvas.width on every
   // paint (even to the same value) resets the pixel buffer and can trigger layout
@@ -65,7 +83,9 @@ export function MatrixPreview({ pixels, width, className }: MatrixPreviewProps) 
     const physW = Math.round(w * dpr);
     const physH = Math.round(CANVAS_H * dpr);
 
-    ctx.fillStyle = '#000';
+    const { bg, primary } = readThemeColors();
+
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, physW, physH);
 
     // Dot is Math.round(dpr) physical pixels — always an integer, always crisp.
@@ -77,13 +97,13 @@ export function MatrixPreview({ pixels, width, className }: MatrixPreviewProps) 
         const v = data[c * ROWS + r] ?? 0;
         const l = pixelLuminance(v);
         if (l === 0) continue;
-        ctx.fillStyle = `rgb(${l},${l},${l})`;
+        ctx.fillStyle = tintPixel(primary, l);
         const px = Math.round((colX(c, wide) + 1.5) * dpr) - Math.floor(dot / 2);
         const py = Math.round((r * PITCH + 1.5) * dpr) - Math.floor(dot / 2);
         ctx.fillRect(px, py, dot, dot);
       }
     }
-  }, [pixels, width, w, wide]);
+  }, [pixels, width, w, wide, appearance]);
 
   return (
     <canvas

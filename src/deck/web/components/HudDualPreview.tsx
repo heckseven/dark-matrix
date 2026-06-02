@@ -267,7 +267,25 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, 
 
 // ── canvas drawing ────────────────────────────────────────────────────────
 
-function drawModule(ctx: CanvasRenderingContext2D, pixels: Uint8Array, xOffset: number): void {
+function readThemeColors() {
+  const cs = getComputedStyle(document.documentElement);
+  return {
+    bg:      cs.getPropertyValue('--color-background').trim()  || '#000000',
+    primary: cs.getPropertyValue('--color-primary').trim()     || '#0DC45C',
+    fg:      cs.getPropertyValue('--color-foreground').trim()  || '#ffffff',
+  };
+}
+
+function tintPixel(primary: string, l: number): string {
+  if (!/^#[0-9a-fA-F]{6}$/.test(primary)) return `rgb(${l},${l},${l})`;
+  const r = parseInt(primary.slice(1, 3), 16);
+  const g = parseInt(primary.slice(3, 5), 16);
+  const b = parseInt(primary.slice(5, 7), 16);
+  const s = l / 255;
+  return `rgb(${Math.round(r * s)},${Math.round(g * s)},${Math.round(b * s)})`;
+}
+
+function drawModule(ctx: CanvasRenderingContext2D, pixels: Uint8Array, xOffset: number, bg: string, primary: string): void {
   ctx.font = FONT;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -277,16 +295,16 @@ function drawModule(ctx: CanvasRenderingContext2D, pixels: Uint8Array, xOffset: 
       const y = row * PITCH;
       const v = pixels[col * ROWS + row] ?? 0;
       const l = Math.round(MIN_L + (v / 255) * (255 - MIN_L));
-      ctx.fillStyle = '#000';
+      ctx.fillStyle = bg;
       ctx.fillRect(x, y, CELL, CELL);
-      ctx.fillStyle = `rgb(${l},${l},${l})`;
+      ctx.fillStyle = tintPixel(primary, l);
       ctx.fillText(v === 0 ? '•' : '∗', x + CELL / 2, y + CELL / 2 + 1);
     }
   }
 }
 
-function drawBrackets(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number): void {
-  ctx.strokeStyle = 'white';
+function drawBrackets(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, fg: string): void {
+  ctx.strokeStyle = fg;
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(x1,          y1 + BRACKET); ctx.lineTo(x1,          y1); ctx.lineTo(x1 + BRACKET, y1);
@@ -420,14 +438,14 @@ export function HudDualPreview({
 
     const leftLifeGrid  = advanceLifeSide(lifeStateL, leftWidget,  'left');
     const rightLifeGrid = advanceLifeSide(lifeStateR, rightWidget, 'right');
-    drawModule(ctx, getPixels(leftWidget,  'left',  now, audioCtx, imageCache, leftLifeGrid),  0);
-    drawModule(ctx, getPixels(rightWidget, 'right', now, audioCtx, imageCache, rightLifeGrid), RIGHT_X);
+    const { bg, primary, fg } = readThemeColors();
+    drawModule(ctx, getPixels(leftWidget,  'left',  now, audioCtx, imageCache, leftLifeGrid),  0,       bg, primary);
+    drawModule(ctx, getPixels(rightWidget, 'right', now, audioCtx, imageCache, rightLifeGrid), RIGHT_X, bg, primary);
     // Bracket around the selected side
-    if (selectedSide === 'left') {
-      drawBrackets(ctx, 0.5, 0.5, HALF_W - 0.5, CANVAS_H - 0.5);
-    } else {
-      drawBrackets(ctx, RIGHT_X + 0.5, 0.5, CANVAS_W - 0.5, CANVAS_H - 0.5);
-    }
+    const [bx1, bx2] = selectedSide === 'left'
+      ? [0.5,           HALF_W - 0.5]
+      : [RIGHT_X + 0.5, CANVAS_W - 0.5];
+    drawBrackets(ctx, bx1, 0.5, bx2, CANVAS_H - 0.5, fg);
   }, [leftWidget, rightWidget, selectedSide]);
 
   useEffect(() => {
