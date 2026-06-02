@@ -91,13 +91,10 @@ const TwitchConfigSchema = z.object({
 });
 
 const AppearanceSchema = z.object({
-  preset: z.enum(['dark-matrix', 'phosphor', 'mono', 'custom']),
+  dark_preset: z.enum(['dark-matrix', 'phosphor', 'mono']),
+  light_preset: z.enum(['dark-matrix', 'phosphor', 'mono']),
   accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   color_scheme: z.enum(['dark', 'light', 'auto']),
-}).superRefine((a, ctx) => {
-  if (a.preset === 'custom' && !a.accent) {
-    ctx.addIssue({ code: 'custom', message: 'accent is required when preset is "custom"', path: ['accent'] });
-  }
 });
 
 export const ConfigSchema = z.object({
@@ -299,6 +296,22 @@ function migrateVisualizerFields(raw: Record<string, unknown>): void {
   }
 }
 
+// Migrates appearance.preset → dark_preset + light_preset.
+// Healed in memory only; disk is updated on the next explicit PUT /api/config.
+function migrateAppearanceFields(raw: Record<string, unknown>): void {
+  const appearance = raw['appearance'];
+  if (typeof appearance !== 'object' || appearance === null) return;
+  const a = appearance as Record<string, unknown>;
+  if ('preset' in a && a['dark_preset'] === undefined) {
+    if (typeof a['preset'] !== 'string') { delete a['preset']; return; }
+    const legacy = a['preset'];
+    const mapped = ['dark-matrix', 'phosphor', 'mono'].includes(legacy) ? legacy : 'dark-matrix';
+    a['dark_preset'] = mapped;
+    a['light_preset'] = mapped;
+    delete a['preset'];
+  }
+}
+
 export async function loadConfig(p?: string): Promise<Config> {
   const filePath = resolveConfigPath(p);
   const raw = await fs.readFile(filePath, 'utf-8');
@@ -312,6 +325,7 @@ export async function loadConfig(p?: string): Promise<Config> {
     throw new ConfigError([{ code: 'custom', message: 'Config must be a JSON object', path: [] }]);
   }
   migrateVisualizerFields(rawParsed as Record<string, unknown>);
+  migrateAppearanceFields(rawParsed as Record<string, unknown>);
   const result = ConfigSchema.safeParse(rawParsed);
   if (!result.success) throw new ConfigError(result.error.issues);
   return result.data;

@@ -1,5 +1,7 @@
 import type { Appearance } from '../types/config-types.js';
 
+const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+
 const DARK: Record<string, string> = {
   background: '#000000',
   foreground: '#ffffff',
@@ -33,6 +35,7 @@ const LIGHT: Record<string, string> = {
 const ACCENTS: Record<string, { dark: string; light: string }> = {
   'dark-matrix': { dark: '#0DC45C', light: '#059a47' },
   'phosphor':    { dark: '#F59E0B', light: '#b45309' },
+  'mono':        { dark: '#ffffff', light: '#000000' },
 };
 
 function getPrimaryForeground(hex: string): string {
@@ -45,25 +48,24 @@ function getPrimaryForeground(hex: string): string {
 }
 
 export function applyTheme(appearance?: Appearance): () => void {
-  const preset = appearance?.preset ?? 'dark-matrix';
+  const darkPreset = appearance?.dark_preset ?? 'dark-matrix';
+  const lightPreset = appearance?.light_preset ?? 'dark-matrix';
   const colorScheme = appearance?.color_scheme ?? 'dark';
 
   function apply(isDark: boolean): void {
     const base = isDark ? DARK : LIGHT;
+    const preset = isDark ? darkPreset : lightPreset;
     for (const [k, v] of Object.entries(base)) {
       document.documentElement.style.setProperty(`--color-${k}`, v);
     }
-    let accentHex: string;
-    if (preset === 'custom') {
-      accentHex = appearance?.accent ?? base['foreground']!;
-    } else if (preset === 'mono') {
-      accentHex = base['foreground']!;
-    } else {
-      accentHex = (isDark ? ACCENTS[preset]?.dark : ACCENTS[preset]?.light) ?? base['foreground']!;
+    const accentHex = appearance?.accent
+      ?? (isDark ? ACCENTS[preset]?.dark : ACCENTS[preset]?.light)
+      ?? base['foreground']!;
+    if (HEX_RE.test(accentHex)) {
+      document.documentElement.style.setProperty('--color-primary', accentHex);
+      document.documentElement.style.setProperty('--color-ring', accentHex);
+      document.documentElement.style.setProperty('--color-primary-foreground', getPrimaryForeground(accentHex));
     }
-    document.documentElement.style.setProperty('--color-primary', accentHex);
-    document.documentElement.style.setProperty('--color-ring', accentHex);
-    document.documentElement.style.setProperty('--color-primary-foreground', getPrimaryForeground(accentHex));
   }
 
   if (colorScheme === 'auto') {
