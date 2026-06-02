@@ -5,7 +5,15 @@ import os from 'node:os';
 import { enumerateMatrixModules } from './modules.js';
 import { TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS, TEXT_FLICKERS, TEXT_TRANSITIONS } from '../animations/text-renderers.js';
 import { AUDIO_STYLES } from '../animations/audio-renderers.js';
-import { ZEN_STYLE_VALUES } from '../animations/zen-renderers.js';
+import { clockSchema } from './widgets/clock.js';
+import { timerSchema } from './widgets/timer.js';
+import { dataSchema } from './widgets/data.js';
+import { audioSchema } from './widgets/audio.js';
+import { imageSchema } from './widgets/image.js';
+import { lifeSchema } from './widgets/life.js';
+import { claudeSchema } from './widgets/claude.js';
+import { zenSchema } from './widgets/zen.js';
+import { textSchema } from './widgets/text.js';
 
 const AUDIO_STYLE_VALUES = AUDIO_STYLES.map(s => s.id) as [string, ...string[]];
 
@@ -16,15 +24,15 @@ const SENSOR_PATH_RE = /^\/sys\/bus\/iio\/devices\/iio:device\d+\/in_illuminance
 // style keeps its widget type and falls back to the renderer's default style,
 // rather than failing the whole config. Clock face .catch('elegant') likewise.
 const HudWidgetSchema = z.discriminatedUnion('widget', [
-  z.object({ widget: z.literal('clock'), face: z.enum(['binary-audio', 'elegant', 'stretch', 'analog', 'binary-blocks', 'binary-tall', 'binary-diamond', 'twinz', 'razor', 'blade']).optional().catch('elegant') }),
-  z.object({ widget: z.literal('data'), style: z.enum(['line', 'fill', 'scroll', 'cores', 'heatcore', 'gpuburn']).optional().catch(undefined), top_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), top_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_left: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional(), bottom_right: z.enum(['cpu', 'ram', 'net_rx', 'net_tx']).optional() }),
-  z.object({ widget: z.literal('audio'), style: z.enum(['glitch', 'circuit', 'spirits', 'scope-dual', 'kick-d', 'waterfall', 'sparks', 'hex', 'specter', 'heat', 'dark-matter', 'spectrum-fall', 'neo', 'cipher', 'wake', 'rhythm', 'drop', 'life-erode-4', 'glitch-sort-b', 'spiral-d', 'strobe', 'glitch-corrupt']).optional().catch(undefined) }),
-  z.object({ widget: z.literal('image'), file: z.string().regex(/^[a-zA-Z0-9_\-]+\.dmx\.json$/i).max(73), speed: z.number().min(0.25).max(8).optional(), loop: z.boolean().optional() }),
-  z.object({ widget: z.literal('life'), biomeName: z.string().min(1).max(100), randomIntervalMs: z.number().int().min(5000).max(3_600_000).optional() }),
-  z.object({ widget: z.literal('claude'), style: z.enum(['snow', 'quota', 'sand', 'tetris']).optional().catch(undefined) }),
-  z.object({ widget: z.literal('zen'), style: z.enum(ZEN_STYLE_VALUES).optional().catch(undefined) }),
-  z.object({ widget: z.literal('timer'), style: z.enum(['elegant', 'hourglass', 'twinz']).optional().catch(undefined), durationMs: z.number().int().min(1000).optional(), repeat: z.boolean().optional() }),
-  z.object({ widget: z.literal('text'), text: z.string().max(128), style: z.enum(TEXT_STYLES).optional().catch(undefined), size: z.enum(TEXT_SIZES).optional().catch(undefined), speed: z.enum(TEXT_SPEEDS).optional().catch(undefined), span: z.boolean().optional(), flicker: z.enum(TEXT_FLICKERS).optional().catch(undefined), transition: z.enum(TEXT_TRANSITIONS).optional().catch(undefined), loopDelayMs: z.number().int().min(0).max(60000).optional() }),
+  clockSchema,
+  dataSchema,
+  audioSchema,
+  imageSchema,
+  lifeSchema,
+  claudeSchema,
+  zenSchema,
+  timerSchema,
+  textSchema,
 ]);
 
 // A preset slot referencing a removed widget *type* (e.g. a deleted widget)

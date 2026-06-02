@@ -1,5 +1,4 @@
 import net from 'node:net';
-import https from 'node:https';
 import fs from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -8,8 +7,10 @@ import os from 'node:os';
 import process from 'node:process';
 import { spawn } from 'node:child_process';
 import { loadConfig, bootstrapConfig, watchConfig, resolveSocketPath } from '../lib/config.js';
-import { safeBuiltinPath } from '../lib/builtins.js';
 import type { Config } from '../lib/config.js';
+import { DAEMON_WIDGET_REGISTRY } from './widgets/index.js';
+import type { WidgetRenderer, DaemonWidgetContext } from './widgets/types.js';
+import type { HudConfigMessage } from './widgets/types.js';
 import { startBrightnessLoop } from '../lib/brightness.js';
 import { watchSwitches, type SwitchSource, type SwitchState } from '../lib/ec-switches.js';
 import { watchVms } from '../lib/vm-source.js';
@@ -24,22 +25,15 @@ import { SerialTransport } from '../lib/transport.js';
 import { runAnimation } from '../lib/animation.js';
 import { createStartupAnimation } from '../animations/startup.js';
 import { createScrollAnimation } from '../animations/scroll.js';
-import { createGolAnimation, createBiomeStep, createBiomeGrid, gridToFrame } from '../animations/gol.js';
+import { createGolAnimation } from '../animations/gol.js';
 import { createAudioEqAnimation, createAudioBandStream } from '../animations/audio-eq.js';
 import type { AudioSource } from '../animations/audio-eq.js';
-import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../animations/audio-renderers.js';
+import { AUDIO_STYLES } from '../animations/audio-renderers.js';
 import type { AudioStyle } from '../animations/audio-renderers.js';
-import { createClockRenderer, isClockFace } from '../animations/clock-renderers.js';
-import { createDataRenderer } from '../animations/data-renderers.js';
-import { DATA_STYLES } from '../animations/data-renderers.js';
-import type { DataStyle, DataWidgetConfig, DataRenderer } from '../animations/data-renderers.js';
-import { createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer, CLAUDE_STYLES } from '../animations/claude-renderers.js';
-import { createElegantTimerRenderer, createHourglassTimerRenderer, createTwinzTimerRenderer, renderTwinzTimer, renderTwinzUsagePercent, renderTwinzUsageUnknown } from '../animations/timer-renderers.js';
-import { createTextRenderer, TEXT_STYLES, TEXT_SIZES, TEXT_SPEEDS, TEXT_FLICKERS, TEXT_TRANSITIONS } from '../animations/text-renderers.js';
+import type { DataWidgetConfig, DataRenderer } from '../animations/data-renderers.js';
+import { createTextRenderer, TEXT_STYLES, TEXT_SPEEDS, TEXT_FLICKERS, TEXT_TRANSITIONS } from '../animations/text-renderers.js';
 import type { TextStyle, TextSize, TextSpeed, TextFlicker, TextTransition } from '../animations/text-renderers.js';
-import type { ClaudeStyle, ClaudeRendererApi } from '../animations/claude-renderers.js';
-import { createZenRenderer, ZEN_STYLE_VALUES } from '../animations/zen-renderers.js';
-import type { ZenStyle } from '../animations/zen-renderers.js';
+import type { ClaudeRendererApi } from '../animations/claude-renderers.js';
 import { watchProcStats } from '../lib/proc-source.js';
 import { createPresetTriggerEngine } from '../lib/preset-triggers.js';
 import { createGifAnimation } from '../animations/gif.js';
@@ -390,123 +384,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
   type AudioCtxData = { bands: number[]; fftSize: number; gain: number };
 
-  interface WidgetRenderer {
-    render(now: Date, audioCtx: AudioCtxData | null): Frame;
-    stop(): void;
-  }
-
-  // Polls the Anthropic API once a minute for 5h-window rate-limit utilisation
-  // and reset time. Shared by the usage and quota Claude widgets.
-  type UsagePoll = { util: number | null; resetAt: number | null };
-  function createUsagePoller(): { get(): UsagePoll; stop(): void } {
-    const POLL_MS = 60_000;
-    const CREDS_PATH = path.join(os.homedir(), '.claude', '.credentials.json');
-    let util: number | null = null;
-    let resetAt: number | null = null;
-    let fetchTimer: ReturnType<typeof setTimeout> | null = null;
-    let stopped = false;
-
-    function schedulePoll(delayMs: number): void {
-      if (stopped) return;
-      if (fetchTimer) clearTimeout(fetchTimer);
-      fetchTimer = setTimeout(() => { void fetchUsage(); }, delayMs);
-    }
-
-    async function fetchUsage(): Promise<void> {
-      if (stopped) return;
-      try {
-        const raw = await fs.readFile(CREDS_PATH, 'utf-8');
-        const creds = JSON.parse(raw) as { claudeAiOauth?: { accessToken?: string; expiresAt?: number } };
-        const oauth = creds.claudeAiOauth ?? {};
-        const token = oauth.accessToken;
-        const expiresAt = oauth.expiresAt;
-        // expiresAt is stored in milliseconds (matches Date.now() units)
-        if (typeof token !== 'string' || (expiresAt !== undefined && expiresAt < Date.now())) { schedulePoll(POLL_MS); return; }
-
-        const payload = JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 1,
-          messages: [{ role: 'user', content: 'x' }],
-        });
-
-        const result = await new Promise<{ util: number; resetAt: number | null } | null>((resolve) => {
-          const req = https.request({
-            hostname: 'api.anthropic.com',
-            path: '/v1/messages',
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-              'anthropic-version': '2023-06-01',
-              'anthropic-beta': 'oauth-2025-04-20',
-              'Content-Length': Buffer.byteLength(payload),
-            },
-          }, (res) => {
-            res.resume();
-            const u = res.headers['anthropic-ratelimit-unified-5h-utilization'];
-            const r = res.headers['anthropic-ratelimit-unified-5h-reset'];
-            const utilVal = typeof u === 'string' ? parseFloat(u) : null;
-            const resetVal = typeof r === 'string' ? parseInt(r, 10) : null;
-            resolve(utilVal !== null && !isNaN(utilVal) ? { util: utilVal, resetAt: resetVal } : null);
-          });
-          req.on('error', () => resolve(null));
-          req.setTimeout(5000, () => { req.destroy(); resolve(null); });
-          req.write(payload);
-          req.end();
-        });
-
-        if (result !== null) { util = result.util; resetAt = result.resetAt; }
-      } catch { /* ignore — retain last known value */ }
-      if (!stopped) schedulePoll(POLL_MS);
-    }
-
-    schedulePoll(0);
-
-    return {
-      get: () => ({ util, resetAt }),
-      stop() {
-        stopped = true;
-        if (fetchTimer) { clearTimeout(fetchTimer); fetchTimer = null; }
-      },
-    };
-  }
-
-  // Twinz-font quota widget: shows utilisation as a two-digit percentage above a
-  // percent glyph. When utilisation exceeds 99% it switches to a twinz countdown
-  // of the time remaining until the 5h window resets, reverting to the
-  // percentage once usage resets.
-  function createClaudeQuotaRenderer(): ClaudeRendererApi {
-    const poller = createUsagePoller();
-    let pulsePhase = 0;
-
-    return {
-      onEvent(_e) { /* polled, not event-driven */ },
-
-      render(): Frame {
-        const { util, resetAt } = poller.get();
-
-        if (util === null) {
-          // Unknown: pulse the percent glyph alone until the first poll lands.
-          pulsePhase += 0.08;
-          return Math.sin(pulsePhase) > 0 ? renderTwinzUsageUnknown() : createFrame();
-        }
-
-        // Over 99%: countdown to reset in the twinz timer style.
-        if (util > 0.99 && resetAt !== null) {
-          // resetAt is a Unix timestamp in seconds; keep millisecond precision
-          // so the twinz centiseconds pair actually ticks.
-          const remainingMs = Math.max(0, resetAt * 1000 - Date.now());
-          return renderTwinzTimer(remainingMs);
-        }
-
-        // Otherwise show the integer percentage (0–99).
-        return renderTwinzUsagePercent(util * 100);
-      },
-
-      stop() { poller.stop(); },
-    };
-  }
-
   function createWidgetRenderer(
     widget: NonNullable<NonNullable<Config['hud']>['left']>,
     side: 'left' | 'right',
@@ -514,327 +391,17 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     zenSide?: 'left' | 'right',
   ): WidgetRenderer {
     if (widget.widget !== 'timer') persistedTimerEpochs[side] = null;
-    switch (widget.widget) {
-      case 'clock': {
-        const face = widget.face ?? 'elegant';
-        const clockRenderer = createClockRenderer(face);
-        return {
-          render(now, audioCtx) {
-            const base = audioCtx ? { now, ...audioCtx } : { now };
-            return clockRenderer({ ...base, side });
-          },
-          stop() { /* stateless */ },
-        };
-      }
-      case 'data': {
-        const dataRenderer = createDataRenderer(
-          side === 'left' ? hudDataConfig('left') : hudDataConfig('right'),
-        );
-        procDataRendererRef.renderer = dataRenderer;
-        return {
-          render(_now, _audioCtx) { return dataRenderer.render(); },
-          stop() { /* no cleanup needed */ },
-        };
-      }
-      case 'audio': {
-        const style = widget.style ?? 'dark-matter';
-        const audioRenderer = createAudioRenderer(style);
-        return {
-          render(_now, audioCtx) {
-            const ctx = audioCtx ?? { bands: new Array(9).fill(0) as number[], fftSize: 2048, gain: 1.0 };
-            const raw = audioRenderer(ctx);
-            if (side === 'right') {
-              const mirrored = new Uint8Array(raw.length);
-              for (let col = 0; col < FRAME_COLS; col++) {
-                const src = FRAME_COLS - 1 - col;
-                for (let row = 0; row < FRAME_ROWS; row++) {
-                  mirrored[col * FRAME_ROWS + row] = raw[src * FRAME_ROWS + row] ?? 0;
-                }
-              }
-              return mirrored as Frame;
-            }
-            return raw;
-          },
-          stop() { /* stateless */ },
-        };
-      }
-      case 'image': {
-        const libraryDir = path.join(os.homedir(), '.config', 'dark-matrix', 'library');
-        const resolved = path.resolve(libraryDir, widget.file);
-        if (!resolved.startsWith(libraryDir + path.sep)) {
-          throw new Error(`invalid asset path: ${widget.file}`);
-        }
-        let project: DmxProject;
-        try {
-          // Prefer the user library; fall back to a bundled built-in of the
-          // same name only when the user file is genuinely absent (built-ins
-          // are never copied in). Any other read error propagates to the catch
-          // below so it is logged rather than silently masked by the fallback.
-          let raw: string;
-          try {
-            raw = readFileSync(resolved, 'utf-8');
-          } catch (e) {
-            if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
-            const builtin = safeBuiltinPath(widget.file, BUILTINS_DIR);
-            if (!builtin) throw e;
-            raw = readFileSync(builtin, 'utf-8');
-          }
-          project = parseProject(raw);
-        } catch (err) {
-          console.error(`[image renderer] failed to load ${widget.file}:`, err);
-          const empty = new Uint8Array(FRAME_COLS * FRAME_ROWS) as unknown as Frame;
-          return { render: () => empty, stop() {} };
-        }
-        const width = project.width;
-        const bytesPerFrame = width * FRAME_ROWS;
-        const frames: Uint8Array[] = project.frames.map(f => base64ToFrame(f.pixels, bytesPerFrame));
-        const speed = widget.speed ?? 1;
-        const delays = project.frames.map(f => Math.round(f.delayMs / speed));
-        const loop = widget.loop ?? project.loop;
-
-        let frameIdx = 0;
-        let elapsed = 0;
-        let lastTick: number | null = null;
-
-        return {
-          render(now, _audioCtx) {
-            const nowMs = now.getTime();
-            if (lastTick !== null) elapsed += nowMs - lastTick;
-            lastTick = nowMs;
-
-            while (elapsed >= (delays[frameIdx] ?? 100)) {
-              elapsed -= delays[frameIdx] ?? 100;
-              if (frameIdx < frames.length - 1) {
-                frameIdx++;
-              } else if (loop) {
-                frameIdx = 0;
-              }
-              // if !loop, stay on last frame
-            }
-
-            const raw = frames[frameIdx]!;
-
-            if (width === 18) {
-              const half = new Uint8Array(FRAME_COLS * FRAME_ROWS);
-              const colOffset = side === 'left' ? 0 : FRAME_COLS;
-              for (let col = 0; col < FRAME_COLS; col++) {
-                for (let row = 0; row < FRAME_ROWS; row++) {
-                  half[col * FRAME_ROWS + row] = raw[(col + colOffset) * FRAME_ROWS + row] ?? 0;
-                }
-              }
-              return half as unknown as Frame;
-            }
-
-            return raw as unknown as Frame;
-          },
-          stop() { /* nothing to clean up */ },
-        };
-      }
-      case 'life': {
-        const biomes = currentConfig.biome_presets ?? [];
-        if (biomes.length === 0) {
-          const empty = createFrame();
-          return { render: () => empty, stop() {} };
-        }
-
-        const isRandom = widget.biomeName === 'random';
-        const randomIntervalMs = widget.randomIntervalMs ?? 30000;
-
-        function pickBiome(exclude?: typeof biomes[0]): typeof biomes[0] {
-          if (biomes.length === 1 || !exclude) return biomes[Math.floor(Math.random() * biomes.length)]!;
-          const pool = biomes.filter(b => b !== exclude);
-          return pool[Math.floor(Math.random() * pool.length)] ?? biomes[0]!;
-        }
-
-        const foundBiome = isRandom ? undefined : biomes.find(b => b.name === widget.biomeName);
-        if (!isRandom && !foundBiome) console.warn(`[life] unknown biomeName "${widget.biomeName}", falling back to "${biomes[0]!.name}"`);
-        let activeBiome = isRandom ? pickBiome() : (foundBiome ?? biomes[0]!);
-        let stepFn = createBiomeStep(activeBiome.algorithm);
-        let grid = createBiomeGrid(activeBiome.gridSnapshot);
-
-        let lastRenderMs: number | null = null;
-        let tickAccum   = 0;
-        let rerunAccum  = 0;
-        let genCount    = 0;
-        let stasisCount  = 0;
-        let prevGridStr  = '';
-        let prevGridStr2 = '';
-        let randomAccum  = 0;
-
-        type TransState = 'running' | 'dissolve-out' | 'dissolve-in';
-        let transState: TransState = 'running';
-        let transFrames: TransitionFrame[] = [];
-        let transIdx    = 0;
-        let transElapsed = 0;
-        let pendingBiome: typeof activeBiome | null = null;
-
-        function switchToBiome(next: typeof activeBiome) {
-          activeBiome  = next;
-          stepFn = createBiomeStep(next.algorithm);
-          grid = createBiomeGrid(next.gridSnapshot);
-          genCount     = 0;
-          rerunAccum   = 0;
-          stasisCount  = 0;
-          prevGridStr  = '';
-          prevGridStr2 = '';
-          randomAccum  = 0;
-        }
-
-        return {
-          render(now, _audioCtx) {
-            const nowMs = now.getTime();
-            const dt = lastRenderMs !== null ? nowMs - lastRenderMs : 0;
-            lastRenderMs = nowMs;
-
-            if (transState !== 'running') {
-              transElapsed += dt;
-              while (transFrames[transIdx] !== undefined && transElapsed >= (transFrames[transIdx]!.delayMs)) {
-                transElapsed -= transFrames[transIdx]!.delayMs;
-                transIdx++;
-              }
-              if (transIdx >= transFrames.length) {
-                if (transState === 'dissolve-out' && pendingBiome !== null) {
-                  switchToBiome(pendingBiome);
-                  pendingBiome = null;
-                  const inFrame = gridToFrame(grid);
-                  transFrames  = getTransitionFrames(inFrame, 'dissolve', true);
-                  transIdx     = 0;
-                  transElapsed = 0;
-                  transState   = 'dissolve-in';
-                } else {
-                  transState = 'running';
-                }
-              }
-              const frameIdx = Math.min(transIdx, transFrames.length - 1);
-              return transFrames[frameIdx]?.frame ?? gridToFrame(grid);
-            }
-
-            // Advance simulation at tickMs cadence
-            tickAccum  += dt;
-            rerunAccum += dt;
-            if (isRandom) randomAccum += dt;
-
-            const tickMs = activeBiome.tickMs;
-            while (tickAccum >= tickMs) {
-              tickAccum -= tickMs;
-              grid = stepFn(grid);
-              genCount++;
-
-              // Stasis detection — period-1 (still-life) and period-2 (oscillator)
-              const gs = grid.join(',');
-              if (gs === prevGridStr || gs === prevGridStr2) {
-                stasisCount++;
-                const stasisAction = activeBiome.stasisAction ?? 'off';
-                const stasisTicks  = activeBiome.stasisTicks  ?? 5;
-                if (stasisAction !== 'off' && stasisCount >= stasisTicks) {
-                  if (stasisAction === 'inject') {
-                    const rate = Math.max(9, (activeBiome.spawnRate ?? 3) * 3);
-                    for (let k = 0; k < rate; k++) grid[Math.floor(Math.random() * grid.length)] = 1;
-                  } else {
-                    grid = createBiomeGrid(activeBiome.gridSnapshot);
-                    prevGridStr  = '';
-                    prevGridStr2 = '';
-                  }
-                  stasisCount = 0;
-                }
-              } else {
-                stasisCount = 0;
-              }
-              prevGridStr2 = prevGridStr;
-              prevGridStr  = gs;
-            }
-
-            // Rerun checks
-            const rerunMode = activeBiome.rerunMode ?? 'off';
-            if (rerunMode === 'time' && rerunAccum >= (activeBiome.rerunAfterMs ?? 60000)) {
-              grid = createBiomeGrid(activeBiome.gridSnapshot);
-              genCount = 0; rerunAccum = 0; stasisCount = 0;
-              prevGridStr = ''; prevGridStr2 = '';
-              if (isRandom) randomAccum = 0;
-            } else if (rerunMode === 'generations' && genCount >= (activeBiome.rerunAfterGenerations ?? 500)) {
-              grid = createBiomeGrid(activeBiome.gridSnapshot);
-              genCount = 0; rerunAccum = 0; stasisCount = 0;
-              prevGridStr = ''; prevGridStr2 = '';
-              if (isRandom) randomAccum = 0;
-            }
-
-            // Random cycling
-            if (isRandom && randomAccum >= randomIntervalMs) {
-              pendingBiome = pickBiome(activeBiome);
-              const outFrame = gridToFrame(grid);
-              transFrames  = getTransitionFrames(outFrame, 'dissolve', false);
-              transIdx     = 0;
-              transElapsed = 0;
-              transState   = 'dissolve-out';
-              randomAccum  = 0;
-            }
-
-            return gridToFrame(grid);
-          },
-          stop() { /* stateless */ },
-        };
-      }
-      case 'timer': {
-        const timerStyle  = widget.style ?? 'elegant';
-        const durationMs  = widget.durationMs ?? 25 * 60_000;
-        const repeat      = widget.repeat ?? false;
-        const savedEpoch  = persistedTimerEpochs[side];
-        let   epochMs: number;
-        if (savedEpoch && savedEpoch.durationMs === durationMs && savedEpoch.repeat === repeat && savedEpoch.style === timerStyle) {
-          epochMs = savedEpoch.epochMs;
-        } else {
-          epochMs = Date.now();
-          persistedTimerEpochs[side] = { durationMs, repeat, style: timerStyle, epochMs };
-        }
-        const hgRenderer  = timerStyle === 'hourglass' ? createHourglassTimerRenderer() : null;
-        const tzRenderer  = timerStyle === 'twinz'     ? createTwinzTimerRenderer()     : null;
-        const elRenderer  = hgRenderer || tzRenderer   ? null                           : createElegantTimerRenderer();
-        return {
-          render(now, _audioCtx) {
-            const elapsed     = now.getTime() - epochMs;
-            const remainingMs = repeat
-              ? Math.max(0, durationMs - (elapsed % durationMs))
-              : Math.max(0, durationMs - elapsed);
-            if (hgRenderer) return hgRenderer.render(remainingMs, durationMs);
-            if (tzRenderer) return tzRenderer.render(remainingMs);
-            return elRenderer!.render(remainingMs);
-          },
-          stop() { hgRenderer?.stop(); tzRenderer?.stop(); elRenderer?.stop(); },
-        };
-      }
-      case 'claude': {
-        const claudeStyle: ClaudeStyle = widget.style ?? 'snow';
-        const claudeRenderer: ClaudeRendererApi = claudeStyle === 'quota'
-          ? createClaudeQuotaRenderer()
-          : claudeStyle === 'sand'
-            ? createClaudeSandRenderer()
-            : claudeStyle === 'tetris'
-              ? createClaudeTetrisRenderer()
-              : createClaudeSnowRenderer();
-        claudeRenderers.add(claudeRenderer);
-        return {
-          render(_now, _audioCtx) { return claudeRenderer.render(); },
-          stop() { claudeRenderer.stop(); claudeRenderers.delete(claudeRenderer); },
-        };
-      }
-      case 'text': {
-        const textRenderer = createTextRenderer(widget, side);
-        return {
-          render(now, _audioCtx) { return textRenderer.render(now); },
-          stop() { textRenderer.stop(); },
-        };
-      }
-      case 'zen': {
-        const style = (widget.style as ZenStyle | undefined) ?? 'waves';
-        const r = createZenRenderer(style, zenSide);
-        return { render(_now: Date, _audioCtx: unknown) { return r.render(); }, stop() { r.stop(); } };
-      }
-      default: {
-        const _exhaustive: never = widget;
-        void _exhaustive;
-        return createWidgetRenderer({ widget: 'clock', face: 'elegant' }, side, procDataRendererRef);
-      }
-    }
+    const ctx: DaemonWidgetContext = {
+      side,
+      procDataRendererRef,
+      zenSide,
+      currentConfig,
+      hudDataConfig,
+      persistedTimerEpochs,
+      claudeRenderers,
+    };
+    const descriptor = DAEMON_WIDGET_REGISTRY[widget.widget];
+    return descriptor.createRenderer(widget as never, ctx);
   }
 
   // HUD render rate. Higher = smoother scrolling (text/marquee position is
@@ -855,10 +422,8 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     const rightProcRef: { renderer: DataRenderer | null } = { renderer: null };
 
     // Zen spanning: only render as a single 18-wide canvas when both sides share the same style
-    const zenSpanning =
-      leftHudWidget.widget === 'zen' &&
-      rightHudWidget.widget === 'zen' &&
-      (leftHudWidget.style ?? 'waves') === (rightHudWidget.style ?? 'waves');
+    const leftDescriptor = DAEMON_WIDGET_REGISTRY[leftHudWidget.widget];
+    const zenSpanning = leftDescriptor.canSpan?.(leftHudWidget as never, rightHudWidget as never) ?? false;
 
     const leftRenderer  = createWidgetRenderer(leftHudWidget,  'left',  leftProcRef,  zenSpanning ? 'left'  : undefined);
     const rightRenderer = createWidgetRenderer(rightHudWidget, 'right', rightProcRef, zenSpanning ? 'right' : undefined);
@@ -1932,19 +1497,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               break;
             }
             case 'hud-config': {
-              const m = msg as { cmd: string; leftFace?: string; leftWidget?: string; leftDataStyle?: string; leftAudioStyle?: string; leftClaudeStyle?: string; leftZenStyle?: string; leftFile?: string; leftBiomeName?: string; leftRandomIntervalMs?: number; leftTimerStyle?: string; leftTimerDurationMs?: number; leftTimerRepeat?: boolean; leftText?: string; leftTextStyle?: string; leftTextSize?: string; leftTextSpeed?: string; leftTextSpan?: boolean; leftTextFlicker?: string; leftTextTransition?: string; leftTextLoopDelayMs?: number; rightFace?: string; rightWidget?: string; rightDataStyle?: string; rightAudioStyle?: string; rightClaudeStyle?: string; rightZenStyle?: string; rightFile?: string; rightBiomeName?: string; rightRandomIntervalMs?: number; rightTimerStyle?: string; rightTimerDurationMs?: number; rightTimerRepeat?: boolean; rightText?: string; rightTextStyle?: string; rightTextSize?: string; rightTextSpeed?: string; rightTextSpan?: boolean; rightTextFlicker?: string; rightTextTransition?: string; rightTextLoopDelayMs?: number };
+              const m = msg as HudConfigMessage;
               const biomeNames = new Set((currentConfig.biome_presets ?? []).map(b => b.name));
               const validBiome = (name: string) => name === 'random' || biomeNames.has(name);
-              const asTextStyle = (v?: string): TextStyle | undefined => v && (TEXT_STYLES as readonly string[]).includes(v) ? v as TextStyle : undefined;
-              const asTextSize  = (v?: string): TextSize  | undefined => v && (TEXT_SIZES  as readonly string[]).includes(v) ? v as TextSize  : undefined;
-              const asTextSpeed = (v?: string): TextSpeed | undefined => v && (TEXT_SPEEDS as readonly string[]).includes(v) ? v as TextSpeed : undefined;
-              const asTextFlicker = (v?: string): TextFlicker | undefined => v && (TEXT_FLICKERS as readonly string[]).includes(v) ? v as TextFlicker : undefined;
-              const asTextTransition = (v?: string): TextTransition | undefined => v && (TEXT_TRANSITIONS as readonly string[]).includes(v) ? v as TextTransition : undefined;
-              const buildText = (text: string, st?: string, sz?: string, sp?: string, span?: boolean, fl?: string, tr?: string, loopDelayMs?: number): NonNullable<NonNullable<Config['hud']>['left']> => {
-                const style = asTextStyle(st); const size = asTextSize(sz); const speed = asTextSpeed(sp); const flicker = asTextFlicker(fl); const transition = asTextTransition(tr);
-                const delay = typeof loopDelayMs === 'number' && Number.isFinite(loopDelayMs) && loopDelayMs > 0 ? Math.min(60000, Math.floor(loopDelayMs)) : undefined;
-                return { widget: 'text', text: text.slice(0, 128), ...(style ? { style } : {}), ...(size ? { size } : {}), ...(speed ? { speed } : {}), ...(span ? { span: true } : {}), ...(flicker ? { flicker } : {}), ...(transition ? { transition } : {}), ...(delay !== undefined ? { loopDelayMs: delay } : {}) };
-              };
               if (m.leftWidget === 'life' && typeof m.leftBiomeName === 'string' && !validBiome(m.leftBiomeName)) {
                 socket.write(JSON.stringify({ ok: false, error: `unknown biome: "${m.leftBiomeName}"` }) + '\n');
                 break;
@@ -1953,61 +1508,20 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 socket.write(JSON.stringify({ ok: false, error: `unknown biome: "${m.rightBiomeName}"` }) + '\n');
                 break;
               }
+              const clockFallback = { widget: 'clock', face: 'elegant' } as const;
               const newHud = { ...currentConfig.hud };
-              if (m.leftWidget === 'audio') {
-                const style = AUDIO_STYLES.find(s => s.id === m.leftAudioStyle)?.id;
-                newHud.left = { widget: 'audio', ...(style ? { style } : {}) };
-              } else if (m.leftWidget === 'data') {
-                const style = DATA_STYLES.find(s => s.id === m.leftDataStyle)?.id;
-                newHud.left = { widget: 'data', ...(style ? { style } : {}) };
-              } else if (m.leftWidget === 'image' && typeof m.leftFile === 'string') {
-                newHud.left = { widget: 'image', file: m.leftFile };
-              } else if (m.leftWidget === 'life' && typeof m.leftBiomeName === 'string') {
-                newHud.left = { widget: 'life', biomeName: m.leftBiomeName, ...(m.leftRandomIntervalMs !== undefined ? { randomIntervalMs: m.leftRandomIntervalMs } : {}) };
-              } else if (m.leftWidget === 'claude') {
-                const style = CLAUDE_STYLES.find(s => s.id === m.leftClaudeStyle)?.id;
-                newHud.left = { widget: 'claude', ...(style ? { style } : {}) };
-              } else if (m.leftWidget === 'timer') {
-                const style = m.leftTimerStyle === 'hourglass' ? 'hourglass' : m.leftTimerStyle === 'twinz' ? 'twinz' : 'elegant';
-                const durationMs = typeof m.leftTimerDurationMs === 'number' && Number.isFinite(m.leftTimerDurationMs) && m.leftTimerDurationMs > 0 ? m.leftTimerDurationMs : undefined;
-                const repeat = typeof m.leftTimerRepeat === 'boolean' ? m.leftTimerRepeat : undefined;
-                newHud.left = { widget: 'timer', style, ...(durationMs !== undefined ? { durationMs } : {}), ...(repeat !== undefined ? { repeat } : {}) };
-              } else if (m.leftWidget === 'text' && typeof m.leftText === 'string') {
-                newHud.left = buildText(m.leftText, m.leftTextStyle, m.leftTextSize, m.leftTextSpeed, m.leftTextSpan, m.leftTextFlicker, m.leftTextTransition, m.leftTextLoopDelayMs);
-              } else if (m.leftWidget === 'zen') {
-                const style = (ZEN_STYLE_VALUES as readonly string[]).includes(m.leftZenStyle ?? '') ? m.leftZenStyle as ZenStyle : 'waves';
-                newHud.left = { widget: 'zen', ...(style !== undefined ? { style } : {}) };
-              } else if (typeof m.leftFace === 'string') {
-                const face = isClockFace(m.leftFace) ? m.leftFace : 'elegant';
-                newHud.left = { widget: 'clock', face };
-              }
-              if (m.rightWidget === 'audio') {
-                const style = AUDIO_STYLES.find(s => s.id === m.rightAudioStyle)?.id;
-                newHud.right = { widget: 'audio', ...(style ? { style } : {}) };
-              } else if (m.rightWidget === 'data') {
-                const style = DATA_STYLES.find(s => s.id === m.rightDataStyle)?.id;
-                newHud.right = { widget: 'data', ...(style ? { style } : {}) };
-              } else if (m.rightWidget === 'image' && typeof m.rightFile === 'string') {
-                newHud.right = { widget: 'image', file: m.rightFile };
-              } else if (m.rightWidget === 'life' && typeof m.rightBiomeName === 'string') {
-                newHud.right = { widget: 'life', biomeName: m.rightBiomeName, ...(m.rightRandomIntervalMs !== undefined ? { randomIntervalMs: m.rightRandomIntervalMs } : {}) };
-              } else if (m.rightWidget === 'claude') {
-                const style = CLAUDE_STYLES.find(s => s.id === m.rightClaudeStyle)?.id;
-                newHud.right = { widget: 'claude', ...(style ? { style } : {}) };
-              } else if (m.rightWidget === 'timer') {
-                const style = m.rightTimerStyle === 'hourglass' ? 'hourglass' : m.rightTimerStyle === 'twinz' ? 'twinz' : 'elegant';
-                const durationMs = typeof m.rightTimerDurationMs === 'number' && Number.isFinite(m.rightTimerDurationMs) && m.rightTimerDurationMs > 0 ? m.rightTimerDurationMs : undefined;
-                const repeat = typeof m.rightTimerRepeat === 'boolean' ? m.rightTimerRepeat : undefined;
-                newHud.right = { widget: 'timer', style, ...(durationMs !== undefined ? { durationMs } : {}), ...(repeat !== undefined ? { repeat } : {}) };
-              } else if (m.rightWidget === 'text' && typeof m.rightText === 'string') {
-                newHud.right = buildText(m.rightText, m.rightTextStyle, m.rightTextSize, m.rightTextSpeed, m.rightTextSpan, m.rightTextFlicker, m.rightTextTransition, m.rightTextLoopDelayMs);
-              } else if (m.rightWidget === 'zen') {
-                const style = (ZEN_STYLE_VALUES as readonly string[]).includes(m.rightZenStyle ?? '') ? m.rightZenStyle as ZenStyle : 'waves';
-                newHud.right = { widget: 'zen', ...(style !== undefined ? { style } : {}) };
-              } else if (typeof m.rightFace === 'string') {
-                const face = isClockFace(m.rightFace) ? m.rightFace : 'elegant';
-                newHud.right = { widget: 'clock', face };
-              }
+              const leftWidgetType = (typeof m.leftWidget === 'string' && m.leftWidget in DAEMON_WIDGET_REGISTRY)
+                ? m.leftWidget as keyof typeof DAEMON_WIDGET_REGISTRY
+                : 'clock' as const;
+              const rightWidgetType = (typeof m.rightWidget === 'string' && m.rightWidget in DAEMON_WIDGET_REGISTRY)
+                ? m.rightWidget as keyof typeof DAEMON_WIDGET_REGISTRY
+                : 'clock' as const;
+              const newLeft = DAEMON_WIDGET_REGISTRY[leftWidgetType].extractParams(m, 'left', currentConfig)
+                ?? clockFallback;
+              const newRight = DAEMON_WIDGET_REGISTRY[rightWidgetType].extractParams(m, 'right', currentConfig)
+                ?? clockFallback;
+              newHud.left = newLeft;
+              newHud.right = newRight;
               currentConfig = { ...currentConfig, hud: newHud };
               if ((hudHardwareActive || currentAnimName === 'hud') && !dispatcher.current()) {
                 frameHeldLeft = false;

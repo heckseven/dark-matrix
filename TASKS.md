@@ -51,6 +51,10 @@
 - [ ] GIF as notification content (e.g. VM-start triggers skulltalk.gif)
 - [ ] Audio EQ fps ceiling — verify empirically at 30fps target on hardware
 
+## Technical debt
+
+- [ ] Widget registry refactor — adding a widget requires 15 edits across 5 files with no compile-time safety net; see `docs/widget-registry-refactor.md` for options (exhaustiveness checks as quick win; descriptor registry as full solution)
+
 ## Known gaps
 
 - [ ] Scroll pixel-perfect seam at module boundary — verify no off-by-one at the join

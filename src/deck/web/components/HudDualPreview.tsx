@@ -1,26 +1,11 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { createBiomeGrid, createBiomeStep } from '../../../animations/gol.js';
-import { createClockRenderer } from '../../../animations/clock-renderers.js';
-import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
-import { renderElegantTimer, renderTwinzTimer, renderTwinzUsagePercent, createHourglassTimerRenderer } from '../../../animations/timer-renderers.js';
-import { getDataRenderer } from '../data-renderer-pool.js';
-import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
-import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
-import { createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
-import { createTextRenderer, textRendererCacheKey, type TextRenderer } from '../../../animations/text-renderers.js';
-import { createZenRenderer } from '../../../animations/zen-renderers.js';
-import type { ZenStyle } from '../../../animations/zen-renderers.js';
+import type { RenderCtx } from '../../../animations/audio-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import { deckStore } from '../store.js';
-
-// Text renderers cached by content signature + side (not widget identity) so an
-// edit keystroke rebuilds only when something actually changed.
-const _textCache: Record<string, TextRenderer> = {};
-function getTextRenderer(w: Extract<HudWidget, { widget: 'text' }>, side: 'left' | 'right'): TextRenderer {
-  const key = textRendererCacheKey(w, side);
-  if (!_textCache[key]) _textCache[key] = createTextRenderer(w, side);
-  return _textCache[key]!;
-}
+import { BROWSER_WIDGET_REGISTRY } from '../widgets/index.js';
+import type { PreviewOpts } from '../widgets/types.js';
+import { MOCK_AUDIO_CTX } from '../widgets/audio.js';
 
 // ── layout constants — match PixelCanvas at zoom=1 ────────────────────────
 
@@ -43,39 +28,6 @@ const RIGHT_X  = COLS * PITCH + MOD_GAP;       // 197 — x where right module s
 const SPLIT_X  = HALF_W + Math.floor((RIGHT_X - HALF_W) / 2); // 192
 
 // ── renderer caches ───────────────────────────────────────────────────────
-
-const _clockL: Partial<Record<ClockFace, ClockRenderer>> = {};
-const _clockR: Partial<Record<ClockFace, ClockRenderer>> = {};
-
-const MOCK_AUDIO_CTX: RenderCtx = { bands: [200, 150, 100, 70, 40, 20, 10, 5, 2], fftSize: 2048, gain: 1.5 };
-const _audioRenderers: Partial<Record<AudioStyle, ReturnType<typeof createAudioRenderer>>> = {};
-function getAudioRenderer(style: AudioStyle) {
-  if (!_audioRenderers[style]) _audioRenderers[style] = createAudioRenderer(style);
-  return _audioRenderers[style]!;
-}
-
-const BAYER4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]] as const;
-function bayerDither(frame: Uint8Array): Uint8Array {
-  const out = new Uint8Array(frame.length);
-  for (let col = 0; col < COLS; col++) {
-    for (let row = 0; row < ROWS; row++) {
-      const threshold = (BAYER4[row % 4]![col % 4]! + 0.5) * (255 / 16);
-      out[col * ROWS + row] = (frame[col * ROWS + row] ?? 0) > threshold ? 255 : 0;
-    }
-  }
-  return out;
-}
-
-function mirrorFrame(frame: Uint8Array): Uint8Array {
-  const out = new Uint8Array(frame.length);
-  for (let col = 0; col < COLS; col++) {
-    const src = COLS - 1 - col;
-    for (let row = 0; row < ROWS; row++) {
-      out[col * ROWS + row] = frame[src * ROWS + row] ?? 0;
-    }
-  }
-  return out;
-}
 
 function b64ToUint8(b64: string, expectedBytes: number): Uint8Array {
   const bin = atob(b64);
@@ -112,61 +64,6 @@ function snapshotHalf(snapshot: string, side: 'left' | 'right'): string {
   }
 }
 
-// Extract one 9-col half from an 18-wide pixel buffer (col-major, 34 rows)
-function extractHalf(full: Uint8Array, side: 'left' | 'right'): Uint8Array {
-  const out = new Uint8Array(COLS * ROWS);
-  const colOffset = side === 'right' ? COLS : 0;
-  for (let col = 0; col < COLS; col++) {
-    for (let row = 0; row < ROWS; row++) {
-      out[col * ROWS + row] = full[(col + colOffset) * ROWS + row] ?? 0;
-    }
-  }
-  return out;
-}
-
-const _previewClaudeSnow = createClaudeSnowRenderer();
-const _previewClaudeSand = (() => {
-  const r = createClaudeSandRenderer();
-  for (let i = 0; i < 60; i++) {
-    if (i % 4 === 0) r.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
-    r.render();
-  }
-  return r;
-})();
-const _previewClaudeTetris = (() => {
-  const r = createClaudeTetrisRenderer();
-  for (let i = 0; i < 180; i++) {
-    if (i % 3 === 0) r.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
-    r.render();
-  }
-  return r;
-})();
-
-// Quota widget preview — sample percentage in the twinz font.
-const _quotaPreviewFrame = renderTwinzUsagePercent(42);
-
-let _dualPreviewClaudeTick = 0;
-
-// Hourglass preview: stateful renderer cycling through a 60s demo timer so the
-// preview matches what hardware will draw, including grain physics.
-const HG_PREVIEW_TOTAL_MS = 60_000;
-let _hgPreviewRem = HG_PREVIEW_TOTAL_MS;
-const _previewHourglass = createHourglassTimerRenderer();
-
-const _zenRenderers: Partial<Record<ZenStyle, ReturnType<typeof createZenRenderer>>> = {};
-
-if (import.meta.hot) {
-  import.meta.hot.dispose(() => {
-    for (const k in _clockL) delete _clockL[k as ClockFace];
-    for (const k in _clockR) delete _clockR[k as ClockFace];
-    for (const k in _audioRenderers) delete _audioRenderers[k as AudioStyle];
-    _previewClaudeSnow.stop();
-    _previewClaudeSand.stop();
-    _previewClaudeTetris.stop();
-    for (const r of Object.values(_zenRenderers)) r?.stop();
-    for (const k in _zenRenderers) delete _zenRenderers[k as ZenStyle];
-  });
-}
 
 type ImageEntry = {
   frames: Uint8Array[];
@@ -175,6 +72,7 @@ type ImageEntry = {
   frameIdx: number;
   elapsed: number;
   lastTick: number | null;
+  loop: boolean;
 };
 type ImagePixelsCache = Record<string, ImageEntry | undefined>;
 
@@ -195,71 +93,12 @@ function getPixels(widget: HudWidget | null, side: 'left' | 'right', now: Date, 
   const empty = new Uint8Array(COLS * ROWS);
   if (!widget) return empty;
   try {
-    if (widget.widget === 'clock') {
-      const face  = widget.face ?? 'elegant';
-      const cache = side === 'left' ? _clockL : _clockR;
-      if (!cache[face]) cache[face] = createClockRenderer(face);
-      const frame = cache[face]!({ now, side });
-      const out = new Uint8Array(COLS * ROWS);
-      for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
-      return out;
-    } else if (widget.widget === 'audio') {
-      const style = widget.style ?? AUDIO_STYLES[0]!.id;
-      const rendered = bayerDither(getAudioRenderer(style)(audioCtx));
-      return side === 'right' ? mirrorFrame(rendered) : rendered;
-    } else if (widget.widget === 'image') {
-      const cached = imageCache[widget.file];
-      if (!cached || !cached.frames.length) return empty;
-      const frame = cached.frames[cached.frameIdx] ?? cached.frames[0]!;
-      if (cached.width === 18) return extractHalf(frame, side);
-      return frame;
-    } else if (widget.widget === 'life') {
-      if (lifeGrid) {
-        const out = new Uint8Array(COLS * ROWS);
-        for (let i = 0; i < out.length; i++) out[i] = lifeGrid[i]! > 0 ? 255 : 0;
-        return out;
-      }
-      const biomes = deckStore.getState().biomePresets;
-      const b = biomes.find(b => b.name === widget.biomeName);
-      if (!b?.gridSnapshot) return empty;
-      const raw = b64ToUint8(snapshotHalf(b.gridSnapshot, side), COLS * ROWS);
-      const out = new Uint8Array(COLS * ROWS);
-      for (let i = 0; i < out.length; i++) out[i] = raw[i]! > 0 ? 255 : 0;
-      return out;
-    } else if (widget.widget === 'data') {
-      const frame = getDataRenderer(widget.style ?? 'line').render();
-      const out = new Uint8Array(COLS * ROWS);
-      for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
-      return out;
-    } else if (widget.widget === 'timer') {
-      const frame = widget.style === 'hourglass'
-        ? _previewHourglass.render(_hgPreviewRem, HG_PREVIEW_TOTAL_MS)
-        : widget.style === 'twinz'
-          ? renderTwinzTimer(90_061)
-          : renderElegantTimer(90_000);
-      const out = new Uint8Array(COLS * ROWS);
-      for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
-      return out;
-    } else if (widget.widget === 'claude') {
-      const style = widget.style ?? 'snow';
-      if (style === 'quota') return _quotaPreviewFrame;
-      const raw = style === 'sand'    ? _previewClaudeSand.render()
-                : style === 'tetris'  ? _previewClaudeTetris.render()
-                :                       _previewClaudeSnow.render();
-      return bayerDither(raw);
-    } else if (widget.widget === 'text') {
-      const frame = getTextRenderer(widget, side).render(now);
-      const out = new Uint8Array(COLS * ROWS);
-      for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
-      return out;
-    } else if (widget.widget === 'zen') {
-      const style = widget.style ?? 'fluid-1';
-      if (!_zenRenderers[style]) _zenRenderers[style] = createZenRenderer(style);
-      const frame = _zenRenderers[style]!.render();
-      return bayerDither(frame);
-    } else {
-      return empty;
-    }
+    const opts: PreviewOpts = {
+      audioCtx,
+      imageCache: imageCache as Record<string, import('../widgets/types.js').ImageCacheEntry>,
+      ...(lifeGrid !== undefined ? { lifeGrid } : {}),
+    };
+    return BROWSER_WIDGET_REGISTRY[widget.widget].renderPreview(widget as never, side, now, opts);
   } catch {
     return empty;
   }
@@ -362,6 +201,7 @@ export function HudDualPreview({
           frameIdx: 0,
           elapsed: 0,
           lastTick: null,
+          loop: true,
         };
       }
     }).catch(() => {});
@@ -420,20 +260,6 @@ export function HudDualPreview({
         }
       }
       return state.grid;
-    }
-
-    _dualPreviewClaudeTick++;
-    _hgPreviewRem = Math.max(0, _hgPreviewRem - 100);
-    if (_hgPreviewRem === 0) _hgPreviewRem = HG_PREVIEW_TOTAL_MS;
-    const t = _dualPreviewClaudeTick;
-    if (t % 8 === 0) {
-      const tools = ['Read', 'Bash', 'Edit', 'Grep', 'Write'] as const;
-      _previewClaudeSnow.onEvent({ type: 'tool_use', tool: tools[t % tools.length]!, sessionId: 'preview' });
-    }
-    if (t % 40 === 0) _previewClaudeSnow.onEvent({ type: 'agent_spawn', sessionId: 'preview' });
-    if (t % 6 === 0) {
-      _previewClaudeSand.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
-      _previewClaudeTetris.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
     }
 
     const leftLifeGrid  = advanceLifeSide(lifeStateL, leftWidget,  'left');
