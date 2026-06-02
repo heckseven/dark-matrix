@@ -80,131 +80,134 @@ describe('matchesGlob', () => {
 });
 
 describe('routeNotification', () => {
-  it('returns none+replace when no rules match', () => {
-    const rules: NotificationRule[] = [{ app_name_glob: 'Slack', animation: 'none' }];
-    expect(routeNotification(desktopIntent('Discord'), rules)).toEqual({ action: 'none', composite: 'replace' });
+  it('returns suppress+replace when no rules match', () => {
+    const rules: NotificationRule[] = [{ app_name_glob: 'Slack', animation: 'suppress' }];
+    expect(routeNotification(desktopIntent('Discord'), rules)).toEqual({ action: 'suppress', composite: 'replace' });
   });
 
-  it('returns none+replace when rules array is empty', () => {
-    expect(routeNotification(desktopIntent('Slack'), [])).toEqual({ action: 'none', composite: 'replace' });
+  it('returns suppress+replace when rules array is empty', () => {
+    expect(routeNotification(desktopIntent('Slack'), [])).toEqual({ action: 'suppress', composite: 'replace' });
   });
 
   it('first-match-wins', () => {
     const rules: NotificationRule[] = [
-      { app_name_glob: 'Slack', animation: 'none' },
-      { app_name_glob: 'Slack', animation: 'scroll' },
+      { app_name_glob: 'Slack', animation: 'suppress' },
+      { app_name_glob: 'Slack', animation: 'text' },
     ];
-    expect(routeNotification(desktopIntent('Slack'), rules)).toEqual({ action: 'none', composite: 'replace' });
+    expect(routeNotification(desktopIntent('Slack'), rules)).toEqual({ action: 'suppress', composite: 'replace' });
   });
 
-  it('animation=none returns { action: "none" }', () => {
-    const rules: NotificationRule[] = [{ app_name_glob: '*', animation: 'none' }];
-    expect(routeNotification(desktopIntent('anything'), rules)).toEqual({ action: 'none', composite: 'replace' });
+  it('animation=suppress returns { action: "suppress" }', () => {
+    const rules: NotificationRule[] = [{ app_name_glob: '*', animation: 'suppress' }];
+    expect(routeNotification(desktopIntent('anything'), rules)).toEqual({ action: 'suppress', composite: 'replace' });
   });
 
-  it('animation=scroll returns { action: "scroll" }', () => {
-    const rules: NotificationRule[] = [{ app_name_glob: 'Slack', animation: 'scroll' }];
-    expect(routeNotification(desktopIntent('Slack'), rules)).toEqual({ action: 'scroll', composite: 'replace' });
+  it('animation=text returns { action: "text" }', () => {
+    const rules: NotificationRule[] = [{ app_name_glob: 'Slack', animation: 'text' }];
+    expect(routeNotification(desktopIntent('Slack'), rules)).toEqual({ action: 'text', composite: 'replace' });
   });
 
-  it('animation=dmx includes dmx_path via assetPath', () => {
+  it('animation=design includes asset_path via assetPath', () => {
     const rules: NotificationRule[] = [
-      { app_name_glob: 'Slack', animation: 'dmx', asset_path: '/home/user/alert.dmx.json' },
+      { app_name_glob: 'Slack', animation: 'design', asset_path: '/home/user/alert.dmx.json' },
     ];
     expect(routeNotification(desktopIntent('Slack'), rules)).toEqual({
-      action: 'dmx',
+      action: 'design',
       assetPath: '/home/user/alert.dmx.json',
       composite: 'replace',
     });
   });
 
-  it('animation=dmx without asset_path omits assetPath key', () => {
-    const rules: NotificationRule[] = [{ app_name_glob: 'Slack', animation: 'dmx' }];
+  it('animation=design without asset_path omits assetPath key', () => {
+    const rules: NotificationRule[] = [{ app_name_glob: 'Slack', animation: 'design' }];
     const result = routeNotification(desktopIntent('Slack'), rules);
-    expect(result.action).toBe('dmx');
+    expect(result.action).toBe('design');
     expect('assetPath' in result).toBe(false);
   });
 
   it('omitted urgency on rule matches any notification urgency', () => {
-    const rules: NotificationRule[] = [{ app_name_glob: '*', animation: 'none' }];
-    expect(routeNotification(desktopIntent('App'), rules)).toEqual({ action: 'none', composite: 'replace' });
+    const rules: NotificationRule[] = [{ app_name_glob: '*', animation: 'suppress' }];
+    expect(routeNotification(desktopIntent('App'), rules)).toEqual({ action: 'suppress', composite: 'replace' });
   });
 
   it('urgency=any on rule matches any notification urgency', () => {
-    const rules: NotificationRule[] = [{ app_name_glob: '*', urgency: 'any', animation: 'none' }];
-    expect(routeNotification(desktopIntent('App'), rules)).toEqual({ action: 'none', composite: 'replace' });
+    const rules: NotificationRule[] = [{ app_name_glob: '*', urgency: 'any', animation: 'suppress' }];
+    expect(routeNotification(desktopIntent('App'), rules)).toEqual({ action: 'suppress', composite: 'replace' });
   });
 
   it('urgency filter skips non-matching urgency (TODO: always skips until dbus urgency is parsed)', () => {
     // DesktopNotification does not yet expose urgency — all urgency-filtered rules
     // are treated as non-matching, so the fallback rule always wins.
     const rules: NotificationRule[] = [
-      { app_name_glob: '*', urgency: 'critical', animation: 'none' },
-      { app_name_glob: '*', animation: 'scroll' },
+      { app_name_glob: '*', urgency: 'critical', animation: 'suppress' },
+      { app_name_glob: '*', animation: 'text' },
     ];
-    expect(routeNotification(desktopIntent('App'), rules)).toEqual({ action: 'scroll', composite: 'replace' });
+    expect(routeNotification(desktopIntent('App'), rules)).toEqual({ action: 'text', composite: 'replace' });
   });
 
   it('glob pattern matching in rules', () => {
     const rules: NotificationRule[] = [
-      { app_name_glob: 'Slack*', animation: 'none' },
-      { app_name_glob: '*', animation: 'scroll' },
+      { app_name_glob: 'Slack*', animation: 'suppress' },
+      { app_name_glob: '*', animation: 'text' },
     ];
-    expect(routeNotification(desktopIntent('SlackBot'), rules)).toEqual({ action: 'none', composite: 'replace' });
-    expect(routeNotification(desktopIntent('Discord'), rules)).toEqual({ action: 'scroll', composite: 'replace' });
+    expect(routeNotification(desktopIntent('SlackBot'), rules)).toEqual({ action: 'suppress', composite: 'replace' });
+    expect(routeNotification(desktopIntent('Discord'), rules)).toEqual({ action: 'text', composite: 'replace' });
   });
 
   // --- New tests for generalized routing ---
 
   it('source filter: matches when source matches', () => {
     const rules: NotificationRule[] = [
-      { source: 'ec-switch', animation: 'none' },
+      { source: 'ec-switch', animation: 'suppress' },
     ];
-    expect(routeNotification(sourceIntent('ec-switch', 'CAM ON'), rules)).toEqual({ action: 'none', composite: 'replace' });
+    expect(routeNotification(sourceIntent('ec-switch', 'CAM ON'), rules)).toEqual({ action: 'suppress', composite: 'replace' });
   });
 
   it('source filter: skips when source does not match', () => {
+    // Fallback rule proves the source-filtered rule was skipped, not just absent.
     const rules: NotificationRule[] = [
-      { source: 'ec-switch', animation: 'none' },
+      { source: 'ec-switch', animation: 'suppress' },
+      { animation: 'text' },
     ];
-    expect(routeNotification(sourceIntent('vm', 'VM UP foo'), rules)).toEqual({ action: 'none', composite: 'replace' });
+    expect(routeNotification(sourceIntent('vm', 'VM UP foo'), rules)).toEqual({ action: 'text', composite: 'replace' });
   });
 
   it('app_name_glob skips non-desktop-notification sources', () => {
+    // Fallback rule proves the glob rule was skipped for non-desktop sources.
     const rules: NotificationRule[] = [
-      { app_name_glob: '*', animation: 'none' },
+      { app_name_glob: '*', animation: 'suppress' },
+      { animation: 'text' },
     ];
-    // vm intent — app_name_glob should not match non-desktop-notification
-    expect(routeNotification(sourceIntent('vm', 'VM UP foo'), rules)).toEqual({ action: 'none', composite: 'replace' });
-    expect(routeNotification(sourceIntent('ec-switch', 'CAM ON'), rules)).toEqual({ action: 'none', composite: 'replace' });
+    expect(routeNotification(sourceIntent('vm', 'VM UP foo'), rules)).toEqual({ action: 'text', composite: 'replace' });
+    expect(routeNotification(sourceIntent('ec-switch', 'CAM ON'), rules)).toEqual({ action: 'text', composite: 'replace' });
   });
 
   it('content_glob matches against intent.content', () => {
     const rules: NotificationRule[] = [
-      { content_glob: 'CAM*', animation: 'none' },
+      { content_glob: 'CAM*', animation: 'suppress' },
     ];
-    expect(routeNotification(sourceIntent('ec-switch', 'CAM ON'), rules)).toEqual({ action: 'none', composite: 'replace' });
-    expect(routeNotification(sourceIntent('ec-switch', 'MIC OFF'), rules)).toEqual({ action: 'none', composite: 'replace' });
+    expect(routeNotification(sourceIntent('ec-switch', 'CAM ON'), rules)).toEqual({ action: 'suppress', composite: 'replace' });
+    expect(routeNotification(sourceIntent('ec-switch', 'MIC OFF'), rules)).toEqual({ action: 'suppress', composite: 'replace' });
   });
 
   it('content_glob works across sources', () => {
     const rules: NotificationRule[] = [
-      { content_glob: '*VM*', animation: 'scroll' },
+      { content_glob: '*VM*', animation: 'text' },
     ];
-    expect(routeNotification(sourceIntent('vm', 'VM UP mybox'), rules)).toEqual({ action: 'scroll', composite: 'replace' });
-    expect(routeNotification(desktopIntent('VM UP mybox'), rules)).toEqual({ action: 'scroll', composite: 'replace' });
+    expect(routeNotification(sourceIntent('vm', 'VM UP mybox'), rules)).toEqual({ action: 'text', composite: 'replace' });
+    expect(routeNotification(desktopIntent('VM UP mybox'), rules)).toEqual({ action: 'text', composite: 'replace' });
   });
 
   it('composite field is returned from rule', () => {
     const rules: NotificationRule[] = [
-      { source: 'claude', animation: 'scroll', composite: 'overlay' },
+      { source: 'claude', animation: 'text', composite: 'overlay' },
     ];
-    expect(routeNotification(sourceIntent('claude', 'TOOL bash'), rules)).toEqual({ action: 'scroll', composite: 'overlay' });
+    expect(routeNotification(sourceIntent('claude', 'TOOL bash'), rules)).toEqual({ action: 'text', composite: 'overlay' });
   });
 
   it('composite defaults to replace when not set on rule', () => {
     const rules: NotificationRule[] = [
-      { source: 'manual', animation: 'none' },
+      { source: 'manual', animation: 'suppress' },
     ];
     const result = routeNotification(sourceIntent('manual'), rules);
     expect(result.composite).toBe('replace');
@@ -212,46 +215,46 @@ describe('routeNotification', () => {
 
   it('duration_ms_override is returned when set', () => {
     const rules: NotificationRule[] = [
-      { source: 'vm', animation: 'scroll', duration_ms_override: 12000 },
+      { source: 'vm', animation: 'text', duration_ms_override: 12000 },
     ];
     expect(routeNotification(sourceIntent('vm', 'VM DN mybox'), rules)).toEqual({
-      action: 'scroll',
+      action: 'text',
       composite: 'replace',
       durationMs: 12000,
     });
   });
 
   it('duration_ms_override absent when not set', () => {
-    const rules: NotificationRule[] = [{ animation: 'none' }];
+    const rules: NotificationRule[] = [{ animation: 'suppress' }];
     const result = routeNotification(sourceIntent('ec-switch'), rules);
     expect('durationMs' in result).toBe(false);
   });
 
   it('ec-switch source routing', () => {
     const rules: NotificationRule[] = [
-      { source: 'ec-switch', content_glob: 'CAM*', animation: 'dmx', asset_path: 'cam.dmx.json', composite: 'overlay', duration_ms_override: 3000 },
-      { source: 'ec-switch', animation: 'scroll' },
+      { source: 'ec-switch', content_glob: 'CAM*', animation: 'design', asset_path: 'cam.dmx.json', composite: 'overlay', duration_ms_override: 3000 },
+      { source: 'ec-switch', animation: 'text' },
     ];
     expect(routeNotification(sourceIntent('ec-switch', 'CAM ON'), rules)).toEqual({
-      action: 'dmx',
+      action: 'design',
       assetPath: 'cam.dmx.json',
       composite: 'overlay',
       durationMs: 3000,
     });
-    expect(routeNotification(sourceIntent('ec-switch', 'MIC OFF'), rules)).toEqual({ action: 'scroll', composite: 'replace' });
+    expect(routeNotification(sourceIntent('ec-switch', 'MIC OFF'), rules)).toEqual({ action: 'text', composite: 'replace' });
   });
 
-  it('default route with no rules returns none+replace', () => {
-    expect(routeNotification(sourceIntent('ec-switch', 'CAM ON'), [])).toEqual({ action: 'none', composite: 'replace' });
-    expect(routeNotification(desktopIntent('anything'), [])).toEqual({ action: 'none', composite: 'replace' });
+  it('default route with no rules returns suppress+replace', () => {
+    expect(routeNotification(sourceIntent('ec-switch', 'CAM ON'), [])).toEqual({ action: 'suppress', composite: 'replace' });
+    expect(routeNotification(desktopIntent('anything'), [])).toEqual({ action: 'suppress', composite: 'replace' });
   });
 
-  it('noMatchAction=scroll returns scroll when no rule matches', () => {
-    expect(routeNotification(desktopIntent('anything'), [], 'scroll')).toEqual({ action: 'scroll', composite: 'replace' });
+  it('noMatchAction=text returns text when no rule matches', () => {
+    expect(routeNotification(desktopIntent('anything'), [], 'text')).toEqual({ action: 'text', composite: 'replace' });
   });
 
-  it('noMatchAction=scroll does not override an explicit none rule', () => {
-    const rules: NotificationRule[] = [{ app_name_glob: '*', animation: 'none' }];
-    expect(routeNotification(desktopIntent('anything'), rules, 'scroll')).toEqual({ action: 'none', composite: 'replace' });
+  it('noMatchAction=text does not override an explicit suppress rule', () => {
+    const rules: NotificationRule[] = [{ app_name_glob: '*', animation: 'suppress' }];
+    expect(routeNotification(desktopIntent('anything'), rules, 'text')).toEqual({ action: 'suppress', composite: 'replace' });
   });
 });

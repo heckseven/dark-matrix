@@ -96,15 +96,11 @@ Starter designs ship in `dist/deck/builtins/` (built from `src/deck/builtins/*.d
 
 ```sh
 pnpm test          # all tests
-pnpm test --watch  # watch mode
+pnpm test:watch    # watch mode
 pnpm typecheck     # tsc --noEmit
 ```
 
-Two tests are known pre-existing failures unrelated to any recent work:
-- `daemon.test.ts` — ping response shape mismatch (version field added in Wave 3)
-- `notification-assets.test.ts` — path changed from `assets/` to `library/`
-
-Do not attempt to fix these as part of unrelated changes.
+The suite should be fully green. If a test fails, it is related to your change — investigate it.
 
 ---
 

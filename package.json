@@ -2,6 +2,11 @@
   "name": "dark-matrix",
   "version": "0.1.0",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/heckseven/dark-matrix.git"
+  },
   "engines": {
     "node": ">=24"
   },

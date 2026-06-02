@@ -73,10 +73,7 @@ pnpm typecheck     # tsc --noEmit
 pnpm coverage      # coverage report
 ```
 
-Two tests are pre-existing failures unrelated to any recent work — skip them, don't fix them:
-
-- `daemon.test.ts` — ping response shape mismatch (version field added in Wave 3)
-- `notification-assets.test.ts` — path changed from `assets/` to `library/`
+The suite should be fully green on a clean checkout. If something fails, it's related to your change.
 
 ## TypeScript notes
 

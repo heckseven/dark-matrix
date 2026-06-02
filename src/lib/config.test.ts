@@ -169,7 +169,7 @@ describe('stale widget coercion (graceful degradation)', () => {
 
 describe('notification_rules', () => {
   it('accepts a rule with all fields', async () => {
-    const rule: NotificationRule = { app_name_glob: 'firefox', urgency: 'critical', animation: 'dmx', dmx_path: '/home/user/alert.dmx.json' };
+    const rule: NotificationRule = { app_name_glob: 'firefox', urgency: 'critical', animation: 'design', dmx_path: '/home/user/alert.dmx.json' };
     await write({ ...DEFAULT_CONFIG, notification_rules: [rule] });
     const cfg = await loadConfig();
     expect(cfg.notification_rules).toHaveLength(1);
@@ -177,12 +177,12 @@ describe('notification_rules', () => {
   });
 
   it('accepts a rule with only required fields', async () => {
-    const rule = { app_name_glob: '*', animation: 'scroll' };
+    const rule = { app_name_glob: '*', animation: 'text' };
     await write({ ...DEFAULT_CONFIG, notification_rules: [rule] });
     const cfg = await loadConfig();
     const parsed = cfg.notification_rules;
     expect(parsed).toBeDefined();
-    expect(parsed![0]).toMatchObject({ app_name_glob: '*', animation: 'scroll' });
+    expect(parsed![0]).toMatchObject({ app_name_glob: '*', animation: 'text' });
     expect(parsed![0]!.urgency).toBeUndefined();
     expect(parsed![0]!.dmx_path).toBeUndefined();
   });
@@ -193,14 +193,36 @@ describe('notification_rules', () => {
   });
 
   it('rejects an invalid urgency value', async () => {
-    await write({ ...DEFAULT_CONFIG, notification_rules: [{ app_name_glob: 'slack', urgency: 'urgent', animation: 'scroll' }] });
+    await write({ ...DEFAULT_CONFIG, notification_rules: [{ app_name_glob: 'slack', urgency: 'urgent', animation: 'text' }] });
     await expect(loadConfig()).rejects.toBeInstanceOf(ConfigError);
+  });
+
+  it('migrates legacy animation values (scroll→text, dmx→design, none→suppress)', async () => {
+    await write({
+      ...DEFAULT_CONFIG,
+      notification_rules: [
+        { app_name_glob: 'a', animation: 'scroll' },
+        { app_name_glob: 'b', animation: 'dmx', dmx_path: '/home/user/x.dmx.json' },
+        { app_name_glob: 'c', animation: 'none' },
+      ],
+    });
+    const cfg = await loadConfig();
+    expect(cfg.notification_rules!.map(r => r.animation)).toEqual(['text', 'design', 'suppress']);
+  });
+
+  it('migrates legacy scroll_text/scroll_size to text_content/text_size', async () => {
+    await write({
+      ...DEFAULT_CONFIG,
+      notification_rules: [{ app_name_glob: 'a', animation: 'scroll', scroll_text: 'hi', scroll_size: 'large' }],
+    });
+    const cfg = await loadConfig();
+    expect(cfg.notification_rules![0]).toMatchObject({ animation: 'text', text_content: 'hi', text_size: 'large' });
   });
 
   it('round-trips: config with notification_rules serializes and re-parses correctly', async () => {
     const rules: NotificationRule[] = [
-      { app_name_glob: 'discord', urgency: 'normal', animation: 'scroll' },
-      { app_name_glob: 'plex', animation: 'none' },
+      { app_name_glob: 'discord', urgency: 'normal', animation: 'text' },
+      { app_name_glob: 'plex', animation: 'suppress' },
     ];
     await write({ ...DEFAULT_CONFIG, notification_rules: rules });
     const cfg = await loadConfig();
