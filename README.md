@@ -165,6 +165,7 @@ dark-matrix <command>
 
 | Command | Description |
 |---|---|
+| `init` | Guided first-run setup: generate config, calibrate, report optional deps |
 | `install --user-systemd` | Install and enable systemd user unit (dev builds) |
 | `install --ec-access` | Print udev rule + instructions for `/dev/cros_ec` access |
 | `install --claude-hooks` | Add PostToolUse/Stop/Notification hooks to `~/.claude/settings.json` |

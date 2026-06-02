@@ -11,7 +11,7 @@ import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
 import { sendToDaemon } from '../lib/daemon-client.js';
-import { loadConfig, DEFAULT_CONFIG, resolveConfigPath, writeJsonAtomic } from '../lib/config.js';
+import { loadConfig, DEFAULT_CONFIG, resolveConfigPath, writeJsonAtomic, bootstrapConfig } from '../lib/config.js';
 import { enumerateMatrixModules } from '../lib/modules.js';
 
 function staticAnim(frame: Frame) {
@@ -518,6 +518,93 @@ async function cmdCalibrate() {
   process.stdout.write(`Left: ${leftDev}\nRight: ${rightDev}\nConfig updated. Daemon reloaded.\n`);
 }
 
+// Is a binary resolvable on PATH? (used by init's optional-feature probe)
+function onPath(bin: string): Promise<boolean> {
+  return new Promise(res => {
+    // bin is single-quoted to neutralize metacharacters from any future caller.
+    const c = spawn('sh', ['-c', `command -v '${bin}' >/dev/null 2>&1`]);
+    c.on('close', code => res(code === 0));
+    c.on('error', () => res(false));
+  });
+}
+
+async function pmInstallHint(): Promise<string | undefined> {
+  if (await onPath('apt-get')) return 'sudo apt install ffmpeg wireplumber pipewire-utils yt-dlp dbus-x11';
+  if (await onPath('dnf'))     return 'sudo dnf install ffmpeg wireplumber pipewire-utils yt-dlp dbus-tools';
+  if (await onPath('pacman'))  return 'sudo pacman -S ffmpeg wireplumber pipewire yt-dlp dbus';
+  return undefined;
+}
+
+// Thin guided first-run: ensure config, calibrate, report optional features.
+// Reuses bootstrapConfig + cmdCalibrate; the Deck welcome screen is the GUI twin.
+async function cmdInit() {
+  const { head, dim, green: ok, bold } = ansi(ttyColor(process.stdout));
+
+  process.stdout.write(`${head('░▒▓ dark-matrix init ▓▒░')}\n\n`);
+
+  // 1. Config — generate + auto-detect if absent.
+  const configPath = resolveConfigPath();
+  let configExists = true;
+  try { await fs.access(configPath); } catch { configExists = false; }
+  process.stdout.write(`${head(':: config')}\n`);
+  if (configExists) {
+    process.stdout.write(`  ${ok('✓')} Using existing ${configPath}\n\n`);
+  } else {
+    process.stdout.write(`  ${dim('No config found — generating defaults and auto-detecting hardware…')}\n`);
+    await bootstrapConfig();
+    process.stdout.write(`  ${ok('✓')} Wrote ${configPath}\n\n`);
+  }
+
+  // 2. Calibration — reuse cmdCalibrate when both modules are present.
+  process.stdout.write(`${head(':: calibration')}\n`);
+  const modules = await enumerateMatrixModules().catch(() => []);
+  if (modules.length < 2) {
+    process.stdout.write(`  ${dim('○')} Found ${modules.length} module(s) — need 2. Skipping.\n`);
+    process.stdout.write(`  ${dim('Connect both modules, then run: dark-matrix calibrate')}\n\n`);
+  } else {
+    // Confirm before driving hardware — calibration lights the modules.
+    const { createInterface } = await import('node:readline');
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    const answer = await new Promise<string>(res => rl.question('  Calibrate both modules now? [Y/n] ', res));
+    rl.close();
+    if (answer.trim().toLowerCase().startsWith('n')) {
+      process.stdout.write(`  ${dim('Skipped — run: dark-matrix calibrate')}\n\n`);
+    } else {
+      // Don't let a calibration failure abort the rest of init.
+      try {
+        await cmdCalibrate();
+      } catch (err) {
+        process.stdout.write(`  ${dim(`Calibration failed: ${(err as Error).message} — run: dark-matrix calibrate`)}\n`);
+      }
+      process.stdout.write('\n');
+    }
+  }
+
+  // 3. Optional features — probe and hint, never fail.
+  process.stdout.write(`${head(':: optional features')}\n`);
+  const deps: Array<[string, string]> = [
+    ['ffmpeg', 'audio pipeline'],
+    ['wpctl', 'audio source selection'],
+    ['pw-dump', 'audio device enumeration'],
+    ['yt-dlp', 'video download'],
+    ['dbus-monitor', 'desktop notifications'],
+  ];
+  const missing: string[] = [];
+  for (const [bin, desc] of deps) {
+    const present = await onPath(bin);
+    process.stdout.write(`  ${present ? ok('✓') : dim('○')} ${bin.padEnd(14)} ${dim(desc)}\n`);
+    if (!present) missing.push(bin);
+  }
+  if (missing.length > 0) {
+    const hint = await pmInstallHint();
+    if (hint) process.stdout.write(`  ${dim('install the missing ones with:')}\n  ${dim(hint)}\n`);
+  }
+  process.stdout.write('\n');
+
+  // 4. Next step.
+  process.stdout.write(`${head(':: ready')}\n  Open the control deck → ${bold('dark-matrix ui')}\n`);
+}
+
 async function cmdPlay(args: string[]) {
   const loop = args.includes('--loop');
   const filePath = args.find(a => !a.startsWith('-'));
@@ -627,9 +714,129 @@ async function cmdDeck(args: string[]): Promise<void> {
   process.on('SIGTERM', shutdown);
 }
 
+// TTY + NO_COLOR aware ANSI, shared by renderHelp and cmdInit.
+function ttyColor(stream: NodeJS.WriteStream): boolean {
+  return Boolean(stream.isTTY) && process.env['NO_COLOR'] === undefined;
+}
+function ansi(color: boolean) {
+  const wrap = (code: string) => (s: string) => color ? `\x1b[${code}m${s}\x1b[0m` : s;
+  return { bold: wrap('1'), green: wrap('32'), head: wrap('1;32'), dim: wrap('2'), red: wrap('1;31') };
+}
+
+// Top-level help. Keep the command list in sync with the switch(cmd) at EOF.
+function renderHelp(color: boolean): string {
+  const W = 48; // command column width
+  const { bold, green, head, dim } = ansi(color);
+
+  // Row with command padded to the column width, then a dim description.
+  const row = (cmd: string, desc: string) => `  ${bold(cmd.padEnd(W))}${dim(desc)}`;
+  // Continuation line for commands too long to share a row with their description.
+  const cont = (desc: string) => `${' '.repeat(W + 2)}${dim(desc)}`;
+  // Numbered quickstart step.
+  const step = (n: string, cmd: string, desc: string) =>
+    `  ${green(n + '.')} ${bold(cmd.padEnd(22))}${dim(desc)}`;
+
+  return [
+    head('.:::::          .:       .:::::::    .::   .::'),
+    head('.::   .::      .: ::     .::    .::  .::  .::'),
+    head('.::    .::    .:  .::    .::    .::  .:: .::'),
+    head('.::    .::   .::   .::   .: .::      .: .:'),
+    head('.::    .::  .:::::: .::  .::  .::    .::  .::'),
+    head('.::   .::  .::       .:: .::    .::  .::   .::'),
+    head('.:::::    .::         .::.::      .::.::     .::'),
+    dim('⋅∗⋅⋅∗∗⋅∗⋅∗⋅⋅⋅⋅⋅∗⋅∗⋅∗⋅∗⋅⋅⋅∗⋅∗⋅⋅∗⋅⋅∗⋅⋅∗⋅⋅∗⋅∗⋅∗∗⋅⋅⋅'),
+    dim('// Framework matrix control deck'),
+    '',
+    head(':: jack in — first run'),
+    step('1', 'dark-matrix init', '— guided setup: detect hardware, calibrate, check deps'),
+    step('2', 'dark-matrix ui', '— open the control deck → http://localhost:7340'),
+    step('3', 'dark-matrix status', '— confirm the daemon has your hardware wired'),
+    '',
+    head(':: usage'),
+    `  ${bold('dark-matrix')} <command> [options]`,
+    '',
+    head(':: setup & service'),
+    row('init', 'Guided first-run setup (config, calibrate, optional deps)'),
+    row('install --user-systemd', 'Install and enable the systemd user service (dev builds)'),
+    row('install --ec-access', 'Print udev rule + steps for /dev/cros_ec (privacy switches)'),
+    row('install --claude-hooks', 'Add Claude Code hooks to ~/.claude/settings.json'),
+    row('calibrate', 'Confirm and save left/right module assignment'),
+    row('self-update', 'Fetch the latest GitHub release and update in place'),
+    row('uninstall [--purge]', 'Remove the install (--purge also wipes ~/.config/dark-matrix)'),
+    '',
+    head(':: daemon'),
+    row('ui [--port <n>]', 'Launch the Deck web UI (default port 7340)'),
+    row('ping', 'Check the daemon is reachable; print its version'),
+    row('status', 'Show version, uptime, animation, brightness, module state'),
+    row('release', 'Release the serial ports (stops a held scroll/gif/play)'),
+    '',
+    head(':: display to hardware'),
+    row('image <path> [--preview] [--mode bw|gray]', 'Show an image (PNG/JPEG/GIF), resized to 9×34'),
+    row('show <image> [--device <path>] [--mode bw|gray]', 'Send an image to one specific module'),
+    row('show-split <left> <right> [--mode bw|gray]', 'Send a different image to each module'),
+    row('display <yeah|runes|0x07|panic>', 'Show a built-in preset'),
+    row('play [--loop] <path>', 'Play a .dmx.json project once (or loop with --loop)'),
+    '',
+    head(':: animation'),
+    `  ${bold('scroll [--hold] [--size tiny|small|medium|large] [--speed slow|normal|fast] <text>')}`,
+    cont('Scroll text across both modules'),
+    `  ${bold('animate gif [--hold] [--dual] [--mode bw|gray] <path>')}`,
+    cont('Play a GIF (--dual spans both modules)'),
+    '',
+    head(':: hud & life'),
+    row('hud preset <name>', 'Switch to a named HUD preset'),
+    row('life list', 'List configured Game-of-Life biomes'),
+    row('life [left|right] <biome|random>', 'Run a biome on one side or both'),
+    '',
+    head(':: other'),
+    row('help, --help, -h', 'Show this menu'),
+    row('--version, -v', 'Print the version'),
+    '',
+    head(':: environment'),
+    row('DARK_MATRIX_SOCKET', 'Override the daemon IPC socket path'),
+    row('DARK_MATRIX_CONFIG_PATH', 'Override the config path (~/.config/dark-matrix/config.json)'),
+    '',
+    head(':: examples'),
+    `  ${dim('dark-matrix scroll --size large "wake up"')}`,
+    `  ${dim('dark-matrix hud preset focus')}`,
+    `  ${dim('dark-matrix image ~/pic.png --preview')}`,
+    '',
+    dim('  run `dark-matrix help` anytime · hack the planet'),
+  ].join('\n');
+}
+
+function helpFor(stream: NodeJS.WriteStream): string {
+  return renderHelp(ttyColor(stream));
+}
+
+async function resolveVersion(): Promise<string> {
+  // Installed tarball ships version.txt at the install root; dev builds fall back
+  // to package.json next to the bundle/source.
+  try {
+    return (await fs.readFile(path.join(INSTALL_DIR, 'version.txt'), 'utf8')).trim();
+  } catch { /* not an installed tarball */ }
+  for (const rel of ['../../package.json', '../package.json']) {
+    try {
+      const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, rel), 'utf8')) as { version?: unknown };
+      if (typeof pkg.version === 'string' && pkg.version) return pkg.version;
+    } catch { /* try next */ }
+  }
+  return 'dev';
+}
+
 const [,, cmd, ...args] = process.argv;
 
 switch (cmd) {
+  case undefined:
+  case 'help':
+  case '--help':
+  case '-h':
+    process.stdout.write(helpFor(process.stdout) + '\n');
+    break;
+  case '--version':
+  case '-v':
+    process.stdout.write(`${await resolveVersion()}\n`);
+    break;
   case 'install':
     switch (args[0]) {
       case '--user-systemd':   await cmdInstallUserSystemd(); break;
@@ -640,6 +847,7 @@ switch (cmd) {
         process.exit(1);
     }
     break;
+  case 'init':        await cmdInit(); break;
   case 'self-update': await cmdSelfUpdate(); break;
   case 'uninstall':   await cmdUninstall(args.includes('--purge')); break;
   case 'play':       await cmdPlay(args); break;
@@ -793,27 +1001,9 @@ switch (cmd) {
     }
     break;
   }
-  default:
-    process.stderr.write([
-      'Usage: dark-matrix <command>',
-      '  install [--user-systemd|--ec-access|--claude-hooks]',
-      '  self-update',
-      '  uninstall [--purge]',
-      '  show <image> [--device <path>] [--mode bw|gray]',
-      '  show-split <left> <right> [--mode bw|gray]',
-      '  display [yeah|runes|0x07|panic]',
-      '  image <path> [--preview] [--mode bw|gray]',
-      '  play [--loop] <path>',
-      '  ui [--port <n>]',
-      '  scroll [--hold] [--size tiny|small|medium|large] [--speed slow|normal|fast] <text>',
-      '  animate gif [--hold] [--dual] [--mode bw|gray] <path>',
-      '  life list',
-      '  life [left|right] <biome|random>',
-      '  hud preset <name>',
-      '  calibrate',
-      '  ping',
-      '  status',
-      '  release',
-    ].join('\n') + '\n');
-    if (cmd !== undefined) process.exit(1);
+  default: {
+    const { red } = ansi(ttyColor(process.stderr));
+    process.stderr.write(`${red('Unknown command:')} ${cmd}\nRun \`dark-matrix help\` for usage.\n`);
+    process.exit(1);
+  }
 }
