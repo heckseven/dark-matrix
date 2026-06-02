@@ -720,18 +720,18 @@ function ttyColor(stream: NodeJS.WriteStream): boolean {
 }
 function ansi(color: boolean) {
   const wrap = (code: string) => (s: string) => color ? `\x1b[${code}m${s}\x1b[0m` : s;
-  return { bold: wrap('1'), green: wrap('32'), head: wrap('1;32'), dim: wrap('2'), red: wrap('1;31') };
+  return { bold: wrap('1'), green: wrap('32'), head: wrap('1;32'), dim: wrap('2'), red: wrap('1;31'), white: wrap('97') };
 }
 
 // Top-level help. Keep the command list in sync with the switch(cmd) at EOF.
 function renderHelp(color: boolean): string {
   const W = 48; // command column width
-  const { bold, green, head, dim } = ansi(color);
+  const { bold, green, head, dim, white } = ansi(color);
 
   // Row with command padded to the column width, then a dim description.
   const row = (cmd: string, desc: string) => `  ${bold(cmd.padEnd(W))}${dim(desc)}`;
-  // Continuation line for commands too long to share a row with their description.
-  const cont = (desc: string) => `${' '.repeat(W + 2)}${dim(desc)}`;
+  // Indented flag line under a command (description stays aligned with rows).
+  const subrow = (flag: string, desc: string) => `    ${bold(flag.padEnd(W - 2))}${dim(desc)}`;
   // Numbered quickstart step.
   const step = (n: string, cmd: string, desc: string) =>
     `  ${green(n + '.')} ${bold(cmd.padEnd(22))}${dim(desc)}`;
@@ -744,7 +744,7 @@ function renderHelp(color: boolean): string {
     head('.::    .::  .:::::: .::  .::  .::    .::  .::'),
     head('.::   .::  .::       .:: .::    .::  .::   .::'),
     head('.:::::    .::         .::.::      .::.::     .::'),
-    dim('⋅∗⋅⋅∗∗⋅∗⋅∗⋅⋅⋅⋅⋅∗⋅∗⋅∗⋅∗⋅⋅⋅∗⋅∗⋅⋅∗⋅⋅∗⋅⋅∗⋅⋅∗⋅∗⋅∗∗⋅⋅⋅'),
+    white('⋅∗⋅⋅∗∗⋅∗⋅∗⋅⋅⋅⋅⋅∗⋅∗⋅∗⋅∗⋅⋅⋅∗⋅∗⋅⋅∗⋅⋅∗⋅⋅∗⋅⋅∗⋅∗⋅∗∗⋅⋅⋅'),
     dim('// Framework matrix control deck'),
     '',
     head(':: jack in — first run'),
@@ -756,50 +756,54 @@ function renderHelp(color: boolean): string {
     `  ${bold('dark-matrix')} <command> [options]`,
     '',
     head(':: setup & service'),
-    row('init', 'Guided first-run setup (config, calibrate, optional deps)'),
-    row('install --user-systemd', 'Install and enable the systemd user service (dev builds)'),
-    row('install --ec-access', 'Print udev rule + steps for /dev/cros_ec (privacy switches)'),
-    row('install --claude-hooks', 'Add Claude Code hooks to ~/.claude/settings.json'),
-    row('calibrate', 'Confirm and save left/right module assignment'),
-    row('self-update', 'Fetch the latest GitHub release and update in place'),
-    row('uninstall [--purge]', 'Remove the install (--purge also wipes ~/.config/dark-matrix)'),
+    row('init', 'guided first-run setup (config, calibrate, optional deps)'),
+    row('install --user-systemd', 'install and enable the systemd user service (dev builds)'),
+    row('install --ec-access', 'print udev rule + steps for /dev/cros_ec (privacy switches)'),
+    row('install --claude-hooks', 'add Claude Code hooks to ~/.claude/settings.json'),
+    row('calibrate', 'confirm and save left/right module assignment'),
+    row('self-update', 'fetch the latest GitHub release and update in place'),
+    row('uninstall [--purge]', 'remove the install (--purge also wipes ~/.config/dark-matrix)'),
     '',
     head(':: daemon'),
-    row('ui [--port <n>]', 'Launch the Deck web UI (default port 7340)'),
-    row('ping', 'Check the daemon is reachable; print its version'),
-    row('status', 'Show version, uptime, animation, brightness, module state'),
-    row('release', 'Release the serial ports (stops a held scroll/gif/play)'),
+    row('ui [--port <n>]', 'launch the Deck web UI (default port 7340)'),
+    row('ping', 'check the daemon is reachable; print its version'),
+    row('status', 'show version, uptime, animation, brightness, module state'),
+    row('release', 'release the serial ports (stops a held scroll/gif/play)'),
     '',
     head(':: display to hardware'),
-    row('image <path> [--preview] [--mode bw|gray]', 'Show an image (PNG/JPEG/GIF), resized to 9×34'),
-    row('show <image> [--device <path>] [--mode bw|gray]', 'Send an image to one specific module'),
-    row('show-split <left> <right> [--mode bw|gray]', 'Send a different image to each module'),
-    row('display <yeah|runes|0x07|panic>', 'Show a built-in preset'),
-    row('play [--loop] <path>', 'Play a .dmx.json project once (or loop with --loop)'),
+    row('image <path> [--preview] [--mode bw|gray]', 'show an image (PNG/JPEG/GIF), resized to 9×34'),
+    row('show <image> [--device <path>] [--mode bw|gray]', 'send an image to one specific module'),
+    row('show-split <left> <right> [--mode bw|gray]', 'send a different image to each module'),
+    row('display <yeah|runes|0x07|panic>', 'show a built-in preset'),
+    row('play [--loop] <path>', 'play a .dmx.json project once (or loop with --loop)'),
     '',
     head(':: animation'),
-    `  ${bold('scroll [--hold] [--size tiny|small|medium|large] [--speed slow|normal|fast] <text>')}`,
-    cont('Scroll text across both modules'),
-    `  ${bold('animate gif [--hold] [--dual] [--mode bw|gray] <path>')}`,
-    cont('Play a GIF (--dual spans both modules)'),
+    row('scroll <text>', 'scroll text across both modules'),
+    subrow('--hold', 'keep scrolling until `release`'),
+    subrow('--size tiny|small|medium|large', 'text size (default: small)'),
+    subrow('--speed slow|normal|fast', 'scroll speed (default: normal)'),
+    row('animate gif <path>', 'play a GIF on the left module'),
+    subrow('--hold', 'loop until `release`'),
+    subrow('--dual', 'span both modules (18×34 source)'),
+    subrow('--mode bw|gray', 'rendering mode'),
     '',
     head(':: hud & life'),
-    row('hud preset <name>', 'Switch to a named HUD preset'),
-    row('life list', 'List configured Game-of-Life biomes'),
-    row('life [left|right] <biome|random>', 'Run a biome on one side or both'),
+    row('hud preset <name>', 'switch to a named HUD preset'),
+    row('life list', 'list configured Game-of-Life biomes'),
+    row('life [left|right] <biome|random>', 'run a biome on one side or both'),
     '',
     head(':: other'),
-    row('help, --help, -h', 'Show this menu'),
-    row('--version, -v', 'Print the version'),
+    row('help, --help, -h', 'show this menu'),
+    row('--version, -v', 'print the version'),
     '',
     head(':: environment'),
-    row('DARK_MATRIX_SOCKET', 'Override the daemon IPC socket path'),
-    row('DARK_MATRIX_CONFIG_PATH', 'Override the config path (~/.config/dark-matrix/config.json)'),
+    row('DARK_MATRIX_SOCKET', 'override the daemon IPC socket path'),
+    row('DARK_MATRIX_CONFIG_PATH', 'override the config path (~/.config/dark-matrix/config.json)'),
     '',
     head(':: examples'),
-    `  ${dim('dark-matrix scroll --size large "wake up"')}`,
-    `  ${dim('dark-matrix hud preset focus')}`,
-    `  ${dim('dark-matrix image ~/pic.png --preview')}`,
+    `  ${white('dark-matrix scroll --size large "wake up"')}`,
+    `  ${white('dark-matrix hud preset focus')}`,
+    `  ${white('dark-matrix image ~/pic.png --preview')}`,
     '',
     dim('  run `dark-matrix help` anytime · hack the planet'),
   ].join('\n');
