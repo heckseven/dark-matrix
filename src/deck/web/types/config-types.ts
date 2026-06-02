@@ -67,7 +67,8 @@ export type BiomePresetConfig = {
 };
 
 export type Appearance = {
-  preset: 'dark-matrix' | 'phosphor' | 'mono' | 'custom';
+  dark_preset: 'dark-matrix' | 'phosphor' | 'mono';
+  light_preset: 'dark-matrix' | 'phosphor' | 'mono';
   accent?: string;
   color_scheme: 'dark' | 'light' | 'auto';
 };
