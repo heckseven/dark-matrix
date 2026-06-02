@@ -1,145 +1,20 @@
 import { useRef, useEffect, useCallback } from 'react';
-import { CLOCK_FACES, createClockRenderer } from '../../../animations/clock-renderers.js';
-import type { ClockFace, ClockRenderer } from '../../../animations/clock-renderers.js';
-import { createDataRenderer } from '../../../animations/data-renderers.js';
-import type { DataStyle, DataRenderer } from '../../../animations/data-renderers.js';
 import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../animations/audio-renderers.js';
 import type { AudioStyle, RenderCtx } from '../../../animations/audio-renderers.js';
-import { renderElegantTimer, renderHourglassFrame, renderTwinzTimer, renderTwinzUsagePercent } from '../../../animations/timer-renderers.js';
-import { createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
-import { createTextRenderer, textRendererCacheKey, type TextRenderer } from '../../../animations/text-renderers.js';
-import { zenThumbFrame, ZEN_STYLES } from '../../../animations/zen-renderers.js';
-import type { ZenStyle } from '../../../animations/zen-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { HudPresetClient } from '../types/hud-preset.js';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
 import { useDeckStore, deckStore, ROWS } from '../store.js';
+import { BROWSER_WIDGET_REGISTRY } from '../widgets/index.js';
+import type { ThumbnailOpts } from '../widgets/types.js';
 
 const COLS = 9;
 
-// ── module-level renderer caches ──────────────────────────────────────────────
-
-const _clockCache: Partial<Record<ClockFace, ClockRenderer>> = {};
-const _textThumbCache: Record<string, TextRenderer> = {};
-const _dataCache:  Partial<Record<DataStyle, DataRenderer>> = {};
+// ── module-level audio renderer cache ────────────────────────────────────────
 const _audioCache: Partial<Record<AudioStyle, ReturnType<typeof createAudioRenderer>>> = {};
-
-// Static zen thumbnails computed once at module load — each style gets a
-// representative frame rather than the blank/partial frame at t=0.
-const _zenThumbs: Partial<Record<ZenStyle, string>> = (() => {
-  const out: Partial<Record<ZenStyle, string>> = {};
-  for (const { id } of ZEN_STYLES) {
-    const frame = zenThumbFrame(id);
-    const bw = new Uint8Array(COLS * ROWS);
-    for (let i = 0; i < bw.length; i++) bw[i] = frame[i]! > 127 ? 255 : 0;
-    out[id] = btoa(String.fromCharCode(...bw));
-  }
-  return out;
-})();
-
-// Create a data renderer seeded with representative stats so the thumbnail is
-// non-blank — fill/scroll/cores draw nothing from a zeroed history.
-function makeSeededDataRenderer(style: DataStyle): DataRenderer {
-  const r = createDataRenderer({ style });
-  for (let i = 16; i >= 0; i--) {
-    r.update({
-      cpuPct:   35 + 25 * Math.sin(i * 0.4),
-      ramPct:   60 + 15 * Math.sin(i * 0.3 + 1),
-      netRxBps: 800_000 + 400_000 * Math.sin(i * 0.5 + 2),
-      netTxBps: 300_000 + 200_000 * Math.sin(i * 0.35),
-      cpuCores: [80, 45, 30, 60, 70, 20, 50, 40],
-    });
-  }
-  return r;
-}
-
-// Static seeded snapshots for Claude widgets — captured mid-animation so thumbnails
-// are non-blank. Computed once at module load; thumbnails return the same frame each tick.
-function frameToB64(frame: { [i: number]: number; length: number }): string {
-  const out = new Uint8Array(COLS * ROWS);
-  for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
-  return btoa(String.fromCharCode(...out));
-}
-
-const _claudeSnowThumb = (() => {
-  const r = createClaudeSnowRenderer();
-  for (let i = 0; i < 30; i++) {
-    if (i % 4 === 0) r.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
-    r.render();
-  }
-  const out = frameToB64(r.render());
-  r.stop();
-  return out;
-})();
-
-const _claudeSandThumb = (() => {
-  const r = createClaudeSandRenderer();
-  for (let i = 0; i < 40; i++) {
-    if (i % 3 === 0) r.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
-    r.render();
-  }
-  const out = frameToB64(r.render());
-  r.stop();
-  return out;
-})();
-
-const _claudeTetrisThumb = (() => {
-  const r = createClaudeTetrisRenderer();
-  for (let i = 0; i < 180; i++) {
-    if (i % 3 === 0) r.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
-    r.render();
-  }
-  const out = frameToB64(r.render());
-  r.stop();
-  return out;
-})();
-
-// Quota widget thumbnail — sample percentage in the twinz font.
-const _quotaThumb = (() => {
-  const frame = renderTwinzUsagePercent(42);
-  const out = new Uint8Array(COLS * ROWS);
-  for (let i = 0; i < out.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
-  return btoa(String.fromCharCode(...out));
-})();
-
-if (import.meta.hot) {
-  import.meta.hot.dispose(() => {
-    for (const k in _clockCache) delete _clockCache[k as ClockFace];
-    for (const k in _dataCache)  delete _dataCache[k as DataStyle];
-    for (const k in _audioCache) delete _audioCache[k as AudioStyle];
-  });
-}
-
-// ── pixel helpers ─────────────────────────────────────────────────────────────
-
-function extractLifeHalf(snapshot: string, side: 'left' | 'right'): string {
-  try {
-    const bin = atob(snapshot);
-    if (bin.length === COLS * ROWS) return snapshot;
-    const full = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) full[i] = bin.charCodeAt(i);
-    const out = new Uint8Array(COLS * ROWS);
-    const colOffset = side === 'right' ? COLS : 0;
-    for (let col = 0; col < COLS; col++) {
-      for (let row = 0; row < ROWS; row++) {
-        out[col * ROWS + row] = full[(col + colOffset) * ROWS + row] ?? 0;
-      }
-    }
-    return btoa(String.fromCharCode(...out));
-  } catch {
-    return btoa(String.fromCharCode(...new Uint8Array(COLS * ROWS)));
-  }
-}
 
 type AudioFrames    = Partial<Record<AudioStyle, { left: string; right: string }>>;
 type ImageAnimState = { frameIdx: number; elapsed: number; lastTick: number | null };
-
-function b64ToUint8(b64: string, expectedBytes: number): Uint8Array {
-  const bin = atob(b64);
-  const arr = new Uint8Array(expectedBytes);
-  for (let i = 0; i < expectedBytes; i++) arr[i] = bin.charCodeAt(i);
-  return arr;
-}
 
 function mirrorFrame(frame: Uint8Array): Uint8Array {
   const out = new Uint8Array(frame.length);
@@ -152,19 +27,10 @@ function mirrorFrame(frame: Uint8Array): Uint8Array {
   return out;
 }
 
-function extractHalfB64(asset: AssetMeta, side: 'left' | 'right', frameIdx = 0): string {
-  const totalBytes = asset.width * ROWS;
-  const srcB64 = asset.frames[frameIdx] ?? asset.firstFrame;
-  const full = b64ToUint8(srcB64, totalBytes);
-  if (asset.width === 9) return btoa(String.fromCharCode(...full));
-  const colOffset = side === 'right' ? COLS : 0;
-  const out = new Uint8Array(COLS * ROWS);
-  for (let col = 0; col < COLS; col++) {
-    for (let row = 0; row < ROWS; row++) {
-      out[col * ROWS + row] = full[(col + colOffset) * ROWS + row] ?? 0;
-    }
-  }
-  return btoa(String.fromCharCode(...out));
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    for (const k in _audioCache) delete _audioCache[k as AudioStyle];
+  });
 }
 
 function renderWidgetToB64(
@@ -178,73 +44,13 @@ function renderWidgetToB64(
   const empty = btoa(String.fromCharCode(...new Uint8Array(COLS * ROWS)));
   if (!widget) return empty;
   try {
-    if (widget.widget === 'clock') {
-      const face: ClockFace = widget.face ?? 'elegant';
-      if (!_clockCache[face]) _clockCache[face] = createClockRenderer(face);
-      const frame = _clockCache[face]!({ now: new Date(), side });
-      const out = new Uint8Array(COLS * ROWS);
-      for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
-      return btoa(String.fromCharCode(...out));
-    }
-    if (widget.widget === 'audio') {
-      const style  = widget.style ?? AUDIO_STYLES[0]!.id;
-      const cached = audioFrames?.[style]?.[side];
-      if (cached) return cached;
-      if (!_audioCache[style]) _audioCache[style] = createAudioRenderer(style);
-      const frame = _audioCache[style]!(audioCtx);
-      const out = new Uint8Array(COLS * ROWS);
-      for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
-      const pixels = side === 'right' ? mirrorFrame(out) : out;
-      return btoa(String.fromCharCode(...pixels));
-    }
-    if (widget.widget === 'image') {
-      const asset = assetList?.find(a => a.name === widget.file);
-      if (!asset) return empty;
-      const frameIdx = imageAnim?.[widget.file]?.frameIdx ?? 0;
-      return extractHalfB64(asset, side, frameIdx);
-    }
-    if (widget.widget === 'life') {
-      if (widget.biomeName === 'random') return empty;
-      const b = deckStore.getState().biomePresets.find(b => b.name === widget.biomeName);
-      if (!b?.gridSnapshot) return empty;
-      return extractLifeHalf(b.gridSnapshot, side);
-    }
-    if (widget.widget === 'timer') {
-      const style = widget.style ?? 'elegant';
-      const frame = style === 'hourglass'
-        ? renderHourglassFrame(0.5)
-        : style === 'twinz'
-          ? renderTwinzTimer(90_061)
-          : renderElegantTimer(90_000);
-      const out = new Uint8Array(COLS * ROWS);
-      for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
-      return btoa(String.fromCharCode(...out));
-    }
-    if (widget.widget === 'claude') {
-      const style = widget.style ?? 'snow';
-      return style === 'sand'    ? _claudeSandThumb
-           : style === 'tetris'  ? _claudeTetrisThumb
-           : style === 'quota'   ? _quotaThumb
-           :                       _claudeSnowThumb;
-    }
-    if (widget.widget === 'text') {
-      const key = textRendererCacheKey(widget, side);
-      if (!_textThumbCache[key]) _textThumbCache[key] = createTextRenderer(widget, side);
-      const frame = _textThumbCache[key]!.render(new Date());
-      const out = new Uint8Array(COLS * ROWS);
-      for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
-      return btoa(String.fromCharCode(...out));
-    }
-    if (widget.widget === 'zen') {
-      const style = widget.style ?? 'waves';
-      return _zenThumbs[style] ?? empty;
-    }
-    const style: DataStyle = widget.style ?? 'line';
-    if (!_dataCache[style]) _dataCache[style] = makeSeededDataRenderer(style);
-    const frame = _dataCache[style]!.render();
-    const out = new Uint8Array(COLS * ROWS);
-    for (let i = 0; i < frame.length; i++) out[i] = (frame[i] ?? 0) > 127 ? 255 : 0;
-    return btoa(String.fromCharCode(...out));
+    const opts: ThumbnailOpts = {
+      audioCtx,
+      audioFrames: audioFrames as ThumbnailOpts['audioFrames'],
+      assetList: assetList ?? undefined,
+      imageAnim,
+    };
+    return BROWSER_WIDGET_REGISTRY[widget.widget].renderThumbnail(widget as never, side, opts);
   } catch {
     return empty;
   }

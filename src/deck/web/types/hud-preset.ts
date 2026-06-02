@@ -1,20 +1,16 @@
-import type { ClockFace } from '../../../animations/clock-renderers.js';
-import type { DataStyle, DataMetric } from '../../../animations/data-renderers.js';
-import type { AudioStyle } from '../../../animations/audio-renderers.js';
-import type { ClaudeStyle } from '../../../animations/claude-renderers.js';
-import type { TextStyle, TextSize, TextSpeed, TextFlicker, TextTransition } from '../../../animations/text-renderers.js';
-import type { ZenStyle } from '../../../animations/zen-renderers.js';
+import type { ClockFace, ClockWidget } from '../../../lib/widgets/clock.js';
+import type { TimerWidget } from '../../../lib/widgets/timer.js';
+import type { DataStyle, DataMetric, DataWidget } from '../../../lib/widgets/data.js';
+import type { AudioStyle, AudioWidget } from '../../../lib/widgets/audio.js';
+import type { ImageWidget } from '../../../lib/widgets/image.js';
+import type { LifeWidget } from '../../../lib/widgets/life.js';
+import type { ClaudeStyle, ClaudeWidget } from '../../../lib/widgets/claude.js';
+import type { ZenStyle, ZenWidget } from '../../../lib/widgets/zen.js';
+import type { TextStyle, TextSize, TextSpeed, TextFlicker, TextTransition, TextWidget } from '../../../lib/widgets/text.js';
 
-export type HudWidget =
-  | { widget: 'clock'; face?: ClockFace }
-  | { widget: 'timer'; style?: 'elegant' | 'hourglass' | 'twinz'; durationMs?: number; repeat?: boolean }
-  | { widget: 'data'; style?: DataStyle; top_left?: DataMetric; top_right?: DataMetric; bottom_left?: DataMetric; bottom_right?: DataMetric }
-  | { widget: 'audio'; style?: AudioStyle }
-  | { widget: 'image'; file: string; speed?: number; loop?: boolean }
-  | { widget: 'life'; biomeName: string; randomIntervalMs?: number }
-  | { widget: 'claude'; style?: ClaudeStyle }
-  | { widget: 'zen'; style?: ZenStyle }
-  | { widget: 'text'; text: string; style?: TextStyle; size?: TextSize; speed?: TextSpeed; span?: boolean; flicker?: TextFlicker; transition?: TextTransition; loopDelayMs?: number };
+export type { ClockFace, DataStyle, DataMetric, AudioStyle, ClaudeStyle, ZenStyle, TextStyle, TextSize, TextSpeed, TextFlicker, TextTransition };
+
+export type HudWidget = ClockWidget | TimerWidget | DataWidget | AudioWidget | ImageWidget | LifeWidget | ClaudeWidget | ZenWidget | TextWidget;
 
 export type HudTrigger =
   | { type: 'time'; from: string; to: string }

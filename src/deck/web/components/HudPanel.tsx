@@ -4,6 +4,7 @@ import { updateAllDataRenderers } from '../data-renderer-pool.js';
 import type { DataStats } from '../../../animations/data-renderers.js';
 import { AUDIO_STYLES } from '../../../animations/audio-renderers.js';
 import type { RenderCtx } from '../../../animations/audio-renderers.js';
+import { BROWSER_WIDGET_REGISTRY } from '../widgets/index.js';
 import type { HudPresetClient } from '../types/hud-preset.js';
 import type { BiomePreset } from '../types/life-types.js';
 import { MatrixItemColumn } from './MatrixItemColumn.js';
@@ -42,46 +43,8 @@ function buildPresetConfigPayload(preset: HudPresetClient) {
   const r = preset.right;
   return {
     type: 'hud-config' as const,
-    leftWidget: l.widget,
-    leftFace: l.widget === 'clock' ? l.face : undefined,
-    leftTimerStyle: l.widget === 'timer' ? (l.style ?? 'elegant') : undefined,
-    leftTimerDurationMs: l.widget === 'timer' ? l.durationMs : undefined,
-    leftTimerRepeat: l.widget === 'timer' ? l.repeat : undefined,
-    leftDataStyle: l.widget === 'data' ? l.style : undefined,
-    leftAudioStyle: l.widget === 'audio' ? l.style : undefined,
-    leftClaudeStyle: l.widget === 'claude' ? l.style : undefined,
-    leftZenStyle: l.widget === 'zen' ? l.style : undefined,
-    leftFile: l.widget === 'image' ? l.file : undefined,
-    leftBiomeName: l.widget === 'life' ? l.biomeName : undefined,
-    leftRandomIntervalMs: l.widget === 'life' && l.biomeName === 'random' ? (l.randomIntervalMs ?? 30000) : undefined,
-    leftText: l.widget === 'text' ? l.text : undefined,
-    leftTextStyle: l.widget === 'text' ? l.style : undefined,
-    leftTextSize: l.widget === 'text' ? l.size : undefined,
-    leftTextSpeed: l.widget === 'text' ? l.speed : undefined,
-    leftTextSpan: l.widget === 'text' ? l.span : undefined,
-    leftTextFlicker: l.widget === 'text' ? l.flicker : undefined,
-    leftTextTransition: l.widget === 'text' ? l.transition : undefined,
-    leftTextLoopDelayMs: l.widget === 'text' ? l.loopDelayMs : undefined,
-    rightWidget: r.widget,
-    rightFace: r.widget === 'clock' ? r.face : undefined,
-    rightTimerStyle: r.widget === 'timer' ? (r.style ?? 'elegant') : undefined,
-    rightTimerDurationMs: r.widget === 'timer' ? r.durationMs : undefined,
-    rightTimerRepeat: r.widget === 'timer' ? r.repeat : undefined,
-    rightDataStyle: r.widget === 'data' ? r.style : undefined,
-    rightAudioStyle: r.widget === 'audio' ? r.style : undefined,
-    rightClaudeStyle: r.widget === 'claude' ? r.style : undefined,
-    rightZenStyle: r.widget === 'zen' ? r.style : undefined,
-    rightFile: r.widget === 'image' ? r.file : undefined,
-    rightBiomeName: r.widget === 'life' ? r.biomeName : undefined,
-    rightRandomIntervalMs: r.widget === 'life' && r.biomeName === 'random' ? (r.randomIntervalMs ?? 30000) : undefined,
-    rightText: r.widget === 'text' ? r.text : undefined,
-    rightTextStyle: r.widget === 'text' ? r.style : undefined,
-    rightTextSize: r.widget === 'text' ? r.size : undefined,
-    rightTextSpeed: r.widget === 'text' ? r.speed : undefined,
-    rightTextSpan: r.widget === 'text' ? r.span : undefined,
-    rightTextFlicker: r.widget === 'text' ? r.flicker : undefined,
-    rightTextTransition: r.widget === 'text' ? r.transition : undefined,
-    rightTextLoopDelayMs: r.widget === 'text' ? r.loopDelayMs : undefined,
+    ...BROWSER_WIDGET_REGISTRY[l.widget].serializeConfig(l as never, 'left'),
+    ...BROWSER_WIDGET_REGISTRY[r.widget].serializeConfig(r as never, 'right'),
   };
 }
 
