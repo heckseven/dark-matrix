@@ -395,3 +395,9 @@ pnpm install
 pnpm build
 pnpm test
 ```
+
+---
+
+## License
+
+GPL-3.0-or-later. Copyright (C) 2026 heckseven. See [LICENSE.md](LICENSE.md).
