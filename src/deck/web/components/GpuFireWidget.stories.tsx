@@ -45,7 +45,7 @@ function GpuFireWidget({ initLoad = 60, initTemp = 72 }: { initLoad?: number; in
   loadRef.current = loadPct;
   tempRef.current = tempC;
 
-  const renderer = useRef(createDataRenderer({ style: 'gpufire' }));
+  const renderer = useRef(createDataRenderer({ style: 'gpuburn' }));
 
   const [pixels, setPixels] = useState(() => {
     const r = renderer.current;

@@ -14,7 +14,7 @@ export type DataStats = {
 };
 
 export type DataMetric = 'cpu' | 'ram' | 'net_rx' | 'net_tx';
-export type DataStyle  = 'line' | 'fill' | 'scroll' | 'cores' | 'heatcore' | 'gpufire';
+export type DataStyle  = 'line' | 'fill' | 'scroll' | 'cores' | 'heatcore' | 'gpuburn';
 
 export type DataWidgetConfig = {
   style?:       DataStyle;
@@ -30,7 +30,7 @@ export const DATA_STYLES: { id: DataStyle; label: string }[] = [
   { id: 'scroll',   label: 'scroll'   },
   { id: 'cores',    label: 'cores'    },
   { id: 'heatcore', label: 'heatcore' },
-  { id: 'gpufire',  label: 'gpufire'  },
+  { id: 'gpuburn',  label: 'gpuburn'  },
 ];
 
 // ── Heatcore constants ────────────────────────────────────────────────────
@@ -63,18 +63,18 @@ const HC_TEMP_ONES_COL = 6;               // leftmost column of ones-digit slot
 const HC_TEMP_IND_COL  = 1;               // always-lit indicator column
 
 // ── GpuFire constants ─────────────────────────────────────────────────────
-// Fire zone: rows 0–4 = temp digits, row 5 = gap, rows 6–33 = fire.
-const GF_FIRE_TOP = 6;
-const GF_FIRE_H   = 34 - GF_FIRE_TOP; // 28 rows
+// Fire zone: row 0 = empty, rows 1–5 = temp digits, row 6 = gap, rows 7–33 = fire.
+const GF_FIRE_TOP = 7;
+const GF_FIRE_H   = 34 - GF_FIRE_TOP; // 27 rows
 const GF_STEP_MS  = 50;               // rate-limit CA to 20 fps
 const GF_HOT_COLS = new Set([1, 4, 7]); // torch: three hotspot columns
 
-// Write one HC-style digit glyph into frame f at (colStart, row 0).
-function gfPutDigit(f: Frame, digit: number, colStart: number, rows: number): void {
+// Write one HC-style digit glyph into frame f at (colStart, rowStart).
+function gfPutDigit(f: Frame, digit: number, colStart: number, rows: number, rowStart = 0): void {
   const g = HC_GLYPHS[Math.max(0, Math.min(9, digit))]!;
   for (let c = 0; c < 2; c++) {
     for (let r = 0; r < 5; r++) {
-      if (g[c * 5 + r]) f[(colStart + c) * rows + r] = 255;
+      if (g[c * 5 + r]) f[(colStart + c) * rows + rowStart + r] = 255;
     }
   }
 }
@@ -126,7 +126,7 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
   let hcBarTargets: number[] = new Array(HC_NUM_BARS).fill(0) as number[];
   let hcTemp: number | null = null;
 
-  // gpufire: DOOM heat buffer + live GPU load/temp
+  // gpuburn: DOOM heat buffer + live GPU load/temp
   const gfBuf       = new Float32Array(COLS * GF_FIRE_H);
   let   gfLoad      = 0.0;
   let   gfTempC: number | null = null;
@@ -249,7 +249,7 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
       } else if (style === 'heatcore') {
         hcBarTargets = cpuGroups(stats.cpuCores ?? [], HC_NUM_BARS);
         hcTemp = stats.cpuTempC ?? null;
-      } else if (style === 'gpufire') {
+      } else if (style === 'gpuburn') {
         gfLoad = (stats.gpuPct ?? 0) / 100;
         if (stats.gpuTempC !== undefined) gfTempC = stats.gpuTempC;
       } else {
@@ -336,7 +336,7 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
             }
           }
         }
-      } else if (style === 'gpufire') {
+      } else if (style === 'gpuburn') {
         const now = Date.now();
         if (now - gfLastStepMs >= GF_STEP_MS) {
           gfLastStepMs = now;
@@ -370,9 +370,9 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
         // Temperature digits at top: hundreds @ cols 0-1, tens @ 3-4, ones @ 6-7
         if (gfTempC !== null) {
           const t = Math.max(0, Math.min(199, Math.round(gfTempC)));
-          if (t >= 100) gfPutDigit(f, Math.floor(t / 100), 0, ROWS);
-          gfPutDigit(f, Math.floor((t % 100) / 10), 3, ROWS);
-          gfPutDigit(f, t % 10, 6, ROWS);
+          if (t >= 100) gfPutDigit(f, Math.floor(t / 100), 0, ROWS, 1);
+          gfPutDigit(f, Math.floor((t % 100) / 10), 3, ROWS, 1);
+          gfPutDigit(f, t % 10, 6, ROWS, 1);
         }
       } else {
         // line

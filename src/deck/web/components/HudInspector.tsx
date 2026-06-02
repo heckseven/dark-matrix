@@ -243,7 +243,7 @@ const DATA_PRESETS: { id: string; label: string; style: DataStyle; widget: HudWi
   { id: 'cpu-scroll',  label: 'scroll',    style: 'scroll',   widget: { widget: 'data', style: 'scroll',   top_left: 'cpu', top_right: 'ram', bottom_left: 'net_rx', bottom_right: 'net_tx' } },
   { id: 'cpu-cores',   label: 'cores',     style: 'cores',    widget: { widget: 'data', style: 'cores'    } },
   { id: 'heatcore',    label: 'heatcore',  style: 'heatcore', widget: { widget: 'data', style: 'heatcore' } },
-  { id: 'gpufire',     label: 'gpufire',   style: 'gpufire',  widget: { widget: 'data', style: 'gpufire'  } },
+  { id: 'gpuburn',     label: 'gpuburn',   style: 'gpuburn',  widget: { widget: 'data', style: 'gpuburn'  } },
 ];
 
 function initDataRenderers(): Record<DataStyle, DataRenderer> {
@@ -255,7 +255,7 @@ function initDataRenderers(): Record<DataStyle, DataRenderer> {
     } else if (style === 'heatcore') {
       r.update({ cpuPct: 45, ramPct: 0, netRxBps: 0, netTxBps: 0,
         cpuCores: [80, 45, 30, 60, 70, 20, 50, 40, 55], cpuTempC: 42 });
-    } else if (style === 'gpufire') {
+    } else if (style === 'gpuburn') {
       r.update({ cpuPct: 0, ramPct: 0, netRxBps: 0, netTxBps: 0, gpuPct: 60, gpuTempC: 72 });
     } else {
       // line, fill, scroll — feed metric history
@@ -267,7 +267,7 @@ function initDataRenderers(): Record<DataStyle, DataRenderer> {
     }
     return r;
   };
-  return { line: make('line'), fill: make('fill'), scroll: make('scroll'), cores: make('cores'), heatcore: make('heatcore'), gpufire: make('gpufire') };
+  return { line: make('line'), fill: make('fill'), scroll: make('scroll'), cores: make('cores'), heatcore: make('heatcore'), gpuburn: make('gpuburn') };
 }
 
 function DataGrid({ currentWidget, onPick, onSettings }: {
@@ -280,7 +280,7 @@ function DataGrid({ currentWidget, onPick, onSettings }: {
 
   const [pixels, setPixels] = useState<Record<DataStyle, string>>(() => {
     const r = renderersRef.current!;
-    return { line: bwToB64(r.line.render()), fill: bwToB64(r.fill.render()), scroll: bwToB64(r.scroll.render()), cores: bwToB64(r.cores.render()), heatcore: bwToB64(r.heatcore.render()), gpufire: bwToB64(r.gpufire.render()) };
+    return { line: bwToB64(r.line.render()), fill: bwToB64(r.fill.render()), scroll: bwToB64(r.scroll.render()), cores: bwToB64(r.cores.render()), heatcore: bwToB64(r.heatcore.render()), gpuburn: bwToB64(r.gpuburn.render()) };
   });
   const frameRef = useRef(0);
 
@@ -309,10 +309,10 @@ function DataGrid({ currentWidget, onPick, onSettings }: {
       r.heatcore.update({ cpuPct: 0, ramPct: 0, netRxBps: 0, netTxBps: 0,
         cpuCores: [...cores, Math.round(50 + 35 * Math.sin(base * 0.95))],
         cpuTempC: Math.round(42 + 8 * Math.sin(base * 0.2)) });
-      r.gpufire.update({ cpuPct: 0, ramPct: 0, netRxBps: 0, netTxBps: 0,
+      r.gpuburn.update({ cpuPct: 0, ramPct: 0, netRxBps: 0, netTxBps: 0,
         gpuPct: Math.round(50 + 40 * Math.sin(base * 0.3)),
         gpuTempC: Math.round(65 + 15 * Math.sin(base * 0.15)) });
-      setPixels({ line: bwToB64(r.line.render()), fill: bwToB64(r.fill.render()), scroll: bwToB64(r.scroll.render()), cores: bwToB64(r.cores.render()), heatcore: bwToB64(r.heatcore.render()), gpufire: bwToB64(r.gpufire.render()) });
+      setPixels({ line: bwToB64(r.line.render()), fill: bwToB64(r.fill.render()), scroll: bwToB64(r.scroll.render()), cores: bwToB64(r.cores.render()), heatcore: bwToB64(r.heatcore.render()), gpuburn: bwToB64(r.gpuburn.render()) });
     }, 100);
     return () => clearInterval(iid);
   }, []);
