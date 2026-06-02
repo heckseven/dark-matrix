@@ -13,39 +13,53 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Default state — no value prop, component uses its internal defaults. */
+/** Default state — no value, all controls at their defaults. Accent shows "preset" selected. */
 export const Default: Story = {};
 
-/** Both presets set to dark-matrix, color scheme locked to dark. Light picker is dimmed. */
+/** Dark mode locked — light picker dimmed, style radio on "dark". */
 export const DarkLocked: Story = {
   args: {
     value: { dark_preset: 'dark-matrix', light_preset: 'dark-matrix', color_scheme: 'dark' },
   },
 };
 
-/** Both presets set to dark-matrix, color scheme locked to light. Dark picker is dimmed. */
+/** Light mode locked — dark picker dimmed, style radio on "light". */
 export const LightLocked: Story = {
   args: {
     value: { dark_preset: 'dark-matrix', light_preset: 'dark-matrix', color_scheme: 'light' },
   },
 };
 
-/** Auto mode with different presets per scheme — dark-matrix in dark, phosphor in light. Both pickers fully active. */
+/** Auto mode with different presets — both pickers fully active, different selections. */
 export const AutoMixedPresets: Story = {
   args: {
     value: { dark_preset: 'dark-matrix', light_preset: 'phosphor', color_scheme: 'auto' },
   },
 };
 
-/** Phosphor for dark, mono for light, auto mode. */
+/** Phosphor dark / mono light in auto mode. */
 export const PhosphorDarkMonoLight: Story = {
   args: {
     value: { dark_preset: 'phosphor', light_preset: 'mono', color_scheme: 'auto' },
   },
 };
 
-/** Accent override set — reset button is visible and color picker shows the override. */
-export const AccentOverride: Story = {
+/** Palette accent selected — gr455 checked in the accent radio list. */
+export const AccentPalette: Story = {
+  args: {
+    value: { dark_preset: 'dark-matrix', light_preset: 'dark-matrix', color_scheme: 'dark', accent: '#0dc45c' },
+  },
+};
+
+/** p1nk palette accent selected. */
+export const AccentP1nk: Story = {
+  args: {
+    value: { dark_preset: 'dark-matrix', light_preset: 'dark-matrix', color_scheme: 'dark', accent: '#fe428f' },
+  },
+};
+
+/** Custom hex accent — "custom" radio checked, hex input visible with value. */
+export const AccentCustom: Story = {
   args: {
     value: { dark_preset: 'dark-matrix', light_preset: 'dark-matrix', color_scheme: 'dark', accent: '#22D3EE' },
   },

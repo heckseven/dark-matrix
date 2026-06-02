@@ -2,7 +2,7 @@ import { useState, useEffect, type ChangeEvent } from 'react';
 import { Input } from '../ui/input.js';
 import { Radio } from '../ui/radio.js';
 import { Text } from '../ui/text.js';
-import { TabFrame, TabRow } from './tab-frame.js';
+import { TabFrame } from './tab-frame.js';
 import { CornerBrackets } from '../MatrixItem.js';
 import type { Appearance } from '../../types/config-types.js';
 
@@ -15,6 +15,21 @@ const PRESET_ACCENTS: Record<Preset, { dark: string; light: string }> = {
   'phosphor':    { dark: '#F59E0B', light: '#b45309' },
   'mono':        { dark: '#ffffff', light: '#000000' },
 };
+
+const PALETTE = [
+  { label: 'gr455',  hex: '#0dc45c' },
+  { label: 'p1nk',   hex: '#fe428f' },
+  { label: '5ky',    hex: '#6dc3ff' },
+  { label: '5un',    hex: '#fff420' },
+  { label: 'y3llow', hex: '#ffff90' },
+  { label: 'cuti3',  hex: '#e6b723' },
+  { label: 'red5un', hex: '#ff3131' },
+  { label: 'whi7e',  hex: '#ffffff' },
+  { label: 'bl4ck',  hex: '#000000' },
+] as const;
+
+type PaletteHex = typeof PALETTE[number]['hex'];
+type AccentSel = 'preset' | PaletteHex | 'custom';
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
@@ -30,6 +45,13 @@ function dropAccent(a: Appearance): Appearance {
     light_preset: a.light_preset,
     color_scheme: a.color_scheme,
   };
+}
+
+function initAccentSel(accent?: string): AccentSel {
+  if (!accent) return 'preset';
+  const match = PALETTE.find(p => p.hex === accent);
+  if (match) return match.hex;
+  return 'custom';
 }
 
 interface AppearanceTabProps {
@@ -56,15 +78,12 @@ function ThemeAbstractPreview({ accent, fg, bg, border }: {
         boxSizing: 'border-box',
       }}
     >
-      {/* Top status bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <div style={{ width: 4, height: 4, background: fg, flexShrink: 0 }} />
         <div style={{ flex: 1, height: 1, background: fg }} />
         <div style={{ width: 4, height: 4, background: accent, flexShrink: 0 }} />
       </div>
-      {/* Matrix center */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, flex: 1, margin: '4px 0' }}>
-        {/* Left sidebar bars */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-end' }}>
           {[0, 1, 2].map(i => (
             <div key={i} style={{ display: 'flex', gap: 1 }}>
@@ -73,12 +92,10 @@ function ThemeAbstractPreview({ accent, fg, bg, border }: {
             </div>
           ))}
         </div>
-        {/* Matrix modules */}
         <div style={{ display: 'flex', gap: 1 }}>
           <div style={{ width: 7, height: 26, background: bar }} />
           <div style={{ width: 7, height: 26, background: bar }} />
         </div>
-        {/* Right sidebar bars */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start' }}>
           {[0, 1, 2].map(i => (
             <div key={i} style={{ display: 'flex', gap: 1 }}>
@@ -88,7 +105,6 @@ function ThemeAbstractPreview({ accent, fg, bg, border }: {
           ))}
         </div>
       </div>
-      {/* Bottom status bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <div style={{ width: 4, height: 4, background: fg, flexShrink: 0 }} />
         <div style={{ flex: 1, height: 1, background: bar }} />
@@ -128,12 +144,19 @@ function ThemePreviewCard({ preset, isDark, selected, onSelect, disabled }: {
   );
 }
 
+const LEGEND = 'font-mono text-xs text-muted-foreground uppercase tracking-widest mb-2';
+
 export function AppearanceTab({ value, onChange }: AppearanceTabProps) {
   const appearance = value ?? DEFAULT_APPEARANCE;
-  const [hexInput, setHexInput] = useState(value?.accent ?? '');
+  const [accentSel, setAccentSel] = useState<AccentSel>(() => initAccentSel(value?.accent));
+  const [customHex, setCustomHex] = useState(
+    initAccentSel(value?.accent) === 'custom' ? (value?.accent ?? '') : '',
+  );
 
   useEffect(() => {
-    setHexInput(value?.accent ?? '');
+    const sel = initAccentSel(value?.accent);
+    setAccentSel(sel);
+    setCustomHex(sel === 'custom' ? (value?.accent ?? '') : '');
   }, [value?.accent]);
 
   function handleSchemeChange(color_scheme: Appearance['color_scheme']) {
@@ -148,44 +171,44 @@ export function AppearanceTab({ value, onChange }: AppearanceTabProps) {
     onChange({ ...appearance, light_preset });
   }
 
-  function handleColorPicker(e: ChangeEvent<HTMLInputElement>) {
-    const hex = e.target.value;
-    setHexInput(hex);
-    if (HEX_RE.test(hex)) onChange({ ...appearance, accent: hex });
+  function handlePaletteSelect(hex: PaletteHex) {
+    setAccentSel(hex);
+    setCustomHex('');
+    onChange({ ...appearance, accent: hex });
   }
 
-  function handleHexInput(e: ChangeEvent<HTMLInputElement>) {
-    setHexInput(e.target.value);
-  }
-
-  function handleHexBlur() {
-    if (hexInput === '') {
-      onChange(dropAccent(appearance));
-    } else if (HEX_RE.test(hexInput)) {
-      onChange({ ...appearance, accent: hexInput });
-    } else {
-      setHexInput(value?.accent ?? '');
-    }
-  }
-
-  function handleClearAccent() {
-    setHexInput('');
+  function handlePresetSelect() {
+    setAccentSel('preset');
+    setCustomHex('');
     onChange(dropAccent(appearance));
+  }
+
+  function handleCustomSelect() {
+    setAccentSel('custom');
+  }
+
+  function handleCustomHexChange(e: ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value;
+    setCustomHex(val);
+    if (HEX_RE.test(val)) onChange({ ...appearance, accent: val });
+  }
+
+  function handleCustomHexBlur() {
+    if (customHex === '') {
+      setAccentSel('preset');
+      onChange(dropAccent(appearance));
+    }
   }
 
   const isLightLocked = appearance.color_scheme === 'light';
   const isDarkLocked = appearance.color_scheme === 'dark';
 
-  // Placeholder reflects the currently active preset variant so users know what they're overriding.
-  const effectiveIsDark = appearance.color_scheme !== 'light';
-  const activePreset = effectiveIsDark ? appearance.dark_preset : appearance.light_preset;
-  const accentPlaceholder = PRESET_ACCENTS[activePreset][effectiveIsDark ? 'dark' : 'light'];
-
   return (
     <TabFrame>
-      {/* Style control */}
-      <TabRow label="style">
-        <div role="radiogroup" aria-label="Color style" className="flex items-center gap-4">
+      {/* Style */}
+      <fieldset className="border-0 p-0 m-0">
+        <legend className={LEGEND}>style</legend>
+        <div className="flex flex-col gap-1.5">
           {(['dark', 'auto', 'light'] as const).map(mode => (
             <label key={mode} className="flex items-center gap-1.5 cursor-pointer">
               <Radio
@@ -198,7 +221,7 @@ export function AppearanceTab({ value, onChange }: AppearanceTabProps) {
             </label>
           ))}
         </div>
-      </TabRow>
+      </fieldset>
 
       {/* Dark theme picker */}
       <div className={`flex flex-col gap-2 transition-opacity ${isLightLocked ? 'opacity-40 select-none' : ''}`}>
@@ -236,34 +259,67 @@ export function AppearanceTab({ value, onChange }: AppearanceTabProps) {
         </div>
       </div>
 
-      {/* Accent override */}
-      <TabRow label="accent">
-        <input
-          type="color"
-          value={HEX_RE.test(hexInput) ? hexInput : accentPlaceholder}
-          onChange={handleColorPicker}
-          className="h-6 w-8 cursor-pointer rounded border border-border bg-transparent p-0"
-          aria-label="Pick accent color override"
-        />
-        <Input
-          value={hexInput}
-          onChange={handleHexInput}
-          onBlur={handleHexBlur}
-          placeholder={accentPlaceholder}
-          aria-label="Accent color hex override"
-          className="w-24 font-mono uppercase"
-        />
-        {appearance.accent && (
-          <button
-            type="button"
-            onClick={handleClearAccent}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors focus:outline-none focus-visible:underline"
-            aria-label="Clear accent override"
-          >
-            reset
-          </button>
-        )}
-      </TabRow>
+      {/* Accent */}
+      <fieldset className="border-0 p-0 m-0">
+        <legend className={LEGEND}>accent</legend>
+        <div className="flex flex-col gap-1.5">
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <Radio
+              name="accent"
+              value="preset"
+              checked={accentSel === 'preset'}
+              onChange={handlePresetSelect}
+            />
+            <Text as="span" size="xs" variant="muted">preset</Text>
+          </label>
+          {PALETTE.map(({ hex, label }) => (
+            <label key={hex} className="flex items-center gap-1.5 cursor-pointer">
+              <Radio
+                name="accent"
+                value={hex}
+                checked={accentSel === hex}
+                onChange={() => handlePaletteSelect(hex)}
+              />
+              <span
+                aria-hidden="true"
+                style={{
+                  display: 'inline-block',
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: hex,
+                  flexShrink: 0,
+                  ...(hex === '#ffffff' || hex === '#000000'
+                    ? { border: '1px solid rgba(128,128,128,0.2)' }
+                    : {}),
+                }}
+              />
+              <Text as="span" size="xs" variant="muted">{label}</Text>
+            </label>
+          ))}
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <Radio
+              name="accent"
+              value="custom"
+              checked={accentSel === 'custom'}
+              onChange={handleCustomSelect}
+            />
+            <Text as="span" size="xs" variant="muted">custom</Text>
+            {accentSel === 'custom' && (
+              <Input
+                // eslint-disable-next-line jsx-a11y/no-autofocus
+                autoFocus
+                value={customHex}
+                onChange={handleCustomHexChange}
+                onBlur={handleCustomHexBlur}
+                placeholder="#000000"
+                aria-label="Custom accent hex"
+                className="w-24 font-mono uppercase ml-1"
+              />
+            )}
+          </label>
+        </div>
+      </fieldset>
     </TabFrame>
   );
 }
