@@ -34,7 +34,7 @@ import type { TextWidget } from '../../../lib/widgets/text.js';
 
 // Display names only — the internal style keys (columnar/bigglyph) stay the same
 // so existing saved presets keep working.
-const STRINGS_STYLE_LABELS: Record<TextStyleImport, string> = {
+export const STRINGS_STYLE_LABELS: Record<TextStyleImport, string> = {
   marquee: 'marquee', columnar: 'tokyo', spine: 'spine', bigglyph: 'byte', neon: 'neon', vegas: 'vegas',
 };
 

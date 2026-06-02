@@ -7,7 +7,7 @@ import type { Config } from '../../lib/config.js';
 
 const DATA_STYLES = new Set<DataStyle>(['line', 'fill', 'scroll', 'cores', 'heatcore', 'gpuburn']);
 
-export const dataDescriptor: DaemonWidgetDescriptor<DataWidget> = {
+export const dataDaemonDescriptor: DaemonWidgetDescriptor<DataWidget> = {
   ...dataBase,
 
   createRenderer(widget: DataWidget, ctx: DaemonWidgetContext): WidgetRenderer {

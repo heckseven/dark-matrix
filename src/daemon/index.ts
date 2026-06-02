@@ -1508,6 +1508,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 socket.write(JSON.stringify({ ok: false, error: `unknown biome: "${m.rightBiomeName}"` }) + '\n');
                 break;
               }
+              const clockFallback = { widget: 'clock', face: 'elegant' } as const;
               const newHud = { ...currentConfig.hud };
               const leftWidgetType = (typeof m.leftWidget === 'string' && m.leftWidget in DAEMON_WIDGET_REGISTRY)
                 ? m.leftWidget as keyof typeof DAEMON_WIDGET_REGISTRY
@@ -1516,9 +1517,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 ? m.rightWidget as keyof typeof DAEMON_WIDGET_REGISTRY
                 : 'clock' as const;
               const newLeft = DAEMON_WIDGET_REGISTRY[leftWidgetType].extractParams(m, 'left', currentConfig)
-                ?? DAEMON_WIDGET_REGISTRY.clock.extractParams(m, 'left', currentConfig)!;
+                ?? clockFallback;
               const newRight = DAEMON_WIDGET_REGISTRY[rightWidgetType].extractParams(m, 'right', currentConfig)
-                ?? DAEMON_WIDGET_REGISTRY.clock.extractParams(m, 'right', currentConfig)!;
+                ?? clockFallback;
               newHud.left = newLeft;
               newHud.right = newRight;
               currentConfig = { ...currentConfig, hud: newHud };

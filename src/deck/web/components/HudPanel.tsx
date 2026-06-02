@@ -350,7 +350,6 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
               ? (hudSelectedSide === 'left' ? selectedPreset.left : selectedPreset.right)
               : null
             }
-            {...(selectedPreset ? { oppositeWidget: hudSelectedSide === 'left' ? selectedPreset.right : selectedPreset.left } : {})}
             side={hudSelectedSide}
             audioCtx={audioCtx}
             onNeedsAudio={setInspectorNeedsAudio}

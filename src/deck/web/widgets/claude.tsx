@@ -5,7 +5,7 @@ import type { ClaudeStyle as ClaudeStyleImport } from '../../../animations/claud
 import { renderTwinzUsagePercent } from '../../../animations/timer-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { BrowserWidgetDescriptor, GridContext } from './types.js';
-import { bayerToB64, bwToB64 } from './utils.js';
+import { bayerToB64, bayerDitherToUint8, bwToB64 } from './utils.js';
 import { claudeBase } from '../../../lib/widgets/claude.js';
 import type { ClaudeWidget } from '../../../lib/widgets/claude.js';
 
@@ -141,10 +141,6 @@ function ClaudeGrid({ currentWidget, onPick }: GridContext) {
   );
 }
 
-// ── Bayer dither to Uint8Array ────────────────────────────────────────────────
-
-const BAYER4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]] as const;
-
 // ── Descriptor ────────────────────────────────────────────────────────────────
 
 export const claudeDescriptor: BrowserWidgetDescriptor<ClaudeWidget> = {
@@ -166,15 +162,7 @@ export const claudeDescriptor: BrowserWidgetDescriptor<ClaudeWidget> = {
     const raw = style === 'sand'   ? _previewClaudeSand.render()
               : style === 'tetris' ? _previewClaudeTetris.render()
               :                      _previewClaudeSnow.render();
-    // Bayer dither
-    const out = new Uint8Array(9 * 34);
-    for (let col = 0; col < 9; col++) {
-      for (let row = 0; row < 34; row++) {
-        const threshold = (BAYER4[row % 4]![col % 4]! + 0.5) * (255 / 16);
-        out[col * 34 + row] = (raw[col * 34 + row] ?? 0) > threshold ? 255 : 0;
-      }
-    }
-    return out;
+    return bayerDitherToUint8(raw);
   },
 
   serializeConfig(widget, side) {

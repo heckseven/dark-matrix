@@ -10,6 +10,7 @@ import type { DaemonWidgetDescriptor, DaemonWidgetContext, WidgetRenderer, HudCo
 import type { Config } from '../../lib/config.js';
 
 const TIMER_STYLES = new Set<TimerStyle>(['elegant', 'hourglass', 'twinz']);
+const MAX_TIMER_DURATION_MS = 86_400_000; // 24 h
 void TIMER_STYLES; // referenced for completeness; validation uses inline ternary to match daemon pattern
 
 export const timerDaemonDescriptor: DaemonWidgetDescriptor<TimerWidget> = {
@@ -52,7 +53,7 @@ export const timerDaemonDescriptor: DaemonWidgetDescriptor<TimerWidget> = {
     const rawDurationMs = side === 'left' ? m.leftTimerDurationMs : m.rightTimerDurationMs;
     const rawRepeat     = side === 'left' ? m.leftTimerRepeat     : m.rightTimerRepeat;
     const style: TimerStyle = rawStyle === 'hourglass' ? 'hourglass' : rawStyle === 'twinz' ? 'twinz' : 'elegant';
-    const durationMs = typeof rawDurationMs === 'number' && Number.isFinite(rawDurationMs) && rawDurationMs > 0 ? rawDurationMs : undefined;
+    const durationMs = typeof rawDurationMs === 'number' && Number.isFinite(rawDurationMs) && rawDurationMs > 0 ? Math.min(rawDurationMs, MAX_TIMER_DURATION_MS) : undefined;
     const repeat     = typeof rawRepeat === 'boolean' ? rawRepeat : undefined;
     return {
       widget: 'timer',

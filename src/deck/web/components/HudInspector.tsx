@@ -8,6 +8,8 @@ import type { AssetMeta } from '../../../lib/asset-meta.js';
 import { deckStore } from '../store.js';
 import { BROWSER_WIDGET_REGISTRY } from '../widgets/index.js';
 import type { GridContext } from '../widgets/types.js';
+import { MOCK_AUDIO_CTX } from '../widgets/audio.js';
+import { STRINGS_STYLE_LABELS } from '../widgets/text.js';
 
 // ── Layer 1: Category select ──────────────────────────────────────────────
 
@@ -25,13 +27,6 @@ const CATEGORIES = [
   { id: 'zen',   label: 'zen'   },
 ] as const;
 
-// Display names for text widget styles — used in settingsTitle
-const STRINGS_STYLE_LABELS: Record<string, string> = {
-  marquee: 'marquee', columnar: 'tokyo', spine: 'spine', bigglyph: 'byte', neon: 'neon', vegas: 'vegas',
-};
-
-const MOCK_AUDIO_CTX: RenderCtx = { bands: [200, 150, 100, 70, 40, 20, 10, 5, 2], fftSize: 2048, gain: 1.5 };
-
 // ── HudInspector ──────────────────────────────────────────────────────────
 
 export type HudInspectorProps = {
@@ -42,7 +37,6 @@ export type HudInspectorProps = {
   onClocksVisible?: (visible: boolean) => void;
   onChange: (widget: HudWidget) => void;
   onChangeBoth?: (widget: HudWidget) => void;
-  oppositeWidget?: HudWidget;
   onDeleteBiome?: (name: string) => void;
   onEditBiome?: (name: string) => void;
   dualModule?: boolean;
@@ -50,7 +44,7 @@ export type HudInspectorProps = {
 
 type View = 'grid' | 'settings';
 
-export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX, onNeedsAudio, onClocksVisible, onChange, onChangeBoth, oppositeWidget, onDeleteBiome, onEditBiome, dualModule = false }: HudInspectorProps) {
+export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX, onNeedsAudio, onClocksVisible, onChange, onChangeBoth, onDeleteBiome, onEditBiome, dualModule = false }: HudInspectorProps) {
   const uid = useId();
 
   const [view, setView] = useState<View>(() => {

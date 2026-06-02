@@ -4,14 +4,14 @@ import { AUDIO_STYLES, createRenderer as createAudioRenderer } from '../../../an
 import type { AudioStyle as AudioStyleImport, RenderCtx } from '../../../animations/audio-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { BrowserWidgetDescriptor, GridContext } from './types.js';
-import { bayerToB64, mirrorFrame, EMPTY_PIXELS } from './utils.js';
+import { bayerToB64, bayerDitherToUint8, mirrorFrame, EMPTY_PIXELS } from './utils.js';
 import { audioBase } from '../../../lib/widgets/audio.js';
 import type { AudioWidget } from '../../../lib/widgets/audio.js';
 
 // Module-level renderer cache (shared by thumbnail, preview, and grid)
 const _audioThumbCache: Partial<Record<AudioStyleImport, ReturnType<typeof createAudioRenderer>>> = {};
 
-const MOCK_AUDIO_CTX: RenderCtx = { bands: [200, 150, 100, 70, 40, 20, 10, 5, 2], fftSize: 2048, gain: 1.5 };
+export const MOCK_AUDIO_CTX: RenderCtx = { bands: [200, 150, 100, 70, 40, 20, 10, 5, 2], fftSize: 2048, gain: 1.5 };
 
 function initAudioRenderers(): Record<AudioStyleImport, ReturnType<typeof createAudioRenderer>> {
   return Object.fromEntries(
@@ -99,16 +99,7 @@ export const audioDescriptor: BrowserWidgetDescriptor<AudioWidget> = {
     const audioCtx = opts?.audioCtx ?? MOCK_AUDIO_CTX;
     if (!_audioThumbCache[style]) _audioThumbCache[style] = createAudioRenderer(style);
     const rendered = _audioThumbCache[style]!(audioCtx);
-    // bayer dither
-    const out = new Uint8Array(9 * 34);
-    const BAYER4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]] as const;
-    for (let col = 0; col < 9; col++) {
-      for (let row = 0; row < 34; row++) {
-        const threshold = (BAYER4[row % 4]![col % 4]! + 0.5) * (255 / 16);
-        out[col * 34 + row] = (rendered[col * 34 + row] ?? 0) > threshold ? 255 : 0;
-      }
-    }
-    return side === 'right' ? mirrorFrame(out) : out;
+    return side === 'right' ? mirrorFrame(bayerDitherToUint8(rendered)) : bayerDitherToUint8(rendered);
   },
 
   serializeConfig(widget, side) {

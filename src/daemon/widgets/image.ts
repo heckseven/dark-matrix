@@ -95,6 +95,7 @@ export const imageDaemonDescriptor: DaemonWidgetDescriptor<ImageWidget> = {
   extractParams(m, side, _config): ImageWidget | null {
     const file = side === 'left' ? m.leftFile : m.rightFile;
     if (typeof file !== 'string') return null;
+    if (path.basename(file) !== file) return null;
     return { widget: 'image', file };
   },
 };

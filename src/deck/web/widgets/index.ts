@@ -7,7 +7,7 @@ import { audioDescriptor } from './audio.js';
 import { imageDescriptor } from './image.js';
 import { lifeDescriptor } from './life.js';
 import { claudeDescriptor } from './claude.js';
-import { zenWidget } from './zen.js';
+import { zenDescriptor } from './zen.js';
 import { textDescriptor } from './text.js';
 
 export type BrowserWidgetRegistry = {
@@ -22,6 +22,6 @@ export const BROWSER_WIDGET_REGISTRY: BrowserWidgetRegistry = {
   image: imageDescriptor,
   life: lifeDescriptor,
   claude: claudeDescriptor,
-  zen: zenWidget,
+  zen: zenDescriptor,
   text: textDescriptor,
 };

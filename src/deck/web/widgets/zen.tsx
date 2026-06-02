@@ -4,7 +4,7 @@ import { ZEN_STYLES, createZenRenderer, zenThumbFrame } from '../../../animation
 import type { ZenStyle as ZenStyleImport } from '../../../animations/zen-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { BrowserWidgetDescriptor, GridContext } from './types.js';
-import { bayerToB64, EMPTY_PIXELS } from './utils.js';
+import { bayerToB64, bayerDitherToUint8, EMPTY_PIXELS } from './utils.js';
 import { zenBase } from '../../../lib/widgets/zen.js';
 import type { ZenWidget } from '../../../lib/widgets/zen.js';
 
@@ -127,7 +127,7 @@ function ZenGrid({ currentWidget, onPick, dualModule }: GridContext) {
 
 // ── BrowserWidgetDescriptor ───────────────────────────────────────────────────
 
-export const zenWidget: BrowserWidgetDescriptor<ZenWidget> = {
+export const zenDescriptor: BrowserWidgetDescriptor<ZenWidget> = {
   ...zenBase,
 
   GridComponent: ZenGrid,
@@ -141,16 +141,7 @@ export const zenWidget: BrowserWidgetDescriptor<ZenWidget> = {
     const style = (widget.style ?? 'waves') as ZenStyleImport;
     if (!_zenRenderers[style]) _zenRenderers[style] = createZenRenderer(style);
     const frame = _zenRenderers[style]!.render();
-    // bayer dither
-    const out = new Uint8Array(9 * 34);
-    const BAYER4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]] as const;
-    for (let col = 0; col < 9; col++) {
-      for (let row = 0; row < 34; row++) {
-        const threshold = (BAYER4[row % 4]![col % 4]! + 0.5) * (255 / 16);
-        out[col * 34 + row] = (frame[col * 34 + row] ?? 0) > threshold ? 255 : 0;
-      }
-    }
-    return out;
+    return bayerDitherToUint8(frame);
   },
 
   serializeConfig(widget, side) {

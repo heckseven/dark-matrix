@@ -9,6 +9,8 @@ import type { DaemonWidgetDescriptor, DaemonWidgetContext, WidgetRenderer } from
 import type { Config } from '../../lib/config.js';
 import type { HudConfigMessage } from './types.js';
 
+const MAX_RANDOM_INTERVAL_MS = 3_600_000; // 1 h
+
 export const lifeDaemonDescriptor: DaemonWidgetDescriptor<LifeWidget> = {
   ...lifeBase,
 
@@ -164,7 +166,7 @@ export const lifeDaemonDescriptor: DaemonWidgetDescriptor<LifeWidget> = {
     // Validate biomeName against known biomes (or 'random')
     if (biomeName !== 'random' && !biomes.find(b => b.name === biomeName)) return null;
     const rawInterval = side === 'left' ? m.leftRandomIntervalMs : m.rightRandomIntervalMs;
-    const randomIntervalMs = typeof rawInterval === 'number' ? rawInterval : undefined;
+    const randomIntervalMs = typeof rawInterval === 'number' && Number.isFinite(rawInterval) && rawInterval > 0 ? Math.min(rawInterval, MAX_RANDOM_INTERVAL_MS) : undefined;
     return { widget: 'life', biomeName, ...(randomIntervalMs !== undefined ? { randomIntervalMs } : {}) };
   },
 };

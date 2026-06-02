@@ -5,6 +5,7 @@ import type { HudWidget } from '../types/hud-preset.js';
 import { deckStore } from '../store.js';
 import { BROWSER_WIDGET_REGISTRY } from '../widgets/index.js';
 import type { PreviewOpts } from '../widgets/types.js';
+import { MOCK_AUDIO_CTX } from '../widgets/audio.js';
 
 // ── layout constants — match PixelCanvas at zoom=1 ────────────────────────
 
@@ -27,8 +28,6 @@ const RIGHT_X  = COLS * PITCH + MOD_GAP;       // 197 — x where right module s
 const SPLIT_X  = HALF_W + Math.floor((RIGHT_X - HALF_W) / 2); // 192
 
 // ── renderer caches ───────────────────────────────────────────────────────
-
-const MOCK_AUDIO_CTX: RenderCtx = { bands: [200, 150, 100, 70, 40, 20, 10, 5, 2], fftSize: 2048, gain: 1.5 };
 
 function b64ToUint8(b64: string, expectedBytes: number): Uint8Array {
   const bin = atob(b64);
