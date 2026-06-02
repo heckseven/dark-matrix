@@ -1,4 +1,8 @@
 import fs from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execFileP = promisify(execFile);
 
 export type ProcStats = {
   cpuPct: number;               // 0–100
@@ -9,6 +13,8 @@ export type ProcStats = {
   cpuTempC: number | null;      // average CPU temp in °C, null when unavailable
   batteryPct: number | null;    // 0–100, null when no battery present
   batteryCharging: boolean | null; // false = discharging (on battery), null = no battery
+  gpuPct: number | null;        // GPU utilization 0–100, null when unavailable
+  gpuTempC: number | null;      // GPU temperature in °C, null when unavailable
 };
 
 type CpuRaw = { total: number; idle: number };
@@ -113,6 +119,67 @@ async function readNetRaw(): Promise<NetRaw> {
   return { rx, tx };
 }
 
+// ── GPU stats ─────────────────────────────────────────────────────────────
+
+let nvidiaSmiMissing = false;
+
+async function readNvidiaSmiStats(): Promise<{ pct: number; tempC: number } | null> {
+  if (nvidiaSmiMissing) return null;
+  try {
+    const { stdout } = await execFileP('nvidia-smi', [
+      '--query-gpu=utilization.gpu,temperature.gpu',
+      '--format=csv,noheader,nounits',
+    ], { timeout: 1500 });
+    const parts = stdout.trim().split(',').map(s => parseInt(s.trim(), 10));
+    const pct   = parts[0];
+    const tempC = parts[1];
+    if (pct !== undefined && tempC !== undefined && !isNaN(pct) && !isNaN(tempC)) {
+      return { pct: Math.max(0, Math.min(100, pct)), tempC };
+    }
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') nvidiaSmiMissing = true;
+  }
+  return null;
+}
+
+async function readDrmBusyPct(): Promise<number | null> {
+  try {
+    const entries = await fs.readdir('/sys/class/drm');
+    for (const name of entries.filter(n => /^card\d+$/.test(n)).sort()) {
+      try {
+        const text = await fs.readFile(`/sys/class/drm/${name}/device/gpu_busy_percent`, 'utf-8');
+        const pct = parseInt(text.trim(), 10);
+        if (!isNaN(pct)) return Math.max(0, Math.min(100, pct));
+      } catch { /* try next card */ }
+    }
+  } catch { /* /sys/class/drm not available */ }
+  return null;
+}
+
+async function readGpuHwmonTempC(): Promise<number | null> {
+  const GPU_NAMES = new Set(['amdgpu', 'nouveau', 'nvidia', 'i915', 'xe']);
+  try {
+    const entries = await fs.readdir('/sys/class/hwmon');
+    for (const name of entries) {
+      try {
+        const hwName = (await fs.readFile(`/sys/class/hwmon/${name}/name`, 'utf-8')).trim();
+        if (!GPU_NAMES.has(hwName)) continue;
+        const raw = await fs.readFile(`/sys/class/hwmon/${name}/temp1_input`, 'utf-8');
+        const mc = parseInt(raw.trim(), 10);
+        if (!isNaN(mc) && mc > 0) return Math.round(mc / 1000);
+      } catch { /* try next hwmon */ }
+    }
+  } catch { /* /sys/class/hwmon not available */ }
+  return null;
+}
+
+async function readGpuStats(): Promise<{ pct: number | null; tempC: number | null }> {
+  const nvidia = await readNvidiaSmiStats();
+  if (nvidia) return { pct: nvidia.pct, tempC: nvidia.tempC };
+  const [pct, tempC] = await Promise.all([readDrmBusyPct(), readGpuHwmonTempC()]);
+  return { pct, tempC };
+}
+
 export function watchProcStats(
   onStats: (s: ProcStats) => void,
   opts?: { intervalMs?: number },
@@ -130,7 +197,7 @@ export function watchProcStats(
     polling = true;
     try {
       const now = Date.now();
-      const [{ agg, cores }, ramPct, net, battery, cpuTempC] = await Promise.all([readCpuAllRaw(), readRamPct(), readNetRaw(), readBatteryRaw(), readCpuTempC()]);
+      const [{ agg, cores }, ramPct, net, battery, cpuTempC, gpu] = await Promise.all([readCpuAllRaw(), readRamPct(), readNetRaw(), readBatteryRaw(), readCpuTempC(), readGpuStats()]);
 
       if (prevAgg === null || prevNet === null) {
         prevAgg   = agg;
@@ -170,6 +237,8 @@ export function watchProcStats(
         cpuTempC:        cpuTempC,
         batteryPct:      battery?.pct ?? null,
         batteryCharging: battery?.charging ?? null,
+        gpuPct:          gpu.pct,
+        gpuTempC:        gpu.tempC,
       });
     } catch (err) {
       process.stderr.write(`dark-matrix: proc-source: poll failed: ${String(err)}\n`);
