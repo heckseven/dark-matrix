@@ -45,7 +45,8 @@ export const Empty: Story = {};
 
 /** A design-system green — swatch shows the color, no reset button. */
 export const WithValue: Story = {
-  args: { value: '#0dc45c', onClear: undefined },
+  args: { value: '#0dc45c' },
+  argTypes: { onClear: { table: { disable: true } } },
 };
 
 /** Value with reset — reset button appears below the swatch. */
@@ -71,13 +72,13 @@ export const Controlled: Story = {
 /** Starts with no value — open the picker, pick a color, then reset. */
 export const ControlledEmpty: Story = {
   render: (args) => {
-    const [hex, setHex] = React.useState<string | undefined>(undefined);
+    const [hex, setHex] = React.useState('');
     return (
       <ColorInput
         {...args}
-        value={hex}
+        {...(hex ? { value: hex } : {})}
         onChange={v => { setHex(v); args.onChange?.(v); }}
-        onClear={() => { setHex(undefined); args.onClear?.(); }}
+        onClear={() => { setHex(''); args.onClear?.(); }}
       />
     );
   },
