@@ -7,11 +7,13 @@ export type DataStats = {
   ramPct: number;
   netRxBps: number;
   netTxBps: number;
-  cpuCores?: number[];  // per-core % (0–100), optional for backwards compat
+  cpuCores?: number[];       // per-core % (0–100), optional for backwards compat
+  gpuPct?: number | null;    // GPU utilization 0–100, optional
+  gpuTempC?: number | null;  // GPU temperature in °C, optional
 };
 
 export type DataMetric = 'cpu' | 'ram' | 'net_rx' | 'net_tx';
-export type DataStyle  = 'line' | 'fill' | 'scroll' | 'cores';
+export type DataStyle  = 'line' | 'fill' | 'scroll' | 'cores' | 'gpufire';
 
 export type DataWidgetConfig = {
   style?:       DataStyle;
@@ -22,11 +24,43 @@ export type DataWidgetConfig = {
 };
 
 export const DATA_STYLES: { id: DataStyle; label: string }[] = [
-  { id: 'line',   label: 'line'   },
-  { id: 'fill',   label: 'fill'   },
-  { id: 'scroll', label: 'scroll' },
-  { id: 'cores',  label: 'cores'  },
+  { id: 'line',    label: 'line'    },
+  { id: 'fill',    label: 'fill'    },
+  { id: 'scroll',  label: 'scroll'  },
+  { id: 'cores',   label: 'cores'   },
+  { id: 'gpufire', label: 'gpufire' },
 ];
+
+// ── GpuFire constants ─────────────────────────────────────────────────────
+// Fire zone: rows 0–4 = temp digits, row 5 = gap, rows 6–33 = fire.
+const GF_FIRE_TOP = 6;
+const GF_FIRE_H   = 34 - GF_FIRE_TOP; // 28 rows
+const GF_STEP_MS  = 50;               // rate-limit CA to 20 fps
+const GF_HOT_COLS = new Set([1, 4, 7]); // torch: three hotspot columns
+
+// Digit glyphs: 2 cols × 5 rows, col-major (g[col * 5 + row])
+type GfGlyph = readonly [number,number,number,number,number, number,number,number,number,number];
+const GF_GLYPHS: ReadonlyArray<GfGlyph> = [
+  [1,1,1,1,1, 1,1,1,1,1], // 0
+  [1,1,1,1,1, 0,0,0,0,0], // 1
+  [1,0,1,1,1, 1,1,0,0,1], // 2
+  [1,0,1,0,1, 1,1,1,1,1], // 3
+  [1,1,1,0,0, 0,1,1,1,1], // 4
+  [1,1,1,0,1, 1,0,1,1,0], // 5
+  [1,1,1,1,1, 0,0,1,1,1], // 6
+  [1,0,0,0,0, 1,1,1,1,1], // 7
+  [1,0,1,1,1, 1,0,1,1,1], // 8
+  [1,1,1,0,0, 1,1,1,1,1], // 9
+];
+
+function gfPutDigit(f: Frame, digit: number, colStart: number, rows: number): void {
+  const g = GF_GLYPHS[Math.max(0, Math.min(9, digit))]!;
+  for (let c = 0; c < 2; c++) {
+    for (let r = 0; r < 5; r++) {
+      if (g[c * 5 + r]) f[(colStart + c) * rows + r] = 255;
+    }
+  }
+}
 
 // Layout constants
 const COLS       = 9;
@@ -69,6 +103,12 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
   // coreValues = displayed (eased) values; coreTargets = latest data.
   let coreValues:  number[] = [];
   let coreTargets: number[] = [];
+
+  // gpufire: DOOM heat buffer + live GPU load/temp
+  const gfBuf       = new Float32Array(COLS * GF_FIRE_H);
+  let   gfLoad      = 0.0;
+  let   gfTempC: number | null = null;
+  let   gfLastStepMs = 0;
 
   let netRxCeil = 1 * 1024 * 1024;
   let netTxCeil = 1 * 1024 * 1024;
@@ -184,6 +224,9 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
         // Snap on first data or when the core/bucket count changes; otherwise
         // render() eases coreValues toward coreTargets each frame.
         if (coreValues.length !== coreTargets.length) coreValues = [...coreTargets];
+      } else if (style === 'gpufire') {
+        gfLoad = (stats.gpuPct ?? 0) / 100;
+        if (stats.gpuTempC !== undefined) gfTempC = stats.gpuTempC;
       } else {
         // line, fill, and scroll — use configurable metrics with full history
         updateCeilings(stats);
@@ -235,6 +278,44 @@ export function createDataRenderer(cfg: DataWidgetConfig = {}): DataRenderer {
           for (let i = 0; i < botCount; i++) {
             drawHalfBarBot(f, coreValues[topCount + i] ?? 0, botStart + i);
           }
+        }
+      } else if (style === 'gpufire') {
+        const now = Date.now();
+        if (now - gfLastStepMs >= GF_STEP_MS) {
+          gfLastStepMs = now;
+          // Hotspot seeding: cols 1, 4, 7 run hot; gaps run cool (torch variant)
+          for (let col = 0; col < COLS; col++) {
+            const scale = GF_HOT_COLS.has(col)
+              ? Math.min(1, 1.4 + Math.random() * 0.2)
+              : (0.3 + Math.random() * 0.15);
+            const heat = Math.min(1, gfLoad * scale);
+            gfBuf[col * GF_FIRE_H + (GF_FIRE_H - 1)] = heat;
+            gfBuf[col * GF_FIRE_H + (GF_FIRE_H - 2)] = heat * (0.85 + Math.random() * 0.15);
+          }
+          // DOOM CA: top-down so each row reads unmodified values from below
+          for (let fRow = 0; fRow < GF_FIRE_H - 1; fRow++) {
+            for (let col = 0; col < COLS; col++) {
+              const drift  = Math.floor(Math.random() * 3) - 1;
+              const srcCol = Math.max(0, Math.min(COLS - 1, col + drift));
+              const heat   = gfBuf[srcCol * GF_FIRE_H + fRow + 1] ?? 0;
+              gfBuf[col * GF_FIRE_H + fRow] = Math.max(0, heat - (Math.random() * 0.035 + 0.015));
+            }
+          }
+        }
+        // Stochastic blit: P(lit) = heat — creates density gradient from base to tip
+        for (let col = 0; col < COLS; col++) {
+          for (let fRow = 0; fRow < GF_FIRE_H; fRow++) {
+            if ((gfBuf[col * GF_FIRE_H + fRow] ?? 0) > Math.random()) {
+              f[col * ROWS + GF_FIRE_TOP + fRow] = 255;
+            }
+          }
+        }
+        // Temperature digits at top: hundreds @ cols 0–1, tens @ 3–4, ones @ 6–7
+        if (gfTempC !== null) {
+          const t = Math.max(0, Math.min(199, Math.round(gfTempC)));
+          if (t >= 100) gfPutDigit(f, Math.floor(t / 100), 0, ROWS);
+          gfPutDigit(f, Math.floor((t % 100) / 10), 3, ROWS);
+          gfPutDigit(f, t % 10, 6, ROWS);
         }
       } else {
         // line

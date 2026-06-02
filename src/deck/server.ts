@@ -1851,7 +1851,7 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
     dataStatsClients.add(ws);
     if (!stopProcStats) {
       stopProcStats = watchProcStats((stats) => {
-        const msg = JSON.stringify({ type: 'data-stats', cpuPct: stats.cpuPct, ramPct: stats.ramPct, netRxBps: stats.netRxBps, netTxBps: stats.netTxBps, cpuCores: stats.cpuCores });
+        const msg = JSON.stringify({ type: 'data-stats', cpuPct: stats.cpuPct, ramPct: stats.ramPct, netRxBps: stats.netRxBps, netTxBps: stats.netTxBps, cpuCores: stats.cpuCores, gpuPct: stats.gpuPct, gpuTempC: stats.gpuTempC });
         for (const client of dataStatsClients) {
           if (client.readyState === 1) client.send(msg);
         }
