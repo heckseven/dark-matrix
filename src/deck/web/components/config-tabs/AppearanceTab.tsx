@@ -1,5 +1,7 @@
 import { useState, useEffect, type ChangeEvent } from 'react';
 import { Input } from '../ui/input.js';
+import { Radio } from '../ui/radio.js';
+import { Text } from '../ui/text.js';
 import { TabFrame, TabRow } from './tab-frame.js';
 import { CornerBrackets } from '../MatrixItem.js';
 import type { Appearance } from '../../types/config-types.js';
@@ -121,7 +123,7 @@ function ThemePreviewCard({ preset, isDark, selected, onSelect, disabled }: {
         <ThemeAbstractPreview accent={accent} fg={fg} bg={bg} border={border} />
         <CornerBrackets active={selected} />
       </div>
-      <span className="text-[10px] text-muted-foreground font-mono">{preset}</span>
+      <Text as="span" size="sm" variant="muted">{preset}</Text>
     </button>
   );
 }
@@ -181,27 +183,22 @@ export function AppearanceTab({ value, onChange }: AppearanceTabProps) {
 
   return (
     <TabFrame>
-      {/* Mode control */}
-      <div className="flex items-center gap-4">
-        <span className="w-28 shrink-0 text-sm text-muted-foreground">mode</span>
-        <div role="group" aria-label="Color mode" className="flex rounded border border-border overflow-hidden">
+      {/* Style control */}
+      <TabRow label="style">
+        <div role="radiogroup" aria-label="Color style" className="flex items-center gap-4">
           {(['dark', 'auto', 'light'] as const).map(mode => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => handleSchemeChange(mode)}
-              aria-pressed={appearance.color_scheme === mode}
-              className={`px-3 py-1 text-sm transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:relative focus-visible:z-10 ${
-                appearance.color_scheme === mode
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {mode}
-            </button>
+            <label key={mode} className="flex items-center gap-1.5 cursor-pointer">
+              <Radio
+                name="color-scheme"
+                value={mode}
+                checked={appearance.color_scheme === mode}
+                onChange={() => handleSchemeChange(mode)}
+              />
+              <Text as="span" size="xs">{mode}</Text>
+            </label>
           ))}
         </div>
-      </div>
+      </TabRow>
 
       {/* Dark theme picker */}
       <div className={`flex flex-col gap-2 transition-opacity ${isLightLocked ? 'opacity-40 select-none' : ''}`}>
