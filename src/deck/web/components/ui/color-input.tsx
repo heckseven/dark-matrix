@@ -76,12 +76,6 @@ export function ColorInput({
                 }}
               >
                 <CornerBrackets active={false} />
-                {/* Hex label overlaid at the bottom of the swatch */}
-                <span
-                  className="absolute bottom-0 left-0 right-0 font-mono text-[9px] text-white bg-black/60 px-1.5 py-1 leading-none select-none"
-                >
-                  {value ? value.toUpperCase() : '—'}
-                </span>
               </div>
             </button>
           </PopoverTrigger>
