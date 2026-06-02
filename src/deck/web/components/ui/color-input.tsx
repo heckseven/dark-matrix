@@ -11,6 +11,7 @@ import {
 } from 'react-aria-components';
 import type { Color } from 'react-aria-components';
 import { CornerBrackets } from '../MatrixItem.js';
+import { Button } from './button.js';
 import { Popover, PopoverContent, PopoverTrigger } from './popover.js';
 import { cn } from '@/lib/utils.js';
 
@@ -136,14 +137,9 @@ export function ColorInput({
 
       {/* Reset — shown below the swatch when an override is active */}
       {value && onClear && (
-        <button
-          type="button"
-          onClick={onClear}
-          className="font-mono text-xs text-muted-foreground hover:text-foreground transition-colors focus:outline-none focus-visible:underline text-left"
-          aria-label="Reset accent color"
-        >
+        <Button variant="ghost" size="sm" onClick={onClear} aria-label="Reset accent color">
           reset
-        </button>
+        </Button>
       )}
     </span>
   );
