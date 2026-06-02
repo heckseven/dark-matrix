@@ -252,11 +252,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         const wait = nextAt - Date.now();
         if (wait > 0) await new Promise<void>(r => setTimeout(r, wait));
       }
-      // Only release on natural completion — force-stop means another animation
-      // is already starting and will reuse the open ports.
       if (natural) {
-        if (left) await transport.release(left).catch(() => {});
-        if (right) await transport.release(right).catch(() => {});
         onComplete?.();
       }
     };
@@ -290,8 +286,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         if (wait > 0) await new Promise<void>(r => setTimeout(r, wait));
       }
       if (!stopped) {
-        if (left) await transport.release(left).catch(() => {});
-        if (right) await transport.release(right).catch(() => {});
         onComplete?.();
       }
     };
@@ -1091,8 +1085,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       } while (!stopped && loop);
 
       if (!stopped) {
-        if (left) await transport.release(left).catch(() => {});
-        if (right) await transport.release(right).catch(() => {});
         onComplete?.();
       }
     })();
@@ -1435,8 +1427,6 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     if (!stopped) {
       if (composite === 'replace') {
-        if (leftDev) await transport.release(leftDev).catch(() => {});
-        if (rightDev) await transport.release(rightDev).catch(() => {});
         stopCurrentAnim = null; // clear before complete() so next intent sees no live anim
         dispatcher.complete(intent.id);
       } else {
