@@ -1,0 +1,79 @@
+name: Bug report
+description: Something isn't working — daemon, Deck UI, hardware, or CLI.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing dark-matrix. The daemon logs and version are the most
+        useful things you can give us — please don't skip them.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What went wrong, and what you expected instead.
+      placeholder: |
+        Expected: the left module lights up after calibration.
+        Actual: both modules stay dark, no error in the Deck.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: dark-matrix version
+      description: Output of `dark-matrix ping` (or the contents of `~/.local/share/dark-matrix/version.txt`).
+      placeholder: v0.1.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Install method
+      options:
+        - curl installer (release tarball)
+        - dev build (pnpm build + install --user-systemd)
+        - other (describe below)
+    validations:
+      required: true
+
+  - type: input
+    id: system
+    attributes:
+      label: Distro and kernel
+      description: Output of `uname -sr` plus your distro name.
+      placeholder: Fedora 41, Linux 6.17.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: hardware
+    attributes:
+      label: Hardware
+      description: Are you running on a Framework 16 with the LED Matrix modules?
+      options:
+        - Framework 16, both modules connected
+        - Framework 16, one module connected
+        - Framework 16, no modules connected (UI/dev only)
+        - Other hardware (describe below)
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Daemon logs
+      description: Output of `journalctl --user -u dark-matrix -n 100 --no-pager`. This is auto-formatted as a code block.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Browser console errors, screenshots, config snippets, or other context.
+    validations:
+      required: false

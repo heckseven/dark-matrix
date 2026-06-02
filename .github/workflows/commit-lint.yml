@@ -1,0 +1,46 @@
+name: Commit lint
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  lint:
+    name: Conventional commits
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit subjects
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Conventional prefix keeps the log parseable for CHANGELOG generation.
+          # Merge commits are skipped. Bodies are not inspected — subject line only.
+          pattern='^(feat|fix|docs|refactor|perf|test|build|ci|chore)(\([a-z0-9/-]+\))?!?: .+'
+          fail=0
+          while IFS= read -r subject; do
+            [ -z "$subject" ] && continue
+            if ! printf '%s' "$subject" | grep -Eq "$pattern"; then
+              echo "::error::Non-conventional commit subject: $subject"
+              fail=1
+            fi
+          done <<EOF
+          $(git log --no-merges --format=%s "$BASE_SHA".."$HEAD_SHA")
+          EOF
+          if [ "$fail" -ne 0 ]; then
+            echo ""
+            echo "Commit subjects must follow: type(scope): subject"
+            echo "  types: feat fix docs refactor perf test build ci chore"
+            echo "  e.g.   fix(deck): correct mount point id"
+            exit 1
+          fi
+          echo "All commit subjects follow the convention."

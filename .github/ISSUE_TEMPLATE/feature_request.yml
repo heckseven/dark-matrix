@@ -1,0 +1,47 @@
+name: Feature request
+description: Suggest a new capability or improvement.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do that's hard or impossible today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What should happen instead? Sketch the UX or CLI if you can.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of dark-matrix does this touch?
+      options:
+        - Deck — design (pixel editor)
+        - Deck — hud
+        - Deck — audio
+        - Deck — video
+        - Deck — games / life
+        - Deck — config / setup
+        - Daemon / animations
+        - CLI
+        - Notifications
+        - Install / distribution
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Alternatives considered, references, mockups.
+    validations:
+      required: false
