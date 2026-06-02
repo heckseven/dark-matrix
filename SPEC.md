@@ -106,7 +106,7 @@ use async iterators that yield frames as they become available.
 **Pre-step (before any Phase 2 work):** Enable `/dev/cros_ec` user access:
 ```
 # /etc/udev/rules.d/99-cros-ec-user.rules
-KERNEL=="cros_ec", OWNER="heckseven", MODE="0660"
+KERNEL=="cros_ec", GROUP="plugdev", MODE="0660"
 ```
 Then install `ectool`. Without this, mic/camera switch state is inaccessible.
 
