@@ -1,9 +1,8 @@
-import { useState, useEffect, type ChangeEvent } from 'react';
-import { Input } from '../ui/input.js';
 import { Radio } from '../ui/radio.js';
 import { Text } from '../ui/text.js';
-import { TabFrame } from './tab-frame.js';
+import { TabFrame, TabRow } from './tab-frame.js';
 import { CornerBrackets } from '../MatrixItem.js';
+import { ColorInput } from '../ui/color-input.js';
 import type { Appearance } from '../../types/config-types.js';
 
 type Preset = 'dark-matrix' | 'phosphor' | 'mono';
@@ -15,23 +14,6 @@ const PRESET_ACCENTS: Record<Preset, { dark: string; light: string }> = {
   'phosphor':    { dark: '#F59E0B', light: '#b45309' },
   'mono':        { dark: '#ffffff', light: '#000000' },
 };
-
-const PALETTE = [
-  { label: 'gr455',  hex: '#0dc45c' },
-  { label: 'p1nk',   hex: '#fe428f' },
-  { label: '5ky',    hex: '#6dc3ff' },
-  { label: '5un',    hex: '#fff420' },
-  { label: 'y3llow', hex: '#ffff90' },
-  { label: 'cuti3',  hex: '#e6b723' },
-  { label: 'red5un', hex: '#ff3131' },
-  { label: 'whi7e',  hex: '#ffffff' },
-  { label: 'bl4ck',  hex: '#000000' },
-] as const;
-
-type PaletteHex = typeof PALETTE[number]['hex'];
-type AccentSel = 'preset' | PaletteHex | 'custom';
-
-const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
 const DEFAULT_APPEARANCE: Appearance = {
   dark_preset: 'dark-matrix',
@@ -45,13 +27,6 @@ function dropAccent(a: Appearance): Appearance {
     light_preset: a.light_preset,
     color_scheme: a.color_scheme,
   };
-}
-
-function initAccentSel(accent?: string): AccentSel {
-  if (!accent) return 'preset';
-  const match = PALETTE.find(p => p.hex === accent);
-  if (match) return match.hex;
-  return 'custom';
 }
 
 interface AppearanceTabProps {
@@ -148,57 +123,6 @@ const LEGEND = 'font-mono text-xs text-muted-foreground uppercase tracking-wides
 
 export function AppearanceTab({ value, onChange }: AppearanceTabProps) {
   const appearance = value ?? DEFAULT_APPEARANCE;
-  const [accentSel, setAccentSel] = useState<AccentSel>(() => initAccentSel(value?.accent));
-  const [customHex, setCustomHex] = useState(
-    initAccentSel(value?.accent) === 'custom' ? (value?.accent ?? '') : '',
-  );
-
-  useEffect(() => {
-    const sel = initAccentSel(value?.accent);
-    setAccentSel(sel);
-    setCustomHex(sel === 'custom' ? (value?.accent ?? '') : '');
-  }, [value?.accent]);
-
-  function handleSchemeChange(color_scheme: Appearance['color_scheme']) {
-    onChange({ ...appearance, color_scheme });
-  }
-
-  function handleDarkPresetChange(dark_preset: Preset) {
-    onChange({ ...appearance, dark_preset });
-  }
-
-  function handleLightPresetChange(light_preset: Preset) {
-    onChange({ ...appearance, light_preset });
-  }
-
-  function handlePaletteSelect(hex: PaletteHex) {
-    setAccentSel(hex);
-    setCustomHex('');
-    onChange({ ...appearance, accent: hex });
-  }
-
-  function handlePresetSelect() {
-    setAccentSel('preset');
-    setCustomHex('');
-    onChange(dropAccent(appearance));
-  }
-
-  function handleCustomSelect() {
-    setAccentSel('custom');
-  }
-
-  function handleCustomHexChange(e: ChangeEvent<HTMLInputElement>) {
-    const val = e.target.value;
-    setCustomHex(val);
-    if (HEX_RE.test(val)) onChange({ ...appearance, accent: val });
-  }
-
-  function handleCustomHexBlur() {
-    if (customHex === '') {
-      setAccentSel('preset');
-      onChange(dropAccent(appearance));
-    }
-  }
 
   const isLightLocked = appearance.color_scheme === 'light';
   const isDarkLocked = appearance.color_scheme === 'dark';
@@ -215,7 +139,7 @@ export function AppearanceTab({ value, onChange }: AppearanceTabProps) {
                 name="color-scheme"
                 value={mode}
                 checked={appearance.color_scheme === mode}
-                onChange={() => handleSchemeChange(mode)}
+                onChange={() => onChange({ ...appearance, color_scheme: mode })}
               />
               <Text as="span" size="xs">{mode}</Text>
             </label>
@@ -234,7 +158,7 @@ export function AppearanceTab({ value, onChange }: AppearanceTabProps) {
               preset={preset}
               isDark={true}
               selected={appearance.dark_preset === preset}
-              onSelect={() => handleDarkPresetChange(preset)}
+              onSelect={() => onChange({ ...appearance, dark_preset: preset })}
               disabled={isLightLocked}
             />
           ))}
@@ -252,7 +176,7 @@ export function AppearanceTab({ value, onChange }: AppearanceTabProps) {
               preset={preset}
               isDark={false}
               selected={appearance.light_preset === preset}
-              onSelect={() => handleLightPresetChange(preset)}
+              onSelect={() => onChange({ ...appearance, light_preset: preset })}
               disabled={isDarkLocked}
             />
           ))}
@@ -260,66 +184,14 @@ export function AppearanceTab({ value, onChange }: AppearanceTabProps) {
       </div>
 
       {/* Accent */}
-      <fieldset className="border-0 p-0 m-0">
-        <legend className={LEGEND}>accent</legend>
-        <div className="flex flex-col gap-1.5">
-          <label className="flex items-center gap-1.5 cursor-pointer">
-            <Radio
-              name="accent"
-              value="preset"
-              checked={accentSel === 'preset'}
-              onChange={handlePresetSelect}
-            />
-            <Text as="span" size="xs" variant="muted">preset</Text>
-          </label>
-          {PALETTE.map(({ hex, label }) => (
-            <label key={hex} className="flex items-center gap-1.5 cursor-pointer">
-              <Radio
-                name="accent"
-                value={hex}
-                checked={accentSel === hex}
-                onChange={() => handlePaletteSelect(hex)}
-              />
-              <span
-                aria-hidden="true"
-                style={{
-                  display: 'inline-block',
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: hex,
-                  flexShrink: 0,
-                  ...(hex === '#ffffff' || hex === '#000000'
-                    ? { border: '1px solid rgba(128,128,128,0.2)' }
-                    : {}),
-                }}
-              />
-              <Text as="span" size="xs" variant="muted">{label}</Text>
-            </label>
-          ))}
-          <label className="flex items-center gap-1.5 cursor-pointer">
-            <Radio
-              name="accent"
-              value="custom"
-              checked={accentSel === 'custom'}
-              onChange={handleCustomSelect}
-            />
-            <Text as="span" size="xs" variant="muted">custom</Text>
-            {accentSel === 'custom' && (
-              <Input
-                // eslint-disable-next-line jsx-a11y/no-autofocus
-                autoFocus
-                value={customHex}
-                onChange={handleCustomHexChange}
-                onBlur={handleCustomHexBlur}
-                placeholder="#000000"
-                aria-label="Custom accent hex"
-                className="w-24 font-mono uppercase ml-1"
-              />
-            )}
-          </label>
-        </div>
-      </fieldset>
+      <TabRow label="accent">
+        <ColorInput
+          value={appearance.accent}
+          onChange={(hex) => onChange({ ...appearance, accent: hex })}
+          onClear={appearance.accent ? () => onChange(dropAccent(appearance)) : undefined}
+          aria-label="Accent color override"
+        />
+      </TabRow>
     </TabFrame>
   );
 }
