@@ -34,7 +34,7 @@ const LIGHT: Record<string, string> = {
 
 const ACCENTS: Record<string, { dark: string; light: string }> = {
   'dark-matrix': { dark: '#0DC45C', light: '#059a47' },
-  'phosphor':    { dark: '#F59E0B', light: '#b45309' },
+  'phosphor':    { dark: '#F59E0B', light: '#5B21B6' },
   'mono':        { dark: '#ffffff', light: '#000000' },
 };
 

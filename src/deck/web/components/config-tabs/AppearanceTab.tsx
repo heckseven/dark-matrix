@@ -11,8 +11,21 @@ const PRESETS: Preset[] = ['dark-matrix', 'phosphor', 'mono'];
 
 const PRESET_ACCENTS: Record<Preset, { dark: string; light: string }> = {
   'dark-matrix': { dark: '#0DC45C', light: '#059a47' },
-  'phosphor':    { dark: '#F59E0B', light: '#b45309' },
+  'phosphor':    { dark: '#F59E0B', light: '#5B21B6' },
   'mono':        { dark: '#ffffff', light: '#000000' },
+};
+
+// Display names for each preset per scheme variant.
+const DARK_LABELS: Record<Preset, string> = {
+  'dark-matrix': 'dark-matrix',
+  'phosphor':    'phosphor',
+  'mono':        '0',
+};
+
+const LIGHT_LABELS: Record<Preset, string> = {
+  'dark-matrix': 'light-matrix',
+  'phosphor':    'vio1et',
+  'mono':        '1',
 };
 
 const DEFAULT_APPEARANCE: Appearance = {
@@ -42,56 +55,57 @@ function ThemeAbstractPreview({ accent, fg, bg, border }: {
     <div
       aria-hidden="true"
       style={{
-        width: 88,
-        height: 68,
+        width: 176,
+        height: 136,
         background: bg,
         border: `1px solid ${border}`,
-        padding: '6px 8px',
+        padding: '12px 16px',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
         boxSizing: 'border-box',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <div style={{ width: 4, height: 4, background: fg, flexShrink: 0 }} />
-        <div style={{ flex: 1, height: 1, background: fg }} />
-        <div style={{ width: 4, height: 4, background: accent, flexShrink: 0 }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width: 8, height: 8, background: fg, flexShrink: 0 }} />
+        <div style={{ flex: 1, height: 2, background: fg }} />
+        <div style={{ width: 8, height: 8, background: accent, flexShrink: 0 }} />
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, flex: 1, margin: '4px 0' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-end' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flex: 1, margin: '8px 0' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
           {[0, 1, 2].map(i => (
-            <div key={i} style={{ display: 'flex', gap: 1 }}>
-              <div style={{ width: 2, height: 6, background: bar }} />
-              <div style={{ width: 2, height: 6, background: bar }} />
+            <div key={i} style={{ display: 'flex', gap: 2 }}>
+              <div style={{ width: 4, height: 12, background: bar }} />
+              <div style={{ width: 4, height: 12, background: bar }} />
             </div>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 1 }}>
-          <div style={{ width: 7, height: 26, background: bar }} />
-          <div style={{ width: 7, height: 26, background: bar }} />
+        <div style={{ display: 'flex', gap: 2 }}>
+          <div style={{ width: 14, height: 52, background: bar }} />
+          <div style={{ width: 14, height: 52, background: bar }} />
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
           {[0, 1, 2].map(i => (
-            <div key={i} style={{ display: 'flex', gap: 1 }}>
-              <div style={{ width: 2, height: 6, background: bar }} />
-              <div style={{ width: 2, height: 6, background: bar }} />
+            <div key={i} style={{ display: 'flex', gap: 2 }}>
+              <div style={{ width: 4, height: 12, background: bar }} />
+              <div style={{ width: 4, height: 12, background: bar }} />
             </div>
           ))}
         </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <div style={{ width: 4, height: 4, background: fg, flexShrink: 0 }} />
-        <div style={{ flex: 1, height: 1, background: bar }} />
-        <div style={{ width: 4, height: 4, background: fg, flexShrink: 0 }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width: 8, height: 8, background: fg, flexShrink: 0 }} />
+        <div style={{ flex: 1, height: 2, background: bar }} />
+        <div style={{ width: 8, height: 8, background: fg, flexShrink: 0 }} />
       </div>
     </div>
   );
 }
 
-function ThemePreviewCard({ preset, isDark, selected, onSelect, disabled }: {
+function ThemePreviewCard({ preset, isDark, label, selected, onSelect, disabled }: {
   preset: Preset;
   isDark: boolean;
+  label: string;
   selected: boolean;
   onSelect: () => void;
   disabled?: boolean;
@@ -107,14 +121,14 @@ function ThemePreviewCard({ preset, isDark, selected, onSelect, disabled }: {
       onClick={onSelect}
       disabled={disabled}
       className="relative group flex flex-col items-center gap-1.5 focus:outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-1 rounded-sm"
-      aria-label={`${preset} ${isDark ? 'dark' : 'light'} theme`}
+      aria-label={`${label} theme`}
       aria-pressed={selected}
     >
       <div className="relative">
         <ThemeAbstractPreview accent={accent} fg={fg} bg={bg} border={border} />
         <CornerBrackets active={selected} />
       </div>
-      <Text as="span" size="sm" variant="muted">{preset}</Text>
+      <Text as="span" size="sm" variant="muted">{label}</Text>
     </button>
   );
 }
@@ -124,8 +138,8 @@ const LEGEND = 'font-mono text-xs text-muted-foreground uppercase tracking-wides
 export function AppearanceTab({ value, onChange }: AppearanceTabProps) {
   const appearance = value ?? DEFAULT_APPEARANCE;
 
-  const isLightLocked = appearance.color_scheme === 'light';
-  const isDarkLocked = appearance.color_scheme === 'dark';
+  const showDark = appearance.color_scheme !== 'light';
+  const showLight = appearance.color_scheme !== 'dark';
 
   return (
     <TabFrame>
@@ -147,41 +161,43 @@ export function AppearanceTab({ value, onChange }: AppearanceTabProps) {
         </div>
       </fieldset>
 
-      {/* Dark theme picker */}
-      <div className={`flex flex-col gap-2 transition-opacity ${isLightLocked ? 'opacity-40 select-none' : ''}`}>
-        {isLightLocked && <p className="sr-only">Dark theme is not applied in light mode.</p>}
-        <span className="text-xs text-muted-foreground uppercase tracking-widest">dark theme</span>
-        <div className="flex gap-3">
-          {PRESETS.map(preset => (
-            <ThemePreviewCard
-              key={preset}
-              preset={preset}
-              isDark={true}
-              selected={appearance.dark_preset === preset}
-              onSelect={() => onChange({ ...appearance, dark_preset: preset })}
-              disabled={isLightLocked}
-            />
-          ))}
+      {/* Dark theme picker — hidden in light-only mode */}
+      {showDark && (
+        <div className="flex flex-col gap-2">
+          <span className="text-xs text-muted-foreground uppercase tracking-widest">dark theme</span>
+          <div className="flex gap-3">
+            {PRESETS.map(preset => (
+              <ThemePreviewCard
+                key={preset}
+                preset={preset}
+                isDark={true}
+                label={DARK_LABELS[preset]}
+                selected={appearance.dark_preset === preset}
+                onSelect={() => onChange({ ...appearance, dark_preset: preset })}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Light theme picker */}
-      <div className={`flex flex-col gap-2 transition-opacity ${isDarkLocked ? 'opacity-40 select-none' : ''}`}>
-        {isDarkLocked && <p className="sr-only">Light theme is not applied in dark mode.</p>}
-        <span className="text-xs text-muted-foreground uppercase tracking-widest">light theme</span>
-        <div className="flex gap-3">
-          {PRESETS.map(preset => (
-            <ThemePreviewCard
-              key={preset}
-              preset={preset}
-              isDark={false}
-              selected={appearance.light_preset === preset}
-              onSelect={() => onChange({ ...appearance, light_preset: preset })}
-              disabled={isDarkLocked}
-            />
-          ))}
+      {/* Light theme picker — hidden in dark-only mode */}
+      {showLight && (
+        <div className="flex flex-col gap-2">
+          <span className="text-xs text-muted-foreground uppercase tracking-widest">light theme</span>
+          <div className="flex gap-3">
+            {PRESETS.map(preset => (
+              <ThemePreviewCard
+                key={preset}
+                preset={preset}
+                isDark={false}
+                label={LIGHT_LABELS[preset]}
+                selected={appearance.light_preset === preset}
+                onSelect={() => onChange({ ...appearance, light_preset: preset })}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Accent */}
       <TabRow label="accent">
