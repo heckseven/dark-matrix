@@ -2,7 +2,6 @@ export const MODES = [
   { id: 'hud',    label: 'hud' },
   { id: 'audio',  label: 'audio' },
   { id: 'video',  label: 'video' },
-  { id: 'data',   label: 'data' },
   { id: 'cast',   label: 'cast' },
   { id: 'life',   label: 'life' },
   { id: 'design', label: 'design' },

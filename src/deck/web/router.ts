@@ -3,7 +3,7 @@
 //
 // Route shape:
 //   /                       -> mode select (no active mode)
-//   /<mode>                 -> a mode (hud, audio, video, data, cast, life, design, config)
+//   /<mode>                 -> a mode (hud, audio, video, cast, life, design, config)
 //   /config/<tab>           -> config mode focused on a settings tab
 import { MODES, type AppMode } from './app-modes.js';
 
