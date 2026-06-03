@@ -785,13 +785,7 @@ export function App() {
                       <TimeInput
                         aria-label="Preview time"
                         value={`${String(clockOverrideH).padStart(2, '0')}:${String(clockOverrideM).padStart(2, '0')}`}
-                        onChange={v => {
-                          const [hStr, mStr] = v.split(':');
-                          const h = parseInt(hStr ?? '0', 10);
-                          const m = parseInt(mStr ?? '0', 10);
-                          setClockOverrideH(isNaN(h) ? 0 : h);
-                          setClockOverrideM(isNaN(m) ? 0 : m);
-                        }}
+                        onChangeHM={(h, m) => { setClockOverrideH(h); setClockOverrideM(m); }}
                       />
                       <Button variant="ghost" size="sm" aria-label="Reset to current time" onClick={() => { const n = new Date(); setClockOverrideH(n.getHours()); setClockOverrideM(n.getMinutes()); }}>
                         now

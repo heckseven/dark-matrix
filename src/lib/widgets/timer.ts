@@ -11,6 +11,8 @@ export const timerSchema = z.object({
   repeat: z.boolean().optional(),
 });
 
+export const TIMER_DEFAULT_DURATION_MS = 25 * 60_000;
+
 export const timerDefault: TimerWidget = { widget: 'timer', style: 'elegant' };
 
 export const timerBase = {

@@ -4,7 +4,7 @@ import {
   createElegantTimerRenderer,
 } from '../../animations/timer-renderers.js';
 import type { HudWidget } from '../../deck/web/types/hud-preset.js';
-import { timerBase } from '../../lib/widgets/timer.js';
+import { timerBase, TIMER_DEFAULT_DURATION_MS } from '../../lib/widgets/timer.js';
 import type { TimerWidget, TimerStyle } from '../../lib/widgets/timer.js';
 import type { DaemonWidgetDescriptor, DaemonWidgetContext, WidgetRenderer, HudConfigMessage } from './types.js';
 import type { Config } from '../../lib/config.js';
@@ -18,7 +18,7 @@ export const timerDaemonDescriptor: DaemonWidgetDescriptor<TimerWidget> = {
 
   createRenderer(widget: TimerWidget, ctx: DaemonWidgetContext): WidgetRenderer {
     const timerStyle  = widget.style ?? 'elegant';
-    const durationMs  = widget.durationMs ?? 25 * 60_000;
+    const durationMs  = widget.durationMs ?? TIMER_DEFAULT_DURATION_MS;
     const repeat      = widget.repeat ?? false;
     const side        = ctx.side;
     const savedEpoch  = ctx.persistedTimerEpochs[side];

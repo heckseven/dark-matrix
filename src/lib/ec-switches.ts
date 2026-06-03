@@ -103,16 +103,33 @@ function readSwitchesNative(helperPath: string): Promise<SwitchState> {
 
 async function nativeHelperAvailable(helperPath: string): Promise<boolean> {
   try {
-    await fs.access(helperPath);
+    const st = await fs.stat(helperPath);
+    // Reject if world-writable — file lives in a user-owned dir, so world-writable means a
+    // local attacker could replace it with an arbitrary binary executed by the daemon.
+    if ((st.mode & 0o002) !== 0) return false;
+    // Reject if not owned by the current user (getuid is POSIX-only; skip on Windows).
+    if (typeof process.getuid === 'function' && st.uid !== process.getuid()) return false;
     return true;
   } catch {
     return false;
   }
 }
 
+export interface WatchSwitchesOpts {
+  intervalMs?: number;
+  nativeHelperPath?: string;
+  ectoolPath?: string;
+  onSource?: (s: SwitchSource) => void;
+  /**
+   * Called on every successful poll, including the first tick.
+   * The first-tick call primes the caller's state cache before change events begin firing.
+   */
+  onState?: (s: SwitchState) => void;
+}
+
 export function watchSwitches(
   onEvent: (e: SwitchEvent) => void,
-  opts?: { intervalMs?: number; nativeHelperPath?: string; ectoolPath?: string; onSource?: (s: SwitchSource) => void; onState?: (s: SwitchState) => void }
+  opts?: WatchSwitchesOpts
 ): () => void {
   const intervalMs = opts?.intervalMs ?? 500;
   const nativeHelperPath = opts?.nativeHelperPath;

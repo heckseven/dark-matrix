@@ -7,7 +7,7 @@ import { Checkbox } from '../components/ui/checkbox.js';
 import type { HudWidget } from '../types/hud-preset.js';
 import type { BrowserWidgetDescriptor, GridContext } from './types.js';
 import { bwToB64, EMPTY_PIXELS } from './utils.js';
-import { timerBase } from '../../../lib/widgets/timer.js';
+import { timerBase, TIMER_DEFAULT_DURATION_MS } from '../../../lib/widgets/timer.js';
 import type { TimerWidget } from '../../../lib/widgets/timer.js';
 
 // ── Demo constants ─────────────────────────────────────────────────────────
@@ -94,7 +94,7 @@ function TimerSettings({ currentWidget, uid, onChange }: GridContext) {
   if (currentWidget?.widget !== 'timer') return null;
   const widget = currentWidget as TimerWidget & { widget: 'timer' };
 
-  const durationMs = widget.durationMs ?? 25 * 60_000;
+  const durationMs = widget.durationMs ?? TIMER_DEFAULT_DURATION_MS;
   const totalSec   = Math.floor(durationMs / 1000);
   const h          = Math.floor(totalSec / 3600);
   const m          = Math.floor((totalSec % 3600) / 60);

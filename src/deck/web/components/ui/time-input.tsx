@@ -140,7 +140,9 @@ function Seg({ value, min, max, onChange, disabled, ariaLabel }: SegProps) {
 
 export interface TimeInputProps {
   value: string;
-  onChange: (value: string) => void;
+  onChange?: (value: string) => void;
+  /** Called with structured (hours, minutes) values after carry, avoiding the need to re-parse the string value. */
+  onChangeHM?: (h: number, m: number) => void;
   /** Enable a seconds segment. Default: false. */
   showSeconds?: boolean;
   /**
@@ -159,6 +161,7 @@ export interface TimeInputProps {
 export function TimeInput({
   value,
   onChange,
+  onChangeHM,
   showSeconds = false,
   maxHours = 23,
   label,
@@ -171,7 +174,8 @@ export function TimeInput({
 
   function update(newH: number, newM: number, newS: number) {
     const carried = applyCarry(newH, newM, newS, maxHours);
-    onChange(emit(...carried, showSeconds));
+    onChange?.(emit(...carried, showSeconds));
+    onChangeHM?.(carried[0], carried[1]);
   }
 
   const bracket = (
