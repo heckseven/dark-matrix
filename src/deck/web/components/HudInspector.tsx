@@ -81,17 +81,17 @@ export function HudInspector({ widget, side = 'left', audioCtx = MOCK_AUDIO_CTX,
     onClocksVisible?.(view === 'grid' && activeCategory === 'time');
   }, [view, activeCategory, onClocksVisible]);
 
-  function refreshAssets() {
-    fetch('/api/assets')
+  function refreshAssets(): Promise<void> {
+    return fetch('/api/assets')
       .then(r => r.json() as Promise<{ ok: boolean; assets: AssetMeta[] }>)
       .then(d => { if (mountedRef.current) setAssets(d.assets ?? []); })
-      .catch(err => console.error('Failed to refresh assets:', err));
+      .catch(err => { if (mountedRef.current) console.error('Failed to refresh assets:', err); });
   }
 
-  function handleDeleteAsset(name: string) {
-    fetch(`/api/assets/${encodeURIComponent(name)}`, { method: 'DELETE' })
-      .then(() => refreshAssets())
-      .catch(err => console.error('Failed to delete asset:', err));
+  function handleDeleteAsset(name: string): Promise<void> {
+    return fetch(`/api/assets/${encodeURIComponent(name)}`, { method: 'DELETE' })
+      .then(r => { if (!r.ok) throw new Error(`Delete failed: ${r.status}`); })
+      .then(() => refreshAssets());
   }
 
   function getPresetCount(name: string): number {

@@ -51,6 +51,68 @@ function extractHalf(full: Uint8Array, side: 'left' | 'right'): Uint8Array {
   return out;
 }
 
+// ── delete confirm dialog ─────────────────────────────────────────────────────
+
+function DeleteConfirmDialog({ label, presetCount, onDelete }: {
+  label: string;
+  presetCount: number;
+  onDelete: () => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+
+  function handleOpenChange(next: boolean) {
+    if (deleting) return;
+    if (!next) setError(null);
+    setOpen(next);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          aria-label={`Delete ${label}`}
+          tooltip={`Delete ${label}`}
+          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 data-[state=open]:text-foreground text-foreground/40 hover:text-red-400"
+          onClick={e => e.stopPropagation()}
+        >×</Button>
+      </DialogTrigger>
+      <DialogContent variant="destructive" className="flex flex-col gap-3 w-64">
+        <DialogTitle>Delete {label}</DialogTitle>
+        <DialogDescription>
+          This image is used in {presetCount} preset{presetCount !== 1 ? 's' : ''}.
+        </DialogDescription>
+        <p aria-live="assertive" aria-atomic="true" className="font-mono text-xs text-red-400">{error ?? ''}</p>
+        <div className="flex gap-2 justify-end">
+          <DialogClose asChild>
+            <Button variant="ghost" className="font-mono text-xs" aria-label={`Cancel delete ${label}`} autoFocus disabled={deleting}>cancel</Button>
+          </DialogClose>
+          <Button
+            variant="destructive"
+            className="font-mono text-xs"
+            aria-busy={deleting}
+            aria-label={deleting ? `Deleting ${label}…` : `Confirm delete ${label}`}
+            disabled={deleting}
+            onClick={e => {
+              e.stopPropagation();
+              setDeleting(true);
+              setError(null);
+              onDelete()
+                .then(() => { if (mountedRef.current) setOpen(false); })
+                .catch(err => { if (mountedRef.current) setError(err instanceof Error ? err.message : 'Delete failed'); })
+                .finally(() => { if (mountedRef.current) setDeleting(false); });
+            }}
+          >{deleting ? '…' : 'delete'}</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── ImageGrid component ───────────────────────────────────────────────────────
 
 function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, onEdit, getPresetCount }: GridContext) {
@@ -104,39 +166,10 @@ function ImageGrid({ currentWidget, assets, onPick, onShowImport, onDelete, onEd
               aria-label={`Delete ${label}`}
               tooltip={`Delete ${label}`}
               className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-foreground/40 hover:text-red-400"
-              onClick={e => { e.stopPropagation(); onDelete(asset.name); }}
+              onClick={e => { e.stopPropagation(); onDelete(asset.name).catch(err => console.error('Failed to delete asset:', err)); }}
             >×</Button>
           ) : (
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  aria-label={`Delete ${label}`}
-                  tooltip={`Delete ${label}`}
-                  className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 data-[state=open]:text-foreground text-foreground/40 hover:text-red-400"
-                  onClick={e => e.stopPropagation()}
-                >×</Button>
-              </DialogTrigger>
-              <DialogContent variant="destructive" className="flex flex-col gap-3 w-64">
-                <DialogTitle className="sr-only">Delete {label}</DialogTitle>
-                <DialogDescription>
-                  This image is used in {presetCount} preset{presetCount !== 1 ? 's' : ''}.
-                </DialogDescription>
-                <div className="flex gap-2 justify-end">
-                  <DialogClose asChild>
-                    <Button variant="ghost" className="font-mono text-xs" aria-label={`Cancel delete ${label}`} autoFocus>cancel</Button>
-                  </DialogClose>
-                  <DialogClose asChild>
-                    <Button
-                      variant="destructive"
-                      className="font-mono text-xs"
-                      aria-label={`Confirm delete ${label}`}
-                      onClick={() => onDelete(asset.name)}
-                    >delete</Button>
-                  </DialogClose>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <DeleteConfirmDialog label={label} presetCount={presetCount} onDelete={() => onDelete(asset.name)} />
           );
           return (
             <MatrixItem
