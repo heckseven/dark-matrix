@@ -103,7 +103,9 @@ function readSwitchesNative(helperPath: string): Promise<SwitchState> {
 
 async function nativeHelperAvailable(helperPath: string): Promise<boolean> {
   try {
-    const st = await fs.stat(helperPath);
+    const st = await fs.lstat(helperPath);
+    // Reject symlinks — a symlink to an attacker-controlled binary passes ownership/mode checks.
+    if (st.isSymbolicLink()) return false;
     // Reject if world-writable — file lives in a user-owned dir, so world-writable means a
     // local attacker could replace it with an arbitrary binary executed by the daemon.
     if ((st.mode & 0o002) !== 0) return false;
