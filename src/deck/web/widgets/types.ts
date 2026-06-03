@@ -36,6 +36,8 @@ export interface ThumbnailOpts {
   assetList?: AssetMeta[];
   // current animated frame index per asset filename, driven by the caller
   imageAnim?: Record<string, { frameIdx: number }>;
+  // true when both sides share the same zen style — widget should render its half of the wide animation
+  wide?: boolean;
 }
 
 export interface ImageCacheEntry {

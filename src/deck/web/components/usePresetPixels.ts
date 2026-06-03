@@ -40,6 +40,7 @@ function renderWidgetToB64(
   audioFrames?: AudioFrames,
   assetList?:   AssetMeta[] | null,
   imageAnim?:   Record<string, ImageAnimState>,
+  wide?:        boolean,
 ): string {
   const empty = btoa(String.fromCharCode(...new Uint8Array(COLS * ROWS)));
   if (!widget) return empty;
@@ -49,6 +50,7 @@ function renderWidgetToB64(
       audioFrames: audioFrames as ThumbnailOpts['audioFrames'],
       assetList: assetList ?? undefined,
       imageAnim,
+      ...(wide ? { wide: true } : {}),
     };
     return BROWSER_WIDGET_REGISTRY[widget.widget].renderThumbnail(widget as never, side, opts);
   } catch {
@@ -130,11 +132,14 @@ export function usePresetPixels(presets: HudPresetClient[], audioCtx: RenderCtx)
   }, []);
 
   const getPixels = useCallback((preset: HudPresetClient, _tick: number): string => {
-    const af = audioFramesRef.current;
-    const ia = imageAnimRef.current;
-    const al = assetListRef.current;
-    const leftPx  = renderWidgetToB64(preset.left,  'left',  audioCtxRef.current, af, al, ia);
-    const rightPx = renderWidgetToB64(preset.right, 'right', audioCtxRef.current, af, al, ia);
+    const af  = audioFramesRef.current;
+    const ia  = imageAnimRef.current;
+    const al  = assetListRef.current;
+    const ctx = audioCtxRef.current;
+    const isZenWide = preset.left?.widget === 'zen' && preset.right?.widget === 'zen' &&
+      (preset.left.style ?? 'waves') === (preset.right.style ?? 'waves');
+    const leftPx  = renderWidgetToB64(preset.left,  'left',  ctx, af, al, ia, isZenWide);
+    const rightPx = renderWidgetToB64(preset.right, 'right', ctx, af, al, ia, isZenWide);
     return combinePixels(leftPx, rightPx);
   }, []);
 

@@ -6,6 +6,9 @@ import { deckStore } from '../store.js';
 import { BROWSER_WIDGET_REGISTRY } from '../widgets/index.js';
 import type { PreviewOpts } from '../widgets/types.js';
 import { MOCK_AUDIO_CTX } from '../widgets/audio.js';
+import { createZenRenderer } from '../../../animations/zen-renderers.js';
+import type { ZenStyle } from '../../../animations/zen-renderers.js';
+import { bayerDitherToUint8 } from '../widgets/utils.js';
 
 // ── layout constants — match PixelCanvas at zoom=1 ────────────────────────
 
@@ -28,6 +31,12 @@ const RIGHT_X  = COLS * PITCH + MOD_GAP;       // 197 — x where right module s
 const SPLIT_X  = HALF_W + Math.floor((RIGHT_X - HALF_W) / 2); // 192
 
 // ── renderer caches ───────────────────────────────────────────────────────
+
+type ZenPair = {
+  style: ZenStyle;
+  left:  ReturnType<typeof createZenRenderer>;
+  right: ReturnType<typeof createZenRenderer>;
+};
 
 function b64ToUint8(b64: string, expectedBytes: number): Uint8Array {
   const bin = atob(b64);
@@ -180,6 +189,14 @@ export function HudDualPreview({
   const imageCacheRef = useRef<ImagePixelsCache>({});
   const lifeStateL = useRef<LifeState | null>(null);
   const lifeStateR = useRef<LifeState | null>(null);
+  const zenPairRef = useRef<ZenPair | null>(null);
+
+  useEffect(() => {
+    return () => {
+      zenPairRef.current?.left.stop();
+      zenPairRef.current?.right.stop();
+    };
+  }, []);
 
   // Load assets when an image widget is present
   const leftFile  = leftWidget?.widget  === 'image' ? leftWidget.file  : null;
@@ -265,8 +282,38 @@ export function HudDualPreview({
     const leftLifeGrid  = advanceLifeSide(lifeStateL, leftWidget,  'left');
     const rightLifeGrid = advanceLifeSide(lifeStateR, rightWidget, 'right');
     const { bg, primary, fg } = readThemeColors();
-    drawModule(ctx, getPixels(leftWidget,  'left',  now, audioCtx, imageCache, leftLifeGrid),  0,       bg, primary);
-    drawModule(ctx, getPixels(rightWidget, 'right', now, audioCtx, imageCache, rightLifeGrid), RIGHT_X, bg, primary);
+
+    // Detect zen wide mode: both sides have the same zen style.
+    const isZenWide = leftWidget?.widget === 'zen' && rightWidget?.widget === 'zen' &&
+      (leftWidget.style ?? 'waves') === (rightWidget.style ?? 'waves');
+    const zenStyle = isZenWide ? ((leftWidget?.style ?? 'waves') as ZenStyle) : null;
+
+    // Manage the wide renderer pair lifecycle.
+    if (zenStyle) {
+      if (!zenPairRef.current || zenPairRef.current.style !== zenStyle) {
+        zenPairRef.current?.left.stop();
+        zenPairRef.current?.right.stop();
+        zenPairRef.current = {
+          style: zenStyle,
+          left:  createZenRenderer(zenStyle, 'left'),
+          right: createZenRenderer(zenStyle, 'right'),
+        };
+      }
+    } else if (zenPairRef.current) {
+      zenPairRef.current.left.stop();
+      zenPairRef.current.right.stop();
+      zenPairRef.current = null;
+    }
+
+    const leftPixels  = zenPairRef.current
+      ? bayerDitherToUint8(zenPairRef.current.left.render())
+      : getPixels(leftWidget,  'left',  now, audioCtx, imageCache, leftLifeGrid);
+    const rightPixels = zenPairRef.current
+      ? bayerDitherToUint8(zenPairRef.current.right.render())
+      : getPixels(rightWidget, 'right', now, audioCtx, imageCache, rightLifeGrid);
+
+    drawModule(ctx, leftPixels,  0,       bg, primary);
+    drawModule(ctx, rightPixels, RIGHT_X, bg, primary);
     // Bracket around the selected side
     const [bx1, bx2] = selectedSide === 'left'
       ? [0.5,           HALF_W - 0.5]
