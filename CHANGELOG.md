@@ -11,4 +11,47 @@ Entries are generated from the commit log at release time via the `/release` ski
 
 ## [Unreleased]
 
-_Changes on `main` not yet released will be summarized here when the next version is cut._
+_Nothing yet._
+
+## [0.1.0] - 2026-06-02
+
+### Added
+
+**Daemon & hardware**
+- Persistent TypeScript/Node.js daemon driving two 9×34 LED matrix modules over USB serial
+- Adaptive brightness via ambient light sensor, time-of-day scheduling, or manual control
+- SIGHUP config hot-reload and a Zod-validated config schema with sensible defaults
+- Automatic module discovery via stable `/dev/serial/by-path` symlinks
+
+**Deck web UI**
+- Design mode: pixel animation editor with live hardware preview, full undo/redo, GIF/PNG import-export, and a reusable library (with read-only built-in starter designs)
+- HUD mode: named widget-layout presets per module side, with triggers
+- Audio mode: real-time visualizer with many render styles
+- Video mode: matrix-rendered video playback
+- Games mode: Game of Life biomes
+- Config mode: daemon settings with live preview
+- Theming system with presets and a custom accent color picker
+- First-run welcome screen and a hardware/daemon status chip
+
+**HUD widgets**
+- Clock faces, system data widgets (CPU, RAM, network), audio visualizers, Game of Life, images, Claude usage, and timers, via a widget descriptor registry
+
+**CLI**
+- Guided `init` first-run setup (config → calibrate → optional-dependency check)
+- `calibrate`, `ui`, `ping`, `status`, `release`
+- `scroll`, `animate gif`, `image`, `show`, `show-split`, `display`, `hud preset`, `life`
+- `install` (systemd user service, EC privacy-switch udev access, Claude Code hooks), `self-update`, `uninstall`
+- Grouped color help with an ascii banner and `--version`
+
+**Notifications**
+- Priority-queued display intents from desktop (D-Bus), VM activity (libvirt), Claude Code hooks, and EC privacy switches (camera/mic)
+- Glob- and urgency-based routing rules with text, design, or suppress actions
+
+**Installation & distribution**
+- One-line curl installer that registers and starts the systemd user service
+- GitHub Actions release workflow building x64 and arm64 tarballs with a pinned Node binary and bundled native modules (serialport, sharp)
+- In-place updates via `self-update`
+
+**Project**
+- Licensed under GPL-3.0-or-later
+- Contributor guide, issue forms, and a commit-lint CI check
