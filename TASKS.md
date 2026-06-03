@@ -13,8 +13,8 @@
 - [ ] Static HUD picker thumbnails — draw 34 frames in the deck (9-wide BW) per `docs/hud-picker-thumbnail-draworder.md`; export `.dmx.json`; replace dynamic render calls in `HudInspector.tsx` and `PresetList.tsx` with static pixel constants parsed from the file
 - [ ] Data widget display variations — new styles beyond line/bars; candidates: radial gauges, sparklines, digit readouts, dot-matrix counters; selectable per-quadrant in HudInspector
 - [ ] AI data sources — GPU utilization (nvidia-smi/ROCm: GPU%, VRAM%, temp) and local inference stats (Ollama API: active model, tokens/sec, context size); new daemon proc-source variants; exposed as selectable metrics in HUD data quadrants alongside CPU/RAM/net
-- [ ] HUD image delete confirm: remove `DialogClose asChild` from the confirm button so the dialog stays open until the delete call succeeds; surface errors via aria-live or toast rather than silent dismissal
-- [ ] HUD image delete confirm: show `DialogTitle` visibly (not `sr-only`) so sighted users see the dialog heading alongside the "used in N presets" description
+- [x] HUD image delete confirm: remove `DialogClose asChild` from the confirm button so the dialog stays open until the delete call succeeds; surface errors via aria-live or toast rather than silent dismissal
+- [x] HUD image delete confirm: show `DialogTitle` visibly (not `sr-only`) so sighted users see the dialog heading alongside the "used in N presets" description
 
 ## Daemon / hardware
 
