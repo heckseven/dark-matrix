@@ -18,7 +18,7 @@ export interface GridContext {
   onEditBiome?: (name: string) => void;
   assets: AssetMeta[] | null;
   onShowImport: () => void;
-  onDelete: (name: string) => void;
+  onDelete: (name: string) => Promise<void>;
   onEdit: (name: string) => void;
   getPresetCount: (name: string) => number;
   // settings layer props
