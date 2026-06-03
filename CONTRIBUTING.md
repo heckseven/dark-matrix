@@ -138,7 +138,83 @@ node dist/cli/index.js install --claude-hooks
 
 ## Architecture
 
-See [README.md](README.md) for full architecture documentation, config schema, API reference,
-and feature descriptions.
+```
+src/
+├── daemon/
+│   └── index.ts           # Event loop, source watchers, Unix socket IPC
+├── cli/
+│   └── index.ts           # CLI commands
+├── deck/
+│   ├── format.ts          # .dmx.json project format + serialization
+│   ├── server.ts          # HTTP server (static + API) + WebSocket live preview
+│   └── web/
+│       ├── App.tsx         # Main application shell + hardware status chip + welcome gate
+│       ├── store.ts        # Zustand state + localStorage session persistence
+│       ├── files.ts        # Import/export helpers
+│       └── components/
+│           ├── WelcomeScreen.tsx  # First-run setup checklist modal
+│           ├── PixelCanvas.tsx    # Drawing surface
+│           ├── FrameStrip.tsx     # Animation frame list + drag-reorder
+│           ├── ColorPalette.tsx   # BW/grayscale color picker
+│           ├── MatrixPreview.tsx  # Hardware-accurate pixel thumbnail
+│           ├── ModePicker.tsx     # App mode switcher overlay
+│           ├── LivePreview.tsx    # WebSocket → daemon live preview bridge
+│           ├── ConfigPanel.tsx    # Daemon settings (startup, brightness, hardware, notifications)
+│           ├── AudioPanel.tsx     # Audio visualizer with style picker + source selector
+│           ├── HudPanel.tsx       # Three-column HUD preset editor
+│           ├── HudDualPreview.tsx # Side-by-side live preview for HUD layout
+│           ├── HudInspector.tsx   # Widget inspector for selected module side
+│           ├── PresetList.tsx     # Scrollable named preset list
+│           ├── VideoPanel.tsx     # Video display panel
+│           ├── TriggerView.tsx    # Event trigger configuration
+│           └── Playback.tsx       # Frame playback controls
+├── lib/
+│   ├── transport.ts        # BinaryTransport (one-shot) + SerialTransport (held port)
+│   ├── frame.ts            # Frame type: 9×34 Uint8Array + packBW helper
+│   ├── animation.ts        # Async iterator animation runtime + tick loop
+│   ├── config.ts           # Zod-validated config loader + bootstrapConfig
+│   ├── brightness.ts       # Sensor polling + hysteresis + time-of-day fallback
+│   ├── dispatcher.ts       # Priority queue → display intents
+│   ├── ec-switches.ts      # ectool GPIO poller (FW16 privacy switches)
+│   ├── vm-source.ts        # virsh list poller
+│   ├── claude-source.ts    # Claude hook payload parser
+│   └── image-convert.ts   # Image → Frame conversion (sharp)
+└── animations/
+    ├── gol.ts              # Game of Life
+    ├── scroll.ts           # Dual-module text scroll
+    ├── gif.ts              # GIF decoder + frame iterator
+    ├── audio-eq.ts         # ffmpeg → FFT → EQ bars
+    ├── heatmap.ts          # Simulated heatmap
+    ├── image.ts            # Static image animation
+    └── startup.ts          # Wipe/rain/pulse startup sequences
+```
+
+**Transport modes:**
+- `BinaryTransport` — shells out to a control binary per command. Safe for one-shot use.
+- `SerialTransport` — holds the serial port open for animation. Acquired on animation start,
+  released on stop. Brightness is sent as a native serial packet (`[0x32, 0xAC, 0x00, pct]`).
+  Use `dark-matrix release` to reclaim the port for `matrix.sh`.
+
+**Frame storage:** column-major `Uint8Array` (`frame[col * 34 + row]`).
+Wire format for BW frames is row-major — `packBW` handles the transposition.
+
+### Deck server API
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/modules` | GET | Module availability + `daemonOnline`, `uncalibrated` flags |
+| `/api/config` | GET | Read current daemon config |
+| `/api/config` | PUT | Write daemon config (daemon hot-reloads via SIGHUP) |
+| `/api/feature-check` | GET | Check optional binary dependencies (ffmpeg, wpctl, etc.) |
+| `/api/import` | POST | Multipart upload — converts PNG/GIF/JSON to project format |
+| `/api/export/gif` | POST | Render project frames to animated GIF |
+| `/api/export/png` | POST | Render a single frame to PNG |
+| `/api/prefs` | GET/PUT | Persist deck UI preferences |
+| `/api/library` | GET | List saved projects in `~/.config/dark-matrix/library/`, plus bundled built-ins (flagged `builtin:true`; shadowed by a user file of the same name) |
+| `/api/library` | POST | Save project `{ name, project, copy? }` — `copy:true` writes a `_copy` variant |
+| `/api/library/:name` | GET | Load a saved project |
+| `/api/library/:name/rename` | PUT | Rename a project `{ newName }` |
+| `/api/library/:name` | DELETE | Delete a project |
+| `/ws` | WebSocket | Live preview — streams frame commands to daemon |
 
 For AI agent conventions and project invariants, see [CLAUDE.md](CLAUDE.md).
