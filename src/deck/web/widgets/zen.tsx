@@ -3,7 +3,7 @@ import { MatrixItem } from '../components/MatrixItem.js';
 import { ZEN_STYLES, createZenRenderer, zenThumbFrame } from '../../../animations/zen-renderers.js';
 import type { ZenStyle as ZenStyleImport } from '../../../animations/zen-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
-import type { BrowserWidgetDescriptor, GridContext } from './types.js';
+import type { BrowserWidgetDescriptor, GridContext, ThumbnailOpts } from './types.js';
 import { bayerToB64, bayerDitherToUint8, EMPTY_PIXELS } from './utils.js';
 import { zenBase } from '../../../lib/widgets/zen.js';
 import type { ZenWidget } from '../../../lib/widgets/zen.js';
@@ -15,6 +15,27 @@ for (const { id } of ZEN_STYLES) {
   _zenThumbs[id] = bayerToB64(zenThumbFrame(id));
 }
 
+// Wide thumbnail halves generated lazily on first request (paired so both sides share the same startTime).
+const _zenThumbsWide: Partial<Record<ZenStyleImport, { left: string; right: string }>> = {};
+
+function getZenWideThumb(style: ZenStyleImport, side: 'left' | 'right'): string {
+  if (!_zenThumbsWide[style]) {
+    const lR = createZenRenderer(style, 'left');
+    const rR = createZenRenderer(style, 'right');
+    _zenThumbsWide[style] = { left: bayerToB64(lR.render()), right: bayerToB64(rR.render()) };
+    lR.stop();
+    rR.stop();
+  }
+  return _zenThumbsWide[style]![side];
+}
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    for (const k in _zenThumbsWide) delete _zenThumbsWide[k as ZenStyleImport];
+  });
+}
+
+// Solo renderers keyed by style (used when only one side is zen).
 const _zenRenderers: Partial<Record<ZenStyleImport, ReturnType<typeof createZenRenderer>>> = {};
 
 // ── ZenItem ───────────────────────────────────────────────────────────────────
@@ -132,8 +153,9 @@ export const zenDescriptor: BrowserWidgetDescriptor<ZenWidget> = {
 
   GridComponent: ZenGrid,
 
-  renderThumbnail(widget, _side) {
+  renderThumbnail(widget, side, opts?: ThumbnailOpts) {
     const style = (widget.style ?? 'waves') as ZenStyleImport;
+    if (opts?.wide) return getZenWideThumb(style, side);
     return _zenThumbs[style] ?? EMPTY_PIXELS;
   },
 
