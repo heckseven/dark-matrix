@@ -1,12 +1,12 @@
 import { z } from 'zod';
 import type { WidgetDescriptor } from './types.js';
 
-export type ClaudeStyle = 'snow' | 'quota' | 'sand' | 'tetris';
+export type ClaudeStyle = 'snow' | 'quota' | 'sand' | 'level7';
 export type ClaudeWidget = { widget: 'claude'; style?: ClaudeStyle };
 
 export const claudeSchema = z.object({
   widget: z.literal('claude'),
-  style: z.enum(['snow', 'quota', 'sand', 'tetris']).optional().catch(undefined as unknown as ClaudeStyle),
+  style: z.enum(['snow', 'quota', 'sand', 'level7']).optional().catch(undefined as unknown as ClaudeStyle),
 });
 
 export const claudeDefault: ClaudeWidget = { widget: 'claude', style: 'snow' };

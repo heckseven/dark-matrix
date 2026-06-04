@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { MatrixItem } from '../components/MatrixItem.js';
-import { CLAUDE_STYLES, createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeTetrisRenderer } from '../../../animations/claude-renderers.js';
+import { CLAUDE_STYLES, createClaudeSnowRenderer, createClaudeSandRenderer, createClaudeLevel7Renderer } from '../../../animations/claude-renderers.js';
 import type { ClaudeStyle as ClaudeStyleImport } from '../../../animations/claude-renderers.js';
 import { renderTwinzUsagePercent } from '../../../animations/timer-renderers.js';
 import type { HudWidget } from '../types/hud-preset.js';
@@ -20,8 +20,8 @@ const _previewClaudeSand = (() => {
   }
   return r;
 })();
-const _previewClaudeTetris = (() => {
-  const r = createClaudeTetrisRenderer();
+const _previewClaudeLevel7 = (() => {
+  const r = createClaudeLevel7Renderer();
   for (let i = 0; i < 180; i++) {
     if (i % 3 === 0) r.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
     r.render();
@@ -41,7 +41,7 @@ if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     _previewClaudeSnow.stop();
     _previewClaudeSand.stop();
-    _previewClaudeTetris.stop();
+    _previewClaudeLevel7.stop();
   });
 }
 
@@ -69,8 +69,8 @@ const _claudeSandThumb: string = (() => {
   return out;
 })();
 
-const _claudeTetrisThumb: string = (() => {
-  const r = createClaudeTetrisRenderer();
+const _claudeLevel7Thumb: string = (() => {
+  const r = createClaudeLevel7Renderer();
   for (let i = 0; i < 180; i++) {
     if (i % 3 === 0) r.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
     r.render();
@@ -89,7 +89,7 @@ const _quotaThumb: string = (() => {
 function ClaudeGrid({ currentWidget, onPick }: GridContext) {
   const [snowPixels, setSnowPixels] = useState(() => bayerToB64(_previewClaudeSnow.render()));
   const [sandPixels, setSandPixels] = useState(() => bayerToB64(_previewClaudeSand.render()));
-  const [tetrisPixels, setTetrisPixels] = useState(() => bayerToB64(_previewClaudeTetris.render()));
+  const [level7Pixels, setLevel7Pixels] = useState(() => bayerToB64(_previewClaudeLevel7.render()));
 
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -108,10 +108,10 @@ function ClaudeGrid({ currentWidget, onPick }: GridContext) {
 
       if (tick % 6 === 0) {
         _previewClaudeSand.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
-        _previewClaudeTetris.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
+        _previewClaudeLevel7.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'preview' });
       }
       setSandPixels(bayerToB64(_previewClaudeSand.render()));
-      setTetrisPixels(bayerToB64(_previewClaudeTetris.render()));
+      setLevel7Pixels(bayerToB64(_previewClaudeLevel7.render()));
     }, 100);
     return () => clearInterval(iid);
   }, []);
@@ -123,7 +123,7 @@ function ClaudeGrid({ currentWidget, onPick }: GridContext) {
       {CLAUDE_STYLES.map(({ id, label }) => {
         const preview = id === 'quota'  ? _quotaThumb
           : id === 'sand'   ? sandPixels
-          : id === 'tetris' ? tetrisPixels
+          : id === 'level7' ? level7Pixels
           : snowPixels;
         return (
           <MatrixItem
@@ -151,7 +151,7 @@ export const claudeDescriptor: BrowserWidgetDescriptor<ClaudeWidget> = {
   renderThumbnail(widget, _side) {
     const style = widget.style ?? 'snow';
     return style === 'sand'   ? _claudeSandThumb
-         : style === 'tetris' ? _claudeTetrisThumb
+         : style === 'level7' ? _claudeLevel7Thumb
          : style === 'quota'  ? _quotaThumb
          :                      _claudeSnowThumb;
   },
@@ -160,7 +160,7 @@ export const claudeDescriptor: BrowserWidgetDescriptor<ClaudeWidget> = {
     const style = widget.style ?? 'snow';
     if (style === 'quota') return _quotaPreviewFrame;
     const raw = style === 'sand'   ? _previewClaudeSand.render()
-              : style === 'tetris' ? _previewClaudeTetris.render()
+              : style === 'level7' ? _previewClaudeLevel7.render()
               :                      _previewClaudeSnow.render();
     return bayerDitherToUint8(raw);
   },

@@ -9,7 +9,7 @@ import type { ClaudeStyle, ClaudeWidget } from '../../lib/widgets/claude.js';
 import {
   createClaudeSnowRenderer,
   createClaudeSandRenderer,
-  createClaudeTetrisRenderer,
+  createClaudeLevel7Renderer,
 } from '../../animations/claude-renderers.js';
 import type { ClaudeRendererApi } from '../../animations/claude-renderers.js';
 import type { DaemonWidgetDescriptor, DaemonWidgetContext, WidgetRenderer } from './types.js';
@@ -136,8 +136,8 @@ export const claudeDaemonDescriptor: DaemonWidgetDescriptor<ClaudeWidget> = {
       ? createClaudeQuotaRenderer()
       : claudeStyle === 'sand'
         ? createClaudeSandRenderer()
-        : claudeStyle === 'tetris'
-          ? createClaudeTetrisRenderer()
+        : claudeStyle === 'level7'
+          ? createClaudeLevel7Renderer()
           : createClaudeSnowRenderer();
     claudeRenderers.add(claudeRenderer);
     return {
@@ -147,7 +147,7 @@ export const claudeDaemonDescriptor: DaemonWidgetDescriptor<ClaudeWidget> = {
   },
 
   extractParams(m, side, _config): ClaudeWidget | null {
-    const CLAUDE_STYLES = new Set<ClaudeStyle>(['snow', 'quota', 'sand', 'tetris']);
+    const CLAUDE_STYLES = new Set<ClaudeStyle>(['snow', 'quota', 'sand', 'level7']);
     const styleStr = side === 'left' ? m.leftClaudeStyle : m.rightClaudeStyle;
     const validStyle = CLAUDE_STYLES.has(styleStr as ClaudeStyle);
     return { widget: 'claude', ...(validStyle ? { style: styleStr as ClaudeStyle } : {}) };

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { MatrixPreview } from './MatrixPreview.js';
 import {
-  createClaudeTetrisRenderer,
+  createClaudeLevel7Renderer,
   createClaudeSandRenderer,
 } from '../../../animations/claude-renderers.js';
 import type { ClaudeRendererApi } from '../../../animations/claude-renderers.js';
@@ -60,12 +60,12 @@ function SpeedButtons({ speed, onChange }: { speed: number; onChange: (s: number
   );
 }
 
-// ── Tetris ────────────────────────────────────────────────────────────────
+// ── Level7 ────────────────────────────────────────────────────────────────
 
-function TetrisDemo() {
+function Level7Demo() {
   const [speed, setSpeed] = useState(1);
   const pixels = useRenderer(
-    createClaudeTetrisRenderer,
+    createClaudeLevel7Renderer,
     Math.round(100 / speed),
     (r, tick) => {
       if (tick % 6 === 0) r.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'story' });
@@ -107,8 +107,8 @@ function SandBurst() {
 // ── Side-by-side ──────────────────────────────────────────────────────────
 
 function BothDemo() {
-  const tetrisPixels = useRenderer(
-    createClaudeTetrisRenderer,
+  const level7Pixels = useRenderer(
+    createClaudeLevel7Renderer,
     100,
     (r, tick) => {
       if (tick % 6 === 0) r.onEvent({ type: 'tool_use', tool: 'Read', sessionId: 'story' });
@@ -128,8 +128,8 @@ function BothDemo() {
         <span style={{ color: '#888', fontSize: 11, fontFamily: 'monospace' }}>sand</span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-        <MatrixPreview pixels={tetrisPixels} width={9} />
-        <span style={{ color: '#888', fontSize: 11, fontFamily: 'monospace' }}>tetris</span>
+        <MatrixPreview pixels={level7Pixels} width={9} />
+        <span style={{ color: '#888', fontSize: 11, fontFamily: 'monospace' }}>level7</span>
       </div>
     </div>
   );
@@ -288,7 +288,7 @@ const meta = {
           '',
           '**sand** — grains fall from the center column on each tool-use event and pile up hourglass-style. When the pile reaches the top row the settled cells drain off the bottom, then accumulation resumes.',
           '',
-          '**tetris** — autonomous simulation of an imperfect Tetris player. The AI places pieces to fill the lowest area (70%) or makes a random mistake (30%). Line clears flash before the rows collapse. A full board triggers a dissolve-and-restart.',
+          '**level7** — autonomous simulation of an imperfect Level7 player. The AI places pieces to fill the lowest area (70%) or makes a random mistake (30%). Line clears flash before the rows collapse. A full board triggers a dissolve-and-restart.',
         ].join('\n'),
       },
     },
@@ -299,14 +299,14 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Sand and tetris side by side at steady tool-use cadence. */
+/** Sand and level7 side by side at steady tool-use cadence. */
 export const Both: Story = {
   render: () => <BothDemo />,
 };
 
-/** Tetris only — autonomous imperfect player. */
-export const Tetris: Story = {
-  render: () => <TetrisDemo />,
+/** Level7 only — autonomous imperfect player. */
+export const Level7: Story = {
+  render: () => <Level7Demo />,
 };
 
 /** Sand — steady tool-use cadence (1 grain burst every 600 ms). */

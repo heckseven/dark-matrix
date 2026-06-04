@@ -1,13 +1,13 @@
 import { createFrame } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
-export type ClaudeStyle = 'snow' | 'quota' | 'sand' | 'tetris';
+export type ClaudeStyle = 'snow' | 'quota' | 'sand' | 'level7';
 
 export const CLAUDE_STYLES: { id: ClaudeStyle; label: string }[] = [
   { id: 'snow',    label: 'snow'    },
   { id: 'quota',   label: 'quota'   },
   { id: 'sand',    label: 'sand'    },
-  { id: 'tetris',  label: 'tetris'  },
+  { id: 'level7',  label: 'level7'  },
 ];
 
 export type ClaudeHookEvent = {
@@ -210,9 +210,9 @@ export function createClaudeSandRenderer(): ClaudeRendererApi {
   };
 }
 
-// ── Tetris renderer ───────────────────────────────────────────────────────
+// ── Level7 renderer ───────────────────────────────────────────────────────
 
-const _TETRIS_BASE: Array<Array<[number, number]>> = [
+const _LEVEL7_BASE: Array<Array<[number, number]>> = [
   [[0,0],[1,0],[2,0],[3,0]],  // I
   [[0,0],[1,0],[0,1],[1,1]],  // O
   [[1,0],[0,1],[1,1],[2,1]],  // T
@@ -222,7 +222,7 @@ const _TETRIS_BASE: Array<Array<[number, number]>> = [
   [[1,0],[1,1],[0,2],[1,2]],  // J
 ];
 
-function _tetrisRotateCW(cc: Array<[number, number]>): Array<[number, number]> {
+function _level7RotateCW(cc: Array<[number, number]>): Array<[number, number]> {
   const maxR = cc.reduce((m, [, r]) => Math.max(m, r), 0);
   const rotated: Array<[number, number]> = cc.map(([c, r]) => [maxR - r, c]);
   const minC = rotated.reduce((m, [c]) => Math.min(m, c), Infinity);
@@ -230,28 +230,20 @@ function _tetrisRotateCW(cc: Array<[number, number]>): Array<[number, number]> {
   return rotated.map(([c, r]): [number, number] => [c - minC, r - minR]);
 }
 
-const _TETRIS_ROTATIONS: Array<Array<Array<[number, number]>>> = _TETRIS_BASE.map(base => {
+const _LEVEL7_ROTATIONS: Array<Array<Array<[number, number]>>> = _LEVEL7_BASE.map(base => {
   const rots: Array<Array<[number, number]>> = [base];
-  for (let i = 0; i < 3; i++) rots.push(_tetrisRotateCW(rots[rots.length - 1]!));
+  for (let i = 0; i < 3; i++) rots.push(_level7RotateCW(rots[rots.length - 1]!));
   return rots;
 });
 
-const _TETRIS_DISSOLVE_LEN = 50;
-const _TETRIS_CLEAR_FLASH = 12;
-const _TETRIS_PIECE_CAP = 77; // max queued spawns
-const _TETRIS_KEY_INTERVAL = 3;
-const _TETRIS_GRAVITY_INTERVAL = 7;
-type _TetrisGameState = 'playing' | 'lineclear' | 'dissolving' | 'idle';
+const _LEVEL7_DISSOLVE_LEN = 50;
+const _LEVEL7_CLEAR_FLASH = 12;
+const _LEVEL7_PIECE_CAP = 77; // max queued spawns
+const _LEVEL7_KEY_INTERVAL = 3;
+const _LEVEL7_GRAVITY_INTERVAL = 7;
+type _Level7GameState = 'playing' | 'lineclear' | 'dissolving' | 'idle';
 
-// 1-bit display: settled blocks are stippled (checkerboard) so the solid
-// falling piece stays distinguishable from the pile without using brightness.
-function _tetrisStipple(i: number): boolean {
-  const col = Math.floor(i / ROWS);
-  const row = i % ROWS;
-  return (col + row) % 2 === 0;
-}
-
-export function createClaudeTetrisRenderer(): ClaudeRendererApi {
+export function createClaudeLevel7Renderer(): ClaudeRendererApi {
 
   const board = new Uint8Array(COLS * ROWS);
   let pType = 0, pRot = 0, pCol = 0, pRow = 0;
@@ -262,7 +254,7 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
   let lastGravityTick = 0;
   let tick = 0;
   let pendingPieces = 0;
-  let gs: _TetrisGameState = 'playing';
+  let gs: _Level7GameState = 'playing';
   let clearRows: number[] = [];
   let clearRowSet = new Set<number>();
   let clearTimer = 0;
@@ -271,7 +263,7 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
   let dissolveTimes: Float32Array | null = null;
 
   function getCells(): Array<[number, number]> {
-    return _TETRIS_ROTATIONS[pType % 7]![pRot % 4]!;
+    return _LEVEL7_ROTATIONS[pType % 7]![pRot % 4]!;
   }
 
   function pieceWidth(cc: Array<[number, number]>): number {
@@ -299,7 +291,7 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
     targetRot = Math.floor(Math.random() * 4);
     pRot = 0;
     const cc = getCells(); // rotation 0 — actual spawn shape
-    const finalCells = _TETRIS_ROTATIONS[pType % 7]![targetRot]!; // target rotation shape used for column planning
+    const finalCells = _LEVEL7_ROTATIONS[pType % 7]![targetRot]!; // target rotation shape used for column planning
     const wFinal = pieceWidth(finalCells);
     const w0 = pieceWidth(cc);
 
@@ -364,7 +356,7 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
     dissolveFrame = 0;
     dissolveBoard = new Uint8Array(board);
     dissolveTimes = new Float32Array(COLS * ROWS);
-    for (let i = 0; i < COLS * ROWS; i++) dissolveTimes[i] = Math.random() * _TETRIS_DISSOLVE_LEN;
+    for (let i = 0; i < COLS * ROWS; i++) dissolveTimes[i] = Math.random() * _LEVEL7_DISSOLVE_LEN;
   }
 
   function advanceOrIdle(): void {
@@ -387,9 +379,9 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
       if (gs === 'idle') {
         gs = 'playing';
         if (!spawnNext()) { startDissolve(); return; }
-        pendingPieces = Math.min(_TETRIS_PIECE_CAP, pendingPieces + (n - 1));
+        pendingPieces = Math.min(_LEVEL7_PIECE_CAP, pendingPieces + (n - 1));
       } else {
-        pendingPieces = Math.min(_TETRIS_PIECE_CAP, pendingPieces + n);
+        pendingPieces = Math.min(_LEVEL7_PIECE_CAP, pendingPieces + n);
       }
     },
 
@@ -399,7 +391,7 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
 
       if (gs === 'dissolving') {
         dissolveFrame++;
-        if (dissolveFrame > _TETRIS_DISSOLVE_LEN) {
+        if (dissolveFrame > _LEVEL7_DISSOLVE_LEN) {
           board.fill(0);
           dissolveBoard = null;
           dissolveTimes = null;
@@ -408,7 +400,7 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
         } else if (dissolveBoard && dissolveTimes) {
           // Cells wink out by timing (not fade); survivors keep the settled stipple.
           for (let i = 0; i < COLS * ROWS; i++) {
-            if (dissolveBoard[i] && (dissolveTimes[i] ?? 0) > dissolveFrame && _tetrisStipple(i)) {
+            if (dissolveBoard[i] && (dissolveTimes[i] ?? 0) > dissolveFrame) {
               frame[i] = 255;
             }
           }
@@ -424,12 +416,12 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
             const i = col * ROWS + row;
             if (clearRowSet.has(row)) {
               if (flash) frame[i] = 255;
-            } else if (board[i] && _tetrisStipple(i)) {
+            } else if (board[i]) {
               frame[i] = 255;
             }
           }
         }
-        if (clearTimer >= _TETRIS_CLEAR_FLASH) {
+        if (clearTimer >= _LEVEL7_CLEAR_FLASH) {
           clearLines(clearRows);
           clearRows = [];
           clearTimer = 0;
@@ -440,12 +432,12 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
 
       // Idle — no active piece; render settled board and wait for events
       if (gs === 'idle') {
-        for (let i = 0; i < COLS * ROWS; i++) if (board[i] && _tetrisStipple(i)) frame[i] = 255;
+        for (let i = 0; i < COLS * ROWS; i++) if (board[i]) frame[i] = 255;
         return frame;
       }
 
-      // Gravity — one row drop every _TETRIS_GRAVITY_INTERVAL ticks
-      if (tick - lastGravityTick >= _TETRIS_GRAVITY_INTERVAL) {
+      // Gravity — one row drop every _LEVEL7_GRAVITY_INTERVAL ticks
+      if (tick - lastGravityTick >= _LEVEL7_GRAVITY_INTERVAL) {
         lastGravityTick = tick;
         const cc = getCells();
         if (canPlace(cc, pCol, pRow + 1)) {
@@ -462,16 +454,16 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
             advanceOrIdle();
           }
           // Render board at lock position only — no falling piece this frame
-          for (let i = 0; i < COLS * ROWS; i++) if (board[i] && _tetrisStipple(i)) frame[i] = 255;
+          for (let i = 0; i < COLS * ROWS; i++) if (board[i]) frame[i] = 255;
           return frame;
         }
       }
 
       // Human-like keypress simulation: one rotation step and/or one column step per interval
-      if (pRow >= startMoveRow && tick - lastMoveTick >= _TETRIS_KEY_INTERVAL) {
+      if (pRow >= startMoveRow && tick - lastMoveTick >= _LEVEL7_KEY_INTERVAL) {
         if (pRot !== targetRot) {
           const nextRot = (pRot + 1) % 4;
-          const rc = _TETRIS_ROTATIONS[pType % 7]![nextRot]!;
+          const rc = _LEVEL7_ROTATIONS[pType % 7]![nextRot]!;
           if (canPlace(rc, pCol, pRow)) {
             pRot = nextRot;
           } else if (canPlace(rc, pCol - 1, pRow)) {
@@ -490,9 +482,9 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
         lastMoveTick = tick;
       }
 
-      // Render board — settled blocks stippled so the falling piece stays distinct
+      // Render settled board
       for (let i = 0; i < COLS * ROWS; i++) {
-        if (board[i] && _tetrisStipple(i)) frame[i] = 255;
+        if (board[i]) frame[i] = 255;
       }
 
       // Render falling piece
