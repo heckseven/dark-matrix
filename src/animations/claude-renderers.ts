@@ -238,9 +238,10 @@ const _TETRIS_ROTATIONS: Array<Array<Array<[number, number]>>> = _TETRIS_BASE.ma
 
 const _TETRIS_DISSOLVE_LEN = 50;
 const _TETRIS_CLEAR_FLASH = 12;
-const _TETRIS_DROP_CAP = 10;
+const _TETRIS_PIECE_CAP = 77; // max queued spawns
 const _TETRIS_KEY_INTERVAL = 3;
-type _TetrisGameState = 'playing' | 'lineclear' | 'dissolving';
+const _TETRIS_GRAVITY_INTERVAL = 7;
+type _TetrisGameState = 'playing' | 'lineclear' | 'dissolving' | 'idle';
 
 // 1-bit display: settled blocks are stippled (checkerboard) so the solid
 // falling piece stays distinguishable from the pile without using brightness.
@@ -258,8 +259,9 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
   let targetRot = 0;
   let startMoveRow = 0;
   let lastMoveTick = 0;
+  let lastGravityTick = 0;
   let tick = 0;
-  let pendingDrops = 0;
+  let pendingPieces = 0;
   let gs: _TetrisGameState = 'playing';
   let clearRows: number[] = [];
   let clearRowSet = new Set<number>();
@@ -319,6 +321,7 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
     pRow = -(cc.reduce((m, [, r]) => Math.max(m, r), 0)) - 1;
     startMoveRow = Math.floor(Math.pow(Math.random(), 2) * ROWS * 0.4);
     lastMoveTick = tick;
+    lastGravityTick = tick;
     // Check first gravity step, not spawn position — spawn is always above-board so always passes
     return canPlace(cc, pCol, pRow + 1);
   }
@@ -364,12 +367,29 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
     for (let i = 0; i < COLS * ROWS; i++) dissolveTimes[i] = Math.random() * _TETRIS_DISSOLVE_LEN;
   }
 
+  function advanceOrIdle(): void {
+    if (pendingPieces > 0) {
+      pendingPieces--;
+      gs = 'playing';
+      if (!spawnNext()) startDissolve();
+    } else {
+      gs = 'idle';
+    }
+  }
+
   if (!spawnNext()) board.fill(0);
 
   return {
     onEvent(e) {
-      if (gs === 'playing' && (e.type === 'tool_use' || e.type === 'agent_spawn')) {
-        pendingDrops = Math.min(_TETRIS_DROP_CAP, pendingDrops + (e.type === 'agent_spawn' ? 3 : 1));
+      if (gs === 'dissolving') return;
+      if (e.type !== 'tool_use' && e.type !== 'agent_spawn') return;
+      const n = e.type === 'agent_spawn' ? 3 : 1;
+      if (gs === 'idle') {
+        gs = 'playing';
+        if (!spawnNext()) { startDissolve(); return; }
+        pendingPieces = Math.min(_TETRIS_PIECE_CAP, pendingPieces + (n - 1));
+      } else {
+        pendingPieces = Math.min(_TETRIS_PIECE_CAP, pendingPieces + n);
       }
     },
 
@@ -384,8 +404,7 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
           dissolveBoard = null;
           dissolveTimes = null;
           dissolveFrame = 0;
-          gs = 'playing';
-          if (!spawnNext()) board.fill(0);
+          advanceOrIdle();
         } else if (dissolveBoard && dissolveTimes) {
           // Cells wink out by timing (not fade); survivors keep the settled stipple.
           for (let i = 0; i < COLS * ROWS; i++) {
@@ -414,15 +433,20 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
           clearLines(clearRows);
           clearRows = [];
           clearTimer = 0;
-          gs = 'playing';
-          if (!spawnNext()) startDissolve();
+          advanceOrIdle();
         }
         return frame;
       }
 
-      // Gravity — one drop per queued event
-      if (pendingDrops > 0) {
-        pendingDrops--;
+      // Idle — no active piece; render settled board and wait for events
+      if (gs === 'idle') {
+        for (let i = 0; i < COLS * ROWS; i++) if (board[i] && _tetrisStipple(i)) frame[i] = 255;
+        return frame;
+      }
+
+      // Gravity — one row drop every _TETRIS_GRAVITY_INTERVAL ticks
+      if (tick - lastGravityTick >= _TETRIS_GRAVITY_INTERVAL) {
+        lastGravityTick = tick;
         const cc = getCells();
         if (canPlace(cc, pCol, pRow + 1)) {
           pRow++;
@@ -434,8 +458,8 @@ export function createClaudeTetrisRenderer(): ClaudeRendererApi {
             clearRowSet = new Set(complete);
             clearTimer = 0;
             gs = 'lineclear';
-          } else if (!spawnNext()) {
-            startDissolve();
+          } else {
+            advanceOrIdle();
           }
           // Render board at lock position only — no falling piece this frame
           for (let i = 0; i < COLS * ROWS; i++) if (board[i] && _tetrisStipple(i)) frame[i] = 255;
