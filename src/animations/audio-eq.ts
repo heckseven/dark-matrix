@@ -173,14 +173,20 @@ export function createAudioBandStream(opts?: Omit<AudioEqOptions, 'style'>): Ban
     processBuffer();
   });
 
-  proc.on('close', () => {
+  // 'error' fires before 'close' on spawn failure; resolveChunk is cleared after
+  // first resolve so both handlers firing is a no-op on the second call.
+  const drainProc = (err?: Error) => {
+    if (err) process.stderr.write(`dark-matrix: audio-eq spawn error: ${String(err)}\n`);
     procClosed = true;
     if (resolveChunk) {
       const resolve = resolveChunk;
       resolveChunk = null;
       resolve(null);
     }
-  });
+  };
+
+  proc.on('close', drainProc);
+  proc.on('error', drainProc);
 
   return {
     [Symbol.asyncIterator](): AsyncIterator<BandCtx> {

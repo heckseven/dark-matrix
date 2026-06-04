@@ -452,17 +452,21 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     const loop = async () => {
       while (!stopped) {
-        const now = new Date();
+        try {
+          const now = new Date();
 
-        const lf = leftRenderer.render(now, audioCtx);
-        ditherBW(lf, FRAME_COLS, FRAME_ROWS);
+          const lf = leftRenderer.render(now, audioCtx);
+          ditherBW(lf, FRAME_COLS, FRAME_ROWS);
 
-        const rf = rightRenderer.render(now, audioCtx);
-        ditherBW(rf, FRAME_COLS, FRAME_ROWS);
+          const rf = rightRenderer.render(now, audioCtx);
+          ditherBW(rf, FRAME_COLS, FRAME_ROWS);
 
-        const [hcl2, hcr2] = composeFrames([lf, rf], activeOverlay);
-        try { if (left  && !frameHeldLeft)  await transport.frameBw(packBW(hcl2), left);  } catch { /* non-fatal */ }
-        try { if (right && !frameHeldRight) await transport.frameBw(packBW(hcr2), right); } catch { /* non-fatal */ }
+          const [hcl2, hcr2] = composeFrames([lf, rf], activeOverlay);
+          try { if (left  && !frameHeldLeft)  await transport.frameBw(packBW(hcl2), left);  } catch { /* non-fatal */ }
+          try { if (right && !frameHeldRight) await transport.frameBw(packBW(hcr2), right); } catch { /* non-fatal */ }
+        } catch (err) {
+          process.stderr.write(`dark-matrix: hud loop error: ${String(err)}\n`);
+        }
         await new Promise<void>(r => setTimeout(r, HUD_FRAME_MS));
       }
     };
@@ -1740,16 +1744,30 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
   const sigterm = async () => { await cleanup(); process.exit(0); };
   const sigint = async () => { await cleanup(); process.exit(0); };
-  const uncaught = async (err: unknown) => { await cleanup(); throw err; };
+  let exiting = false;
+  const uncaught = (err: unknown) => {
+    if (exiting) return;
+    exiting = true;
+    process.stderr.write(`dark-matrix: fatal: ${String(err)}\n`);
+    cleanup().catch(() => {}).finally(() => process.exit(1));
+  };
+  const unhandledRejection = (reason: unknown) => {
+    if (exiting) return;
+    exiting = true;
+    process.stderr.write(`dark-matrix: unhandledRejection: ${String(reason)}\n`);
+    cleanup().catch(() => {}).finally(() => process.exit(1));
+  };
 
   process.once('SIGTERM', sigterm);
   process.once('SIGINT', sigint);
   process.once('uncaughtException', uncaught);
+  process.once('unhandledRejection', unhandledRejection);
 
   return async () => {
     process.off('SIGTERM', sigterm);
     process.off('SIGINT', sigint);
     process.off('uncaughtException', uncaught);
+    process.off('unhandledRejection', unhandledRejection);
     await cleanup();
   };
 }
