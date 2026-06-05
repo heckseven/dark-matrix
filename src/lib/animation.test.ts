@@ -62,7 +62,7 @@ describe('runAnimation', () => {
     expect(transport.frameGray).toHaveBeenCalledTimes(2);
   });
 
-  it('disposer calls stop() and release()', async () => {
+  it('disposer calls stop()', async () => {
     const transport = makeTransport();
     const anim = makeAnimation(1000);
     const stopSpy = vi.spyOn(anim, 'stop');
@@ -74,6 +74,16 @@ describe('runAnimation', () => {
     await vi.advanceTimersByTimeAsync(50);
 
     expect(stopSpy).toHaveBeenCalled();
+  });
+
+  it('does not release port on natural completion', async () => {
+    const transport = makeTransport();
+    const anim = makeAnimation(2);
+    void runAnimation(anim, { transport, devicePath: '/dev/ttyACM0', fps: 100 });
+
+    await vi.advanceTimersByTimeAsync(200);
+
+    expect(transport.release).not.toHaveBeenCalled();
   });
 
   it('continues loop after transport error', async () => {

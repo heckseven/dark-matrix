@@ -18,7 +18,7 @@ export type RunOptions = {
 // Runs an animation, pulling frames from the async iterator and sending to
 // transport at the target fps. Frame timing is wall-clock anchored (not
 // chained) so late frames don't compound delay.
-// Returns a disposer that stops the animation. Port is released only on natural completion.
+// Returns a disposer that stops the animation.
 export function runAnimation(anim: Animation, opts: RunOptions, onNaturalComplete?: () => void): () => void {
   const { transport, devicePath, mode = 'bw', fps = 30 } = opts;
   const frameMs = 1000 / fps;
@@ -52,11 +52,13 @@ export function runAnimation(anim: Animation, opts: RunOptions, onNaturalComplet
       if (wait > 0) await new Promise<void>(r => setTimeout(r, wait));
     }
 
-    // Only release on natural completion — external stop means another
-    // operation (e.g. live preview frame) is about to reuse the open port.
+    // Ports are never released between animations — only transport.close() at
+    // shutdown releases them. Releasing here causes DTR de-assertion, which
+    // resets the module display and triggers a pollModules reconnect cycle.
     if (natural) {
-      await transport.release(devicePath).catch(() => {});
-      onNaturalComplete?.();
+      try { onNaturalComplete?.(); } catch (e) {
+        process.stderr.write(`dark-matrix: runAnimation onNaturalComplete error: ${String(e)}\n`);
+      }
     }
   };
 
