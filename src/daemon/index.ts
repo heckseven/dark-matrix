@@ -299,6 +299,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       const settle = (v: string | undefined) => { if (!settled) { settled = true; resolve(v); } };
       const timeout = setTimeout(() => { proc.kill(); settle(undefined); }, 2000);
       proc.stdout?.on('data', (d: Buffer) => { out += d.toString(); });
+      proc.stdout?.on('error', () => { /* swallow pipe errors on spawn failure */ });
       proc.on('close', () => {
         clearTimeout(timeout);
         if (settled) return;
