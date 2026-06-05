@@ -175,8 +175,7 @@ export function createAudioBandStream(opts?: Omit<AudioEqOptions, 'style'>): Ban
 
   // 'error' fires before 'close' on spawn failure; resolveChunk is cleared after
   // first resolve so both handlers firing is a no-op on the second call.
-  const drainProc = (err?: Error) => {
-    if (err) process.stderr.write(`dark-matrix: audio-eq spawn error: ${String(err)}\n`);
+  const drainProc = () => {
     procClosed = true;
     if (resolveChunk) {
       const resolve = resolveChunk;
@@ -185,8 +184,18 @@ export function createAudioBandStream(opts?: Omit<AudioEqOptions, 'style'>): Ban
     }
   };
 
-  proc.on('close', drainProc);
-  proc.on('error', drainProc);
+  // stdout 'error' (e.g. EPIPE on kill) — treat as EOF so the iterator exits cleanly.
+  proc.stdout.on('error', drainProc);
+  proc.on('close', (code) => {
+    if (code !== 0 && code !== null) {
+      process.stderr.write(`dark-matrix: audio-eq exited with code ${code}\n`);
+    }
+    drainProc();
+  });
+  proc.on('error', (err) => {
+    process.stderr.write(`dark-matrix: audio-eq spawn error: ${String(err)}\n`);
+    drainProc();
+  });
 
   return {
     [Symbol.asyncIterator](): AsyncIterator<BandCtx> {

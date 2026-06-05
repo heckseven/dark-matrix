@@ -511,7 +511,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
           const result = await iter.next();
           if (stopped || result.done) break;
           if (!gotData) { gotData = true; clearTimeout(startupWatchdog); }
-          onBands(result.value);
+          try { onBands(result.value); } catch { /* listener errors are non-fatal */ }
         }
         clearTimeout(startupWatchdog);
         if (!stopped) {
@@ -521,7 +521,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       }
     };
 
-    void run();
+    void run().catch((err) => {
+      process.stderr.write(`dark-matrix: audio stream error: ${String(err)}\n`);
+    });
     return {
       stop: () => { stopped = true; stream?.stop(); },
       setFullBandCount: (n: number) => { stream?.setFullBandCount(n); },
