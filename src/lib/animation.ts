@@ -18,8 +18,11 @@ export type RunOptions = {
 // Runs an animation, pulling frames from the async iterator and sending to
 // transport at the target fps. Frame timing is wall-clock anchored (not
 // chained) so late frames don't compound delay.
-// Returns a disposer that stops the animation.
-export function runAnimation(anim: Animation, opts: RunOptions, onNaturalComplete?: () => void): () => void {
+// Returns a disposer that stops the animation. The disposer resolves once the
+// loop has fully exited — so once it settles, no further frame can be enqueued
+// (callers needing to write a final frame can await it). It is also usable as a
+// plain `() => void` when the awaitable isn't needed.
+export function runAnimation(anim: Animation, opts: RunOptions, onNaturalComplete?: () => void): () => Promise<void> {
   const { transport, devicePath, mode = 'bw', fps = 30 } = opts;
   const frameMs = 1000 / fps;
   let stopped = false;
@@ -62,10 +65,15 @@ export function runAnimation(anim: Animation, opts: RunOptions, onNaturalComplet
     }
   };
 
-  void loop();
+  // `done` always resolves (never rejects) once the loop has settled, so
+  // ignoring the disposer's return value can't surface an unhandled rejection.
+  let settle: () => void;
+  const done = new Promise<void>(r => { settle = r; });
+  void loop().catch(() => {}).finally(() => settle());
 
   return () => {
     stopped = true;
     anim.stop();
+    return done;
   };
 }

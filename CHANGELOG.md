@@ -13,6 +13,22 @@ Entries are generated from the commit log at release time via the `/release` ski
 
 _Nothing yet._
 
+## [0.1.1] - 2026-06-06
+
+### Fixed
+
+- Ship `ws` and `fft.js` in the release tarball's runtime `node_modules`. These
+  are loaded at runtime via `createRequire` (not bundled by esbuild), so the
+  Deck UI (`dark-matrix ui`) failed with a missing `ws` module and the audio-EQ
+  animation failed on `fft.js`. The bundle externals are now the single source
+  of truth for the shipped runtime dependencies.
+- Harden the installer's systemd step: a failed `systemctl --user enable --now`
+  (common over SSH or as root, with no user D-Bus session) no longer aborts the
+  install. It now falls back to clear manual instructions and suggests
+  `loginctl enable-linger` so the daemon starts at boot and survives logout.
+- Blank both modules after calibration. The module lit with solid white during
+  calibration is now turned off instead of being left on at full brightness.
+
 ## [0.1.0] - 2026-06-02
 
 ### Added

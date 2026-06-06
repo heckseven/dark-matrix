@@ -59,8 +59,31 @@ chmod 0755 "$BIN_DIR/dark-matrix"
 
 # ── systemd unit ──────────────────────────────────────────────────────────────
 cp "$INSTALL_DIR/systemd/dark-matrix.service" "$UNIT_DIR/"
-systemctl --user daemon-reload
-systemctl --user enable --now dark-matrix
+
+# Enabling the user service needs a reachable user systemd/D-Bus instance, which
+# is often absent under `curl | sh` over SSH or as root. Guard it so a failure
+# never aborts the rest of the install (set -e), and fall back to clear manual
+# instructions. The `if` also suspends set -e for the condition.
+USER_NAME=$(id -un)
+if systemctl --user daemon-reload 2>/dev/null \
+   && systemctl --user enable --now dark-matrix 2>/dev/null; then
+  printf 'Service enabled and started.\n'
+  # Recommend lingering so the daemon starts at boot and survives logout.
+  if command -v loginctl >/dev/null 2>&1 \
+     && [ "$(loginctl show-user "$USER_NAME" -p Linger --value 2>/dev/null)" != "yes" ]; then
+    printf 'Tip: start dark-matrix at boot and keep it running after logout:\n'
+    printf '  sudo loginctl enable-linger %s\n' "$USER_NAME"
+  fi
+else
+  printf 'Warning: could not enable the systemd user service automatically.\n'
+  if [ -z "${XDG_RUNTIME_DIR:-}" ] || [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+    printf '  No user D-Bus/systemd session detected (common over SSH or as root).\n'
+  fi
+  printf '  The unit is installed at %s/dark-matrix.service\n' "$UNIT_DIR"
+  printf '  Enable it from a normal login session with:\n'
+  printf '    systemctl --user daemon-reload && systemctl --user enable --now dark-matrix\n'
+  printf '    sudo loginctl enable-linger %s   # optional: start at boot\n' "$USER_NAME"
+fi
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 printf '\ndark-matrix %s installed.\n' "$VERSION"

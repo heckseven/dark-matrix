@@ -40,21 +40,20 @@ jobs:
       - name: Build TypeScript + Vite
         run: pnpm build
 
-      - name: Package runtime node_modules (serialport + sharp)
+      - name: Package runtime node_modules
         run: |
-          SERIALPORT_VER=$(node -p "require('./package.json').dependencies.serialport.replace(/[^0-9.]/g,'')")
-          SHARP_VER=$(node -p "require('./package.json').dependencies.sharp.replace(/[^0-9.]/g,'')")
+          # Runtime deps (and pinned versions) come from the build's single
+          # source of truth: dist/bundles/runtime-deps.json (see build-bundles.mjs).
           mkdir -p _runtime
-          cat > _runtime/package.json << EOF
-          {
-            "name": "dm-runtime",
-            "version": "1.0.0",
-            "dependencies": {
-              "serialport": "${SERIALPORT_VER}",
-              "sharp": "${SHARP_VER}"
-            }
-          }
-          EOF
+          node -e '
+            const v = require("./dist/bundles/runtime-deps.json");
+            const dependencies = Object.fromEntries(
+              Object.entries(v).map(([k, val]) => [k, String(val).replace(/[^0-9.]/g, "")]),
+            );
+            const out = { name: "dm-runtime", version: "1.0.0", dependencies };
+            require("fs").writeFileSync("_runtime/package.json", JSON.stringify(out, null, 2) + "\n");
+            console.log(JSON.stringify(dependencies));
+          '
           pnpm install --prod --no-frozen-lockfile --node-linker=hoisted --dir _runtime
 
       - name: Download pinned Node binary

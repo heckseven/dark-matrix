@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 import { convertImage, renderPreview } from '../lib/image-convert.js';
 import { SerialTransport } from '../lib/transport.js';
 import { runAnimation } from '../lib/animation.js';
-import { createFrame } from '../lib/frame.js';
+import { createFrame, packBW } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
 import { sendToDaemon } from '../lib/daemon-client.js';
@@ -486,8 +486,19 @@ async function cmdCalibrate() {
   const stopB = runAnimation(animBlank, { transport, devicePath: devB, mode: 'bw' });
 
   const answer = await ask('Which side is lit? [left/right]: ');
-  stopA(); stopB();
   rl.close();
+
+  // Wait for both animation loops to fully settle before blanking, so no late
+  // frame can be enqueued after the blank writes and re-light a module.
+  await Promise.all([stopA(), stopB()]);
+
+  // A stopped animation leaves its last frame on the panel, so the lit module
+  // would otherwise stay on at full white. Blank both before closing.
+  const blank = packBW(blankFrame);
+  await Promise.all([
+    transport.frameBw(blank, devA),
+    transport.frameBw(blank, devB),
+  ]).catch(() => {});
 
   await transport.close();
 
