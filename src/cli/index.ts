@@ -486,12 +486,14 @@ async function cmdCalibrate() {
   const stopB = runAnimation(animBlank, { transport, devicePath: devB, mode: 'bw' });
 
   const answer = await ask('Which side is lit? [left/right]: ');
-  stopA(); stopB();
   rl.close();
 
-  // Stopping an animation leaves its last frame on the panel, so the lit
-  // module would otherwise stay on at full white. Blank both before closing.
-  // frameBw serializes per-device, so these land after any in-flight frame.
+  // Wait for both animation loops to fully settle before blanking, so no late
+  // frame can be enqueued after the blank writes and re-light a module.
+  await Promise.all([stopA(), stopB()]);
+
+  // A stopped animation leaves its last frame on the panel, so the lit module
+  // would otherwise stay on at full white. Blank both before closing.
   const blank = packBW(blankFrame);
   await Promise.all([
     transport.frameBw(blank, devA),
