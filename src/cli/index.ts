@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 import { convertImage, renderPreview } from '../lib/image-convert.js';
 import { SerialTransport } from '../lib/transport.js';
 import { runAnimation } from '../lib/animation.js';
-import { createFrame } from '../lib/frame.js';
+import { createFrame, packBW } from '../lib/frame.js';
 import type { Frame } from '../lib/frame.js';
 
 import { sendToDaemon } from '../lib/daemon-client.js';
@@ -488,6 +488,15 @@ async function cmdCalibrate() {
   const answer = await ask('Which side is lit? [left/right]: ');
   stopA(); stopB();
   rl.close();
+
+  // Stopping an animation leaves its last frame on the panel, so the lit
+  // module would otherwise stay on at full white. Blank both before closing.
+  // frameBw serializes per-device, so these land after any in-flight frame.
+  const blank = packBW(blankFrame);
+  await Promise.all([
+    transport.frameBw(blank, devA),
+    transport.frameBw(blank, devB),
+  ]).catch(() => {});
 
   await transport.close();
 
