@@ -232,6 +232,7 @@ export function App() {
 
   const [configLoading, setConfigLoading] = useState(true);
   useEffect(() => {
+    if (import.meta.env.STORYBOOK) { setConfigLoading(false); return; }
     const controller = new AbortController();
     fetch('/api/config', { signal: controller.signal })
       .then(r => r.ok ? r.json() as Promise<{ config: Config }> : Promise.reject(new Error(`/api/config HTTP ${r.status}`)))

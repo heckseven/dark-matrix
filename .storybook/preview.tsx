@@ -3,6 +3,27 @@ import { themes } from 'storybook/theming'
 import { TooltipProvider } from '../src/deck/web/components/ui/tooltip.js'
 import '../src/deck/web/globals.css'
 
+// The app fetches /api/* from the daemon at runtime. In Storybook there is no
+// daemon, so Vite's SPA fallback returns HTML with 200 OK — which makes r.json()
+// throw a SyntaxError. Return a proper 503 JSON response instead so that
+// components' !r.ok branches fire cleanly and no parse error is thrown.
+if (!(globalThis as Record<string, unknown>)['__storybookFetchPatched']) {
+  (globalThis as Record<string, unknown>)['__storybookFetchPatched'] = true;
+  const _fetch = globalThis.fetch;
+  globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const url = typeof input === 'string' ? input
+      : input instanceof URL ? input.href
+      : (input instanceof Request ? input.url : '');
+    if (url.startsWith('/api/')) {
+      return Promise.resolve(new Response(
+        JSON.stringify({ ok: false, error: 'storybook: daemon not running' }),
+        { status: 503, headers: { 'Content-Type': 'application/json' } },
+      ));
+    }
+    return _fetch(input, init);
+  }) as typeof fetch;
+}
+
 const preview: Preview = {
   tags: ['!autodocs'],
 
@@ -26,7 +47,8 @@ const preview: Preview = {
   decorators: [
     (Story, context) => {
       const dualModule = context.globals['modules'] !== 'single';
-      return <TooltipProvider><Story args={{ ...context.args, dualModule }} /></TooltipProvider>;
+      const extraArgs = 'dualModule' in context.argTypes ? { dualModule } : {};
+      return <TooltipProvider><Story args={{ ...context.args, ...extraArgs }} /></TooltipProvider>;
     },
   ],
   parameters: {

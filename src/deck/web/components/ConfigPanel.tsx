@@ -24,6 +24,7 @@ export function ConfigPanel({ dualModule, topPad }: { dualModule: boolean; topPa
   const [activeTab, setActiveTab] = useState<ConfigTab>(() => routeConfigTab(window.location.pathname) ?? 'hardware');
 
   useEffect(() => {
+    if (import.meta.env.STORYBOOK) return;
     reloadConfig().catch(console.error);
   }, []);
 
