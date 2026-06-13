@@ -26,7 +26,8 @@ const ETA           = 1.0;  // low friction — aligned turns persist and sweep 
 const SPIN_NOISE    = 1.5;  // organic variation that seeds new turn events
 const SPEED_DEAD    = 1.0;
 const SPEED_K       = 3.0;
-const BANK_THRESH   = 10.0;
+const BANK_THRESH   = 4.0;  // fires during collective turns (spin ~6) not cruising (spin ~1.5)
+const STREAM_WEIGHT = 2.0;  // leaders brake, trailers accelerate — elongates flock along travel axis
 const WALL_MARGIN   = 2.0;
 const WALL_WEIGHT   = 30;
 const V_PAD_X       = 6;    // virtual cols beyond each display edge (boids swoop off/on)
@@ -91,11 +92,12 @@ function releaseSpanState(): void {
 
 function initBoids(totalCols: number, count: number): Boid[] {
   const cx = (totalCols - 1) / 2, cy = (FRAME_ROWS - 1) / 2;
+  const flockAngle = Math.random() * Math.PI * 2; // whole flock starts aligned
   return Array.from({ length: count }, () => {
-    const angle = Math.random() * Math.PI * 2;
+    const angle = flockAngle + (Math.random() - 0.5) * 0.4; // ±0.2 rad spread
     return {
-      x: cx + (Math.random() - 0.5) * 7,   // ±3.5 px horizontal
-      y: cy + (Math.random() - 0.5) * 20,   // ±10 px vertical
+      x: cx + (Math.random() - 0.5) * 7,
+      y: cy + (Math.random() - 0.5) * 20,
       vx: Math.cos(angle) * TARGET_SPEED,
       vy: Math.sin(angle) * TARGET_SPEED,
       spin: (Math.random() - 0.5) * 0.2,
@@ -206,9 +208,11 @@ export function createZenMurmurationRenderer(
     }
 
     const n = boids.length;
-    let sumX = 0, sumY = 0;
-    for (const b of boids) { sumX += b.x; sumY += b.y; }
+    let sumX = 0, sumY = 0, sumVx = 0, sumVy = 0;
+    for (const b of boids) { sumX += b.x; sumY += b.y; sumVx += b.vx; sumVy += b.vy; }
     const cx = sumX / n, cy = sumY / n;
+    const fspd = Math.sqrt(sumVx * sumVx + sumVy * sumVy) || 1;
+    const fux = sumVx / fspd, fuy = sumVy / fspd; // flock unit-velocity direction
 
     for (let i = 0; i < n; i++) {
       const b = boids[i]!;
@@ -254,6 +258,11 @@ export function createZenMurmurationRenderer(
       const gcm = Math.sqrt(gcx * gcx + gcy * gcy) || 1;
       fx += (gcx / gcm) * GLOBAL_COH;
       fy += (gcy / gcm) * GLOBAL_COH;
+
+      // Streaming: boids ahead of centroid (in flock direction) brake; trailers accelerate.
+      const ahead = (b.x - cx) * fux + (b.y - cy) * fuy;
+      fx -= fux * ahead * STREAM_WEIGHT;
+      fy -= fuy * ahead * STREAM_WEIGHT;
 
       fx += wallForce(b.x, totalCols);
       fy += wallForce(b.y, totalRows);
