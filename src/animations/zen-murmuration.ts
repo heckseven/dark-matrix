@@ -29,6 +29,8 @@ const SPEED_K       = 3.0;
 const BANK_THRESH   = 6.0;  // only extreme spin banks (was 2.5 — was hiding most boids)
 const WALL_MARGIN   = 2.0;
 const WALL_WEIGHT   = 30;
+const V_PAD_X       = 5;    // virtual cols beyond each display edge (boids swoop off/on)
+const V_PAD_Y       = 8;    // virtual rows beyond top/bottom of display
 const PRED_RADIUS   = 7.0;
 const PRED_WEIGHT   = 45;
 const PRED_DURATION = 5000;
@@ -134,9 +136,13 @@ function confineSpeed(vx: number, vy: number): [number, number] {
 export function createZenMurmurationRenderer(
   side?: 'left' | 'right',
 ): MurmurationRenderer {
-  const spanning  = side !== undefined;
-  const totalCols = spanning ? SPAN_COLS : FRAME_COLS;
-  const colOffset = side === 'right' ? FRAME_COLS : 0;
+  const spanning   = side !== undefined;
+  const physCols   = spanning ? SPAN_COLS : FRAME_COLS;
+  const totalCols  = physCols + V_PAD_X * 2;
+  const totalRows  = FRAME_ROWS + V_PAD_Y * 2;
+  // drawOffsetX maps virtual x → local panel column; drawOffsetY maps virtual y → row
+  const drawOffsetX = V_PAD_X + (side === 'right' ? FRAME_COLS : 0);
+  const drawOffsetY = V_PAD_Y;
 
   let shared: SpanState | null = null;
   let privBoids: Boid[] | null = null;
@@ -168,13 +174,13 @@ export function createZenMurmurationRenderer(
 
   function triggerPredator(): void {
     if (getPred() !== null) return;
-    const cx = (totalCols - 1) / 2, cy = (FRAME_ROWS - 1) / 2;
+    const cx = (totalCols - 1) / 2, cy = (totalRows - 1) / 2;
     const edge = Math.floor(Math.random() * 4);
     let px: number, py: number;
     if      (edge === 0) { px = Math.random() * totalCols; py = -2; }
-    else if (edge === 1) { px = Math.random() * totalCols; py = FRAME_ROWS + 2; }
-    else if (edge === 2) { px = -2;            py = Math.random() * FRAME_ROWS; }
-    else                 { px = totalCols + 2; py = Math.random() * FRAME_ROWS; }
+    else if (edge === 1) { px = Math.random() * totalCols; py = totalRows + 2; }
+    else if (edge === 2) { px = -2;            py = Math.random() * totalRows; }
+    else                 { px = totalCols + 2; py = Math.random() * totalRows; }
     const dx = cx - px, dy = cy - py;
     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
     setPred({
@@ -250,7 +256,7 @@ export function createZenMurmurationRenderer(
       fy += (gcy / gcm) * GLOBAL_COH;
 
       fx += wallForce(b.x, totalCols);
-      fy += wallForce(b.y, FRAME_ROWS);
+      fy += wallForce(b.y, totalRows);
 
       if (pred !== null) {
         const pdx = b.x - pred.x, pdy = b.y - pred.y;
@@ -277,7 +283,7 @@ export function createZenMurmurationRenderer(
       if (b.x < 0)             { b.x = 0;             b.vx =  Math.abs(b.vx); }
       if (b.x > totalCols - 1) { b.x = totalCols - 1; b.vx = -Math.abs(b.vx); }
       if (b.y < 0)             { b.y = 0;             b.vy =  Math.abs(b.vy); }
-      if (b.y > FRAME_ROWS - 1) { b.y = FRAME_ROWS - 1; b.vy = -Math.abs(b.vy); }
+      if (b.y > totalRows - 1) { b.y = totalRows - 1; b.vy = -Math.abs(b.vy); }
     }
   }
 
@@ -285,9 +291,8 @@ export function createZenMurmurationRenderer(
     const frame = createFrame();
     for (const b of getBoids()) {
       if (Math.abs(b.spin) > BANK_THRESH) continue;
-      const absCol = Math.round(b.x);
-      const col    = absCol - colOffset;
-      const row    = Math.round(b.y);
+      const col = Math.round(b.x) - drawOffsetX;
+      const row = Math.round(b.y) - drawOffsetY;
       if (col >= 0 && col < FRAME_COLS && row >= 0 && row < FRAME_ROWS) {
         frame[col * FRAME_ROWS + row] = 255;
       }
