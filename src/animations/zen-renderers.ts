@@ -69,6 +69,8 @@ export function createZenRenderer(style: ZenStyle, side?: 'left' | 'right'): Zen
     case 'seeds':
       return createZenPlantRenderer(style);
     case 'murmuration':
+      // Daemon widgets must go through createZenMurmurationRenderer directly (zen.ts)
+      // to get dispatcher/predator wiring — this path is for preview/thumbnail callers only.
       return createZenMurmurationRenderer(side);
     default:
       return createZenFluidRenderer('waves');
