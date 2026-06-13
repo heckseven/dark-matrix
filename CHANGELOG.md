@@ -13,6 +13,23 @@ Entries are generated from the commit log at release time via the `/release` ski
 
 _Nothing yet._
 
+## [0.1.2] - 2026-06-13
+
+### Added
+
+- Murmuration animation: Reynolds boids simulation with virtual canvas, persistence trails, and banking waves
+
+### Fixed
+
+- Prevent HUD from interrupting startup animation
+- Accessibility: add DialogDescription to AssetManagerModal and LibraryPickerModal
+- Mic source: exclude dark-matrix's own ffmpeg from mic activity check
+- Storybook: eliminate dualModule DOM leak and JSON parse errors
+
+### Changed
+
+- Murmuration: tuned boid dynamics (ISM spin model, anisotropic cohesion spring, cohesion/speed/canvas parameters)
+
 ## [0.1.1] - 2026-06-06
 
 ### Fixed
