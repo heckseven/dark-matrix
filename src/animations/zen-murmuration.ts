@@ -16,8 +16,8 @@ const TARGET_SPEED  = 5.0;
 const MIN_SPEED     = 1.5;
 const MAX_SPEED     = 10.0;
 const K_NEIGHBORS   = 7;
-const K_SEP         = 3;    // push away from 3 nearest (was 1) — prevents clustering
-const SEP_WEIGHT    = 28;   // stronger separation force (was 18)
+const K_SEP         = 3;
+const SEP_WEIGHT    = 18;   // reduced — tighter flock spacing
 const COH_WEIGHT    = 20;
 const GLOBAL_COH    = 8;    // moderate — keeps flock centroid in the visible display area
 const J_ALIGN       = 12.0; // strong velocity alignment — whole flock turns together
@@ -28,6 +28,7 @@ const SPEED_DEAD    = 1.0;
 const SPEED_K       = 3.0;
 const BANK_THRESH   = 4.0;  // fires during collective turns (spin ~6) not cruising (spin ~1.5)
 const STREAM_WEIGHT = 2.0;  // leaders brake, trailers accelerate — elongates flock along travel axis
+const DIRECT_ALIGN  = 12.0; // immediate steer toward neighbor headings (complements ISM spin waves)
 const WALL_MARGIN   = 2.0;
 const WALL_WEIGHT   = 30;
 const V_PAD_X       = 6;    // virtual cols beyond each display edge (boids swoop off/on)
@@ -232,7 +233,7 @@ export function createZenMurmurationRenderer(
         if (d > 0) { fx += (dx / d) * SEP_WEIGHT; fy += (dy / d) * SEP_WEIGHT; }
       }
 
-      let torqueSum = 0, cohDx = 0, cohDy = 0;
+      let torqueSum = 0, cohDx = 0, cohDy = 0, alignVx = 0, alignVy = 0;
       const kN   = Math.min(K_NEIGHBORS, nbrs.length);
       const bspd = Math.sqrt(b.vx * b.vx + b.vy * b.vy) || TARGET_SPEED;
       const bux  = b.vx / bspd, buy = b.vy / bspd;
@@ -241,8 +242,10 @@ export function createZenMurmurationRenderer(
         const { j, dx, dy } = nbrs[k]!;
         const o    = boids[j]!;
         const ospd = Math.sqrt(o.vx * o.vx + o.vy * o.vy) || TARGET_SPEED;
-        torqueSum += cross2d(bux, buy, o.vx / ospd, o.vy / ospd);
+        const oux = o.vx / ospd, ouy = o.vy / ospd;
+        torqueSum += cross2d(bux, buy, oux, ouy);
         cohDx += -dx; cohDy += -dy;
+        alignVx += oux; alignVy += ouy;
       }
 
       if (kN > 0) {
@@ -252,6 +255,8 @@ export function createZenMurmurationRenderer(
         const cm  = Math.sqrt(cdx * cdx + cdy * cdy) || 1;
         fx += (cdx / cm) * COH_WEIGHT;
         fy += (cdy / cm) * COH_WEIGHT;
+        fx += (alignVx / kN) * DIRECT_ALIGN;
+        fy += (alignVy / kN) * DIRECT_ALIGN;
       }
 
       const gcx = cx - b.x, gcy = cy - b.y;
