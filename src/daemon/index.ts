@@ -104,6 +104,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   let stopCurrentAnim: (() => void) | null = null;
   let stopCurrentOverlay: (() => void) | null = null;
   let hudHardwareActive = false;
+  // True while the daemon startup animation is playing. hud-hardware-start and
+  // hud-config skip their stopAnim() calls during this window; restAfterStartup
+  // picks up the deferred state when the animation completes.
+  let startupAnimActive = false;
   let hudAudioStreaming = false;
   let hudAudioSource: 'monitor' | 'mic' = 'monitor';
   let frameHeldLeft = false;
@@ -186,6 +190,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
   function stopAnim() {
     if (stopCurrentAnim) { stopCurrentAnim(); stopCurrentAnim = null; }
+    startupAnimActive = false;
   }
 
   // The HUD is the unconditional resting state. runHudOnModules() defaults to a
@@ -365,7 +370,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
   function applyPreset(preset: import('../lib/config.js').HudPreset): void {
     currentConfig = { ...currentConfig, hud: { left: preset.left, right: preset.right } };
-    if (hudHardwareActive || (currentAnimName === 'hud' && !dispatcher.current())) {
+    if (!startupAnimActive && (hudHardwareActive || (currentAnimName === 'hud' && !dispatcher.current()))) {
       stopCurrentAnim?.();
       stopCurrentAnim = runHudOnModules();
     }
@@ -777,25 +782,31 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     return out;
   }
 
-  async function startDmxNotification(intent: DisplayIntent, composite: 'replace' | 'overlay'): Promise<void> {
+  async function startDmxNotification(intent: DisplayIntent, composite: 'replace' | 'overlay', onNaturalComplete?: () => void): Promise<void> {
     if (!intent.assetPath) { startTextNotification(intent, composite); return; }
     let handle: Awaited<ReturnType<typeof loadNotificationAsset>>;
     try {
       handle = await loadNotificationAsset(intent.assetPath);
     } catch {
+      if (onNaturalComplete) { onNaturalComplete(); return; }
       startTextNotification(intent, composite);
       return;
     }
-    if (handle.kind !== 'dmx') { startTextNotification(intent, composite); return; }
+    if (handle.kind !== 'dmx') {
+      if (onNaturalComplete) { onNaturalComplete(); return; }
+      startTextNotification(intent, composite); return;
+    }
     const dmxPath = handle.path;
 
     let raw: string;
     try { raw = await fs.readFile(dmxPath, 'utf-8'); } catch {
+      if (onNaturalComplete) { onNaturalComplete(); return; }
       startTextNotification(intent, composite);
       return;
     }
     let project: DmxProject;
     try { project = parseProject(raw); } catch {
+      if (onNaturalComplete) { onNaturalComplete(); return; }
       startTextNotification(intent, composite);
       return;
     }
@@ -804,7 +815,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     const { frames: dmxFrames, mode: dmxMode, width: dmxWidth, height: dmxHeight } = project;
     const dual = dmxWidth === 18;
 
-    if (dmxFrames.length === 0) { startTextNotification(intent, composite); return; }
+    if (dmxFrames.length === 0) {
+      if (onNaturalComplete) { onNaturalComplete(); return; }
+      startTextNotification(intent, composite); return;
+    }
 
     const loopDurationMs = intent.loopCount !== undefined
       ? dmxFrames.reduce((s, f) => s + f.delayMs, 0) * intent.loopCount
@@ -817,7 +831,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     let stopped = false;
 
     if (composite === 'replace') {
-      stopAnim();
+      if (stopCurrentAnim) { stopCurrentAnim(); stopCurrentAnim = null; }
       stopCurrentAnim = () => { stopped = true; };
     } else {
       stopCurrentOverlay = () => { stopped = true; setActiveOverlay(null); };
@@ -1002,6 +1016,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       if (composite === 'replace') {
         stopCurrentAnim = null; // clear before complete() so next intent sees no live anim
         dispatcher.complete(intent.id);
+        onNaturalComplete?.();
       } else {
         setActiveOverlay(null);
         stopCurrentOverlay = null;
@@ -1013,6 +1028,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
   function startNotificationAnimation(intent: DisplayIntent): void {
     currentAnimName = 'notification';
+    startupAnimActive = false;
     stopOverlay();
     const composite = intent.composite ?? 'replace';
     if (intent.style === 'dmx') {
@@ -1483,9 +1499,12 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               break;
             }
             case 'hud-hardware-start': {
-              stopAnim();
               hudHardwareActive = true;
-              stopCurrentAnim = runHudOnModules();
+              if (!startupAnimActive) {
+                stopAnim();
+                stopCurrentAnim = runHudOnModules();
+              }
+              // If startupAnimActive, restAfterStartup will start the HUD once the animation ends.
               socket.write(JSON.stringify({ ok: true }) + '\n');
               break;
             }
@@ -1531,7 +1550,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               newHud.left = newLeft;
               newHud.right = newRight;
               currentConfig = { ...currentConfig, hud: newHud };
-              if ((hudHardwareActive || currentAnimName === 'hud') && !dispatcher.current()) {
+              if (!startupAnimActive && (hudHardwareActive || currentAnimName === 'hud') && !dispatcher.current()) {
                 frameHeldLeft = false;
                 frameHeldRight = false;
                 stopAnim();
@@ -1691,11 +1710,25 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   });
 
   // Startup animation, then settle on the resting HUD.
-  const restAfterStartup = () => { if (!dispatcher.current()) startRestingState(); };
+  // If hud-hardware-start or hud-config arrives while startupAnimActive is true,
+  // those handlers defer their stopAnim() call and set hudHardwareActive instead.
+  // restAfterStartup checks hudHardwareActive and starts the HUD immediately if
+  // the deck was already waiting, so the hardware transition is never lost.
+  const restAfterStartup = () => {
+    startupAnimActive = false;
+    if (hudHardwareActive) {
+      stopAnim();
+      stopCurrentAnim = runHudOnModules();
+    } else if (!dispatcher.current()) {
+      startRestingState();
+    }
+  };
   if (currentConfig.startup.animation !== 'none') {
     if (currentConfig.startup.animation === 'gol-random') {
+      startupAnimActive = true;
       runOnModules(null, () => createGolAnimation({ frames: 420, loop: false }), restAfterStartup);
     } else if (currentConfig.startup.animation === 'scroll') {
+      startupAnimActive = true;
       const text = currentConfig.startup.scroll_text;
       runOnModules(createScrollAnimation({ text, loop: false }), undefined, restAfterStartup);
     } else if (currentConfig.startup.animation === 'dmx') {
@@ -1721,9 +1754,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
           ...(currentConfig.startup.overlay_mode !== undefined ? { overlayMode: currentConfig.startup.overlay_mode } : {}),
           ...(currentConfig.startup.transition !== undefined ? { transition: currentConfig.startup.transition } : {}),
         };
-        void startDmxNotification(bootIntent, 'replace');
+        startupAnimActive = true;
+        void startDmxNotification(bootIntent, 'replace', restAfterStartup);
       } else { process.stderr.write('dark-matrix: startup.animation is dmx but dmx_path is not set\n'); restAfterStartup(); }
     } else {
+      startupAnimActive = true;
       runOnModules(null, () => createStartupAnimation({ style: 'wipe' }), restAfterStartup);
     }
   } else {
