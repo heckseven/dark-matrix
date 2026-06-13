@@ -8,25 +8,25 @@ import type { ZenRendererApi } from './zen-renderers.js';
 //   Cavagna & del Castillo 2014 (arXiv 1403.1202) — ISM spin dynamics
 //   Cavagna et al. 2022 (Nat. Comms)            — nonlinear speed confinement
 
-const NUM_BOIDS      = 45;             // standalone (9-wide)
-const NUM_BOIDS_SPAN = 70;             // spanning (18-wide canvas)
+const NUM_BOIDS      = 55;             // standalone (9-wide)
+const NUM_BOIDS_SPAN = 90;             // spanning (18-wide canvas)
 const SPAN_COLS      = FRAME_COLS * 2; // 18 — virtual width when both panels span
 
 const TARGET_SPEED  = 5.0;
 const MIN_SPEED     = 1.5;
 const MAX_SPEED     = 10.0;
 const K_NEIGHBORS   = 7;
-const K_SEP         = 1;
-const SEP_WEIGHT    = 18;
-const COH_WEIGHT    = 22;
-const GLOBAL_COH    = 3;    // weak centroid pull — visible spread without collapsing
-const J_ALIGN       = 10.0;
+const K_SEP         = 3;    // push away from 3 nearest (was 1) — prevents clustering
+const SEP_WEIGHT    = 28;   // stronger separation force (was 18)
+const COH_WEIGHT    = 8;    // weaker topological cohesion (was 22)
+const GLOBAL_COH    = 1;    // minimal centroid pull (was 3)
+const J_ALIGN       = 4.0;  // lower spin coupling — aligned spin ≈ 4/2 = 2 rad/s, below BANK_THRESH
 const CHI           = 0.4;
-const ETA           = 1.8;
+const ETA           = 2.0;  // slightly more spin friction (was 1.8)
 const SPIN_NOISE    = 0.5;
 const SPEED_DEAD    = 1.0;
 const SPEED_K       = 3.0;
-const BANK_THRESH   = 2.5;
+const BANK_THRESH   = 6.0;  // only extreme spin banks (was 2.5 — was hiding most boids)
 const WALL_MARGIN   = 2.0;
 const WALL_WEIGHT   = 30;
 const PRED_RADIUS   = 7.0;
