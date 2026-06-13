@@ -19,7 +19,8 @@ const K_NEIGHBORS   = 7;
 const K_SEP         = 3;
 const SEP_WEIGHT    = 18;   // reduced — tighter flock spacing
 const COH_WEIGHT    = 20;
-const GLOBAL_COH    = 8;    // centroid pull keeps flock on display
+const PERP_COH      = 10;   // spring perpendicular to travel — keeps flock narrow
+const LONG_COH      = 2;    // spring along travel — weak, allows flock to elongate
 const J_ALIGN       = 12.0; // strong velocity alignment — whole flock turns together
 const CHI           = 2.0;  // moderate inertia — wide arcs without locking into stable orbit
 const ETA           = 1.0;  // low friction — aligned turns persist and sweep across display
@@ -208,9 +209,11 @@ export function createZenMurmurationRenderer(
     }
 
     const n = boids.length;
-    let sumX = 0, sumY = 0;
-    for (const b of boids) { sumX += b.x; sumY += b.y; }
+    let sumX = 0, sumY = 0, sumVx = 0, sumVy = 0;
+    for (const b of boids) { sumX += b.x; sumY += b.y; sumVx += b.vx; sumVy += b.vy; }
     const cx = sumX / n, cy = sumY / n;
+    const fspd = Math.sqrt(sumVx * sumVx + sumVy * sumVy) || 1;
+    const fux = sumVx / fspd, fuy = sumVy / fspd; // flock unit-velocity direction
 
     for (let i = 0; i < n; i++) {
       const b = boids[i]!;
@@ -256,10 +259,12 @@ export function createZenMurmurationRenderer(
         fy += (alignVy / kN) * DIRECT_ALIGN;
       }
 
-      const gcx = cx - b.x, gcy = cy - b.y;
-      const gcm = Math.sqrt(gcx * gcx + gcy * gcy) || 1;
-      fx += (gcx / gcm) * GLOBAL_COH;
-      fy += (gcy / gcm) * GLOBAL_COH;
+      // Anisotropic cohesion spring: strong perpendicular to travel (narrow), weak along (elongated).
+      const relX  = b.x - cx, relY = b.y - cy;
+      const along = relX * fux  + relY * fuy;   // signed lead distance
+      const perp  = relX * -fuy + relY * fux;   // signed lateral offset
+      fx -= LONG_COH * along * fux  + PERP_COH * perp * -fuy;
+      fy -= LONG_COH * along * fuy  + PERP_COH * perp *  fux;
 
       fx += wallForce(b.x, totalCols);
       fy += wallForce(b.y, totalRows);
