@@ -6,6 +6,7 @@ import { createZenFloraRenderer } from './zen-flora.js';
 import { createZenGrassRenderer } from './zen-grass.js';
 import { createZenPlantRenderer } from './zen-plant.js';
 import { createZenSpiroRenderer } from './zen-spiro.js';
+import { createZenMurmurationRenderer } from './zen-murmuration.js';
 
 export type { ZenFluidStyle } from './zen-fluid.js';
 export type { ZenBreathStyle } from './zen-breath.js';
@@ -13,6 +14,7 @@ export type { ZenFloraStyle } from './zen-flora.js';
 export type { ZenGrassStyle } from './zen-grass.js';
 export type { ZenPlantStyle } from './zen-plant.js';
 export type { ZenSpiroStyle } from './zen-spiro.js';
+export type { MurmurationRenderer } from './zen-murmuration.js';
 
 export type ZenStyle =
   | 'waves' | 'pool' | 'brush'
@@ -20,7 +22,8 @@ export type ZenStyle =
   | 'blossom'
   | 'rose' | 'orbit' | 'corona'
   | 'grass'
-  | 'pine' | 'seeds';
+  | 'pine' | 'seeds'
+  | 'murmuration';
 
 export const ZEN_STYLES: { id: ZenStyle; label: string }[] = [
   { id: 'waves',   label: 'waves'   },
@@ -33,8 +36,9 @@ export const ZEN_STYLES: { id: ZenStyle; label: string }[] = [
   { id: 'orbit',   label: 'orbit'   },
   { id: 'corona',  label: 'corona'  },
   { id: 'grass',   label: 'grass'   },
-  { id: 'pine',    label: 'pine'    },
-  { id: 'seeds',   label: 'seeds'   },
+  { id: 'pine',        label: 'pine'        },
+  { id: 'seeds',       label: 'seeds'       },
+  { id: 'murmuration', label: 'murmuration' },
 ];
 
 export const ZEN_STYLE_VALUES = ZEN_STYLES.map(s => s.id) as [string, ...string[]];
@@ -64,6 +68,8 @@ export function createZenRenderer(style: ZenStyle, side?: 'left' | 'right'): Zen
     case 'pine':
     case 'seeds':
       return createZenPlantRenderer(style);
+    case 'murmuration':
+      return createZenMurmurationRenderer(side);
     default:
       return createZenFluidRenderer('waves');
   }
@@ -302,6 +308,14 @@ export function zenThumbFrame(style: ZenStyle): Frame {
           }
         }
       }
+      return f;
+    }
+    // murmuration: advance 2 s of simulation with synthetic dt before capturing frame
+    case 'murmuration': {
+      const r = createZenMurmurationRenderer();
+      for (let i = 0; i < 60; i++) r.tick(1 / 30);
+      const f = r.render();
+      r.stop();
       return f;
     }
     default: {

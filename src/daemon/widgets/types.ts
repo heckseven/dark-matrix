@@ -4,6 +4,7 @@ import type { Frame } from '../../lib/frame.js';
 import type { DataRenderer, DataWidgetConfig } from '../../animations/data-renderers.js';
 import type { ClaudeRendererApi } from '../../animations/claude-renderers.js';
 import type { WidgetDescriptor } from '../../lib/widgets/types.js';
+import type { Dispatcher } from '../../lib/dispatcher.js';
 
 export type { DataRenderer, DataWidgetConfig, ClaudeRendererApi };
 
@@ -74,6 +75,7 @@ export interface DaemonWidgetContext {
   hudDataConfig: (side: 'left' | 'right') => DataWidgetConfig;
   persistedTimerEpochs: Record<'left' | 'right', PersistedTimerEpoch | null>;
   claudeRenderers: Set<ClaudeRendererApi>;
+  dispatcher: Dispatcher;
 }
 
 export interface DaemonWidgetDescriptor<T extends HudWidget> extends WidgetDescriptor<T> {
