@@ -19,15 +19,15 @@ const K_NEIGHBORS   = 7;
 const K_SEP         = 3;
 const SEP_WEIGHT    = 18;   // reduced — tighter flock spacing
 const COH_WEIGHT    = 20;
-const GLOBAL_COH    = 8;    // moderate — keeps flock centroid in the visible display area
+const GLOBAL_COH    = 4;    // light centroid pull — enough to stay on display without causing orbital lock
 const J_ALIGN       = 12.0; // strong velocity alignment — whole flock turns together
-const CHI           = 5.0;  // high inertia — wide graceful arcs instead of tight spirals
+const CHI           = 2.0;  // moderate inertia — wide arcs without locking into stable orbit
 const ETA           = 1.0;  // low friction — aligned turns persist and sweep across display
 const SPIN_NOISE    = 1.5;  // organic variation that seeds new turn events
 const SPEED_DEAD    = 1.0;
 const SPEED_K       = 3.0;
 const BANK_THRESH   = 4.0;  // fires during collective turns (spin ~6) not cruising (spin ~1.5)
-const STREAM_WEIGHT  = 8.0;  // leaders brake, trailers accelerate — elongates flock along travel axis
+const STREAM_WEIGHT  = 4.0;  // push leaders ahead, trailers back — elongates flock along travel axis
 const DIRECT_ALIGN   = 12.0; // immediate steer toward neighbor headings (complements ISM spin waves)
 const WALL_MARGIN   = 2.0;
 const WALL_WEIGHT   = 30;
@@ -264,10 +264,10 @@ export function createZenMurmurationRenderer(
       fx += (gcx / gcm) * GLOBAL_COH;
       fy += (gcy / gcm) * GLOBAL_COH;
 
-      // Streaming: boids ahead of centroid (in flock direction) brake; trailers accelerate.
+      // Streaming: push leaders further ahead, trailers further back — elongates flock along travel.
       const ahead = (b.x - cx) * fux + (b.y - cy) * fuy;
-      fx -= fux * ahead * STREAM_WEIGHT;
-      fy -= fuy * ahead * STREAM_WEIGHT;
+      fx += fux * ahead * STREAM_WEIGHT;
+      fy += fuy * ahead * STREAM_WEIGHT;
 
       fx += wallForce(b.x, totalCols);
       fy += wallForce(b.y, totalRows);
