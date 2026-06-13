@@ -28,7 +28,7 @@ const SPIN_NOISE    = 1.5;  // organic variation that seeds new turn events
 const SPEED_DEAD    = 1.0;
 const SPEED_K       = 3.0;
 const BANK_THRESH   = 4.0;  // fires during collective turns (spin ~6) not cruising (spin ~1.5)
-const DIRECT_ALIGN   = 12.0; // immediate steer toward neighbor headings (complements ISM spin waves)
+const DIRECT_ALIGN  = 12.0; // immediate steer toward neighbor headings (complements ISM spin waves)
 const WALL_MARGIN   = 2.0;
 const WALL_WEIGHT   = 30;
 const V_PAD_X       = 6;    // virtual cols beyond each display edge (boids swoop off/on)
@@ -163,7 +163,7 @@ export function createZenMurmurationRenderer(
     if (spanning) shared!.pred = p; else privPred = p;
   };
 
-  let lastTime = Date.now();
+  let lastTime = 0; // 0 = not yet rendered; first frame uses nominal dt
   let stopped  = false;
 
   // Prevent double-step when both panels share state: only the first render()
@@ -324,7 +324,7 @@ export function createZenMurmurationRenderer(
 
     render(): Frame {
       const now = Date.now();
-      const dt  = Math.min((now - lastTime) / 1000, 0.1);
+      const dt  = lastTime === 0 ? 1 / 30 : Math.min((now - lastTime) / 1000, 0.1);
       lastTime  = now;
       if (!stopped && shouldStep(now)) step(dt, now);
       return drawFrame();
