@@ -18,8 +18,8 @@ const MAX_SPEED     = 10.0;
 const K_NEIGHBORS   = 7;
 const K_SEP         = 3;    // push away from 3 nearest (was 1) — prevents clustering
 const SEP_WEIGHT    = 28;   // stronger separation force (was 18)
-const COH_WEIGHT    = 8;    // weaker topological cohesion (was 22)
-const GLOBAL_COH    = 1;    // minimal centroid pull (was 3)
+const COH_WEIGHT    = 12;   // moderate local cohesion
+const GLOBAL_COH    = 14;   // strong centroid pull — keeps flock together across wide virtual canvas
 const J_ALIGN       = 4.0;  // lower spin coupling — aligned spin ≈ 4/2 = 2 rad/s, below BANK_THRESH
 const CHI           = 0.4;
 const ETA           = 2.0;  // slightly more spin friction (was 1.8)
