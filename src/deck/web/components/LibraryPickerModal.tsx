@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogTitle } from './ui/dialog.js';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog.js';
 import { Button } from './ui/button.js';
 import { MatrixPreview } from './MatrixPreview.js';
 import { PanelBar } from './PanelBar.js';
@@ -78,6 +78,9 @@ export function LibraryPickerModal({ open, onOpenChange, onPick, initialEntries 
         <DialogTitle className="sr-only">
           {inFrames ? `Pick frame — ${view.entry.name}` : 'Pick design'}
         </DialogTitle>
+        <DialogDescription className="sr-only">
+          {inFrames ? `Select a frame from ${view.entry.name}` : 'Browse your library and select a design'}
+        </DialogDescription>
 
         <PanelBar
           blur={false}

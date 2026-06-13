@@ -1,6 +1,6 @@
 import { useState, useReducer, useEffect, useRef } from 'react';
 import type { AssetMeta } from '../../../lib/asset-meta.js';
-import { Dialog, DialogContent, DialogClose, DialogTitle } from './ui/dialog.js';
+import { Dialog, DialogContent, DialogClose, DialogDescription, DialogTitle } from './ui/dialog.js';
 import { Button } from './ui/button.js';
 import { MatrixItem } from './MatrixItem.js';
 import { AssetImportPanel } from './AssetImportPanel.js';
@@ -210,6 +210,9 @@ export function AssetManagerModal({ open, onOpenChange, onOpenAsset, initialView
         <DialogTitle className="sr-only">
           {view === 'import' ? 'Import asset' : 'Manage assets'}
         </DialogTitle>
+        <DialogDescription className="sr-only">
+          {view === 'import' ? 'Upload a new asset to your library' : 'Browse, open, copy, or delete your saved assets'}
+        </DialogDescription>
 
         <div className="flex-1 overflow-y-auto">
           <PanelBar
