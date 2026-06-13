@@ -2,6 +2,8 @@ import { spawn } from 'node:child_process';
 
 export type MicEvent = { active: boolean };
 
+export const DARK_MATRIX_APP_NAME = 'dark-matrix';
+
 function spawnOutput(cmd: string, args: string[]): Promise<{ stdout: string; code: number }> {
   return new Promise((resolve) => {
     const proc = spawn(cmd, args, { shell: false });
@@ -26,6 +28,7 @@ export async function isMicActive(pwDumpPath = 'pw-dump'): Promise<boolean> {
     n.type === 'PipeWire:Interface:Node' &&
     n.info?.props?.['media.class'] === 'Stream/Input/Audio' &&
     n.info?.props?.['application.name'] !== 'pw-record' &&
+    n.info?.props?.['application.name'] !== DARK_MATRIX_APP_NAME &&
     n.info?.state === 'running',
   );
 }

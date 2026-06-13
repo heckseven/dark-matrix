@@ -4,6 +4,7 @@ import type { Frame } from '../lib/frame.js';
 import type { Animation } from '../lib/animation.js';
 import { createRenderer } from './audio-renderers.js';
 import type { AudioStyle, RenderCtx } from './audio-renderers.js';
+import { DARK_MATRIX_APP_NAME } from '../lib/mic-source.js';
 
 export type { AudioStyle };
 
@@ -125,7 +126,7 @@ export function createAudioBandStream(opts?: Omit<AudioEqOptions, 'style'>): Ban
     'ffmpeg',
     [
       '-hide_banner', '-loglevel', 'error', '-nostdin',
-      '-f', 'pulse', '-i', pulseTarget,
+      '-f', 'pulse', '-name', DARK_MATRIX_APP_NAME, '-i', pulseTarget,
       '-ac', '1', '-ar', '48000', '-f', 's16le', '-',
     ],
     { stdio: ['ignore', 'pipe', 'ignore'] },
