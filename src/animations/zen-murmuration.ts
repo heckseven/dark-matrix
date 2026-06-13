@@ -12,9 +12,9 @@ const NUM_BOIDS      = 55;             // standalone (9-wide)
 const NUM_BOIDS_SPAN = 90;             // spanning (18-wide canvas)
 const SPAN_COLS      = FRAME_COLS * 2; // 18 — virtual width when both panels span
 
-const TARGET_SPEED  = 9.0;
-const MIN_SPEED     = 2.0;
-const MAX_SPEED     = 18.0;
+const TARGET_SPEED  = 5.0;
+const MIN_SPEED     = 1.5;
+const MAX_SPEED     = 10.0;
 const K_NEIGHBORS   = 7;
 const K_SEP         = 3;    // push away from 3 nearest (was 1) — prevents clustering
 const SEP_WEIGHT    = 28;   // stronger separation force (was 18)
