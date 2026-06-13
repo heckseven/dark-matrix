@@ -27,10 +27,8 @@ const SPIN_NOISE    = 1.5;  // organic variation that seeds new turn events
 const SPEED_DEAD    = 1.0;
 const SPEED_K       = 3.0;
 const BANK_THRESH   = 4.0;  // fires during collective turns (spin ~6) not cruising (spin ~1.5)
-const STREAM_WEIGHT  = 2.0;  // leaders brake, trailers accelerate — elongates flock along travel axis
+const STREAM_WEIGHT  = 8.0;  // leaders brake, trailers accelerate — elongates flock along travel axis
 const DIRECT_ALIGN   = 12.0; // immediate steer toward neighbor headings (complements ISM spin waves)
-const TRAIL_DECAY    = 0.90; // per-frame persistence decay (0.90 ≈ 11 frames / ~370 ms at 30 fps)
-const TRAIL_THRESHOLD = 0.30; // buffer value below which pixel goes dark
 const WALL_MARGIN   = 2.0;
 const WALL_WEIGHT   = 30;
 const V_PAD_X       = 6;    // virtual cols beyond each display edge (boids swoop off/on)
@@ -164,9 +162,6 @@ export function createZenMurmurationRenderer(
   const setPred  = (p: Predator | null): void => {
     if (spanning) shared!.pred = p; else privPred = p;
   };
-
-  // Per-renderer trail buffer — physics state is shared for spanning but rendering is local.
-  const trailBuf = new Float32Array(FRAME_COLS * FRAME_ROWS);
 
   let lastTime = Date.now();
   let stopped  = false;
@@ -307,23 +302,14 @@ export function createZenMurmurationRenderer(
   }
 
   function drawFrame(): Frame {
-    // Decay trail buffer each frame.
-    for (let i = 0; i < trailBuf.length; i++) trailBuf[i]! *= TRAIL_DECAY;
-
-    // Stamp current visible boid positions to full brightness.
+    const frame = createFrame();
     for (const b of getBoids()) {
       if (Math.abs(b.spin) > BANK_THRESH) continue;
       const col = Math.round(b.x) - drawOffsetX;
       const row = Math.round(b.y) - drawOffsetY;
       if (col >= 0 && col < FRAME_COLS && row >= 0 && row < FRAME_ROWS) {
-        trailBuf[col * FRAME_ROWS + row] = 1.0;
+        frame[col * FRAME_ROWS + row] = 255;
       }
-    }
-
-    // Threshold trail buffer into binary frame.
-    const frame = createFrame();
-    for (let i = 0; i < FRAME_COLS * FRAME_ROWS; i++) {
-      if ((trailBuf[i] ?? 0) >= TRAIL_THRESHOLD) frame[i] = 255;
     }
     return frame;
   }
