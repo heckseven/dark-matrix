@@ -400,6 +400,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       hudDataConfig,
       persistedTimerEpochs,
       claudeRenderers,
+      dispatcher,
     };
     const descriptor = DAEMON_WIDGET_REGISTRY[widget.widget];
     return descriptor.createRenderer(widget as never, ctx);

@@ -1,5 +1,6 @@
 import { createZenRenderer, ZEN_STYLE_VALUES } from '../../animations/zen-renderers.js';
 import type { ZenStyle } from '../../animations/zen-renderers.js';
+import { createZenMurmurationRenderer } from '../../animations/zen-murmuration.js';
 import type { HudWidget } from '../../deck/web/types/hud-preset.js';
 import { zenBase } from '../../lib/widgets/zen.js';
 import type { ZenWidget } from '../../lib/widgets/zen.js';
@@ -9,8 +10,20 @@ export const zenDaemonDescriptor: DaemonWidgetDescriptor<ZenWidget> = {
   ...zenBase,
 
   createRenderer(widget, ctx): WidgetRenderer {
-    const { zenSide } = ctx;
+    const { zenSide, dispatcher } = ctx;
     const style = (widget.style as ZenStyle | undefined) ?? 'waves';
+
+    if (style === 'murmuration') {
+      const r = createZenMurmurationRenderer(zenSide);
+      const unsub = dispatcher.onChange((intent) => {
+        if (intent !== null) r.triggerPredator();
+      });
+      return {
+        render(_now, _audioCtx) { return r.render(); },
+        stop() { unsub(); r.stop(); },
+      };
+    }
+
     const r = createZenRenderer(style, zenSide);
     return {
       render(_now, _audioCtx) { return r.render(); },
