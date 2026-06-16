@@ -1,5 +1,7 @@
 # dark-matrix
 
+> **Disclaimer:** The code in this project was written entirely by AI. The designs are entirely my own work.
+
 Framework16 LED Matrix control system. Two 9×34 LED modules (left/right) driven over USB
 serial by a persistent TypeScript/Node.js daemon, with a CLI and a browser-based web UI
 (the Deck) for configuration, animation, HUD presets, audio visualization, and more.
