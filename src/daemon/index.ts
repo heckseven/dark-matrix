@@ -1194,6 +1194,16 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   const server = net.createServer((socket) => {
     let buf = '';
     let activeVizStream: { stop: () => void; setFullBandCount: (n: number) => void } | null = null;
+    // A peer FIN auto-ends our writable side (allowHalfOpen is false), and an
+    // in-flight async write (e.g. an audio-bands callback) can then emit a
+    // write-after-end 'error'. Without a persistent listener that event is
+    // rethrown as an uncaughtException and takes the whole daemon down. A
+    // per-socket error is never fatal — swallow the expected client-gone codes
+    // and log anything unexpected so real transport faults stay visible.
+    socket.on('error', (err: NodeJS.ErrnoException) => {
+      const expected = err.code === 'EPIPE' || err.code === 'ECONNRESET' || err.code === 'ERR_STREAM_WRITE_AFTER_END';
+      if (!expected) process.stderr.write(`dark-matrix: socket error: ${err.code ?? String(err)}\n`);
+    });
     socket.on('data', (chunk) => {
       buf += chunk.toString();
 
@@ -1265,9 +1275,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
             case 'release':
               stopAnim();
               transport.close().then(() => {
-                socket.write(JSON.stringify({ ok: true }) + '\n');
+                if (socket.writable) socket.write(JSON.stringify({ ok: true }) + '\n');
               }).catch(() => {
-                socket.write(JSON.stringify({ ok: true }) + '\n');
+                if (socket.writable) socket.write(JSON.stringify({ ok: true }) + '\n');
               });
               break;
             case 'notification-history': {
@@ -1307,7 +1317,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 break;
               }
               void fs.realpath(m.path).then((resolved) => {
-                if (socket.destroyed) return;
+                if (!socket.writable) return;
                 const home = os.homedir();
                 if (!resolved.startsWith(home + '/') && resolved !== home) {
                   socket.write(JSON.stringify({ ok: false, error: 'path outside home directory' }) + '\n');
@@ -1316,7 +1326,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 startDmxAnimation(resolved, !!m.loop);
                 socket.write(JSON.stringify({ ok: true }) + '\n');
               }).catch(() => {
-                if (socket.destroyed) return;
+                if (!socket.writable) return;
                 socket.write(JSON.stringify({ ok: false, error: 'path not found' }) + '\n');
               });
               break;
@@ -1329,7 +1339,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
               }
               const gifMode = m.mode === 'bw' ? 'bw' : 'gray';
               void fs.realpath(m.path).then((resolved) => {
-                if (socket.destroyed) return;
+                if (!socket.writable) return;
                 const home = os.homedir();
                 if (!resolved.startsWith(home + '/') && resolved !== home) {
                   socket.write(JSON.stringify({ ok: false, error: 'path outside home directory' }) + '\n');
@@ -1338,7 +1348,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 startGifAnimation(resolved, !!m.hold, !!m.dual, gifMode);
                 socket.write(JSON.stringify({ ok: true }) + '\n');
               }).catch(() => {
-                if (socket.destroyed) return;
+                if (!socket.writable) return;
                 socket.write(JSON.stringify({ ok: false, error: 'path not found' }) + '\n');
               });
               break;
@@ -1456,7 +1466,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 }
                 const key = Symbol();
                 hudAudioListeners.set(key, (ctx) => {
-                  if (!socket.destroyed) socket.write(JSON.stringify({ type: 'audio-bands', ...ctx }) + '\n');
+                  if (socket.writable) socket.write(JSON.stringify({ type: 'audio-bands', ...ctx }) + '\n');
                 });
                 const unsub = () => hudAudioListeners.delete(key);
                 socket.once('close', unsub);
@@ -1467,7 +1477,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
                 if (hudHardwareActive) hudAudioSource = source;
                 activeVizStream?.stop();
                 activeVizStream = streamAudioBands(source, (ctx) => {
-                  if (socket.destroyed) return;
+                  if (!socket.writable) return;
                   socket.write(JSON.stringify({ type: 'audio-bands', ...ctx }) + '\n');
                 }, undefined, fullBandCount > 0 ? { fullBandCount } : undefined);
                 socket.once('close', () => { activeVizStream?.stop(); activeVizStream = null; });
