@@ -1,0 +1,84 @@
+# Resilience Audit — crash & leak risk register
+
+**Date:** 2026-06-24
+**Scope:** daemon (`src/daemon`, `src/lib`, `src/animations`) and deck server + web app (`src/deck`).
+**Method:** five parallel read-only audits, each with a dedicated crash surface (unhandled `'error'` events; external-binary failures; serial/hardware disconnect; deck/browser lifecycle; long-uptime leaks + config/reload robustness).
+**Trigger for the audit:** the fixed daemon crash `ERR_STREAM_WRITE_AFTER_END` (commit `47d2e80`) — an `audio-bands` write to a half-closed IPC socket guarded only by `socket.destroyed`, whose unhandled `'error'` became an `uncaughtException`.
+
+## Dominant theme
+
+Most findings are **one failure family**: an EventEmitter/stream emits `'error'` (or a write lands after close) with no durable listener → Node rethrows as `uncaughtException` → the process dies. That is exactly the bug already fixed on the IPC socket. The same class is **unpatched in three other places**, and the **deck process has none of the daemon's hardening**. Two separate clusters: long-uptime resource leaks, and a power-cycle startup brick.
+
+## Status legend
+
+`OPEN` not started · `WIP` in progress · `FIXED` merged · `WONTFIX` deliberately deferred
+
+---
+
+## 🔴 Critical — process-down in normal use
+
+| # | Status | Title | Location | Trigger → Mechanism | Fix direction |
+|---|--------|-------|----------|---------------------|---------------|
+| C1 | OPEN | SerialPort has no `'error'` listener | `lib/transport.ts:95-100` + store sites (`:163`, `:215-217`) | Module yanked mid-frame / power-cycle surfaces async EIO on the fd; zero listeners → `uncaughtException` kills daemon. Sibling of the shipped fix. `try/catch` around writes does **not** catch out-of-band stream errors. | Attach persistent `port.on('error', …)` in `openPort` that logs + evicts the port. |
+| C2 | OPEN | Deck server has no `uncaughtException`/`unhandledRejection` handler | `cli/index.ts:709-726`, `deck/server.ts:737` | Any unhandled deck-side fault terminates the whole process (HTTP+WS+Twitch+proc-stats). Multiplier for H4, H12, C3. | Register process-level handlers in `cmdDeck` mirroring the daemon. |
+| C3 | OPEN | WS connection lacks `ws.on('error')` + ungated deferred `ws.send()` | `deck/server.ts:1902`; sends `2094-2169` | Tab closes mid-`await`; send-after-close emits unhandled `'error'` → with C2, deck down. Most likely deck crash on early disconnect. | Add `ws.on('error', …)` per connection; gate every deferred send on `ws.readyState === 1`. |
+
+---
+
+## 🟠 High — process-down under plausible conditions, permanent wedge, or OOM/brick
+
+| # | Status | Title | Location | Trigger → Mechanism | Fix direction |
+|---|--------|-------|----------|---------------------|---------------|
+| H4 | OPEN | Browser-opener `spawn` has no `'error'` listener | `cli/index.ts:720` | Headless/minimal host missing `xdg-open` → ENOENT `'error'` unhandled → deck crashes at startup (with C2). | `child.on('error', () => {})` before `unref()`. |
+| H5 | OPEN | Power-loss config corruption bricks startup | `lib/config.ts:342-359`; non-atomic writes `:364`, `:405` | Truncated `config.json` (interrupted write) throws `ConfigError` (not `ENOENT`) → `process.exit(1)`; won't restart until manual repair. Non-atomic bootstrap can create the corrupt file. | On `ConfigError` at startup back up + re-bootstrap / fall back to `DEFAULT_CONFIG`; make bootstrap writes use `writeJsonAtomic`. |
+| H6 | OPEN | Unbounded IPC read buffer | `daemon/index.ts:1207-1234` | `buf += chunk` only drains on recognized HTTP/JSON frames; non-framed/newline-less input grows `buf` for the connection's life → eventual OOM. | Cap `buf`; destroy the socket past a small threshold without a recognized frame. |
+| H7 | OPEN | SIGHUP `onReload` body is unguarded | `daemon/index.ts:1702-1720` | Config *loader* fails safe, but reload work (brightness/EC/HUD restart) runs outside try/catch; a throw is uncaught. Routine trigger: deck writes config → reload. | Wrap entire `onReload` body in try/catch, log-and-survive. |
+| H8 | OPEN | Dead serial port never evicted from `ports` Map | `lib/transport.ts:210-226` (evict only `:255`) | After any write failure the broken port stays cached; module never recovers even after replug — transient unplug becomes a permanent wedge. | On write rejection / `'error'`, `closePort` + `ports.delete()` so next `getPort` re-opens. |
+| H9 | OPEN | `pollModules` reconnect leaks animation loops + never releases stale port | `daemon/index.ts:164-176` | Available→unavailable edge does no `release`; reconnect reuses the dead port and discards the new `runAnimation` disposer → orphaned loops accumulate over replug cycles. | On disconnect edge `await transport.release(dev)`; drive reconnect through the normal resting-state path. |
+| H10 | OPEN | Orphaned daemon audio/HUD hardware on abrupt disconnect | `deck/server.ts:1914-1921` vs `1986/1991` | Last-writer-wins `audioOwnerWs`/`hudOwnerWs` + retry landing `audio-hardware-start` *after* socket close → live `pw-record` + serial animation runs forever with no browser. | Track ownership per-socket; cancel pending retry + stop hardware unconditionally on owning socket close. |
+| H11 | OPEN | Write-after-release race in serial live path | `lib/transport.ts:175-192` vs `250-262` | `release()`/`close()` drain only the enqueue queue, not the live-write machinery → live write hits a just-closed port (escalates to Critical with C1). | Drain/cancel `live` state in `release()`/`close()`; guard `runLive` write against a removed port. |
+| H12 | OPEN | Unguarded async route reject kills the deck | `deck/server.ts` top-level `createServer` cb; e.g. `fs.mkdir` `:1585-1587` | Unwritable/full library dir on a routine asset request → unhandledRejection → with C2, deck down for all clients. | Wrap the whole `createServer` async body in try/catch emitting 500. |
+
+---
+
+## 🟡 Medium — degraded behavior, UX freeze, or slow leak
+
+| # | Status | Title | Location | Trigger → Mechanism | Fix direction |
+|---|--------|-------|----------|---------------------|---------------|
+| M13 | OPEN | Daemon fatal handlers use `process.once` | `daemon/index.ts:1812-1813` | A second fault during cleanup has no listener → abrupt abort before cleanup finishes. | Use `process.on(...)` + the existing `exiting` flag to dedupe. |
+| M14 | OPEN | `claudeRenderers` `onEvent` unguarded in socket `'data'` handler | `daemon/index.ts:1215-1222` | A throwing renderer crashes the daemon; the socket `'error'` listener does not catch throws from a `'data'` handler. | Wrap the `onEvent` dispatch (and the `'data'` body) in try/catch. |
+| M15 | OPEN | Hardware audio-EQ mode has no respawn | `daemon/index.ts:340-368` | pipewire restart / sink switch / unplug → ffmpeg exits 255 → matrix freezes until manual re-trigger (the `streamAudioBands` path recovers; this one doesn't). | Wrap loop in the same respawn-with-backoff `streamAudioBands` uses, or share it. |
+| M16 | OPEN | `streamAudioBands` subprocess storm | `daemon/index.ts:492-538` | Audio device permanently gone → respawn every ~2s, no backoff/cap → fd/CPU churn over long uptime. | Exponential backoff with cap after N consecutive no-data cycles. |
+| M17 | OPEN | Panels never reconnect (HUD/Audio/Cast/Life) | `HudPanel.tsx:135`, `AudioPanel.tsx:96`, `CastVisualizerPanel.tsx:109`, `LifePanel.tsx:95` | After server/daemon restart a long-open tab goes silently dead with no recovery signal. (Corollary: also why there is no reconnect storm.) | Bounded-backoff reconnect in each panel's WS effect, mirroring `preview.ts`. |
+| M18 | OPEN | Duplicate `watchProcStats` interval | `daemon/index.ts:439-444` vs `1152` | Data-widget HUD doubles `/proc`+battery+GPU reads every 500ms indefinitely. | Share one `watchProcStats` subscription (fan-out) between trigger engine and HUD renderer. |
+| M19 | OPEN | `sharp` GIF decode unbounded in frame count | `deck/server.ts:325-356`, `498-551` | Crafted many-page GIF within body cap → memory/CPU pressure / OOM vector on the single deck process. | Cap `pages`; set `sharp` `limitInputPixels`/`pages` before decode. |
+| M20 | OPEN | `vm-source.ts` unguarded `proc.stdout.on` | `lib/vm-source.ts:13` | Only spawn site missing the `?.` guard (cf. `mic-source.ts:11`); currently contained by an outer try/catch, so latent. | Use `proc.stdout?.on(...)`; attach `'error'` before touching stdio. |
+| M21 | OPEN | Suspend/resume frame-burst | `daemon/index.ts:250`, `:283` (and watchdogs) | Long suspend makes `Date.now()` jump → `nextAt` pacing runs flat-out catching up; watchdogs fire immediately on resume. | Clamp catch-up: `nextAt = Math.max(nextAt, Date.now())` / cap negative wait. |
+
+---
+
+## 🟢 Low — edge cases / defense-in-depth
+
+| # | Status | Title | Location | Note |
+|---|--------|-------|----------|------|
+| L22 | OPEN | Deck `openAudioStream` guards `!destroyed` not `writable` | `deck/server.ts:1997` | Same anti-pattern as the original bug; currently covered by `sock.on('error')` at `:1850`. |
+| L23 | OPEN | `preview.ts` gives up after 5 reconnect attempts | `deck/web/preview.ts:12-37` | Premature give-up (counter only resets on success), not a storm. |
+| L24 | OPEN | `dbus-monitor` respawns every 5s forever if binary missing | `lib/dbus-notifications.ts:97-105` | ENOENT short-circuit would stop eternal retries. |
+| L25 | OPEN | `streamAudioBands` kills ffmpeg with SIGTERM only | `animations/audio-eq.ts:215` | No SIGKILL escalation → slow process leak if ffmpeg wedges on a stuck pulse connection. |
+| L26 | OPEN | `runAnimation` has no failure ceiling | `lib/animation.ts:42-56` | A permanently-failing animation issues doomed writes forever (not a crash). |
+
+---
+
+## Verified safe (checked, not flagged)
+
+- Every `spawn` found has a `proc.on('error', …)` handler.
+- Bounded/correct: `notificationHistory` (cap 7/source, content sliced 512), `hudAudioListeners` (unsub on close), `Dispatcher` queue (60s GC + filter), `PersistentDaemonClient.queue` (latest-wins), `ytStreamErrors`/`pendingOAuthStates` (self-evicting/capped), `writeJsonAtomic` (atomic), SIGHUP config *loader* (keeps prior config on parse failure), `firedBatteryThresholds`/`deviceAvailable`/`ifaceState`/`vmState` (fixed small domains).
+
+## Suggested resolution order
+
+1. **Serial lifecycle cluster** — C1 + H8 + H9 + H11 (same root as the shipped fix; highest hardware-crash exposure; fixing C1 is the natural home for H8 and downgrades H11).
+2. **Deck hardening trio** — C2 + C3 + H4 + H12 (C2 first; it gates the blast radius of the others).
+3. **Power-cycle pair** — H5 + H7.
+4. **Remaining daemon robustness** — H6, M13, M14, M21.
+5. **Audio/HUD resilience** — H10, M15, M16, M18.
+6. **Deck UX recovery + bounds** — M17, M19, L22-L26.
