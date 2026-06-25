@@ -20,8 +20,8 @@ Most findings are **one failure family**: an EventEmitter/stream emits `'error'`
 | # | Status | Title | Location | Trigger → Mechanism | Fix direction |
 |---|--------|-------|----------|---------------------|---------------|
 | C1 | FIXED | SerialPort has no `'error'` listener | `lib/transport.ts:95-100` + store sites (`:163`, `:215-217`) | Module yanked mid-frame / power-cycle surfaces async EIO on the fd; zero listeners → `uncaughtException` kills daemon. Sibling of the shipped fix. `try/catch` around writes does **not** catch out-of-band stream errors. | Attach persistent `port.on('error', …)` in `openPort` that logs + evicts the port. |
-| C2 | OPEN | Deck server has no `uncaughtException`/`unhandledRejection` handler | `cli/index.ts:709-726`, `deck/server.ts:737` | Any unhandled deck-side fault terminates the whole process (HTTP+WS+Twitch+proc-stats). Multiplier for H4, H12, C3. | Register process-level handlers in `cmdDeck` mirroring the daemon. |
-| C3 | OPEN | WS connection lacks `ws.on('error')` + ungated deferred `ws.send()` | `deck/server.ts:1902`; sends `2094-2169` | Tab closes mid-`await`; send-after-close emits unhandled `'error'` → with C2, deck down. Most likely deck crash on early disconnect. | Add `ws.on('error', …)` per connection; gate every deferred send on `ws.readyState === 1`. |
+| C2 | FIXED | Deck server has no `uncaughtException`/`unhandledRejection` handler | `cli/index.ts:709-726`, `deck/server.ts:737` | Any unhandled deck-side fault terminates the whole process (HTTP+WS+Twitch+proc-stats). Multiplier for H4, H12, C3. | Register process-level handlers in `cmdDeck` mirroring the daemon. |
+| C3 | FIXED | WS connection lacks `ws.on('error')` + ungated deferred `ws.send()` | `deck/server.ts:1902`; sends `2094-2169` | Tab closes mid-`await`; send-after-close emits unhandled `'error'` → with C2, deck down. Most likely deck crash on early disconnect. | Add `ws.on('error', …)` per connection; gate every deferred send on `ws.readyState === 1`. |
 
 ---
 
@@ -29,7 +29,7 @@ Most findings are **one failure family**: an EventEmitter/stream emits `'error'`
 
 | # | Status | Title | Location | Trigger → Mechanism | Fix direction |
 |---|--------|-------|----------|---------------------|---------------|
-| H4 | OPEN | Browser-opener `spawn` has no `'error'` listener | `cli/index.ts:720` | Headless/minimal host missing `xdg-open` → ENOENT `'error'` unhandled → deck crashes at startup (with C2). | `child.on('error', () => {})` before `unref()`. |
+| H4 | FIXED | Browser-opener `spawn` has no `'error'` listener | `cli/index.ts:720` | Headless/minimal host missing `xdg-open` → ENOENT `'error'` unhandled → deck crashes at startup (with C2). | `child.on('error', () => {})` before `unref()`. |
 | H5 | OPEN | Power-loss config corruption bricks startup | `lib/config.ts:342-359`; non-atomic writes `:364`, `:405` | Truncated `config.json` (interrupted write) throws `ConfigError` (not `ENOENT`) → `process.exit(1)`; won't restart until manual repair. Non-atomic bootstrap can create the corrupt file. | On `ConfigError` at startup back up + re-bootstrap / fall back to `DEFAULT_CONFIG`; make bootstrap writes use `writeJsonAtomic`. |
 | H6 | OPEN | Unbounded IPC read buffer | `daemon/index.ts:1207-1234` | `buf += chunk` only drains on recognized HTTP/JSON frames; non-framed/newline-less input grows `buf` for the connection's life → eventual OOM. | Cap `buf`; destroy the socket past a small threshold without a recognized frame. |
 | H7 | OPEN | SIGHUP `onReload` body is unguarded | `daemon/index.ts:1702-1720` | Config *loader* fails safe, but reload work (brightness/EC/HUD restart) runs outside try/catch; a throw is uncaught. Routine trigger: deck writes config → reload. | Wrap entire `onReload` body in try/catch, log-and-survive. |
@@ -37,7 +37,7 @@ Most findings are **one failure family**: an EventEmitter/stream emits `'error'`
 | H9 | FIXED | `pollModules` reconnect leaks animation loops + never releases stale port | `daemon/index.ts:164-176` | Available→unavailable edge does no `release`; reconnect reuses the dead port and discards the new `runAnimation` disposer → orphaned loops accumulate over replug cycles. | On disconnect edge `await transport.release(dev)`; drive reconnect through the normal resting-state path. |
 | H10 | OPEN | Orphaned daemon audio/HUD hardware on abrupt disconnect | `deck/server.ts:1914-1921` vs `1986/1991` | Last-writer-wins `audioOwnerWs`/`hudOwnerWs` + retry landing `audio-hardware-start` *after* socket close → live `pw-record` + serial animation runs forever with no browser. | Track ownership per-socket; cancel pending retry + stop hardware unconditionally on owning socket close. |
 | H11 | FIXED | Write-after-release race in serial live path | `lib/transport.ts:175-192` vs `250-262` | `release()`/`close()` drain only the enqueue queue, not the live-write machinery → live write hits a just-closed port (escalates to Critical with C1). | Drain/cancel `live` state in `release()`/`close()`; guard `runLive` write against a removed port. |
-| H12 | OPEN | Unguarded async route reject kills the deck | `deck/server.ts` top-level `createServer` cb; e.g. `fs.mkdir` `:1585-1587` | Unwritable/full library dir on a routine asset request → unhandledRejection → with C2, deck down for all clients. | Wrap the whole `createServer` async body in try/catch emitting 500. |
+| H12 | FIXED | Unguarded async route reject kills the deck | `deck/server.ts` top-level `createServer` cb; e.g. `fs.mkdir` `:1585-1587` | Unwritable/full library dir on a routine asset request → unhandledRejection → with C2, deck down for all clients. | Wrap the whole `createServer` async body in try/catch emitting 500. |
 
 ---
 
@@ -68,12 +68,14 @@ Most findings are **one failure family**: an EventEmitter/stream emits `'error'`
 | L26 | OPEN | `runAnimation` has no failure ceiling | `lib/animation.ts:42-56` | A permanently-failing animation issues doomed writes forever (not a crash). |
 | L27 | OPEN | `BinaryTransport` open→write→close swallows post-open port `'error'` | `lib/transport.ts` `openPort` | Pre-existing; if a `serialport` binding emits `'error'` instead of failing the drain callback, `frameBw`/`frameGray` could hang (not crash). Surfaced during Phase 1 review. |
 | L28 | OPEN | Hot-plug maps leak entries for devices removed from config at runtime | `daemon/index.ts` pollModules (`reconnectGreeting`/`devicePending`/`deviceAvailable`) | Bounded by module count (2); a removed device's greeting disposer is never called, so its animation loop runs to natural completion. Surfaced during Phase 1 review. |
+| L29 | OPEN | Deck `console.error` calls leak fs paths / yt-dlp stderr to the journal | `deck/server.ts:959,975,1037` | Pre-existing; now more visible since the H12 wrapper keeps the process alive instead of crashing. Operator stderr only, not HTTP clients. Surfaced during Phase 2 review. |
 
 ---
 
 ## Changelog
 
-- **2026-06-24 — Phase 1 (serial lifecycle) landed.** C1, H8, H9, H11 → FIXED. Commit `f1bb234`, merged to `main` as `0298ed7`. Reviewed by murderbot/watson/10x-js (release() spin-wait deadline, `clearPortMaps`, `LiveState`, `DISCONNECT_CODES` tightened, test de-flake all folded in). New low findings L27, L28 recorded above. Tests: `src/lib/hotplug.test.ts`, `src/lib/transport.test.ts` (EventEmitter mock).
+- **2026-06-24 — Phase 1 (serial lifecycle) landed.** C1, H8, H9, H11 → FIXED. Commit `f1bb234`, merged to `main` as `0298ed7`. Reviewed by murderbot/watson/10x-js (release() spin-wait deadline, `clearPortMaps`, `LiveState`, `DISCONNECT_CODES` tightened, test de-flake all folded in). New low findings L27, L28 recorded above. Tests: `src/lib/hotplug.test.ts`, `src/lib/transport.test.ts` (EventEmitter mock). **Hardware smoke: PASSED** (unplug/replug/flap, all four checks).
+- **2026-06-24 — Phase 2 (deck hardening) landed.** C2, C3, H4, H12 → FIXED. Commit `a098785`, merged to `main` as `38350b3`. Reviewed by murderbot/watson/10x-js (security clean — no client-facing info leak; double-registration guard, `safeSend` consolidation, `res.destroy()` on half-written body, broadcaster comment all folded in). New low finding L29 recorded. **Deliberate decision:** the deck `uncaughtException` handler logs-and-survives (does not exit) — the deck has no supervisor to restart it, and staying up for other clients beats clean-exit; a future fatal-error escalation (exit on repeated faults) is possible but not warranted for a localhost server. Tests: `src/deck/server.test.ts` (WS disconnect + route-reject→500 against the real server), `src/cli/deck-launch.test.ts`.
 
 ---
 
