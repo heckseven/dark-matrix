@@ -6,7 +6,7 @@ import path from 'node:path';
 import os from 'node:os';
 import process from 'node:process';
 import { spawn } from 'node:child_process';
-import { loadConfig, bootstrapConfig, watchConfig, resolveSocketPath } from '../lib/config.js';
+import { loadConfig, bootstrapConfig, backupCorruptConfig, ConfigError, watchConfig, resolveSocketPath } from '../lib/config.js';
 import type { Config } from '../lib/config.js';
 import { DAEMON_WIDGET_REGISTRY } from './widgets/index.js';
 import type { WidgetRenderer, DaemonWidgetContext } from './widgets/types.js';
@@ -83,6 +83,17 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     currentConfig = await loadConfig();
   } catch (err: unknown) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      // First run — no config yet.
+      await bootstrapConfig();
+      currentConfig = await loadConfig();
+    } else if (err instanceof ConfigError) {
+      // Corrupt/invalid config — e.g. a truncated write interrupted by power
+      // loss. Preserve the bad file for inspection and re-bootstrap defaults so
+      // the daemon still starts instead of exiting. This resets `uncalibrated`,
+      // so the welcome/calibration screen reappears — the intended power-loss
+      // recovery behavior (booting beats remembering orientation).
+      const bak = await backupCorruptConfig();
+      process.stderr.write(`dark-matrix: config invalid (${String(err)}); ${bak ? `backed up to ${bak}` : 'backup failed'}, re-bootstrapping defaults\n`);
       await bootstrapConfig();
       currentConfig = await loadConfig();
     } else {
@@ -1723,22 +1734,32 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   await fs.chmod(sockPath, 0o600);
 
   const disposeWatch = watchConfig((cfg) => {
-    // Preserve in-memory hud — it's driven by hud-config messages and never written to disk.
-    currentConfig = { ...cfg, ...(currentConfig.hud ? { hud: currentConfig.hud } : {}) };
-    triggerEngine.updatePresets(cfg.hud_presets ?? []);
-    disposeBrightness();
-    disposeBrightness = startBrightnessLoop(currentConfig, async (pct) => {
-      currentBrightness = pct;
-      await setBrightness(pct);
-    });
-    disposeEcSwitches();
-    disposeEcSwitches = startEcSwitches();
-    // Restart the resting HUD if it's currently showing so it picks up any
-    // changed hud / module settings. Don't clobber a running audio EQ — the cast
-    // visualizer writes its selection to config, and that save must not knock the
-    // modules back to HUD while the EQ is the active driver.
-    if (!hudHardwareActive && !frameHeldLeft && !frameHeldRight && !dispatcher.current() && currentAnimName !== 'audio-eq') {
-      startRestingState();
+    // Defense in depth: watchConfig already catches a throwing reload, but guard
+    // here too so a fault while re-applying settings (brightness/EC/HUD restart)
+    // can never crash the running daemon — keep serving on the prior state.
+    try {
+      // Preserve in-memory hud — it's driven by hud-config messages and never written to disk.
+      currentConfig = { ...cfg, ...(currentConfig.hud ? { hud: currentConfig.hud } : {}) };
+      triggerEngine.updatePresets(cfg.hud_presets ?? []);
+      disposeBrightness();
+      disposeBrightness = startBrightnessLoop(currentConfig, async (pct) => {
+        currentBrightness = pct;
+        await setBrightness(pct);
+      });
+      disposeEcSwitches();
+      disposeEcSwitches = startEcSwitches();
+      // Restart the resting HUD if it's currently showing so it picks up any
+      // changed hud / module settings. Don't clobber a running audio EQ — the cast
+      // visualizer writes its selection to config, and that save must not knock the
+      // modules back to HUD while the EQ is the active driver.
+      if (!hudHardwareActive && !frameHeldLeft && !frameHeldRight && !dispatcher.current() && currentAnimName !== 'audio-eq') {
+        startRestingState();
+      }
+    } catch (err) {
+      // The reload may have been partially applied (e.g. the brightness loop
+      // disposed before its replacement started), but a half-applied config is
+      // far better than a dead daemon — keep serving.
+      process.stderr.write(`dark-matrix: config reload partially applied, keeping daemon running: ${String(err)}\n`);
     }
   });
 
