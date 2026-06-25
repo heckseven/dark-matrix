@@ -102,6 +102,42 @@ describe('deck server', () => {
     expect(JSON.parse(body)).toMatchObject({ ok: true, version: 1 });
   });
 
+  it('survives a client that disconnects mid-message (C3)', async () => {
+    const { WebSocket } = await import('ws');
+    const wsUrl = server.url.replace('http', 'ws') + '/ws';
+    const client = new WebSocket(wsUrl);
+    await new Promise<void>((resolve, reject) => {
+      client.on('open', () => resolve());
+      client.on('error', reject);
+    });
+    // Trigger an async handler that issues a deferred send, then abruptly drop
+    // the socket so the send would land after close. With the safeSend guard +
+    // per-connection 'error' listener, this must not crash the server (an
+    // unhandled ws 'error' would surface as an uncaughtException here).
+    client.send(JSON.stringify({ type: 'hud-presets-get' }));
+    client.terminate();
+    await new Promise<void>(r => setTimeout(r, 50));
+    const { status } = await get(`${server.url}/api/health`);
+    expect(status).toBe(200);
+  });
+
+  it('returns 500 instead of crashing when a route rejects uncaught (H12)', async () => {
+    // Root ignores file permissions, so the unwritable-dir trigger won't fire.
+    if (typeof process.getuid === 'function' && process.getuid() === 0) return;
+    // Make the config dir unwritable so /api/assets' mkdir rejects uncaught and
+    // hits the createServer wrapper (which must answer 500, not die).
+    await fs.chmod(configDir, 0o500);
+    try {
+      const { status } = await get(`${server.url}/api/assets`);
+      expect(status).toBe(500);
+      // The server is still serving other requests.
+      const health = await get(`${server.url}/api/health`);
+      expect(health.status).toBe(200);
+    } finally {
+      await fs.chmod(configDir, 0o700);
+    }
+  });
+
   it('stops cleanly', async () => {
     await server.stop();
     // second stop is a no-op test — just verify no throw

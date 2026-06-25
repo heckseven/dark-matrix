@@ -707,6 +707,20 @@ async function cmdLife(args: string[]): Promise<void> {
 }
 
 async function cmdDeck(args: string[]): Promise<void> {
+  // Deck-process safety net: a stray client-side fault — a WebSocket 'error'
+  // after a tab closes, an unhandled rejection in an async route — must not take
+  // the server (and every other connected client) down. Persistent `.on` (not
+  // the daemon's `.once`+exit): the deck has no supervisor to restart it, so it
+  // logs and stays alive. Guard against double-registration if cmdDeck re-runs.
+  if (process.listenerCount('uncaughtException') === 0) {
+    process.on('uncaughtException', (err) => {
+      process.stderr.write(`dark-matrix deck: uncaughtException: ${err instanceof Error ? err.stack ?? err.message : String(err)}\n`);
+    });
+    process.on('unhandledRejection', (reason) => {
+      process.stderr.write(`dark-matrix deck: unhandledRejection: ${reason instanceof Error ? reason.stack ?? reason.message : String(reason)}\n`);
+    });
+  }
+
   const portIdx = args.indexOf('--port');
   const port = portIdx !== -1 ? parseInt(args[portIdx + 1] ?? '7340', 10) : 7340;
   const { startDeckServer } = await import('../deck/server.js');
@@ -718,6 +732,9 @@ async function cmdDeck(args: string[]): Promise<void> {
     : process.platform === 'win32' ? 'start'
     : 'xdg-open';
   const child = spawn(opener, [openUrl], { stdio: 'ignore', detached: true });
+  // A missing opener (headless host) emits an async 'error' — without a listener
+  // that becomes an uncaughtException; swallow it (the URL is already printed).
+  child.on('error', () => { /* opener unavailable — non-fatal */ });
   child.unref();
 
   const shutdown = async () => { await server.stop(); process.exit(0); };
