@@ -24,14 +24,18 @@ vi.mock('node:child_process', () => ({
   spawn: vi.fn(),
 }));
 
-// Mock SerialPort for BinaryTransport frame tests
-vi.mock('serialport', () => {
-  const mockPort = {
+// Mock SerialPort. It is a real EventEmitter so an unhandled 'error' authentically
+// throws (Node semantics) — this is what proves the C1 fix attaches a listener.
+// The constructor returns a single shared port; existing tests configure it via
+// _mockPort before constructing.
+vi.mock('serialport', async () => {
+  const { EventEmitter } = await import('node:events');
+  const mockPort = Object.assign(new EventEmitter(), {
     open: vi.fn((cb: (err?: Error) => void) => cb()),
     write: vi.fn((data: unknown, cb: (err?: Error) => void) => cb()),
     drain: vi.fn((cb: (err?: Error) => void) => cb()),
     close: vi.fn((cb: (err?: Error) => void) => cb()),
-  };
+  });
   return {
     SerialPort: vi.fn(() => mockPort),
     _mockPort: mockPort,
@@ -68,7 +72,7 @@ describe('BinaryTransport', () => {
   beforeEach(() => {
     mockedSpawn.mockReset();
     // Reset serialport mock
-    const mock = (serialportMod as unknown as { _mockPort: ReturnType<typeof makeMockPort> })._mockPort;
+    const mock = (serialportMod as unknown as { _mockPort: PortMock })._mockPort;
     if (mock) {
       mock.open.mockClear();
       mock.write.mockClear();
@@ -203,7 +207,7 @@ describe('SerialTransport brightness', () => {
   it('writes 4-byte brightness packet: magic + 0x00 + clamped pct', async () => {
     const { SerialPort: MockSP, _mockPort } = serialportMod as unknown as {
       SerialPort: ReturnType<typeof vi.fn>;
-      _mockPort: ReturnType<typeof makeMockPort>;
+      _mockPort: PortMock;
     };
     MockSP.mockClear();
     _mockPort.open.mockImplementation((cb: (err?: Error) => void) => cb());
@@ -226,7 +230,7 @@ describe('SerialTransport brightness', () => {
 
   it('clamps brightness to [0, 100]', async () => {
     const { _mockPort } = serialportMod as unknown as {
-      _mockPort: ReturnType<typeof makeMockPort>;
+      _mockPort: PortMock;
     };
     _mockPort.write.mockClear();
     _mockPort.write.mockImplementation((data: unknown, cb: (err?: Error) => void) => cb());
@@ -240,13 +244,113 @@ describe('SerialTransport brightness', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Helpers for type narrowing
+// SerialTransport lifecycle — disconnect / eviction / release (Phase 1: C1,H8,H11)
 // ---------------------------------------------------------------------------
-function makeMockPort() {
-  return {
-    open: vi.fn((cb: (err?: Error) => void) => cb()),
-    write: vi.fn((data: unknown, cb: (err?: Error) => void) => cb()),
-    drain: vi.fn((cb: (err?: Error) => void) => cb()),
-    close: vi.fn((cb: (err?: Error) => void) => cb()),
+type PortMock = {
+  open: ReturnType<typeof vi.fn>;
+  write: ReturnType<typeof vi.fn>;
+  drain: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn>;
+  on(event: string, cb: (...a: unknown[]) => void): unknown;
+  emit(event: string, ...args: unknown[]): boolean;
+  removeAllListeners(): unknown;
+  listenerCount(event: string): number;
+};
+
+function lifecycleMocks() {
+  return serialportMod as unknown as {
+    SerialPort: ReturnType<typeof vi.fn>;
+    _mockPort: PortMock;
   };
 }
+
+function errWithCode(code: string): NodeJS.ErrnoException {
+  const e = new Error(code) as NodeJS.ErrnoException;
+  e.code = code;
+  return e;
+}
+
+describe('SerialTransport lifecycle', () => {
+  beforeEach(() => {
+    const { SerialPort, _mockPort } = lifecycleMocks();
+    SerialPort.mockClear();
+    _mockPort.removeAllListeners();
+    _mockPort.open.mockReset().mockImplementation((cb: (err?: Error) => void) => cb());
+    _mockPort.write.mockReset().mockImplementation((_d: unknown, cb: (err?: Error) => void) => cb());
+    _mockPort.drain.mockReset().mockImplementation((cb: (err?: Error) => void) => cb());
+    _mockPort.close.mockReset().mockImplementation((cb: (err?: Error) => void) => cb());
+  });
+
+  it('C1: an out-of-band port error does not throw (a listener is attached)', async () => {
+    const { _mockPort } = lifecycleMocks();
+    const t = new SerialTransport();
+    await t.liveFrameBw(makePacked(0x01), VALID_PATH);
+    // Real EventEmitter: emitting 'error' with no listener would throw. The fix
+    // attaches one (openPort swallow + getPort eviction), so this must not throw.
+    expect(_mockPort.listenerCount('error')).toBeGreaterThan(0);
+    expect(() => _mockPort.emit('error', errWithCode('EIO'))).not.toThrow();
+  });
+
+  it('C1/H8: a port error evicts the port so the next write re-opens it', async () => {
+    const { SerialPort, _mockPort } = lifecycleMocks();
+    const t = new SerialTransport();
+    await t.liveFrameBw(makePacked(0x01), VALID_PATH);
+    expect(SerialPort).toHaveBeenCalledTimes(1);
+
+    _mockPort.emit('error', errWithCode('EIO')); // unplug
+    await new Promise<void>(r => setImmediate(r)); // let evict() closePort settle
+    expect(_mockPort.close).toHaveBeenCalled();
+
+    // Next write must re-open (construct) rather than reuse the dead port.
+    await t.liveFrameBw(makePacked(0x02), VALID_PATH);
+    expect(SerialPort).toHaveBeenCalledTimes(2);
+  });
+
+  it('H8: a disconnect-class write failure evicts; a transient one does not', async () => {
+    const { SerialPort, _mockPort } = lifecycleMocks();
+    const t = new SerialTransport();
+
+    // Transient error (ETIMEDOUT) — must NOT evict. (frameBw rejects on write
+    // failure; the daemon wraps these in try/catch, so the test does too.)
+    _mockPort.write.mockImplementationOnce((_d: unknown, cb: (err?: Error) => void) => cb(errWithCode('ETIMEDOUT')));
+    await t.frameBw(makePacked(0x01), VALID_PATH).catch(() => {});
+    await new Promise<void>(r => setImmediate(r));
+    await t.frameBw(makePacked(0x02), VALID_PATH);
+    expect(SerialPort).toHaveBeenCalledTimes(1); // still the same port
+
+    // Disconnect error (EIO) — must evict so the next write re-opens.
+    _mockPort.write.mockImplementationOnce((_d: unknown, cb: (err?: Error) => void) => cb(errWithCode('EIO')));
+    await t.frameBw(makePacked(0x03), VALID_PATH).catch(() => {});
+    await new Promise<void>(r => setImmediate(r));
+    await t.frameBw(makePacked(0x04), VALID_PATH);
+    expect(SerialPort).toHaveBeenCalledTimes(2);
+  });
+
+  it('H11: release() drops a queued live write instead of writing to a closed port', async () => {
+    const { _mockPort } = lifecycleMocks();
+    // Hold the in-flight write open via a gate the test controls, so release()
+    // deterministically runs while a write is pending (no timer race).
+    let releaseWrite!: () => void;
+    const writeGate = new Promise<void>(r => { releaseWrite = r; });
+    _mockPort.write.mockImplementationOnce((_d: unknown, cb: (err?: Error) => void) => { void writeGate.then(() => cb()); });
+    const t = new SerialTransport();
+
+    const first = t.liveFrameBw(makePacked(0xa1), VALID_PATH); // write pending on the gate
+    await new Promise<void>(r => setImmediate(r));
+    void t.liveFrameBw(makePacked(0xb2), VALID_PATH);          // queued in state.next
+    const releasing = t.release(VALID_PATH);                  // waits for `writing` to clear
+    releaseWrite();                                           // let the in-flight write finish
+    await releasing;
+    await first.catch(() => {});
+
+    // release() drains the in-flight write before returning, so the write count
+    // is stable: only the first frame was written; the queued one was dropped.
+    expect(_mockPort.write).toHaveBeenCalledTimes(1);
+    expect(_mockPort.close).toHaveBeenCalledTimes(1);
+
+    // A write after release re-opens a fresh port (no reuse of the closed one).
+    await t.liveFrameBw(makePacked(0xc3), VALID_PATH);
+    expect(_mockPort.write).toHaveBeenCalledTimes(2);
+  });
+});
+

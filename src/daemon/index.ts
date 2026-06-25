@@ -22,6 +22,7 @@ import { watchMic } from '../lib/mic-source.js';
 import { Dispatcher, ecSwitchIntent, vmIntent, claudeIntent, notificationIntent, batteryIntent } from '../lib/dispatcher.js';
 import { routeNotification } from '../lib/notification-routing.js';
 import { SerialTransport } from '../lib/transport.js';
+import { hotplugEdge, type HotplugPending } from '../lib/hotplug.js';
 import { runAnimation } from '../lib/animation.js';
 import { createStartupAnimation } from '../animations/startup.js';
 import { createScrollAnimation } from '../animations/scroll.js';
@@ -151,8 +152,16 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     return [left, right].filter(Boolean) as string[];
   }
 
-  // Hot-plug: track which devices were last seen as available.
+  // Hot-plug: `deviceAvailable` is the committed (debounced) availability,
+  // consumed by status reporting. `devicePending` carries the debounce counter
+  // so a flapping by-path symlink can't trigger a release/reopen storm.
   const deviceAvailable = new Map<string, boolean>();
+  const HOTPLUG_STABLE_POLLS = 3; // × 500 ms poll = 1.5 s debounce before acting on an edge
+  const devicePending = new Map<string, HotplugPending>();
+  // Disposer for each device's reconnect "wipe" greeting, so a repeated replug
+  // stops the prior greeting loop instead of orphaning it. runAnimation's
+  // disposer returns a Promise (that never rejects); void it at the call sites.
+  const reconnectGreeting = new Map<string, () => Promise<void>>();
 
   // Pre-populate so devices present at startup aren't treated as reconnects.
   for (const dev of getModulePaths()) {
@@ -165,13 +174,27 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     for (const dev of getModulePaths()) {
       let available = false;
       try { await fs.access(dev); available = true; } catch { /* unavailable */ }
-      const prev = deviceAvailable.get(dev) ?? false;
-      if (available && !prev) {
-        process.stderr.write(`dark-matrix: module reconnected: ${dev}\n`);
-        const anim = createStartupAnimation({ style: 'wipe' });
-        runAnimation(anim, { transport, devicePath: dev, mode: 'bw' });
-      }
+
+      const { edge, pending } = hotplugEdge(
+        available, deviceAvailable.get(dev) ?? false, devicePending.get(dev), HOTPLUG_STABLE_POLLS,
+      );
+      if (pending) devicePending.set(dev, pending); else devicePending.delete(dev);
+      if (!edge) continue;
+
+      // Edge confirmed and stable — commit it.
       deviceAvailable.set(dev, available);
+      if (edge === 'connected') {
+        process.stderr.write(`dark-matrix: module reconnected: ${dev}\n`);
+        void reconnectGreeting.get(dev)?.();
+        const anim = createStartupAnimation({ style: 'wipe' });
+        reconnectGreeting.set(dev, runAnimation(anim, { transport, devicePath: dev, mode: 'bw' }));
+      } else {
+        process.stderr.write(`dark-matrix: module disconnected: ${dev}\n`);
+        void reconnectGreeting.get(dev)?.();
+        reconnectGreeting.delete(dev);
+        // Close + evict the stale port so a later reconnect re-opens cleanly.
+        await transport.release(dev);
+      }
     }
   }
 

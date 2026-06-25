@@ -95,8 +95,27 @@ function writePort(port: SerialPort, data: Uint8Array): Promise<void> {
 function openPort(devicePath: string): Promise<SerialPort> {
   return new Promise((resolve, reject) => {
     const port = new SerialPort({ path: devicePath, baudRate: 921600, autoOpen: false });
+    // Keep a permanent 'error' listener so an asynchronous device error (EIO on
+    // unplug, EBADF after close) is never re-emitted as an uncaughtException.
+    // Write/drain failures still surface through their callbacks; this only
+    // catches out-of-band stream errors. SerialTransport's getPort() adds a
+    // second listener that also evicts the dead port from internal state (so a
+    // SerialTransport port has two listeners — both intentional); BinaryTransport
+    // relies on this one alone.
+    port.on('error', () => { /* swallowed — failures surface via writePort callbacks */ });
     port.open((err) => (err ? reject(err) : resolve(port)));
   });
+}
+
+// Errors whose code unambiguously means the serial device is gone — the port
+// must be evicted and re-opened rather than reused. Transient errors (ETIMEDOUT,
+// EAGAIN, EBUSY) and socket-class codes (EPIPE/ECONNRESET, which can fire on a
+// momentary serial overrun) are excluded so a brief glitch doesn't close the
+// port and DTR-reset the module display.
+const DISCONNECT_CODES = new Set(['EIO', 'ENXIO', 'ENODEV', 'EBADF', 'EUNATCH']);
+function isDisconnectError(err: unknown): boolean {
+  const code = (err as NodeJS.ErrnoException | undefined)?.code;
+  return code !== undefined && DISCONNECT_CODES.has(code);
 }
 
 function closePort(port: SerialPort): Promise<void> {
@@ -159,22 +178,47 @@ export class BinaryTransport implements MatrixTransport {
 // liveFrameBw/liveFrameGray use latest-wins semantics: a new frame replaces
 // any pending (not yet started) write rather than queueing behind it.
 // ---------------------------------------------------------------------------
+// Per-device live-write state. `dead` is set when the port is evicted
+// (disconnect) or released; a running runLive loop holds this object by
+// reference and stops on the next check.
+interface LiveState {
+  next: (() => Promise<void>) | null;
+  writing: boolean;
+  dead: boolean;
+}
+
+// Upper bound on how long release() waits for an in-flight live write to unwind
+// before closing the port anyway — guards against a wedged driver whose write
+// callback never fires (which would otherwise hang shutdown).
+const LIVE_DRAIN_TIMEOUT_MS = 5000;
+
 export class SerialTransport implements MatrixTransport {
   private readonly ports = new Map<string, SerialPort>();
   private readonly opening = new Map<string, Promise<SerialPort>>();
   private readonly queues = new Map<string, Promise<void>>();
-  private readonly live = new Map<string, { next: (() => Promise<void>) | null; writing: boolean }>();
+  private readonly live = new Map<string, LiveState>();
 
-  private enqueue(devicePath: string, op: () => Promise<void>): Promise<void> {
+  // Remove a device from every per-port map. Shared by evict() and release().
+  private clearPortMaps(devicePath: string): void {
+    this.ports.delete(devicePath);
+    this.opening.delete(devicePath);
+    this.queues.delete(devicePath);
+    this.live.delete(devicePath);
+  }
+
+  private enqueue(devicePath: string, port: SerialPort, op: () => Promise<void>): Promise<void> {
     const tail = (this.queues.get(devicePath) ?? Promise.resolve()).then(op);
     // Keep queue moving even if op rejects
     this.queues.set(devicePath, tail.catch(() => {}));
+    // Evict on a disconnect-class failure so the next write re-opens the port.
+    tail.catch((err) => { if (isDisconnectError(err)) void this.evict(devicePath, port); });
     return tail;
   }
 
-  private async runLive(devicePath: string, op: () => Promise<void>): Promise<void> {
+  private async runLive(devicePath: string, port: SerialPort, op: () => Promise<void>): Promise<void> {
     let state = this.live.get(devicePath);
-    if (!state) { state = { next: null, writing: false }; this.live.set(devicePath, state); }
+    if (!state) { state = { next: null, writing: false, dead: false }; this.live.set(devicePath, state); }
+    if (state.dead) return;
     if (state.writing) { state.next = op; return; }
     state.writing = true;
     // Drain any in-flight enqueue writes (e.g. last animation frame) before
@@ -182,10 +226,15 @@ export class SerialTransport implements MatrixTransport {
     await (this.queues.get(devicePath) ?? Promise.resolve()).catch(() => {});
     // A newer op may have arrived while draining — use it if so.
     let cur = state.next ?? op;
-    while (true) {
+    while (!state.dead) {
       state.next = null;
-      await cur().catch(() => {});
-      if (!state.next) break;
+      await cur().catch((err) => {
+        // A disconnect-class failure: stop this loop and evict the port. Set
+        // `dead` directly too, so the loop halts even if evict() no-ops because
+        // a newer port already replaced this one.
+        if (isDisconnectError(err)) { state.dead = true; void this.evict(devicePath, port); }
+      });
+      if (state.dead || !state.next) break;
       cur = state.next;
     }
     state.writing = false;
@@ -194,13 +243,13 @@ export class SerialTransport implements MatrixTransport {
   async liveFrameBw(packed: Uint8Array, devicePath: string): Promise<void> {
     validatePath(devicePath);
     const port = await this.getPort(devicePath);
-    return this.runLive(devicePath, () => writePort(port, buildBwPacket(packed)));
+    return this.runLive(devicePath, port, () => writePort(port, buildBwPacket(packed)));
   }
 
   async liveFrameGray(frame: Frame, devicePath: string): Promise<void> {
     validatePath(devicePath);
     const port = await this.getPort(devicePath);
-    return this.runLive(devicePath, async () => {
+    return this.runLive(devicePath, port, async () => {
       for (const pkt of buildGrayPackets(frame)) {
         await writePort(port, pkt);
       }
@@ -213,6 +262,9 @@ export class SerialTransport implements MatrixTransport {
     const inflight = this.opening.get(devicePath);
     if (inflight) return inflight;
     const promise = openPort(devicePath).then(port => {
+      // Evict-on-error: a device error (unplug) closes and removes the port so
+      // the next getPort re-opens it, instead of caching a dead port forever.
+      port.on('error', () => { void this.evict(devicePath, port); });
       this.ports.set(devicePath, port);
       this.queues.set(devicePath, Promise.resolve());
       this.opening.delete(devicePath);
@@ -225,16 +277,27 @@ export class SerialTransport implements MatrixTransport {
     return promise;
   }
 
+  // Remove a dead port from all internal state and close it. Port-scoped so a
+  // stale handler can't evict a newer port that already replaced this one. A
+  // running runLive loop observes `state.dead` (held by reference) and unwinds.
+  private evict(devicePath: string, port: SerialPort): Promise<void> {
+    if (this.ports.get(devicePath) !== port) return Promise.resolve();
+    const state = this.live.get(devicePath);
+    if (state) { state.dead = true; state.next = null; }
+    this.clearPortMaps(devicePath);
+    return closePort(port);
+  }
+
   async frameBw(packed: Uint8Array, devicePath: string): Promise<void> {
     validatePath(devicePath);
     const port = await this.getPort(devicePath);
-    return this.enqueue(devicePath, () => writePort(port, buildBwPacket(packed)));
+    return this.enqueue(devicePath, port, () => writePort(port, buildBwPacket(packed)));
   }
 
   async frameGray(frame: Frame, devicePath: string): Promise<void> {
     validatePath(devicePath);
     const port = await this.getPort(devicePath);
-    return this.enqueue(devicePath, async () => {
+    return this.enqueue(devicePath, port, async () => {
       for (const pkt of buildGrayPackets(frame)) {
         await writePort(port, pkt);
       }
@@ -244,20 +307,30 @@ export class SerialTransport implements MatrixTransport {
   async brightness(devicePath: string, pct: number): Promise<void> {
     validatePath(devicePath);
     const port = await this.getPort(devicePath);
-    return this.enqueue(devicePath, () => writePort(port, buildBrightnessPacket(pct)));
+    return this.enqueue(devicePath, port, () => writePort(port, buildBrightnessPacket(pct)));
   }
 
   async release(devicePath: string): Promise<void> {
-    const port = this.ports.get(devicePath);
-    if (!port) return;
+    // Stop the live loop first so it can't write to a port we're about to close.
+    const state = this.live.get(devicePath);
+    if (state) { state.dead = true; state.next = null; }
+    // Let queued writes finish, then wait for an in-flight live write to observe
+    // `dead` and unwind before closing the port — but cap the wait: a wedged
+    // driver can leave a write callback unfired, and we must not hang shutdown.
+    // After the deadline, close anyway (closePort tolerates EBADF).
     await (this.queues.get(devicePath) ?? Promise.resolve()).catch(() => {});
-    await closePort(port);
-    this.ports.delete(devicePath);
-    this.queues.delete(devicePath);
+    const deadline = Date.now() + LIVE_DRAIN_TIMEOUT_MS;
+    while (this.live.get(devicePath)?.writing && Date.now() < deadline) {
+      await new Promise<void>(r => setTimeout(r, 5));
+    }
+    const port = this.ports.get(devicePath);
+    this.clearPortMaps(devicePath);
+    if (port) await closePort(port);
   }
 
   async close(): Promise<void> {
     this.opening.clear();
-    await Promise.all([...this.ports.keys()].map((p) => this.release(p)));
+    const paths = new Set([...this.ports.keys(), ...this.live.keys()]);
+    await Promise.all([...paths].map((p) => this.release(p)));
   }
 }
