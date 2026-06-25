@@ -84,6 +84,32 @@ describe('daemon', () => {
     await fs.unlink(cfgPath + '.bak').catch(() => {});
   });
 
+  it('drops a connection that floods the IPC buffer, and stays alive (H6)', async () => {
+    await withDaemon(async () => {
+      // Stream >1MB of unframed, newline-less bytes (not JSON, not HTTP).
+      await new Promise<void>((resolve, reject) => {
+        const sock = net.createConnection(sockPath);
+        sock.on('connect', () => sock.write('x'.repeat(1_100_000)));
+        sock.on('close', () => resolve());   // daemon destroyed our connection
+        sock.on('error', () => resolve());    // ECONNRESET on destroy is also fine
+        setTimeout(() => reject(new Error('flooding connection was not dropped')), 3000);
+      });
+      // The daemon survived and still serves a fresh client.
+      const res = await send(sockPath, { cmd: 'ping' });
+      expect(res).toMatchObject({ ok: true, pong: true });
+    });
+  });
+
+  it('does not leak fatal-error listeners across restarts (M13)', async () => {
+    const beforeUncaught = process.listenerCount('uncaughtException');
+    const beforeRejection = process.listenerCount('unhandledRejection');
+    const dispose = await startDaemon();
+    await dispose();
+    // The disposer's process.off removes both handlers despite the .on registration.
+    expect(process.listenerCount('uncaughtException')).toBe(beforeUncaught);
+    expect(process.listenerCount('unhandledRejection')).toBe(beforeRejection);
+  });
+
   it('ping returns { ok: true, pong: true }', async () => {
     await withDaemon(async () => {
       const res = await send(sockPath, { cmd: 'ping' });

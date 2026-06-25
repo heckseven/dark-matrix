@@ -15,6 +15,16 @@ export type RunOptions = {
   fps?: number;
 };
 
+// Advance a wall-clock frame anchor by one frame, but resync to now if we've
+// already fallen behind. Without this, a large clock jump (suspend/resume) leaves
+// `nextAt` far in the past and the loop runs flat-out catching up — a burst of
+// stale frames. Resyncing caps the catch-up at a single frame.
+export function nextFrameAnchor(nextAt: number, frameMs: number): number {
+  const advanced = nextAt + frameMs;
+  const now = Date.now();
+  return advanced < now ? now : advanced;
+}
+
 // Runs an animation, pulling frames from the async iterator and sending to
 // transport at the target fps. Frame timing is wall-clock anchored (not
 // chained) so late frames don't compound delay.
@@ -50,7 +60,7 @@ export function runAnimation(anim: Animation, opts: RunOptions, onNaturalComplet
         // transport errors are non-fatal — keep the loop alive
       }
 
-      nextAt += frameMs;
+      nextAt = nextFrameAnchor(nextAt, frameMs);
       const wait = nextAt - Date.now();
       if (wait > 0) await new Promise<void>(r => setTimeout(r, wait));
     }

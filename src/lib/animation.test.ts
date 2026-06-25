@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { runAnimation } from './animation.js';
+import { runAnimation, nextFrameAnchor } from './animation.js';
 import type { Animation } from './animation.js';
 import { createFrame } from './frame.js';
 import type { MatrixTransport } from './transport.js';
@@ -31,6 +31,27 @@ function makeAnimation(frameCount: number): Animation {
     },
   };
 }
+
+describe('nextFrameAnchor (M21 suspend/resume)', () => {
+  it('advances by one frame when the anchor is on schedule', () => {
+    const frameMs = 1000 / 30;
+    const anchor = Date.now() + 100;               // anchor in the near future
+    expect(nextFrameAnchor(anchor, frameMs)).toBeCloseTo(anchor + frameMs, 0);
+  });
+
+  it('resyncs to now after a large clock jump instead of bursting catch-up frames', () => {
+    const frameMs = 1000 / 30;
+    const stale = Date.now() - 60_000;             // anchor 60s in the past (resume)
+    // Bracket the internal Date.now() so the assertion can't race a loaded runner.
+    const before = Date.now();
+    const next = nextFrameAnchor(stale, frameMs);
+    const after = Date.now();
+    // Would be ~60s behind if it just added one frame; instead it jumps to ~now,
+    // so the loop renders one frame and resumes normal pacing (no burst).
+    expect(next).toBeGreaterThanOrEqual(before);
+    expect(next).toBeLessThanOrEqual(after);
+  });
+});
 
 describe('runAnimation', () => {
   beforeEach(() => vi.useFakeTimers());

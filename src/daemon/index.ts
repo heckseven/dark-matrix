@@ -23,7 +23,7 @@ import { Dispatcher, ecSwitchIntent, vmIntent, claudeIntent, notificationIntent,
 import { routeNotification } from '../lib/notification-routing.js';
 import { SerialTransport } from '../lib/transport.js';
 import { hotplugEdge, type HotplugPending } from '../lib/hotplug.js';
-import { runAnimation } from '../lib/animation.js';
+import { runAnimation, nextFrameAnchor } from '../lib/animation.js';
 import { createStartupAnimation } from '../animations/startup.js';
 import { createScrollAnimation } from '../animations/scroll.js';
 import { createGolAnimation } from '../animations/gol.js';
@@ -76,6 +76,13 @@ function extractHttpBody(data: string): string | null {
   if (sep === -1) return null;
   return data.slice(sep + 4);
 }
+
+// Bound per-connection IPC read buffering and total concurrent connections so a
+// misbehaving local peer can't OOM the daemon. A hook body or JSON-line frame is
+// far under the buffer cap; the connection cap sits well above any legitimate
+// client set (deck + audio-viz subscribers + transient CLI/hook posters).
+const MAX_IPC_BUFFER_BYTES = 1024 * 1024;
+const MAX_IPC_CONNECTIONS = 32;
 
 export async function startDaemon(): Promise<() => Promise<void>> {
   let currentConfig: Config;
@@ -281,7 +288,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         const [cl, cr] = composeFrames([leftFrame, rightFrame], activeOverlay);
         try { if (left) await transport.frameBw(packBW(cl), left); } catch { /* non-fatal */ }
         try { if (right) await transport.frameBw(packBW(cr), right); } catch { /* non-fatal */ }
-        nextAt += frameMs;
+        nextAt = nextFrameAnchor(nextAt, frameMs);
         const wait = nextAt - Date.now();
         if (wait > 0) await new Promise<void>(r => setTimeout(r, wait));
       }
@@ -314,7 +321,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         const [cl, cr] = composeFrames([lf, rf], activeOverlay);
         try { if (left) await transport.frameBw(packBW(cl), left); } catch { /* non-fatal */ }
         try { if (right) await transport.frameBw(packBW(cr), right); } catch { /* non-fatal */ }
-        nextAt += frameMs;
+        nextAt = nextFrameAnchor(nextAt, frameMs);
         const wait = nextAt - Date.now();
         if (wait > 0) await new Promise<void>(r => setTimeout(r, wait));
       }
@@ -746,7 +753,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
           if (stoppedScroll || result.done) break;
           const [lf, rf] = result.value;
           setActiveOverlay({ left: lf, right: rf, mode: intent.overlayMode ?? 'replace', stripStart: replaceStart, stripEnd: replaceEnd });
-          nextAt += frameMs;
+          nextAt = nextFrameAnchor(nextAt, frameMs);
           const wait = nextAt - Date.now();
           if (wait > 0) await new Promise<void>(r => setTimeout(r, wait));
         }
@@ -795,7 +802,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         const lf = side !== 'right' ? rendL.render(now) : null;
         const rf = side !== 'left' ? rendR.render(now) : null;
         setActiveOverlay({ left: lf, right: rf, mode: intent.overlayMode ?? 'replace', stripStart: replaceStart, stripEnd: replaceEnd });
-        nextAt += frameMs;
+        nextAt = nextFrameAnchor(nextAt, frameMs);
         const wait = nextAt - Date.now();
         if (wait > 0) await new Promise<void>(r => setTimeout(r, wait));
       }
@@ -1239,7 +1246,19 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       if (!expected) process.stderr.write(`dark-matrix: socket error: ${err.code ?? String(err)}\n`);
     });
     socket.on('data', (chunk) => {
+     try {
+      // A chunk already queued by the kernel can arrive after we destroy below;
+      // ignore it instead of re-growing the buffer.
+      if (socket.destroyed) return;
       buf += chunk.toString();
+
+      // H6: drop a connection that streams unframed data past the cap, instead
+      // of letting `buf` grow without bound (OOM).
+      if (buf.length > MAX_IPC_BUFFER_BYTES) {
+        process.stderr.write(`dark-matrix: IPC buffer exceeded ${MAX_IPC_BUFFER_BYTES} bytes without a complete frame; dropping connection\n`);
+        socket.destroy();
+        return;
+      }
 
       // HTTP POST /hook (Claude activity)
       const body = extractHttpBody(buf);
@@ -1721,8 +1740,20 @@ export async function startDaemon(): Promise<() => Promise<void>> {
           }
         }
       }
+     } catch (err) {
+       // M14: a throw anywhere in command handling (a renderer onEvent, JSON
+       // serialization, an unexpected access in a switch branch) must not crash
+       // the daemon — the socket 'error' listener does not catch synchronous
+       // throws from a 'data' handler. Reply so a JSON-line caller isn't left
+       // hanging on a response that will never arrive.
+       process.stderr.write(`dark-matrix: IPC data handler error: ${String(err)}\n`);
+       if (socket.writable) socket.write(JSON.stringify({ ok: false, error: 'internal error' }) + '\n');
+     }
     });
   });
+  // Cap concurrent connections so a flooding peer can't multiply the per-socket
+  // buffer cap into an aggregate OOM.
+  server.maxConnections = MAX_IPC_CONNECTIONS;
 
   try { await fs.unlink(sockPath); } catch { /* no stale socket */ }
 
@@ -1853,8 +1884,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
   process.once('SIGTERM', sigterm);
   process.once('SIGINT', sigint);
-  process.once('uncaughtException', uncaught);
-  process.once('unhandledRejection', unhandledRejection);
+  // `.on` not `.once`: a second fault while cleanup() is in flight must still
+  // have a listener (the `exiting` guard makes the re-entry a safe no-op).
+  process.on('uncaughtException', uncaught);
+  process.on('unhandledRejection', unhandledRejection);
 
   return async () => {
     process.off('SIGTERM', sigterm);
