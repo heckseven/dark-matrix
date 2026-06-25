@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import {
-  loadConfig, writeDefaultConfig, watchConfig,
+  loadConfig, writeDefaultConfig, watchConfig, backupCorruptConfig,
   DEFAULT_CONFIG, ConfigError,
   type NotificationRule,
 } from './config.js';
@@ -28,6 +28,30 @@ afterEach(async () => {
 async function write(data: unknown): Promise<void> {
   await fs.writeFile(cfgPath, JSON.stringify(data));
 }
+
+describe('backupCorruptConfig (H5)', () => {
+  it('renames a corrupt config to config.json.bak and returns the path', async () => {
+    await fs.writeFile(cfgPath, '{ truncated');
+    const bak = await backupCorruptConfig();
+    expect(bak).toBe(cfgPath + '.bak');
+    await expect(fs.access(cfgPath)).rejects.toThrow();          // original moved aside
+    expect(await fs.readFile(cfgPath + '.bak', 'utf-8')).toBe('{ truncated'); // bad bytes preserved
+  });
+
+  it('returns null when there is no file to back up', async () => {
+    expect(await backupCorruptConfig()).toBeNull();
+  });
+});
+
+describe('writeDefaultConfig (atomic, H5)', () => {
+  it('writes a valid default config with no leftover temp file', async () => {
+    await writeDefaultConfig();
+    const cfg = await loadConfig();                              // round-trips cleanly
+    expect(cfg.modules.left).toBe(DEFAULT_CONFIG.modules.left);
+    const leftovers = (await fs.readdir(tmpDir)).filter(f => f.includes('.tmp')); // unique temp renamed away
+    expect(leftovers).toEqual([]);
+  });
+});
 
 describe('loadConfig', () => {
   it('parses a valid config file', async () => {

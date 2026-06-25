@@ -281,9 +281,13 @@ export function resolveConfigPath(p?: string): string {
 
 // Write JSON via a temp file + rename so a crash or a concurrent writer never
 // leaves a truncated file. rename() is atomic on the same filesystem.
+let atomicWriteSeq = 0;
 export async function writeJsonAtomic(filePath: string, value: unknown): Promise<void> {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  const tmp = filePath + '.tmp';
+  await fs.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
+  // Unique temp name per writer: two concurrent writers must not share one temp
+  // file (one would overwrite the other before its rename). Whichever renames
+  // last wins atomically — the intended last-writer-wins semantics.
+  const tmp = `${filePath}.tmp.${process.pid}.${++atomicWriteSeq}`;
   await fs.writeFile(tmp, JSON.stringify(value, null, 2) + '\n', { mode: 0o600 });
   await fs.rename(tmp, filePath);
 }
@@ -359,9 +363,26 @@ export async function loadConfig(p?: string): Promise<Config> {
 }
 
 export async function writeDefaultConfig(p?: string): Promise<void> {
+  await writeJsonAtomic(resolveConfigPath(p), DEFAULT_CONFIG);
+}
+
+// Rename a corrupt/invalid config aside so a fresh bootstrap can replace it
+// while preserving the bad file for inspection. Uses `config.json.bak` when
+// free, else a timestamped sibling, so repeated corruption never clobbers an
+// earlier backup. Best-effort; returns the backup path, or null on failure.
+export async function backupCorruptConfig(p?: string): Promise<string | null> {
   const filePath = resolveConfigPath(p);
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, JSON.stringify(DEFAULT_CONFIG, null, 2), { mode: 0o600 });
+  let bak = `${filePath}.bak`;
+  try { await fs.access(bak); bak = `${filePath}.bak.${Date.now()}`; } catch { /* .bak is free */ }
+  try {
+    await fs.rename(filePath, bak);
+    return bak;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    // ENOENT just means there was nothing to back up; anything else is worth surfacing.
+    if (code !== 'ENOENT') process.stderr.write(`dark-matrix: could not back up corrupt config (${code ?? String(err)})\n`);
+    return null;
+  }
 }
 
 export async function bootstrapConfig(p?: string): Promise<void> {
@@ -399,10 +420,8 @@ export async function bootstrapConfig(p?: string): Promise<void> {
   const ectoolPath = await findOnPath('ectool');
   if (ectoolPath) process.stdout.write(`Detected ectool at ${ectoolPath}\n`);
 
-  const filePath = resolveConfigPath(p);
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
   const extra = ectoolPath ? { ectool_path: ectoolPath } : {};
-  await fs.writeFile(filePath, JSON.stringify({ ...DEFAULT_CONFIG, modules, brightness, ...extra, uncalibrated: true }, null, 2), { mode: 0o600 });
+  await writeJsonAtomic(resolveConfigPath(p), { ...DEFAULT_CONFIG, modules, brightness, ...extra, uncalibrated: true });
 }
 
 async function findOnPath(bin: string): Promise<string | undefined> {

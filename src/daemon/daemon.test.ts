@@ -67,6 +67,23 @@ describe('daemon', () => {
     });
   });
 
+  it('recovers from a corrupt config: backs it up and boots with defaults (H5)', async () => {
+    await fs.writeFile(cfgPath, '{ corrupt not json');
+    await withDaemon(async () => {
+      // Booted despite the corrupt config instead of exiting — and actually serves.
+      const stat = await fs.stat(sockPath);
+      expect(stat.isSocket()).toBe(true);
+      const res = await send(sockPath, { cmd: 'ping' });
+      expect(res).toMatchObject({ ok: true, pong: true });
+      // The bad file was preserved for inspection.
+      expect(await fs.readFile(cfgPath + '.bak', 'utf8')).toBe('{ corrupt not json');
+      // A fresh, valid default config was written; uncalibrated → welcome screen.
+      const fresh = JSON.parse(await fs.readFile(cfgPath, 'utf8')) as { uncalibrated?: boolean };
+      expect(fresh.uncalibrated).toBe(true);
+    });
+    await fs.unlink(cfgPath + '.bak').catch(() => {});
+  });
+
   it('ping returns { ok: true, pong: true }', async () => {
     await withDaemon(async () => {
       const res = await send(sockPath, { cmd: 'ping' });
