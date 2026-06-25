@@ -754,7 +754,7 @@ export async function startDeckServer(opts?: DeckServerOptions): Promise<DeckSer
   let serverReady = false;
   const pendingOAuthStates = new Map<string, { clientId: string; expiresAt: number }>();
 
-  const server = http.createServer(async (req, res) => {
+  async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     const url = req.url ?? '/';
     const method = req.method ?? 'GET';
 
@@ -1812,6 +1812,22 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
 
     res.writeHead(405);
     res.end();
+  }
+
+  const server = http.createServer((req, res) => {
+    // Any uncaught throw/rejection from a route returns 500 instead of becoming
+    // an unhandledRejection that would take the whole deck process down.
+    void handleRequest(req, res).catch((err) => {
+      process.stderr.write(`dark-matrix deck: request error: ${String(err)}\n`);
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'internal error' }));
+      } else if (!res.writableEnded) {
+        // Headers already sent but the body is half-written and can't be made
+        // valid — destroy the socket rather than risk a malformed graceful end.
+        res.destroy();
+      }
+    });
   });
 
   function openAudioStream(
@@ -1857,6 +1873,9 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
   function broadcastToClients(msg: unknown): void {
     const payload = JSON.stringify(msg);
     for (const client of wss.clients) {
+      // Direct send (not the per-connection safeSend, which is closure-scoped):
+      // every client got a durable ws.on('error') in the connection handler, so a
+      // send that races a close emits a handled 'error' rather than crashing.
       if (client.readyState === 1) client.send(payload);
     }
   }
@@ -1906,7 +1925,14 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
     let currentHardwareStyle: string | null = null;
     let currentHardwareSource: string | null = null;
     let dataStatsActive = false;
-    ws.send(JSON.stringify({ type: 'connected' }));
+    // A deferred send (issued after an await) can race the tab closing: the
+    // socket leaves OPEN and ws.send() emits an 'error'. Gate every send on the
+    // OPEN state, and keep a durable 'error' listener so a send-after-close (or
+    // any socket error) can never become an uncaughtException. Resource cleanup
+    // runs on the subsequent 'close'.
+    const safeSend = (payload: string) => { if (ws.readyState === 1) ws.send(payload); };
+    ws.on('error', () => { /* client gone / broken pipe — non-fatal */ });
+    safeSend(JSON.stringify({ type: 'connected' }));
     ws.on('close', () => {
       previewClient.destroy();
       audioStream?.destroy();
@@ -1929,13 +1955,13 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
       }
       const type = msg['type'];
       if (type === 'ping') {
-        ws.send(JSON.stringify({ type: 'pong' }));
+        safeSend(JSON.stringify({ type: 'pong' }));
       } else if (type === 'preview') {
         const frame = msg['frame'];
         const mode = msg['mode'] === 'gray' ? 'gray' : 'bw';
         const width = msg['width'] === 18 ? 18 : 9;
         if (typeof frame !== 'string' || !frame) {
-          ws.send(JSON.stringify({ type: 'preview-error', message: 'invalid frame' }));
+          safeSend(JSON.stringify({ type: 'preview-error', message: 'invalid frame' }));
           return;
         }
         const target = (msg['target'] as string) ?? 'left';
@@ -1962,7 +1988,7 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
           else                          daemonCmd = { cmd: 'frame', left: frame, mode };
         }
         previewClient.send(daemonCmd);
-        ws.send(JSON.stringify({ type: 'preview-ack' }));
+        safeSend(JSON.stringify({ type: 'preview-ack' }));
       } else if (type === 'preview-stop') {
         sendToDaemon({ cmd: 'frame-stop' }).catch(() => { /* ignore — daemon may not be running */ });
       } else if (type === 'audio-viz') {
@@ -1977,9 +2003,7 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
         if (source !== currentAudioSource || !audioStream || audioStream.destroyed) {
           audioStream?.destroy();
           audioStream = openAudioStream(source, (ctx) => {
-            if (ws.readyState === 1) {
-              ws.send(JSON.stringify({ type: 'audio-bands', ...ctx }));
-            }
+            safeSend(JSON.stringify({ type: 'audio-bands', ...ctx }));
           }, fullBandCount);
           currentAudioSource = source;
         }
@@ -2011,7 +2035,7 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
         const source = msg['source'] === 'mic' ? 'mic' : 'monitor';
         audioStream?.destroy();
         audioStream = openAudioStream(source, (ctx) => {
-          if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'audio-bands', ...ctx }));
+          safeSend(JSON.stringify({ type: 'audio-bands', ...ctx }));
         });
       } else if (type === 'hud-audio-bands-unsubscribe') {
         audioStream?.destroy();
@@ -2091,16 +2115,16 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
           try {
             const config = await loadConfig(configFilePath(configDir));
             const activeName = activeHudPresetName ?? config.active_hud_preset ?? null;
-            ws.send(JSON.stringify({ type: 'hud-presets', presets: config.hud_presets ?? [], activeName }));
+            safeSend(JSON.stringify({ type: 'hud-presets', presets: config.hud_presets ?? [], activeName }));
           } catch {
-            ws.send(JSON.stringify({ type: 'hud-presets', presets: [], activeName: activeHudPresetName }));
+            safeSend(JSON.stringify({ type: 'hud-presets', presets: [], activeName: activeHudPresetName }));
           }
         })();
       } else if (type === 'hud-preset-save') {
         void (async () => {
           const parsed = ConfigSchema.shape.hud_presets.safeParse(msg['presets']);
           if (!parsed.success) {
-            ws.send(JSON.stringify({ type: 'error', error: parsed.error.issues.map(i => i.message).join('; ') }));
+            safeSend(JSON.stringify({ type: 'error', error: parsed.error.issues.map(i => i.message).join('; ') }));
             return;
           }
           const presets = parsed.data ?? [];
@@ -2110,15 +2134,15 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
             const updated = { ...config, hud_presets: presets };
             await writeJsonAtomic(cfgPath, updated);
             sendToDaemon({ cmd: 'reload' }).catch(() => {});
-            ws.send(JSON.stringify({ type: 'hud-presets-saved' }));
+            safeSend(JSON.stringify({ type: 'hud-presets-saved' }));
           } catch (err) {
-            ws.send(JSON.stringify({ type: 'error', error: String(err) }));
+            safeSend(JSON.stringify({ type: 'error', error: String(err) }));
           }
         })();
       } else if (type === 'hud-preset-activate') {
         const name = msg['name'];
         if (typeof name !== 'string' || !name) {
-          ws.send(JSON.stringify({ type: 'error', error: 'invalid payload' }));
+          safeSend(JSON.stringify({ type: 'error', error: 'invalid payload' }));
         } else {
           void (async () => {
             try {
@@ -2129,16 +2153,16 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
                 const cfgPath = configFilePath(configDir);
                 const cfg = await loadConfig(cfgPath);
                 if (!cfg.hud_presets?.some(p => p.name === activeHudPresetName)) {
-                  ws.send(JSON.stringify({ type: 'error', error: 'preset not found' }));
+                  safeSend(JSON.stringify({ type: 'error', error: 'preset not found' }));
                   return;
                 }
-                ws.send(JSON.stringify({ type: 'hud-preset-activated', name: activeHudPresetName }));
+                safeSend(JSON.stringify({ type: 'hud-preset-activated', name: activeHudPresetName }));
                 await writeJsonAtomic(cfgPath, { ...cfg, active_hud_preset: activeHudPresetName });
               } else {
-                ws.send(JSON.stringify({ type: 'error', error: reply.error ?? 'activation failed' }));
+                safeSend(JSON.stringify({ type: 'error', error: reply.error ?? 'activation failed' }));
               }
             } catch (err) {
-              ws.send(JSON.stringify({ type: 'error', error: String(err) }));
+              safeSend(JSON.stringify({ type: 'error', error: String(err) }));
             }
           })();
         }
@@ -2146,16 +2170,16 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
         void (async () => {
           try {
             const config = await loadConfig(configFilePath(configDir));
-            ws.send(JSON.stringify({ type: 'biome-presets', presets: config.biome_presets ?? [] }));
+            safeSend(JSON.stringify({ type: 'biome-presets', presets: config.biome_presets ?? [] }));
           } catch {
-            ws.send(JSON.stringify({ type: 'biome-presets', presets: [] }));
+            safeSend(JSON.stringify({ type: 'biome-presets', presets: [] }));
           }
         })();
       } else if (type === 'biome-preset-save') {
         void (async () => {
           const parsed = ConfigSchema.shape.biome_presets.safeParse(msg['presets']);
           if (!parsed.success) {
-            ws.send(JSON.stringify({ type: 'error', error: parsed.error.issues.map(i => i.message).join('; ') }));
+            safeSend(JSON.stringify({ type: 'error', error: parsed.error.issues.map(i => i.message).join('; ') }));
             return;
           }
           const presets = parsed.data ?? [];
@@ -2164,9 +2188,9 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
             const config = await loadConfig(cfgPath);
             const updated = { ...config, biome_presets: presets };
             await writeJsonAtomic(cfgPath, updated);
-            ws.send(JSON.stringify({ type: 'biome-presets-saved' }));
+            safeSend(JSON.stringify({ type: 'biome-presets-saved' }));
           } catch (err) {
-            ws.send(JSON.stringify({ type: 'error', error: String(err) }));
+            safeSend(JSON.stringify({ type: 'error', error: String(err) }));
           }
         })();
       } else if (type === 'life-mode-stop') {
