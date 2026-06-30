@@ -36,6 +36,9 @@ import { createTextRenderer, TEXT_STYLES, TEXT_SPEEDS, TEXT_FLICKERS, TEXT_TRANS
 import type { TextStyle, TextSize, TextSpeed, TextFlicker, TextTransition } from '../animations/text-renderers.js';
 import type { ClaudeRendererApi } from '../animations/claude-renderers.js';
 import { watchProcStats } from '../lib/proc-source.js';
+import type { ProcStats } from '../lib/proc-source.js';
+import { createFanout } from '../lib/fanout.js';
+import { nextAudioBackoff } from '../lib/backoff.js';
 import { createPresetTriggerEngine } from '../lib/preset-triggers.js';
 import { createGifAnimation } from '../animations/gif.js';
 import type { GifAnimation } from '../animations/gif.js';
@@ -133,6 +136,17 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   let frameHeldRight = false;
   // Shared band listeners: audio-viz sockets subscribe here when HUD loop owns audio
   const hudAudioListeners = new Map<symbol, (ctx: { bands: number[]; fftSize: number; gain: number }) => void>();
+  // One shared /proc poll, fanned out to all consumers (trigger engine, battery
+  // monitor, HUD data widgets) so a single interval feeds everyone instead of
+  // one poll per consumer (M18). Runs at the finest interval any subscriber
+  // asks for: the always-on trigger/battery path stays at its slow 2s baseline,
+  // and a HUD data widget transparently speeds it to 500ms only while shown.
+  const PROC_STATS_TRIGGER_MS = 2000;
+  const PROC_STATS_HUD_MS = 500;
+  const procStatsHub = createFanout<ProcStats>(
+    (emit, intervalMs) => watchProcStats(emit, { intervalMs }),
+    PROC_STATS_TRIGGER_MS,
+  );
   const claudeRenderers = new Set<ClaudeRendererApi>();
 
   // Timer epoch persisted across HUD loop restarts so navigation doesn't reset timers.
@@ -381,27 +395,40 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     const loop = async () => {
       const { packBW, FRAME_COLS, FRAME_ROWS, createFrame } = await import('../lib/frame.js');
       const eqSource = sourceOverride ?? 'monitor';
-      const target = await resolveDefaultDeviceId(
-        eqSource === 'monitor' ? '@DEFAULT_AUDIO_SINK@' : '@DEFAULT_AUDIO_SOURCE@',
-      );
-      if (stopped) return;
-      anim = createAudioEqAnimation({ source: eqSource, style, ...(target ? { target } : {}) });
-      const iter = anim[Symbol.asyncIterator]();
+      // Respawn the capture if ffmpeg dies (pipewire restart / sink switch /
+      // unplug → exit 255). Without this the matrix freezes until a manual
+      // re-trigger (M15). Backoff escalates only on consecutive dead spawns, so
+      // a routine sink switch recovers at the base delay.
+      let consecutiveDry = 0;
       while (!stopped) {
-        const result = await iter.next();
-        if (stopped || result.done) break;
-        const leftFrame = result.value;
-        ditherBW(leftFrame, FRAME_COLS, FRAME_ROWS);
-        // Mirror: right col 0 = left col 8, right col 1 = left col 7, ...
-        const rightFrame = createFrame();
-        for (let col = 0; col < FRAME_COLS; col++) {
-          for (let row = 0; row < FRAME_ROWS; row++) {
-            rightFrame[col * FRAME_ROWS + row] = leftFrame[(FRAME_COLS - 1 - col) * FRAME_ROWS + row] ?? 0;
+        const target = await resolveDefaultDeviceId(
+          eqSource === 'monitor' ? '@DEFAULT_AUDIO_SINK@' : '@DEFAULT_AUDIO_SOURCE@',
+        );
+        if (stopped) return;
+        anim = createAudioEqAnimation({ source: eqSource, style, ...(target ? { target } : {}) });
+        const iter = anim[Symbol.asyncIterator]();
+        let gotData = false;
+        while (!stopped) {
+          const result = await iter.next();
+          if (stopped || result.done) break;
+          if (!gotData) { gotData = true; consecutiveDry = 0; }
+          const leftFrame = result.value;
+          ditherBW(leftFrame, FRAME_COLS, FRAME_ROWS);
+          // Mirror: right col 0 = left col 8, right col 1 = left col 7, ...
+          const rightFrame = createFrame();
+          for (let col = 0; col < FRAME_COLS; col++) {
+            for (let row = 0; row < FRAME_ROWS; row++) {
+              rightFrame[col * FRAME_ROWS + row] = leftFrame[(FRAME_COLS - 1 - col) * FRAME_ROWS + row] ?? 0;
+            }
           }
+          const [acl, acr] = composeFrames([leftFrame, rightFrame], activeOverlay);
+          try { if (left) await transport.frameBw(packBW(acl), left); } catch { /* non-fatal */ }
+          try { if (right) await transport.frameBw(packBW(acr), right); } catch { /* non-fatal */ }
         }
-        const [acl, acr] = composeFrames([leftFrame, rightFrame], activeOverlay);
-        try { if (left) await transport.frameBw(packBW(acl), left); } catch { /* non-fatal */ }
-        try { if (right) await transport.frameBw(packBW(acr), right); } catch { /* non-fatal */ }
+        anim.stop();
+        if (stopped) break;
+        if (!gotData) consecutiveDry++;
+        await new Promise<void>(r => { const t = setTimeout(r, nextAudioBackoff(consecutiveDry)); t.unref?.(); });
       }
     };
 
@@ -478,10 +505,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
     const needsProc = leftHudWidget.widget === 'data' || rightHudWidget.widget === 'data';
     const stopProc = needsProc
-      ? watchProcStats((stats) => {
+      ? procStatsHub.subscribe((stats) => {
           leftProcRef.renderer?.update(stats);
           rightProcRef.renderer?.update(stats);
-        })
+        }, PROC_STATS_HUD_MS)
       : null;
 
     const leftClockFace  = leftHudWidget.widget  === 'clock' ? leftHudWidget.face  : 'elegant';
@@ -540,6 +567,10 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     let stream: ReturnType<typeof createAudioBandStream> | null = null;
 
     const run = async () => {
+      // Consecutive spawns that produced no data. Resets to 0 the instant a
+      // spawn yields data (a routine sink switch recovers at the base delay);
+      // only a permanently-absent device escalates the respawn backoff (M16).
+      let consecutiveDry = 0;
       while (!stopped) {
         const target = await resolveDefaultDeviceId(
           source === 'monitor' ? '@DEFAULT_AUDIO_SINK@' : '@DEFAULT_AUDIO_SOURCE@',
@@ -558,13 +589,14 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         while (!stopped) {
           const result = await iter.next();
           if (stopped || result.done) break;
-          if (!gotData) { gotData = true; clearTimeout(startupWatchdog); }
+          if (!gotData) { gotData = true; consecutiveDry = 0; clearTimeout(startupWatchdog); }
           try { onBands(result.value); } catch { /* listener errors are non-fatal */ }
         }
         clearTimeout(startupWatchdog);
         if (!stopped) {
           onEnd?.();
-          await new Promise<void>(r => setTimeout(r, 2000));
+          if (!gotData) consecutiveDry++;
+          await new Promise<void>(r => { const t = setTimeout(r, nextAudioBackoff(consecutiveDry)); t.unref?.(); });
         }
       }
     };
@@ -1190,7 +1222,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   const firedBatteryThresholds = new Set<number>();
   let prevBatteryCharging: boolean | null = null;
 
-  disposeWatches.push(watchProcStats((stats) => {
+  disposeWatches.push(procStatsHub.subscribe((stats) => {
     triggerEngine.updateStats(stats);
 
     const { batteryPct, batteryCharging } = stats;
@@ -1223,7 +1255,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
         }
       }
     }
-  }, { intervalMs: 2000 }));
+  }, PROC_STATS_TRIGGER_MS));
 
   // Brightness loop
   let disposeBrightness = startBrightnessLoop(currentConfig, async (pct) => {

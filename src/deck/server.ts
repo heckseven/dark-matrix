@@ -1939,6 +1939,10 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
       if (dataStatsActive) stopDataStats(ws);
       if (audioOwnerWs === ws) {
         audioOwnerWs = null;
+        // Cancel any in-flight audio-hardware-start retry owned by this socket,
+        // else it can land *after* close and orphan a live pw-record + serial
+        // animation that no browser controls (H10). Independent of HUD ownership.
+        retryGen++;
         sendToDaemon({ cmd: 'audio-hardware-stop' }).catch(() => {});
       }
       if (hudOwnerWs === ws) {
@@ -2028,6 +2032,9 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
         currentHardwareSource = null;
         if (audioOwnerWs === ws) {
           audioOwnerWs = null;
+          // Same race as on close: cancel a pending start so it can't revive
+          // hardware the user just asked to stop (H10).
+          retryGen++;
           sendToDaemon({ cmd: 'audio-hardware-stop' }).catch(() => {});
         }
       } else if (type === 'hud-audio-bands-subscribe') {

@@ -184,6 +184,46 @@ describe('createAudioEqAnimation', () => {
     expect(result.done).toBe(true);
   });
 
+  it('escalates to SIGKILL when ffmpeg ignores SIGTERM (L25)', () => {
+    vi.useFakeTimers();
+    try {
+      const mockProc = makeMockProc();
+      vi.mocked(spawn).mockReturnValue(mockProc as unknown as ChildProcess);
+
+      const anim = createAudioEqAnimation();
+      anim.stop();
+      // SIGTERM goes out immediately; the process does NOT emit 'close'.
+      expect(mockProc.kill).toHaveBeenCalledWith('SIGTERM');
+      expect(mockProc.kill).not.toHaveBeenCalledWith('SIGKILL');
+
+      // After the grace period a SIGKILL must follow so the wedged process and
+      // its pw-record link can't leak for the daemon's lifetime.
+      vi.advanceTimersByTime(2000);
+      expect(mockProc.kill).toHaveBeenCalledWith('SIGKILL');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not SIGKILL when ffmpeg exits promptly after SIGTERM (L25)', () => {
+    vi.useFakeTimers();
+    try {
+      const mockProc = makeMockProc();
+      vi.mocked(spawn).mockReturnValue(mockProc as unknown as ChildProcess);
+
+      const anim = createAudioEqAnimation();
+      anim.stop();
+      expect(mockProc.kill).toHaveBeenCalledWith('SIGTERM');
+
+      // ffmpeg honors the term and exits — the escalation timer must be cancelled.
+      mockProc.emit('close');
+      vi.advanceTimersByTime(5000);
+      expect(mockProc.kill).not.toHaveBeenCalledWith('SIGKILL');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('passes target as ffmpeg pulse input when provided', () => {
     const mockProc = makeMockProc();
     vi.mocked(spawn).mockReturnValue(mockProc as unknown as ChildProcess);

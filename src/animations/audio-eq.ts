@@ -121,6 +121,7 @@ export function createAudioBandStream(opts?: Omit<AudioEqOptions, 'style'>): Ban
   let buffer = Buffer.alloc(0);
   let procClosed = false;
   let currentFullBandCount = opts?.fullBandCount ?? 0;
+  let killTimer: ReturnType<typeof setTimeout> | null = null;
 
   const proc = spawn(
     'ffmpeg',
@@ -178,6 +179,7 @@ export function createAudioBandStream(opts?: Omit<AudioEqOptions, 'style'>): Ban
   // first resolve so both handlers firing is a no-op on the second call.
   const drainProc = () => {
     procClosed = true;
+    if (killTimer) { clearTimeout(killTimer); killTimer = null; }
     if (resolveChunk) {
       const resolve = resolveChunk;
       resolveChunk = null;
@@ -212,7 +214,21 @@ export function createAudioBandStream(opts?: Omit<AudioEqOptions, 'style'>): Ban
     },
     stop() {
       stopped = true;
-      proc.kill();
+      // Idempotent: a second stop() (the respawn loop's anim.stop() racing the
+      // external disposer before the process has actually exited) must not
+      // orphan the first SIGKILL timer.
+      if (killTimer) { clearTimeout(killTimer); killTimer = null; }
+      if (!procClosed) {
+        // SIGTERM first; escalate to SIGKILL if ffmpeg wedges on a stuck pulse
+        // connection and ignores the term, else the process (and its pw-record
+        // link) leaks. drainProc clears the timer when the process exits.
+        proc.kill('SIGTERM');
+        killTimer = setTimeout(() => {
+          killTimer = null;
+          try { proc.kill('SIGKILL'); } catch { /* already exited */ }
+        }, 2000);
+        killTimer.unref?.();
+      }
       if (resolveChunk) {
         const resolve = resolveChunk;
         resolveChunk = null;
