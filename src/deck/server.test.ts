@@ -121,6 +121,64 @@ describe('deck server', () => {
     expect(status).toBe(200);
   });
 
+  it('cancels a pending audio-hardware-start retry when the owner disconnects (H10)', async () => {
+    const net = await import('node:net');
+    const { WebSocket } = await import('ws');
+
+    // Point the deck's daemon client at a socket with no listener yet, so the
+    // first audio-hardware-start send fails and a retry is left pending.
+    const sockPath = path.join(os.tmpdir(), `dm-h10-${Math.random().toString(36).slice(2)}.sock`);
+    const prevSock = process.env['DARK_MATRIX_SOCKET'];
+    process.env['DARK_MATRIX_SOCKET'] = sockPath;
+
+    const received: string[] = [];
+    let fakeDaemon: import('node:net').Server | null = null;
+    try {
+      const wsUrl = server.url.replace('http', 'ws') + '/ws';
+      const client = new WebSocket(wsUrl);
+      await new Promise<void>((resolve, reject) => {
+        client.on('open', () => resolve());
+        client.on('error', reject);
+      });
+
+      // Owner claims audio → deck schedules audio-hardware-start with retries.
+      // The daemon socket has no listener, so the first attempt fails.
+      client.send(JSON.stringify({ type: 'audio-viz', style: 'dark-matter', source: 'monitor' }));
+      await new Promise(r => setTimeout(r, 80)); // let the first attempt fail
+      // Owner disconnects while the retry is still pending.
+      client.close();
+      await new Promise(r => setTimeout(r, 60));
+
+      // Now stand up the daemon socket and record every command it receives.
+      fakeDaemon = net.createServer((sock) => {
+        let buf = '';
+        sock.on('data', (chunk: Buffer) => {
+          buf += chunk.toString();
+          let idx: number;
+          while ((idx = buf.indexOf('\n')) >= 0) {
+            const line = buf.slice(0, idx); buf = buf.slice(idx + 1);
+            if (!line.trim()) continue;
+            try { received.push(String((JSON.parse(line) as { cmd?: string }).cmd)); } catch { /* ignore */ }
+            sock.write(JSON.stringify({ ok: true }) + '\n');
+          }
+        });
+      });
+      await new Promise<void>((resolve) => fakeDaemon!.listen(sockPath, () => resolve()));
+
+      // Wait past the remaining retry budget (250ms × several attempts).
+      await new Promise(r => setTimeout(r, 1500));
+
+      // The retry was cancelled when the owner closed — no orphaned hardware
+      // start ever reached the daemon. (Without the cancel, a late retry would
+      // land here and run pw-record + the matrix animation with no browser.)
+      expect(received).not.toContain('audio-hardware-start');
+    } finally {
+      if (fakeDaemon) await new Promise<void>((res) => fakeDaemon!.close(() => res()));
+      if (prevSock === undefined) delete process.env['DARK_MATRIX_SOCKET'];
+      else process.env['DARK_MATRIX_SOCKET'] = prevSock;
+    }
+  });
+
   it('returns 500 instead of crashing when a route rejects uncaught (H12)', async () => {
     // Root ignores file permissions, so the unwritable-dir trigger won't fire.
     if (typeof process.getuid === 'function' && process.getuid() === 0) return;
