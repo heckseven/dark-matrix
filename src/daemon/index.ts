@@ -446,7 +446,12 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       }
     };
 
-    void loop();
+    // Guard the loop like streamAudioBands does: a throw escaping the respawn
+    // loop (renderer fault, dynamic-import failure) must not become an
+    // unhandledRejection that shuts the daemon down.
+    void loop().catch((err) => {
+      process.stderr.write(`dark-matrix: audio-eq loop error: ${String(err)}\n`);
+    });
     return () => { stopped = true; anim?.stop(); };
   }
 
