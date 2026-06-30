@@ -13,6 +13,53 @@ Entries are generated from the commit log at release time via the `/release` ski
 
 _Nothing yet._
 
+## [0.1.3] - 2026-06-29
+
+### Fixed
+
+A systematic crash- and leak-resilience pass (29 findings across the daemon and
+deck server) eliminating the unhandled-`'error'` / write-after-close family that
+could take the daemon or deck down in normal use. Every fix was reviewed by
+multiple specialist agents and covered by tests; full register in
+`docs/resilience-audit.md`.
+
+- **Serial / hardware:** unplugging or power-cycling a module mid-frame no longer
+  crashes the daemon. Dead ports are evicted and cleanly re-opened on replug,
+  with debounced hot-plug detection so a flaky connector can't trigger a
+  release/reopen storm, and a `writePort` that can no longer hang on an
+  out-of-band port error.
+- **Deck server:** added process-level fatal handlers and per-connection
+  WebSocket guards, so an abruptly-closed tab, a missing `xdg-open`, or an
+  unwritable library directory can't crash the deck for other clients.
+- **Power-cycle:** a config file corrupted by an interrupted write is backed up
+  and rebuilt from defaults instead of bricking startup; config writes are now
+  atomic. Suspend/resume no longer causes a frame-burst.
+- **Audio / HUD:** hardware audio capture respawns with capped backoff after a
+  sink switch or device unplug instead of freezing or storming; closing the
+  browser no longer orphans a `pw-record` process and animation.
+- **Long-uptime bounds:** capped the IPC read buffer, GIF/image decode
+  (anti-OOM), animation failure retries, and the `dbus-monitor` / proc-stat
+  pollers; a duplicate proc-stats poll was collapsed into one shared source.
+- **Deck UI:** the HUD, Audio, Cast, and Life panels plus the live preview now
+  reconnect automatically with bounded backoff after a daemon/server restart.
+
+## [0.1.2] - 2026-06-13
+
+### Added
+
+- Murmuration animation: Reynolds boids simulation with virtual canvas, persistence trails, and banking waves
+
+### Fixed
+
+- Prevent HUD from interrupting startup animation
+- Accessibility: add DialogDescription to AssetManagerModal and LibraryPickerModal
+- Mic source: exclude dark-matrix's own ffmpeg from mic activity check
+- Storybook: eliminate dualModule DOM leak and JSON parse errors
+
+### Changed
+
+- Murmuration: tuned boid dynamics (ISM spin model, anisotropic cohesion spring, cohesion/speed/canvas parameters)
+
 ## [0.1.1] - 2026-06-06
 
 ### Fixed
