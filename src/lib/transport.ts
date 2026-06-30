@@ -85,9 +85,23 @@ function runSpawn(bin: string, args: string[]): Promise<void> {
 
 function writePort(port: SerialPort, data: Uint8Array): Promise<void> {
   return new Promise((resolve, reject) => {
+    let settled = false;
+    // If the binding emits an out-of-band 'error' (EIO on unplug) instead of
+    // failing the write/drain callback, the permanent swallow listener in
+    // openPort would eat it and this promise would hang forever — stalling the
+    // animation loop (or a one-shot BinaryTransport write). Race the callbacks
+    // against a one-shot error rejection so the write always settles (L27).
+    const onError = (err: Error) => settle(err);
+    const settle = (err?: Error | null) => {
+      if (settled) return;
+      settled = true;
+      port.removeListener('error', onError);
+      if (err) reject(err); else resolve();
+    };
+    port.once('error', onError);
     port.write(Buffer.from(data), (writeErr) => {
-      if (writeErr) return reject(writeErr);
-      port.drain((drainErr) => (drainErr ? reject(drainErr) : resolve()));
+      if (writeErr) return settle(writeErr);
+      port.drain((drainErr) => settle(drainErr));
     });
   });
 }

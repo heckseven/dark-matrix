@@ -124,4 +124,41 @@ describe('runAnimation', () => {
     // Attempted 3 frames despite first failure
     expect(transport.frameBw).toHaveBeenCalledTimes(3);
   });
+
+  it('stops after maxConsecutiveFailures consecutive write failures (L26)', async () => {
+    const transport = makeTransport();
+    (transport.frameBw as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('device gone'));
+
+    const anim = makeAnimation(1000);
+    const dispose = runAnimation(anim, {
+      transport, devicePath: '/dev/ttyACM0', mode: 'bw', fps: 1000, maxConsecutiveFailures: 3,
+    });
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    // Gave up after exactly 3 unbroken failures instead of writing forever.
+    expect(transport.frameBw).toHaveBeenCalledTimes(3);
+    await dispose();
+  });
+
+  it('resets the failure counter after a successful write (L26)', async () => {
+    const transport = makeTransport();
+    (transport.frameBw as ReturnType<typeof vi.fn>)
+      .mockRejectedValueOnce(new Error('blip'))
+      .mockRejectedValueOnce(new Error('blip'))
+      .mockResolvedValueOnce(undefined)   // success resets the streak
+      .mockRejectedValue(new Error('blip'));
+
+    const anim = makeAnimation(1000);
+    const dispose = runAnimation(anim, {
+      transport, devicePath: '/dev/ttyACM0', mode: 'bw', fps: 1000, maxConsecutiveFailures: 3,
+    });
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    // 2 fails, 1 success (reset), then 3 more fails → 6 attempts before giving up,
+    // proving the streak resets rather than counting cumulative failures.
+    expect(transport.frameBw).toHaveBeenCalledTimes(6);
+    await dispose();
+  });
 });

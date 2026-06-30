@@ -321,39 +321,12 @@ async function handleImport(req: http.IncomingMessage, res: http.ServerResponse)
         frames: [{ delayMs: 100, pixels: frameToBase64(frameBytes) }],
       };
     } else {
-      // GIF: extract all frames
-      const meta = await sharp(file.data, { animated: true }).metadata();
-      const pages = meta.pages ?? 1;
-      const delays: number[] = meta.delay ?? Array.from({ length: pages }, () => 100);
-
-      const stacked = await sharp(file.data, { animated: true })
-        .resize(9, 34, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 1 } })
-        .grayscale()
-        .raw()
-        .toBuffer();
-
-      const bytesPerFrame = 9 * 34;
-      const frames = [];
-      for (let i = 0; i < pages; i++) {
-        const slice = stacked.subarray(i * bytesPerFrame, (i + 1) * bytesPerFrame);
-        const frameBytes = new Uint8Array(bytesPerFrame);
-        for (let col = 0; col < 9; col++) {
-          for (let row = 0; row < 34; row++) {
-            frameBytes[col * 34 + row] = slice[row * 9 + col] ?? 0;
-          }
-        }
-        frames.push({ delayMs: delays[i] ?? 100, pixels: frameToBase64(frameBytes) });
-      }
-
-      project = {
-        format: 'dark-matrix',
-        version: 1,
-        width: 9,
-        height: 34,
-        mode: 'gray',
-        loop: true,
-        frames,
-      };
+      // GIF: extract frames via the shared converter, which bounds both the
+      // frame count and the decode work (M19). brightness 0 / contrast 1 keep
+      // this path's previous no-adjustment behavior.
+      project = await convertGifToDmx(file.data, {
+        width: 9, mode: 'gray', fit: 'contain', brightness: 0, contrast: 1,
+      });
     }
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -956,7 +929,9 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'yt-dlp error';
-        console.error('[youtube-stream] yt-dlp:', err);
+        // Log the message, not the raw error — its stack carries absolute fs
+        // paths into the operator journal (L29).
+        console.error('[youtube-stream] yt-dlp:', message);
         ytStreamErrors.set(ytUrl, message);
         setTimeout(() => ytStreamErrors.delete(ytUrl), 30_000);
         res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -1034,7 +1009,7 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
         }
       } catch (err) {
         clearTimeout(timeout);
-        console.error('[youtube-stream] fetch error:', err);
+        console.error('[youtube-stream] fetch error:', err instanceof Error ? err.message : err);
         if (!res.headersSent) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'stream unavailable' }));
@@ -2021,7 +1996,10 @@ else{document.body.textContent='Auth failed: '+(p.get('error')||'unknown error')
       } else if (type === 'audio-viz-setbands') {
         const rawBc = msg['bandCount'];
         const bandCount = typeof rawBc === 'number' && Number.isInteger(rawBc) && rawBc > 0 && rawBc <= 512 ? rawBc : 0;
-        if (audioStream && !audioStream.destroyed) {
+        // Guard on `writable`, not `!destroyed`: if the daemon half-closed the
+        // socket (FIN) it is still un-destroyed but no longer writable, and a
+        // write would emit a write-after-end 'error' (L22).
+        if (audioStream && audioStream.writable) {
           audioStream.write(JSON.stringify({ cmd: 'audio-viz-setbands', bandCount }) + '\n');
         }
       } else if (type === 'audio-viz-stop') {

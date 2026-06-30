@@ -1,3 +1,5 @@
+import { reconnectDelay } from './reconnect.js';
+
 export type { PreviewTarget } from './store.js';
 
 export interface PreviewBridge {
@@ -9,8 +11,8 @@ export interface PreviewBridge {
 export function createPreviewBridge(wsUrl: string): PreviewBridge {
   let ws: WebSocket | null = null;
   let disposed = false;
-  let retries = 0;
-  const MAX_RETRIES = 5;
+  let attempt = 0;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let pending: Parameters<PreviewBridge['sendFrame']> | null = null;
 
   function flush() {
@@ -26,12 +28,13 @@ export function createPreviewBridge(wsUrl: string): PreviewBridge {
     ws = new WebSocket(wsUrl);
     ws.onclose = () => {
       ws = null;
-      if (!disposed && retries < MAX_RETRIES) {
-        retries++;
-        setTimeout(connect, 1000);
+      // Reconnect forever at a capped, backed-off interval — the old 5-attempt
+      // give-up left the preview permanently dead after a brief outage (L23).
+      if (!disposed) {
+        reconnectTimer = setTimeout(connect, reconnectDelay(attempt++));
       }
     };
-    ws.onopen = () => { retries = 0; flush(); };
+    ws.onopen = () => { attempt = 0; flush(); };
   }
 
   connect();
@@ -48,6 +51,7 @@ export function createPreviewBridge(wsUrl: string): PreviewBridge {
     },
     dispose() {
       disposed = true;
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
       if (ws) { ws.onclose = null; ws.close(); ws = null; }
     },
   };

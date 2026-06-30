@@ -99,8 +99,15 @@ export function watchDesktopNotifications(
       if (!stopped) setTimeout(start, 3000);
     });
 
-    proc.on('error', () => {
+    proc.on('error', (err: NodeJS.ErrnoException) => {
       proc = null;
+      if (err.code === 'ENOENT') {
+        // The binary isn't installed — respawning every 5s forever is pointless
+        // log spam. Disable the watcher instead (L24).
+        stopped = true;
+        process.stderr.write(`dark-matrix: ${bin} not found; desktop notifications disabled\n`);
+        return;
+      }
       if (!stopped) setTimeout(start, 5000);
     });
   }

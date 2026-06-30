@@ -7,6 +7,7 @@ import { AUDIO_STYLES, createRenderer } from '../../../animations/audio-renderer
 import type { RenderCtx } from '../../../animations/audio-renderers.js';
 import { AudioFullscreen } from './AudioFullscreen.js';
 import { PLACEHOLDER, frameToB64, mirrorFrame } from './audio-viz-frames.js';
+import { createReconnectingSocket } from '../reconnect.js';
 
 export function AudioPanel({
   dualModule = false,
@@ -94,39 +95,36 @@ export function AudioPanel({
   }, [fullscreenStyle, sendSetBands]);
 
   useEffect(() => {
-    const ws = new WebSocket(`ws://${location.host}/ws`);
-    wsRef.current = ws;
-
-    ws.onopen = () => apply();
-
-    ws.onmessage = (e) => {
-      try {
-        if (typeof e.data !== 'string') return;
-        const msg = JSON.parse(e.data) as { type: string; bands?: number[]; fftSize?: number; gain?: number; fullBands?: number[] };
-        if (msg.type === 'audio-bands' && msg.bands) {
-          fftSizeRef.current = msg.fftSize ?? 2048;
-          gainRef.current = msg.gain ?? 1.0;
-          if (msg.fullBands) fullBandsRef.current = msg.fullBands;
-          const ctx: RenderCtx = { bands: msg.bands, fftSize: msg.fftSize ?? 2048, gain: (msg.gain ?? 1.0) * activeGainRef.current };
-          const renderers = renderersRef.current!;
-          const next: Partial<Record<AudioStyle, string>> = {};
-          for (const { id } of AUDIO_STYLES) {
-            const fn = renderers[id as AudioStyle];
-            if (fn) next[id as AudioStyle] = frameToB64(fn(ctx));
+    const managed = createReconnectingSocket({
+      url: `ws://${location.host}/ws`,
+      onSocket: (ws) => { wsRef.current = ws; },
+      onOpen: () => apply(),
+      onMessage: (e) => {
+        try {
+          const data = (e as MessageEvent).data;
+          if (typeof data !== 'string') return;
+          const msg = JSON.parse(data) as { type: string; bands?: number[]; fftSize?: number; gain?: number; fullBands?: number[] };
+          if (msg.type === 'audio-bands' && msg.bands) {
+            fftSizeRef.current = msg.fftSize ?? 2048;
+            gainRef.current = msg.gain ?? 1.0;
+            if (msg.fullBands) fullBandsRef.current = msg.fullBands;
+            const ctx: RenderCtx = { bands: msg.bands, fftSize: msg.fftSize ?? 2048, gain: (msg.gain ?? 1.0) * activeGainRef.current };
+            const renderers = renderersRef.current!;
+            const next: Partial<Record<AudioStyle, string>> = {};
+            for (const { id } of AUDIO_STYLES) {
+              const fn = renderers[id as AudioStyle];
+              if (fn) next[id as AudioStyle] = frameToB64(fn(ctx));
+            }
+            setLivePixels(next);
           }
-          setLivePixels(next);
-        }
-      } catch { /* ignore */ }
-    };
+        } catch { /* ignore */ }
+      },
+    });
 
     return () => {
-      const w = wsRef.current;
-      wsRef.current = null;
       if (bandCountDebounceRef.current) { clearTimeout(bandCountDebounceRef.current); bandCountDebounceRef.current = null; }
-      if (w && w.readyState === WebSocket.OPEN) {
-        w.send(JSON.stringify({ type: 'audio-viz-stop' }));
-      }
-      w?.close();
+      managed.dispose((w) => w.send(JSON.stringify({ type: 'audio-viz-stop' })));
+      wsRef.current = null;
     };
   }, [apply]);
 

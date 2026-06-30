@@ -15,6 +15,7 @@ import { HudDualPreview } from './HudDualPreview.js';
 import { HudInspector } from './HudInspector.js';
 import { TriggerView } from './TriggerView.js';
 import { ThreePanelLayout } from './ThreePanelLayout.js';
+import { createReconnectingSocket } from '../reconnect.js';
 
 // ── module-level WS send (shared with App header) ────────────────────────
 
@@ -133,34 +134,34 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
   // ── WebSocket lifecycle ──────────────────────────────────────────────
 
   useEffect(() => {
-    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
-    wsRef.current = ws;
-    _moduleWs = ws;
-
-    ws.addEventListener('open', () => {
-      sentInitialHudConfigRef.current = false;
-      ws.send(JSON.stringify({ type: 'hud-mode-start' }));
-      // Apply the in-memory selected preset immediately — don't wait for hud-presets-get
-      // round-trip, which reads disk and may return stale data if a save hasn't flushed yet.
-      const storeState = deckStore.getState();
-      const immediatePreset = storeState.hudPresets.find(p => p.name === storeState.selectedPresetName);
-      if (immediatePreset) {
-        ws.send(JSON.stringify(buildPresetConfigPayload(immediatePreset)));
-        sentInitialHudConfigRef.current = true;
-      }
-      ws.send(JSON.stringify({ type: 'hud-presets-get' }));
-      ws.send(JSON.stringify({ type: 'biome-presets-get' }));
-      ws.send(JSON.stringify({ type: 'data-stats-start' }));
-      // Subscribe to audio bands now if needed — the needsAudio effect may have fired
-      // before the WS was open and returned early, so re-apply here.
-      if (needsAudioRef.current) {
-        ws.send(JSON.stringify({ type: 'hud-audio-bands-subscribe', source: audioSourceRef.current }));
-      }
-    });
-
-    ws.addEventListener('message', (e: MessageEvent<string>) => {
+    const managed = createReconnectingSocket({
+      url: `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`,
+      // Set both the ref and the header's module-global on every (re)connect so
+      // sends always target the live socket after a reconnect (M17).
+      onSocket: (ws) => { wsRef.current = ws; _moduleWs = ws; },
+      onOpen: (ws) => {
+        sentInitialHudConfigRef.current = false;
+        ws.send(JSON.stringify({ type: 'hud-mode-start' }));
+        // Apply the in-memory selected preset immediately — don't wait for hud-presets-get
+        // round-trip, which reads disk and may return stale data if a save hasn't flushed yet.
+        const storeState = deckStore.getState();
+        const immediatePreset = storeState.hudPresets.find(p => p.name === storeState.selectedPresetName);
+        if (immediatePreset) {
+          ws.send(JSON.stringify(buildPresetConfigPayload(immediatePreset)));
+          sentInitialHudConfigRef.current = true;
+        }
+        ws.send(JSON.stringify({ type: 'hud-presets-get' }));
+        ws.send(JSON.stringify({ type: 'biome-presets-get' }));
+        ws.send(JSON.stringify({ type: 'data-stats-start' }));
+        // Subscribe to audio bands now if needed — the needsAudio effect may have fired
+        // before the WS was open and returned early, so re-apply here.
+        if (needsAudioRef.current) {
+          ws.send(JSON.stringify({ type: 'hud-audio-bands-subscribe', source: audioSourceRef.current }));
+        }
+      },
+      onMessage: (e) => {
       try {
-        const msg = JSON.parse(e.data) as { type: string; bands?: number[]; fftSize?: number; gain?: number } & Partial<DataStats> & Partial<{ presets: HudPresetClient[]; activeName: string | null; name: string | null }>;
+        const msg = JSON.parse((e as MessageEvent<string>).data) as { type: string; bands?: number[]; fftSize?: number; gain?: number } & Partial<DataStats> & Partial<{ presets: HudPresetClient[]; activeName: string | null; name: string | null }>;
         if (msg.type === 'biome-presets') {
           deckStore.getState().loadBiomes((msg as unknown as { presets?: BiomePreset[] }).presets ?? []);
         } else if (msg.type === 'hud-presets') {
@@ -200,10 +201,11 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
           }
         }
       } catch { /* ignore */ }
+      },
     });
 
     return () => {
-      if (ws.readyState === WebSocket.OPEN) {
+      managed.dispose((ws) => {
         // Flush any pending debounced save so the next hud-presets-get reads current data.
         if (saveTimerRef.current) {
           clearTimeout(saveTimerRef.current);
@@ -211,8 +213,10 @@ export function HudPanel({ dualModule = false, topPad = 0, onNeedsAudioChange, o
           ws.send(JSON.stringify({ type: 'hud-preset-save', presets: deckStore.getState().hudPresets }));
         }
         ws.send(JSON.stringify({ type: 'data-stats-stop' }));
-      }
-      ws.close();
+      });
+      // beforeClose only runs (and flushes the save) on an OPEN socket; if we
+      // unmount during a reconnect gap, cancel the dangling debounce timer.
+      if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
       wsRef.current = null;
       _moduleWs = null;
     };

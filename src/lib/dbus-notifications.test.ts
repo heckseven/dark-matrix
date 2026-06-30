@@ -1,5 +1,19 @@
-import { describe, it, expect } from 'vitest';
-import { parseDbusMonitorLine, makeParseState } from './dbus-notifications.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { EventEmitter } from 'node:events';
+import type { ChildProcess } from 'node:child_process';
+import { parseDbusMonitorLine, makeParseState, watchDesktopNotifications } from './dbus-notifications.js';
+
+vi.mock('node:child_process', () => ({ spawn: vi.fn() }));
+import { spawn } from 'node:child_process';
+const mockSpawn = vi.mocked(spawn);
+
+function makeDbusProc(): ChildProcess {
+  const proc = new EventEmitter() as ChildProcess;
+  (proc as unknown as Record<string, unknown>)['stdout'] = new EventEmitter();
+  (proc as unknown as Record<string, unknown>)['stderr'] = new EventEmitter();
+  (proc as unknown as Record<string, unknown>)['kill'] = vi.fn();
+  return proc;
+}
 
 const NOTIFY_HEADER = 'method call time=1234567890.123 sender=:1.1 -> destination=org.freedesktop.Notifications serial=1 path=/org/freedesktop/Notifications; interface=org.freedesktop.Notifications; member=Notify';
 
@@ -121,5 +135,32 @@ describe('parseDbusMonitorLine', () => {
     ]);
     expect(results[0]?.appName).toBe('My Application');
     expect(results[0]?.summary).toBe('New message from Alice Smith');
+  });
+});
+
+describe('watchDesktopNotifications respawn (L24)', () => {
+  beforeEach(() => { vi.useFakeTimers(); mockSpawn.mockReset(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('stops respawning after an ENOENT spawn error (binary missing)', () => {
+    mockSpawn.mockReturnValue(makeDbusProc() as unknown as ReturnType<typeof spawn>);
+    const stop = watchDesktopNotifications(() => {}, { bin: 'dbus-monitor' });
+    expect(mockSpawn).toHaveBeenCalledTimes(1);
+    const proc = mockSpawn.mock.results[0]!.value as ChildProcess;
+    proc.emit('error', Object.assign(new Error('spawn ENOENT'), { code: 'ENOENT' }));
+    vi.advanceTimersByTime(60_000);
+    expect(mockSpawn).toHaveBeenCalledTimes(1); // never respawned
+    stop();
+  });
+
+  it('respawns after a normal close (transient failure)', () => {
+    mockSpawn.mockImplementation(() => makeDbusProc() as unknown as ReturnType<typeof spawn>);
+    const stop = watchDesktopNotifications(() => {}, { bin: 'dbus-monitor' });
+    expect(mockSpawn).toHaveBeenCalledTimes(1);
+    const proc = mockSpawn.mock.results[0]!.value as ChildProcess;
+    proc.emit('close');
+    vi.advanceTimersByTime(3000);
+    expect(mockSpawn).toHaveBeenCalledTimes(2); // respawned
+    stop();
   });
 });

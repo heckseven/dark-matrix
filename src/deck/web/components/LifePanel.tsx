@@ -8,6 +8,7 @@ import { LibraryPickerModal, type LibraryEntry } from './LibraryPickerModal.js';
 import { ThreePanelLayout } from './ThreePanelLayout.js';
 import type { BiomePreset } from '../types/life-types.js';
 import type { DmxProject } from '../../format.js';
+import { createReconnectingSocket } from '../reconnect.js';
 
 function fitAssetFrame(firstFrame: string, srcWidth: 9 | 18, dstCols: 9 | 18): string {
   let bin: string;
@@ -93,37 +94,39 @@ export function LifePanel({ topPad = 0, bottomPad = 0, dualModule = false, onCur
   // ── WS lifecycle ──────────────────────────────────────────────────────
 
   useEffect(() => {
-    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
-    wsRef.current = ws;
-
-    ws.addEventListener('open', () => {
-      ws.send(JSON.stringify({ type: 'life-mode-stop' }));
-      ws.send(JSON.stringify({ type: 'biome-presets-get' }));
-    });
-
-    ws.addEventListener('message', (e: MessageEvent<string>) => {
-      try {
-        const msg = JSON.parse(e.data) as { type: string; presets?: BiomePreset[] };
-        if (msg.type === 'biome-presets') {
-          const presets = msg.presets ?? [];
-          deckStore.getState().loadBiomes(presets);
-          if (!deckStore.getState().selectedBiomeName && presets.length > 0) {
-            deckStore.getState().selectBiome(presets[0]!.name);
+    const managed = createReconnectingSocket({
+      url: `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`,
+      onSocket: (ws) => { wsRef.current = ws; },
+      onOpen: (ws) => {
+        ws.send(JSON.stringify({ type: 'life-mode-stop' }));
+        ws.send(JSON.stringify({ type: 'biome-presets-get' }));
+      },
+      onMessage: (e) => {
+        try {
+          const msg = JSON.parse((e as MessageEvent<string>).data) as { type: string; presets?: BiomePreset[] };
+          if (msg.type === 'biome-presets') {
+            const presets = msg.presets ?? [];
+            deckStore.getState().loadBiomes(presets);
+            if (!deckStore.getState().selectedBiomeName && presets.length > 0) {
+              deckStore.getState().selectBiome(presets[0]!.name);
+            }
           }
-        }
-      } catch { /* ignore */ }
+        } catch { /* ignore */ }
+      },
     });
 
     return () => {
-      if (ws.readyState === WebSocket.OPEN) {
+      managed.dispose((ws) => {
         if (saveTimer.current) {
           clearTimeout(saveTimer.current);
           saveTimer.current = null;
           ws.send(JSON.stringify({ type: 'biome-preset-save', presets: deckStore.getState().biomePresets }));
         }
         ws.send(JSON.stringify({ type: 'preview-stop' }));
-      }
-      ws.close();
+      });
+      // Cancel a dangling save-debounce if we unmount during a reconnect gap
+      // (beforeClose, which flushes it, only runs on an OPEN socket).
+      if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; }
       wsRef.current = null;
       deckStore.getState().setLifePlaying(false);
     };
