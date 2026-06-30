@@ -12,7 +12,7 @@ import sharp from 'sharp';
 import { parseProject, frameToBase64 } from './format.js';
 import type { DmxProject } from './format.js';
 import type { AssetMeta } from '../lib/asset-meta.js';
-import { convertGifToDmx, applyPixelValue } from '../lib/image-convert.js';
+import { convertGifToDmx, applyPixelValue, IMAGE_INPUT_PIXEL_LIMIT } from '../lib/image-convert.js';
 import { sendToDaemon, PersistentDaemonClient, daemonSocketPath } from '../lib/daemon-client.js';
 import { loadConfig, ConfigSchema, writeJsonAtomic } from '../lib/config.js';
 import { safeBuiltinPath } from '../lib/builtins.js';
@@ -297,7 +297,7 @@ async function handleImport(req: http.IncomingMessage, res: http.ServerResponse)
     if (mimeType === 'application/json') {
       project = parseProject(file.data.toString('utf8'));
     } else if (mimeType === 'image/png') {
-      const raw = await sharp(file.data)
+      const raw = await sharp(file.data, { limitInputPixels: IMAGE_INPUT_PIXEL_LIMIT })
         .resize(9, 34, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 1 } })
         .grayscale()
         .raw()
@@ -497,7 +497,7 @@ async function convertSourceToProject(
   }
 
   // PNG/JPEG: single frame
-  const raw = await sharp(sourceBuf)
+  const raw = await sharp(sourceBuf, { limitInputPixels: IMAGE_INPUT_PIXEL_LIMIT })
     .resize(width, 34, { fit, background: { r: 0, g: 0, b: 0 } })
     .grayscale()
     .modulate({ brightness: 1 + brightness })

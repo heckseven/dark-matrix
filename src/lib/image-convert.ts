@@ -31,7 +31,7 @@ export async function convertImage(imagePath: string, opts?: ConvertOptions): Pr
   const fit = opts?.fit ?? 'contain';
   const sharpFit = fit === 'fill' ? 'fill' : fit === 'cover' ? 'cover' : 'contain';
 
-  const raw = await sharp(resolved)
+  const raw = await sharp(resolved, { limitInputPixels: IMAGE_INPUT_PIXEL_LIMIT })
     .resize(9, 34, {
       fit: sharpFit,
       background: { r: 0, g: 0, b: 0, alpha: 1 },
@@ -51,10 +51,11 @@ export async function convertImage(imagePath: string, opts?: ConvertOptions): Pr
 }
 
 const GIF_MAX_FRAMES = 240;
-// Bound decode work on a crafted input: cap input pixels and only decode as many
-// pages as we'll actually keep, so a multi-thousand-frame or huge-canvas GIF
-// can't drive sharp into an OOM before the frame cap is applied (M19).
-const GIF_INPUT_PIXEL_LIMIT = 100_000_000;
+// Bound decode work on a crafted input: cap input pixels (and, for GIF, only
+// decode as many pages as we keep) so a huge-canvas or multi-thousand-frame
+// image can't drive sharp into an OOM before our own caps apply (M19). Exported
+// so every untrusted-input decode in the deck server shares the same ceiling.
+export const IMAGE_INPUT_PIXEL_LIMIT = 100_000_000;
 
 export function applyPixelValue(v: number, mode: 'bw' | 'gray', invert: boolean): number {
   if (mode === 'bw') return (v >= 128) !== invert ? 255 : 0;
@@ -72,14 +73,14 @@ export async function convertGifToDmx(buf: Buffer, opts: {
   const { width, mode, fit, brightness, contrast, invert = false } = opts;
   const FRAME_H = 34;
 
-  const meta = await sharp(buf, { animated: true, limitInputPixels: GIF_INPUT_PIXEL_LIMIT }).metadata();
+  const meta = await sharp(buf, { animated: true, limitInputPixels: IMAGE_INPUT_PIXEL_LIMIT }).metadata();
   const totalPages = meta.pages ?? 1;
   const pages = Math.min(totalPages, GIF_MAX_FRAMES);
   const delays: number[] = (meta.delay ?? Array.from({ length: totalPages }, () => 100)).slice(0, pages);
 
   // `pages` caps how many frames sharp actually decodes — without it the buffer
   // below would hold every frame of the source before we slice off the cap.
-  const stacked = await sharp(buf, { animated: true, pages, limitInputPixels: GIF_INPUT_PIXEL_LIMIT })
+  const stacked = await sharp(buf, { animated: true, pages, limitInputPixels: IMAGE_INPUT_PIXEL_LIMIT })
     .resize(width, FRAME_H, { fit, background: { r: 0, g: 0, b: 0 } })
     .grayscale()
     .modulate({ brightness: 1 + brightness })
