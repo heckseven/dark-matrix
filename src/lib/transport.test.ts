@@ -291,6 +291,19 @@ describe('SerialTransport lifecycle', () => {
     expect(() => _mockPort.emit('error', errWithCode('EIO'))).not.toThrow();
   });
 
+  it('L27: a write rejects instead of hanging when the port emits an out-of-band error', async () => {
+    const { _mockPort } = lifecycleMocks();
+    // Simulate the binding emitting 'error' instead of failing the write
+    // callback — the callback is never invoked, so without the once('error')
+    // guard in writePort the returned promise would never settle.
+    _mockPort.write.mockImplementationOnce(() => { /* no callback — would hang */ });
+    const t = new BinaryTransport('/usr/bin/ipc');
+    const p = t.frameBw(makePacked(0x01), VALID_PATH);
+    await new Promise<void>(r => setImmediate(r)); // let openPort resolve + write issue
+    _mockPort.emit('error', errWithCode('EIO'));
+    await expect(p).rejects.toThrow();
+  });
+
   it('C1/H8: a port error evicts the port so the next write re-opens it', async () => {
     const { SerialPort, _mockPort } = lifecycleMocks();
     const t = new SerialTransport();

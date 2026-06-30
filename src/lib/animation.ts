@@ -13,6 +13,10 @@ export type RunOptions = {
   devicePath: string;
   mode?: AnimationMode;
   fps?: number;
+  // Stop the loop after this many consecutive frame-write failures so a
+  // permanently-failing device stops issuing doomed writes (L26). A genuine
+  // reconnect drives a fresh runAnimation via the daemon's pollModules.
+  maxConsecutiveFailures?: number;
 };
 
 // Advance a wall-clock frame anchor by one frame, but resync to now if we've
@@ -33,7 +37,7 @@ export function nextFrameAnchor(nextAt: number, frameMs: number): number {
 // (callers needing to write a final frame can await it). It is also usable as a
 // plain `() => void` when the awaitable isn't needed.
 export function runAnimation(anim: Animation, opts: RunOptions, onNaturalComplete?: () => void): () => Promise<void> {
-  const { transport, devicePath, mode = 'bw', fps = 30 } = opts;
+  const { transport, devicePath, mode = 'bw', fps = 30, maxConsecutiveFailures = 600 } = opts;
   const frameMs = 1000 / fps;
   let stopped = false;
 
@@ -42,6 +46,7 @@ export function runAnimation(anim: Animation, opts: RunOptions, onNaturalComplet
   const loop = async () => {
     let nextAt = Date.now();
     let natural = false;
+    let consecutiveFailures = 0;
 
     while (!stopped) {
       const result = await iter.next();
@@ -56,8 +61,17 @@ export function runAnimation(anim: Animation, opts: RunOptions, onNaturalComplet
         } else {
           await transport.frameGray(frame, devicePath);
         }
+        consecutiveFailures = 0;
       } catch {
-        // transport errors are non-fatal — keep the loop alive
+        // Transport errors are non-fatal — keep the loop alive across transient
+        // hiccups. But once a device fails for a sustained, unbroken stretch,
+        // stop issuing doomed writes and let pollModules drive reconnect (L26).
+        if (++consecutiveFailures >= maxConsecutiveFailures) {
+          process.stderr.write(
+            `dark-matrix: runAnimation on ${devicePath} giving up after ${consecutiveFailures} consecutive write failures\n`,
+          );
+          break;
+        }
       }
 
       nextAt = nextFrameAnchor(nextAt, frameMs);

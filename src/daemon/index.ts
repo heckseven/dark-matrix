@@ -203,7 +203,21 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   }
 
   async function pollModules() {
-    for (const dev of getModulePaths()) {
+    const current = new Set(getModulePaths());
+    // Prune state for devices removed from config at runtime (a reload that
+    // changes module paths): stop their reconnect greeting loop, drop their
+    // hot-plug bookkeeping, and release the stale port (L28).
+    const tracked = new Set([...deviceAvailable.keys(), ...devicePending.keys(), ...reconnectGreeting.keys()]);
+    for (const dev of tracked) {
+      if (current.has(dev)) continue;
+      void reconnectGreeting.get(dev)?.();
+      reconnectGreeting.delete(dev);
+      deviceAvailable.delete(dev);
+      devicePending.delete(dev);
+      await transport.release(dev);
+    }
+
+    for (const dev of current) {
       let available = false;
       try { await fs.access(dev); available = true; } catch { /* unavailable */ }
 

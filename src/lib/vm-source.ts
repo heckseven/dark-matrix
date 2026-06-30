@@ -10,9 +10,12 @@ function spawnOutput(cmd: string, args: string[]): Promise<{ stdout: string; cod
   return new Promise((resolve) => {
     const proc = spawn(cmd, args, { shell: false });
     let stdout = '';
-    proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
-    proc.on('close', (code) => resolve({ stdout, code: code ?? 1 }));
+    // Attach error handlers before touching stdio: on a spawn failure stdout may
+    // be null, and an unhandled stream 'error' (e.g. EPIPE) would be fatal (M20).
     proc.on('error', () => resolve({ stdout: '', code: 1 }));
+    proc.stdout?.on('error', () => { /* pipe error on spawn failure — close settles */ });
+    proc.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
+    proc.on('close', (code) => resolve({ stdout, code: code ?? 1 }));
   });
 }
 

@@ -10,6 +10,7 @@ import { MatrixItem } from './MatrixItem.js';
 import { Button } from './ui/button.js';
 import { VisualizerAudioControls } from './VisualizerAudioControls.js';
 import { PLACEHOLDER, frameToB64, mirrorFrame } from './audio-viz-frames.js';
+import { createReconnectingSocket } from '../reconnect.js';
 import { AudioVizGrid } from './AudioVizGrid.js';
 
 /**
@@ -105,43 +106,44 @@ export function CastVisualizerPanel({ open, onOpenChange, dualModule, hasMic, ga
     }, 200);
   }, []);
 
-  // One WebSocket for the whole cast session — persists across picker open/close.
+  // One self-healing WebSocket for the whole cast session — persists across
+  // picker open/close and reconnects with backoff after a server restart (M17).
   useEffect(() => {
-    const ws = new WebSocket(`ws://${location.host}/ws`);
-    wsRef.current = ws;
-    ws.onopen = () => apply();
-    ws.onmessage = (e) => {
-      try {
-        if (typeof e.data !== 'string') return;
-        const msg = JSON.parse(e.data) as { type: string; bands?: number[]; fftSize?: number; gain?: number; fullBands?: number[] };
-        if (msg.type === 'audio-bands' && Array.isArray(msg.bands)) {
-          const fftSize = typeof msg.fftSize === 'number' ? msg.fftSize : 2048;
-          const gain = typeof msg.gain === 'number' ? msg.gain : 1.0;
-          // Feed the background visualizer — it runs regardless of picker state.
-          fftSizeRef.current = fftSize;
-          gainRef.current = gain;
-          if (Array.isArray(msg.fullBands)) fullBandsRef.current = msg.fullBands;
-          // Only render the picker grid previews while the picker is visible.
-          if (openRef.current) {
-            const ctx: RenderCtx = { bands: msg.bands, fftSize, gain: gain * gainMultiplierRef.current };
-            const renderers = renderersRef.current!;
-            const next: Partial<Record<AudioStyle, string>> = {};
-            for (const { id } of AUDIO_STYLES) {
-              const fn = renderers[id as AudioStyle];
-              if (fn) next[id as AudioStyle] = frameToB64(fn(ctx));
+    const managed = createReconnectingSocket({
+      url: `ws://${location.host}/ws`,
+      onSocket: (ws) => { wsRef.current = ws; },
+      onOpen: () => apply(),
+      onMessage: (e) => {
+        try {
+          const data = (e as MessageEvent).data;
+          if (typeof data !== 'string') return;
+          const msg = JSON.parse(data) as { type: string; bands?: number[]; fftSize?: number; gain?: number; fullBands?: number[] };
+          if (msg.type === 'audio-bands' && Array.isArray(msg.bands)) {
+            const fftSize = typeof msg.fftSize === 'number' ? msg.fftSize : 2048;
+            const gain = typeof msg.gain === 'number' ? msg.gain : 1.0;
+            // Feed the background visualizer — it runs regardless of picker state.
+            fftSizeRef.current = fftSize;
+            gainRef.current = gain;
+            if (Array.isArray(msg.fullBands)) fullBandsRef.current = msg.fullBands;
+            // Only render the picker grid previews while the picker is visible.
+            if (openRef.current) {
+              const ctx: RenderCtx = { bands: msg.bands, fftSize, gain: gain * gainMultiplierRef.current };
+              const renderers = renderersRef.current!;
+              const next: Partial<Record<AudioStyle, string>> = {};
+              for (const { id } of AUDIO_STYLES) {
+                const fn = renderers[id as AudioStyle];
+                if (fn) next[id as AudioStyle] = frameToB64(fn(ctx));
+              }
+              setLivePixels(next);
             }
-            setLivePixels(next);
           }
-        }
-      } catch { /* ignore */ }
-    };
+        } catch { /* ignore */ }
+      },
+    });
     return () => {
-      const w = wsRef.current;
-      wsRef.current = null;
       if (setbandsDebounceRef.current) { clearTimeout(setbandsDebounceRef.current); setbandsDebounceRef.current = null; }
-      if (w) { w.onmessage = null; w.onopen = null; }
-      if (w && w.readyState === WebSocket.OPEN) w.send(JSON.stringify({ type: 'audio-viz-stop' }));
-      w?.close();
+      managed.dispose((w) => w.send(JSON.stringify({ type: 'audio-viz-stop' })));
+      wsRef.current = null;
     };
   }, [apply]);
 

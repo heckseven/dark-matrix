@@ -32,6 +32,19 @@ describe('listRunningVms', () => {
     mockSpawn.mockImplementationOnce(() => makeProc('', 1));
     expect(await listRunningVms()).toEqual([]);
   });
+
+  it('does not crash when the spawned child has no stdout (M20)', async () => {
+    mockSpawn.mockImplementationOnce(() => {
+      const proc = new EventEmitter() as ChildProcess;
+      // Spawn failure: stdio is null. Touching proc.stdout.on without a guard
+      // would throw synchronously inside the Promise executor.
+      (proc as unknown as Record<string, unknown>)['stdout'] = null;
+      (proc as unknown as Record<string, unknown>)['stderr'] = null;
+      setTimeout(() => proc.emit('error', new Error('spawn ENOENT')), 0);
+      return proc;
+    });
+    await expect(listRunningVms()).resolves.toEqual([]);
+  });
 });
 
 describe('watchVms', () => {
