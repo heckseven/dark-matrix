@@ -48,13 +48,14 @@ const HudTriggerSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('vm'), name: z.string(), state: z.enum(['running', 'stopped']).optional() }),
   z.object({ type: z.literal('day'), days: z.array(z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])) }),
   z.object({ type: z.literal('date'), month: z.number().int().min(1).max(12), day: z.number().int().min(1).max(31) }),
+  z.object({ type: z.literal('process'), glob: z.string() }),
 ]);
 
 // Known trigger discriminants. A preset on disk may still reference a removed
 // trigger type — idle/active were dropped when the HUD became the unconditional
 // resting state — so such entries are filtered out on load rather than failing
 // the whole config (healed in memory only; the file on disk is left untouched).
-const KNOWN_TRIGGER_TYPES = new Set(['time', 'threshold', 'interface', 'vm', 'day', 'date']);
+const KNOWN_TRIGGER_TYPES = new Set(['time', 'threshold', 'interface', 'vm', 'day', 'date', 'process']);
 
 const HudPresetSchema = z.object({
   name: z.string().min(1),

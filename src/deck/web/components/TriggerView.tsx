@@ -11,7 +11,7 @@ import { Dialog, DialogClose, DialogContent, DialogTitle } from './ui/dialog.js'
 
 // ── constants ──────────────────────────────────────────────────────────────
 
-const TRIGGER_TYPES = ['time', 'day', 'date', 'threshold', 'interface', 'vm'] as const;
+const TRIGGER_TYPES = ['time', 'day', 'date', 'threshold', 'interface', 'vm', 'process'] as const;
 type TriggerType = typeof TRIGGER_TYPES[number];
 
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
@@ -33,6 +33,7 @@ const TRIGGER_DESCRIPTIONS: Record<TriggerType, string> = {
   threshold: 'Active when a system metric (CPU, RAM, network) crosses a numeric boundary.',
   interface: 'Active when a named network interface is in a specific state (up or down).',
   vm:        'Active when a named virtual machine is in a specific state (running or stopped).',
+  process:   'Active when a running process’s full command line matches this glob. * matches anything — e.g. *terminal* (matches the whole command line, so it works for apps launched via java/electron too).',
 };
 
 const FIELD_WIDTH = 'w-24';
@@ -45,6 +46,7 @@ function defaultTrigger(type: TriggerType): HudTrigger {
     case 'threshold': return { type: 'threshold', metric: 'cpu' };
     case 'interface': return { type: 'interface', name: '', state: 'up' };
     case 'vm':        return { type: 'vm', name: '' };
+    case 'process':   return { type: 'process', glob: '' };
   }
 }
 
@@ -70,6 +72,8 @@ function triggerLabel(t: HudTrigger): string {
       return `${t.name || '?'} ${t.state}`;
     case 'vm':
       return t.state ? `${t.name || '?'} ${t.state}` : `${t.name || '?'} any`;
+    case 'process':
+      return t.glob || '?';
   }
 }
 
@@ -378,6 +382,20 @@ function TriggerDialog({ open, onOpenChange, initial, onDone, triggerRef }: {
                 />
               </FormRow>
             </>
+          )}
+
+          {/* process */}
+          {draft.type === 'process' && (
+            <FormRow label="match">
+              <Input
+                fluid
+                type="text"
+                aria-label="Process command-line glob"
+                placeholder="*terminal*"
+                value={draft.glob}
+                onChange={e => setDraft({ ...draft, glob: e.target.value })}
+              />
+            </FormRow>
           )}
         </div>
 

@@ -2,17 +2,29 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import type { HudPreset } from './config.js';
 import type { ProcStats } from './proc-source.js';
+import { matchesGlob } from './notification-routing.js';
 
 type TriggerEngineOpts = {
   presets: HudPreset[];
   onActivate: (name: string) => void;
+  // Preset to fall back to when no trigger matches. When set (and it names a
+  // real preset), the engine reverts to it instead of leaving the last-matched
+  // preset stuck. Undefined preserves the legacy sticky behaviour.
+  defaultPreset?: string;
 };
+
+// Consecutive process-poll ticks a matched process may be absent before its
+// trigger is considered no-longer-matching. Activation is immediate; only
+// disappearance is debounced, so a brief app restart doesn't flip the HUD.
+const PROCESS_MISS_LIMIT = 3;
 
 type Stats = Pick<ProcStats, 'cpuPct' | 'ramPct' | 'netRxBps' | 'netTxBps' | 'batteryPct'>;
 
 type TriggerEngine = {
   updatePresets(presets: HudPreset[]): void;
   updateStats(stats: Stats): void;
+  updateProcesses(cmdlines: string[]): void;
+  updateDefaultPreset(name: string | undefined): void;
   stop(): void;
 };
 
@@ -27,11 +39,12 @@ const METRIC_MAP: Record<string, keyof Stats> = {
 
 export function createPresetTriggerEngine(opts: TriggerEngineOpts): TriggerEngine {
   let presets = opts.presets;
+  let defaultPreset = opts.defaultPreset;
 
   // Latest stats
   let latestStats: Stats | null = null;
 
-  // Threshold hysteresis: map of "<presetIdx>:<triggerIdx>" -> consecutive matching ticks
+  // Threshold hysteresis: map of "<presetName>:<triggerIdx>" -> consecutive matching ticks
   const thresholdCounters = new Map<string, number>();
 
   // Interface state: name -> 'up' | 'down'
@@ -39,6 +52,13 @@ export function createPresetTriggerEngine(opts: TriggerEngineOpts): TriggerEngin
 
   // VM state: name -> 'running' | 'stopped'
   const vmState = new Map<string, 'running' | 'stopped'>();
+
+  // Process-trigger debounced state, keyed "<presetName>:<triggerIdx>":
+  //   sticky — the current (debounced) match state read by evaluate()
+  //   miss   — consecutive absent poll ticks while still sticky
+  // Bookkeeping advances only in updateProcesses (once per poll), so evaluate()
+  // calls driven by other watchers never accelerate the disappearance debounce.
+  const processState = new Map<string, { sticky: boolean; miss: number }>();
 
   // Last activated preset name
   let lastActivated: string | null = null;
@@ -114,6 +134,8 @@ export function createPresetTriggerEngine(opts: TriggerEngineOpts): TriggerEngin
         } else if (trigger.type === 'date') {
           const now = new Date();
           triggerMatch = now.getMonth() + 1 === trigger.month && now.getDate() === trigger.day;
+        } else if (trigger.type === 'process') {
+          triggerMatch = processState.get(`${preset.name}:${ti}`)?.sticky ?? false;
         }
 
         if (triggerMatch) {
@@ -133,12 +155,54 @@ export function createPresetTriggerEngine(opts: TriggerEngineOpts): TriggerEngin
         return;
       }
     }
-    // No preset matched — don't reset lastActivated, no switch
+
+    // No preset matched. When a default preset is configured, revert to it so a
+    // trigger that stops matching (e.g. the watched app closed) doesn't leave
+    // its preset stuck. Without a default, preserve the legacy sticky behaviour.
+    if (defaultPreset && defaultPreset !== lastActivated && presets.some(p => p.name === defaultPreset)) {
+      lastActivated = defaultPreset;
+      opts.onActivate(defaultPreset);
+    }
   }
 
-  // Reset hysteresis counters when presets change
-  function resetThresholdCounters(): void {
-    thresholdCounters.clear();
+  // Drop debounced trigger state whose key no longer exists after a preset
+  // change, but PRESERVE state for triggers whose (preset name, index) are
+  // unchanged. Clearing everything would make evaluate() momentarily see all
+  // process/threshold triggers as non-matching; now that a no-match reverts to
+  // the default preset, that would flip the HUD to the default and back on
+  // every unrelated config save (updatePresets runs on every reload).
+  function pruneDebounceState(): void {
+    const valid = new Set<string>();
+    for (const preset of presets) {
+      const triggers = preset.triggers;
+      if (!triggers) continue;
+      for (let ti = 0; ti < triggers.length; ti++) valid.add(`${preset.name}:${ti}`);
+    }
+    for (const key of [...thresholdCounters.keys()]) if (!valid.has(key)) thresholdCounters.delete(key);
+    for (const key of [...processState.keys()]) if (!valid.has(key)) processState.delete(key);
+  }
+
+  // Advance the disappearance debounce for every process trigger against the
+  // latest /proc sample. Activation is immediate; a matched process must be
+  // absent for PROCESS_MISS_LIMIT consecutive samples before it flips off.
+  function updateProcessState(cmdlines: string[]): void {
+    for (const preset of presets) {
+      const triggers = preset.triggers;
+      if (!triggers) continue;
+      for (let ti = 0; ti < triggers.length; ti++) {
+        const trigger = triggers[ti]!;
+        if (trigger.type !== 'process') continue;
+        const key = `${preset.name}:${ti}`;
+        const raw = cmdlines.some(c => matchesGlob(trigger.glob, c));
+        const prev = processState.get(key);
+        if (raw) {
+          processState.set(key, { sticky: true, miss: 0 });
+        } else if (prev?.sticky) {
+          const miss = prev.miss + 1;
+          processState.set(key, miss >= PROCESS_MISS_LIMIT ? { sticky: false, miss: 0 } : { sticky: true, miss });
+        }
+      }
+    }
   }
 
   // --- Interface polling (2s interval) ---
@@ -246,12 +310,22 @@ export function createPresetTriggerEngine(opts: TriggerEngineOpts): TriggerEngin
   return {
     updatePresets(newPresets: HudPreset[]): void {
       presets = newPresets;
-      resetThresholdCounters();
+      pruneDebounceState();
       evaluate();
     },
 
     updateStats(stats: Stats): void {
       latestStats = stats;
+      evaluate();
+    },
+
+    updateProcesses(cmdlines: string[]): void {
+      updateProcessState(cmdlines);
+      evaluate();
+    },
+
+    updateDefaultPreset(name: string | undefined): void {
+      defaultPreset = name;
       evaluate();
     },
 
