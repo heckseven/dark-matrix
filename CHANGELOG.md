@@ -13,6 +13,26 @@ Entries are generated from the commit log at release time via the `/release` ski
 
 _Nothing yet._
 
+## [0.1.4] - 2026-06-30
+
+### Added
+
+- **Process-running trigger for HUD presets:** activate a preset automatically when
+  a running process's full command-line matches a user-supplied glob (e.g.
+  `*tor*`). When the matched process exits, the HUD reverts to the default preset
+  (the one marked "Default preset" in the deck). Activation is immediate; reversion
+  is debounced (~6s) so a brief app restart doesn't flicker the display. Configured
+  in the trigger editor as a new "process" trigger type with a command-line glob
+  field.
+
+### Fixed
+
+- Automatic preset switches now defer while you're actively interacting with the
+  display — a live design preview, the HUD hardware editor, a GIF/scroll takeover,
+  or a playing notification — and apply once the display returns to the resting
+  HUD. This also eliminates a latent case where the existing time/threshold/VM
+  triggers could interrupt those interactions.
+
 ## [0.1.3] - 2026-06-29
 
 ### Fixed
