@@ -40,6 +40,7 @@ import type { ProcStats } from '../lib/proc-source.js';
 import { createFanout } from '../lib/fanout.js';
 import { nextAudioBackoff } from '../lib/backoff.js';
 import { createPresetTriggerEngine } from '../lib/preset-triggers.js';
+import { createProcessWatcher } from '../lib/process-watcher.js';
 import { createGifAnimation } from '../animations/gif.js';
 import type { GifAnimation } from '../animations/gif.js';
 import type { DisplayIntent, DisplaySource } from '../lib/dispatcher.js';
@@ -134,6 +135,11 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   let hudAudioSource: 'monitor' | 'mic' = 'monitor';
   let frameHeldLeft = false;
   let frameHeldRight = false;
+  // True only while the resting HUD loop owns the modules. Gif/scroll/DMX/GoL
+  // takeovers leave currentAnimName === 'hud', so this is the reliable signal
+  // that nothing has taken the display over. Auto preset triggers use it to
+  // avoid stomping a takeover.
+  let hudLoopActive = false;
   // Shared band listeners: audio-viz sockets subscribe here when HUD loop owns audio
   const hudAudioListeners = new Map<symbol, (ctx: { bands: number[]; fftSize: number; gain: number }) => void>();
   // One shared /proc poll, fanned out to all consumers (trigger engine, battery
@@ -260,6 +266,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   function stopAnim() {
     if (stopCurrentAnim) { stopCurrentAnim(); stopCurrentAnim = null; }
     startupAnimActive = false;
+    hudLoopActive = false;
   }
 
   // The HUD is the unconditional resting state. runHudOnModules() defaults to a
@@ -455,9 +462,21 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     return () => { stopped = true; anim?.stop(); };
   }
 
-  function applyPreset(preset: import('../lib/config.js').HudPreset): void {
+  function applyPreset(preset: import('../lib/config.js').HudPreset, opts?: { auto?: boolean }): void {
     currentConfig = { ...currentConfig, hud: { left: preset.left, right: preset.right } };
-    if (!startupAnimActive && (hudHardwareActive || (currentAnimName === 'hud' && !dispatcher.current()))) {
+    // Automatic activations (trigger engine) must never interrupt something the
+    // user is actively interacting with: the resting HUD loop must own the
+    // display (hudLoopActive — false during a gif/scroll takeover) and there
+    // must be no live preview (frameHeld*), HUD editor (hudHardwareActive) or
+    // playing notification. The config change above still lands, so the preset
+    // applies the moment the display returns to the resting HUD.
+    const canAutoRestartHud = !startupAnimActive && hudLoopActive
+      && !frameHeldLeft && !frameHeldRight && !hudHardwareActive && !dispatcher.current();
+    // Manual (explicit) activation keeps the looser legacy guard so a deliberate
+    // click wins even over an open HUD editor.
+    const canManualRestartHud = !startupAnimActive
+      && (hudHardwareActive || (currentAnimName === 'hud' && !dispatcher.current()));
+    if (opts?.auto ? canAutoRestartHud : canManualRestartHud) {
       stopCurrentAnim?.();
       stopCurrentAnim = runHudOnModules();
     }
@@ -505,6 +524,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
 
   function runHudOnModules(): () => void {
     currentAnimName = 'hud';
+    hudLoopActive = true;
     const { left, right } = currentConfig.modules;
     let stopped = false;
 
@@ -923,7 +943,9 @@ export async function startDaemon(): Promise<() => Promise<void>> {
     let stopped = false;
 
     if (composite === 'replace') {
-      if (stopCurrentAnim) { stopCurrentAnim(); stopCurrentAnim = null; }
+      // Use stopAnim() rather than a raw teardown so hudLoopActive is cleared —
+      // a replace-mode notification takes the display over from the HUD loop.
+      stopAnim();
       stopCurrentAnim = () => { stopped = true; };
     } else {
       stopCurrentOverlay = () => { stopped = true; setActiveOverlay(null); };
@@ -1231,11 +1253,18 @@ export async function startDaemon(): Promise<() => Promise<void>> {
   // Preset trigger engine
   const triggerEngine = createPresetTriggerEngine({
     presets: currentConfig.hud_presets ?? [],
+    ...(currentConfig.active_hud_preset !== undefined ? { defaultPreset: currentConfig.active_hud_preset } : {}),
     onActivate: (name) => {
       const preset = (currentConfig.hud_presets ?? []).find(p => p.name === name);
-      if (preset) applyPreset(preset);
+      if (preset) applyPreset(preset, { auto: true });
     },
   });
+
+  // Poll running processes and feed them to the trigger engine (process triggers).
+  disposeWatches.push(createProcessWatcher({
+    intervalMs: 2000,
+    onSample: (cmdlines) => triggerEngine.updateProcesses(cmdlines),
+  }).stop);
 
   // Feed proc stats into the trigger engine + battery notification monitoring
   const firedBatteryThresholds = new Set<number>();
@@ -1823,6 +1852,7 @@ export async function startDaemon(): Promise<() => Promise<void>> {
       // Preserve in-memory hud — it's driven by hud-config messages and never written to disk.
       currentConfig = { ...cfg, ...(currentConfig.hud ? { hud: currentConfig.hud } : {}) };
       triggerEngine.updatePresets(cfg.hud_presets ?? []);
+      triggerEngine.updateDefaultPreset(cfg.active_hud_preset);
       disposeBrightness();
       disposeBrightness = startBrightnessLoop(currentConfig, async (pct) => {
         currentBrightness = pct;

@@ -18,7 +18,8 @@ export type HudTrigger =
   | { type: 'interface'; name: string; state: 'up' | 'down' }
   | { type: 'vm'; name: string; state?: 'running' | 'stopped' }
   | { type: 'day'; days: Array<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'> }
-  | { type: 'date'; month: number; day: number };
+  | { type: 'date'; month: number; day: number }
+  | { type: 'process'; glob: string };
 
 export type HudPresetClient = {
   name: string;
